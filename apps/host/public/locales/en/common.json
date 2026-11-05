@@ -1903,7 +1903,18 @@
       "window30": "30 d",
       "window90": "90 d",
       "windowAll": "All",
-      "empty": "No photos in this range"
+      "empty": "No photos in this range",
+      "filterTags": "Tags",
+      "allTags": "All",
+      "tag": {
+        "pest": "pest",
+        "disease": "disease",
+        "weed": "weed",
+        "damage": "damage",
+        "crop_status": "crop status",
+        "soil_water": "soil and water",
+        "other": "other"
+      }
     },
     "mapmode": {
       "draw_parcel": "Drawing Parcel",

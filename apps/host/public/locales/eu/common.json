@@ -1896,7 +1896,18 @@
       "window30": "30 egun",
       "window90": "90 egun",
       "windowAll": "Guztiak",
-      "empty": "Ez dago argazkirik tarte honetan"
+      "empty": "Ez dago argazkirik tarte honetan",
+      "filterTags": "Etiketak",
+      "allTags": "Guztiak",
+      "tag": {
+        "pest": "izurria",
+        "disease": "gaixotasuna",
+        "weed": "belar txarra",
+        "damage": "kaltea",
+        "crop_status": "laborearen egoera",
+        "soil_water": "lurra eta ura",
+        "other": "bestelakoa"
+      }
     },
     "mapmode": {
       "draw_parcel": "Lursaila Marrazten",

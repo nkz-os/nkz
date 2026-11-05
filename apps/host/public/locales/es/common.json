@@ -1903,7 +1903,18 @@
       "window30": "30 d",
       "window90": "90 d",
       "windowAll": "Todo",
-      "empty": "No hay fotos en este rango"
+      "empty": "No hay fotos en este rango",
+      "filterTags": "Etiquetas",
+      "allTags": "Todas",
+      "tag": {
+        "pest": "plaga",
+        "disease": "enfermedad",
+        "weed": "mala hierba",
+        "damage": "daño",
+        "crop_status": "estado del cultivo",
+        "soil_water": "suelo y agua",
+        "other": "otro"
+      }
     },
     "mapmode": {
       "draw_parcel": "Dibujando Parcela",

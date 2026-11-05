@@ -20,7 +20,7 @@ from storage_routes import storage_bp
 from module_csp import is_entity_type_allowed, is_timeseries_allowed
 import psycopg2
 from psycopg2.extras import RealDictCursor
-from datetime import datetime
+from datetime import datetime, timezone
 import hmac
 import uuid
 import boto3
@@ -3149,6 +3149,47 @@ def resolve_parcel_for_point(tenant, lng, lat, accuracy):
     return None
 
 
+FIELD_IMAGE_TAGS = (
+    "pest",
+    "disease",
+    "weed",
+    "damage",
+    "crop_status",
+    "soil_water",
+    "other",
+)
+_AGRI_PARCEL_URN_RE = re.compile(r"^urn:ngsi-ld:AgriParcel:[A-Za-z0-9._~:-]+$")
+_UUID4_RE = re.compile(
+    r"^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+)
+_ORION_WRITE_OK = (200, 201, 204)  # 207 (partial) is a failure for a single entity
+
+
+def _normalise_captured_at(raw):
+    """ISO-8601 -> UTC '%Y-%m-%dT%H:%M:%SZ'; naive = UTC. None if unparseable."""
+    try:
+        text = raw.strip()
+        if text.endswith(("Z", "z")):
+            text = text[:-1] + "+00:00"
+        dt = datetime.fromisoformat(text)
+    except (ValueError, AttributeError):
+        return None
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def _s3_object_exists(s3, bucket, key):
+    """True unless MinIO says the key is absent. Unknown errors count as
+    'exists' so a failed Orion write never deletes an object we did not create."""
+    try:
+        s3.head_object(Bucket=bucket, Key=key)
+        return True
+    except Exception as e:  # botocore ClientError carries the code in .response
+        code = str(getattr(e, "response", {}).get("Error", {}).get("Code", ""))
+        return code not in ("404", "NoSuchKey", "NotFound")
+
+
 @app.route("/api/field-images/upload", methods=["POST", "OPTIONS"])
 @cross_origin(origins=_cors_origins, supports_credentials=True)
 def field_image_upload():
@@ -3179,16 +3220,60 @@ def field_image_upload():
     lng = request.form.get("lng", type=float)
     accuracy = request.form.get("accuracy", type=float)
     note = (request.form.get("note") or "")[:200]
-    captured_at = request.form.get("captured_at") or datetime.utcnow().isoformat()
     if lat is None or lng is None:
         return jsonify({"error": "lat and lng are required"}), 400
     if not (-90 <= lat <= 90) or not (-180 <= lng <= 180):
         return jsonify({"error": "lat must be in [-90, 90], lng in [-180, 180]"}), 400
-    MINIO_ENDPOINT = os.getenv("MINIO_ENDPOINT", "minio-service:9000")
-    ts = datetime.utcnow().strftime("%Y%m%dT%H%M%S")
-    uuid_str = str(uuid.uuid4())[:8]
+    raw_captured = request.form.get("captured_at")
+    if raw_captured:
+        captured_at = _normalise_captured_at(raw_captured)
+        if captured_at is None:
+            return jsonify({"error": "invalid_captured_at"}), 400
+    else:
+        captured_at = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    tag = request.form.get("tag") or None
+    if tag is not None and tag not in FIELD_IMAGE_TAGS:
+        return jsonify({"error": "invalid_tag"}), 400
+    client_id = request.form.get("client_id") or None
+    if client_id is not None:
+        client_id = client_id.strip().lower()
+        if not _UUID4_RE.match(client_id):
+            return jsonify({"error": "invalid_client_id"}), 400
+    req_parcel_id = request.form.get("parcel_id") or None
+    if req_parcel_id is not None and not _AGRI_PARCEL_URN_RE.match(req_parcel_id):
+        return jsonify({"error": "invalid_parcel_id"}), 400
+
+    from ngsi_headers import inject_fiware_headers as _canonical_headers
+
+    ORION_LD_URL = os.getenv("ORION_URL", "http://orion-service:1026")
+    read_headers = _canonical_headers({"Accept": "application/json"}, tenant)
+
+    def _orion_get(entity_id):
+        """GET one entity: (status, json|None). Raises on transport errors."""
+        r = requests.get(
+            f"{ORION_LD_URL}/ngsi-ld/v1/entities/{entity_id}",
+            headers=read_headers,
+            timeout=8,
+        )
+        return r.status_code, (r.json() if r.status_code == 200 else None)
+
+    now = datetime.now(timezone.utc)
+    ts = now.strftime("%Y%m%dT%H%M%S")
     ext = "jpg" if filename.lower().endswith((".jpg", ".jpeg")) else "png"
-    minio_key = f"field-images/{tenant}/{ts}_{uuid_str}.{ext}"
+    if client_id:
+        entity_id = f"urn:ngsi-ld:AgriParcelRecord:{tenant}:{client_id}"
+        minio_key = f"field-images/{tenant}/{client_id}.{ext}"
+    else:
+        uuid_str = str(uuid.uuid4())[:8]
+        entity_id = f"urn:ngsi-ld:AgriParcelRecord:photo-{ts}-{uuid_str}"
+        minio_key = f"field-images/{tenant}/{ts}_{uuid_str}.{ext}"
+    # Relative URL: consumers (web viewer, mobile) prepend their own API base
+    # (VITE_API_URL / EXPO_PUBLIC_API_URL), per platform convention. Avoids
+    # hardcoding the production domain in source.
+    image_url = f"/api/field-images/{minio_key}"
+
+    MINIO_ENDPOINT = os.getenv("MINIO_ENDPOINT", "minio-service:9000")
+    bucket = "nekazari-frontend"
     try:
         s3 = boto3.client(
             "s3",
@@ -3198,8 +3283,55 @@ def field_image_upload():
             config=boto3.session.Config(signature_version="s3v4"),
             region_name="us-east-1",
         )
+    except Exception as e:
+        logger.error(f"MinIO client init failed: {e}")
+        return jsonify({"error": "Image storage unavailable"}), 502
+
+    try:
+        # Idempotency: the ENTITY decides, but only if its object is still in
+        # storage (entity without object = a write whose cleanup raced; the
+        # retry must restore the object and re-upsert).
+        if client_id:
+            status, existing = _orion_get(entity_id)
+            if status == 200 and _s3_object_exists(s3, bucket, minio_key):
+                return jsonify(
+                    {
+                        "success": True,
+                        "image_url": (existing.get("imageUrl") or {}).get("value")
+                        or image_url,
+                        "entity_id": entity_id,
+                        "parcel_id": (existing.get("hasAgriParcel") or {}).get(
+                            "object"
+                        ),
+                        "duplicate": True,
+                    }
+                ), 200
+            if status not in (200, 404):
+                logger.error("Orion duplicate check returned %s", status)
+                return jsonify({"error": "record_not_saved"}), 502
+        # An explicit parcel (user-confirmed) wins over point-in-polygon.
+        if req_parcel_id:
+            status, _ = _orion_get(req_parcel_id)
+            if status == 404:
+                return jsonify({"error": "parcel_not_found"}), 404
+            if status != 200:
+                logger.error("Orion parcel check returned %s", status)
+                return jsonify({"error": "record_not_saved"}), 502
+            parcel_id = req_parcel_id
+        else:
+            parcel_id = None
+    except Exception as e:
+        logger.error("Orion pre-check failed: %s", e)
+        return jsonify({"error": "record_not_saved"}), 502
+    if not req_parcel_id:
+        parcel_id = resolve_parcel_for_point(tenant, lng, lat, accuracy)
+
+    existed = False
+    try:
+        if client_id:
+            existed = _s3_object_exists(s3, bucket, minio_key)
         s3.put_object(
-            Bucket="nekazari-frontend",
+            Bucket=bucket,
             Key=minio_key,
             Body=image_file.read(),
             ContentType="image/jpeg" if ext == "jpg" else "image/png",
@@ -3207,58 +3339,82 @@ def field_image_upload():
     except Exception as e:
         logger.error(f"MinIO upload failed: {e}")
         return jsonify({"error": "Image storage unavailable"}), 502
-    # Relative URL: consumers (web viewer, mobile) prepend their own API base
-    # (VITE_API_URL / EXPO_PUBLIC_API_URL), per platform convention. Avoids
-    # hardcoding the production domain in source.
-    image_url = f"/api/field-images/{minio_key}"
-    entity_id = None
-    parcel_id = resolve_parcel_for_point(tenant, lng, lat, accuracy)
-    try:
-        ngsi_entity = {
-            "id": f"urn:ngsi-ld:AgriParcelRecord:photo-{ts}-{uuid_str}",
-            "type": "AgriParcelRecord",
-            "imageUrl": {"type": "Property", "value": image_url},
-            "location": {
-                "type": "GeoProperty",
-                "value": {"type": "Point", "coordinates": [lng, lat]},
-            },
-            "dateObserved": {"type": "Property", "value": captured_at},
-            "belongsTo": {
-                "type": "Relationship",
-                "object": f"urn:ngsi-ld:Tenant:{tenant}",
-            },
-        }
-        if parcel_id:
-            ngsi_entity["hasAgriParcel"] = {"type": "Relationship", "object": parcel_id}
-        if note:
-            ngsi_entity["note"] = {"type": "Property", "value": note}
-        if accuracy is not None:
-            ngsi_entity["accuracy"] = {"type": "Property", "value": accuracy}
-        ctx_url = os.getenv(
-            "CONTEXT_URL", "http://api-gateway-service:5000/ngsi-ld-context.json"
-        )
-        ORION_LD_URL = os.getenv("ORION_URL", "http://orion-service:1026")
-        ngsi_entity["@context"] = [ctx_url]
-        # Use the canonical header builder with has_context_in_body=True. The
-        # request-aware gateway wrapper would mis-detect this multipart upload
-        # request as non-JSON and force Content-Type application/json + Link,
-        # which combined with the body @context makes Orion-LD reject the
-        # entity (400) — silently dropping the observation.
-        from ngsi_headers import inject_fiware_headers as _canonical_headers
 
-        ngsi_headers = _canonical_headers({}, tenant=tenant, has_context_in_body=True)
-        ngsi_resp = requests.post(
-            f"{ORION_LD_URL}/ngsi-ld/v1/entities",
-            json=ngsi_entity,
-            headers=ngsi_headers,
-            timeout=10,
-        )
-        if ngsi_resp.status_code in (200, 201):
-            entity_id = ngsi_entity["id"]
+    ngsi_entity = {
+        "id": entity_id,
+        "type": "AgriParcelRecord",
+        "imageUrl": {"type": "Property", "value": image_url},
+        "location": {
+            "type": "GeoProperty",
+            "value": {"type": "Point", "coordinates": [lng, lat]},
+        },
+        "dateObserved": {"type": "Property", "value": captured_at},
+        "belongsTo": {
+            "type": "Relationship",
+            "object": f"urn:ngsi-ld:Tenant:{tenant}",
+        },
+    }
+    if parcel_id:
+        ngsi_entity["hasAgriParcel"] = {"type": "Relationship", "object": parcel_id}
+    if note:
+        ngsi_entity["note"] = {"type": "Property", "value": note}
+    if accuracy is not None:
+        ngsi_entity["accuracy"] = {"type": "Property", "value": accuracy}
+    if tag:
+        ngsi_entity["category"] = {"type": "Property", "value": tag}
+    ctx_url = os.getenv(
+        "CONTEXT_URL", "http://api-gateway-service:5000/ngsi-ld-context.json"
+    )
+    ngsi_entity["@context"] = [ctx_url]
+    # Use the canonical header builder with has_context_in_body=True. The
+    # request-aware gateway wrapper would mis-detect this multipart upload
+    # request as non-JSON and force Content-Type application/json + Link,
+    # which combined with the body @context makes Orion-LD reject the entity.
+    ngsi_headers = _canonical_headers({}, tenant=tenant, has_context_in_body=True)
+    saved = False
+    write_outcome_unknown = False
+    try:
+        if client_id:
+            ngsi_resp = requests.post(
+                f"{ORION_LD_URL}/ngsi-ld/v1/entityOperations/upsert?options=update",
+                json=[ngsi_entity],
+                headers=ngsi_headers,
+                timeout=10,
+            )
+        else:
+            ngsi_resp = requests.post(
+                f"{ORION_LD_URL}/ngsi-ld/v1/entities",
+                json=ngsi_entity,
+                headers=ngsi_headers,
+                timeout=10,
+            )
+        saved = ngsi_resp.status_code in _ORION_WRITE_OK
+        if not saved:
+            logger.error(
+                "Orion rejected field image record: %s %s",
+                ngsi_resp.status_code,
+                (ngsi_resp.text or "")[:200],
+            )
     except Exception as e:
-        logger.warning("NGSI-LD observation creation failed (non-fatal): %s", e)
+        # Timeout/transport error: Orion may have committed. Keep the object,
+        # a retry finds the entity and (if needed) restores the object.
+        write_outcome_unknown = True
+        logger.error("NGSI-LD observation creation failed: %s", e)
+    if not saved:
+        if not existed and not write_outcome_unknown:
+            try:
+                s3.delete_object(Bucket=bucket, Key=minio_key)
+            except Exception as e:
+                logger.warning("Orphan image cleanup failed: %s", e)
+        return jsonify({"error": "record_not_saved"}), 502
     return jsonify(
-        {"success": True, "image_url": image_url, "entity_id": entity_id}
+        {
+            "success": True,
+            "image_url": image_url,
+            "entity_id": entity_id,
+            "parcel_id": parcel_id,
+            "duplicate": False,
+        }
     ), 200
 
 

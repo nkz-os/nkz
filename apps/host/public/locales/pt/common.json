@@ -1919,7 +1919,18 @@
       "window30": "30 d",
       "window90": "90 d",
       "windowAll": "Tudo",
-      "empty": "Não há fotos neste intervalo"
+      "empty": "Não há fotos neste intervalo",
+      "filterTags": "Etiquetas",
+      "allTags": "Todas",
+      "tag": {
+        "pest": "praga",
+        "disease": "doença",
+        "weed": "erva daninha",
+        "damage": "dano",
+        "crop_status": "estado da cultura",
+        "soil_water": "solo e água",
+        "other": "outro"
+      }
     },
     "mapmode": {
       "draw_parcel": "A desenhar Parcela",

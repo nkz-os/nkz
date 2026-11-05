@@ -6,6 +6,7 @@
 
 import React, { createContext, useContext, useState, useCallback, ReactNode, useMemo, useEffect } from 'react';
 import { logger } from '@/utils/logger';
+import type { PhotoTag } from '@/utils/fieldPhotos';
 
 // Types for viewer state
 export type LayerType =
@@ -82,6 +83,8 @@ export interface ViewerState {
     currentDate: Date;
     isTimelinePlaying: boolean;
     photoWindowDays: number | null;
+    photoTags: Set<PhotoTag> | null;
+    setPhotoTags: (tags: Set<PhotoTag> | null) => void;
 
     // Layer visibility
     activeLayers: Set<LayerType>;
@@ -215,6 +218,7 @@ export const ViewerProvider: React.FC<ViewerProviderProps> = ({ children }) => {
     });
     const [isTimelinePlaying, setIsTimelinePlaying] = useState(false);
     const [photoWindowDays, setPhotoWindowDays] = useState<number | null>(30);
+    const [photoTags, setPhotoTags] = useState<Set<PhotoTag> | null>(null);
 
     // Layer visibility
     const [activeLayers, setActiveLayers] = useState<Set<LayerType>>(DEFAULT_LAYERS);
@@ -540,6 +544,7 @@ export const ViewerProvider: React.FC<ViewerProviderProps> = ({ children }) => {
         currentDate,
         isTimelinePlaying,
         photoWindowDays,
+        photoTags,
         activeLayers,
         isLeftPanelOpen,
         isRightPanelOpen,
@@ -568,6 +573,7 @@ export const ViewerProvider: React.FC<ViewerProviderProps> = ({ children }) => {
         setCurrentDate,
         toggleTimelinePlayback,
         setPhotoWindowDays,
+        setPhotoTags,
         toggleLayer,
         setLayerActive,
         isLayerActive,
@@ -607,6 +613,7 @@ export const ViewerProvider: React.FC<ViewerProviderProps> = ({ children }) => {
         currentDate,
         isTimelinePlaying,
         photoWindowDays,
+        photoTags,
         activeLayers,
         isLeftPanelOpen,
         isRightPanelOpen,
@@ -623,6 +630,7 @@ export const ViewerProvider: React.FC<ViewerProviderProps> = ({ children }) => {
         setCurrentDate,
         toggleTimelinePlayback,
         setPhotoWindowDays,
+        setPhotoTags,
         toggleLayer,
         setLayerActive,
         isLayerActive,

@@ -1919,7 +1919,18 @@
       "window30": "30 j",
       "window90": "90 j",
       "windowAll": "Tout",
-      "empty": "Aucune photo dans cette plage"
+      "empty": "Aucune photo dans cette plage",
+      "filterTags": "Étiquettes",
+      "allTags": "Toutes",
+      "tag": {
+        "pest": "ravageur",
+        "disease": "maladie",
+        "weed": "adventice",
+        "damage": "dégât",
+        "crop_status": "état de la culture",
+        "soil_water": "sol et eau",
+        "other": "autre"
+      }
     },
     "mapmode": {
       "draw_parcel": "Dessin de Parcelle",

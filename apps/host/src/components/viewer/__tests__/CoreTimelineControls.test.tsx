@@ -4,12 +4,15 @@ import { CoreTimelineControls } from '../CoreTimelineControls';
 
 const setCurrentDate = vi.fn();
 const setPhotoWindowDays = vi.fn();
+const setPhotoTags = vi.fn();
 vi.mock('@/context/ViewerContext', () => ({
   useViewer: () => ({
     currentDate: new Date('2026-05-18T00:00:00Z'),
     setCurrentDate,
     photoWindowDays: 30,
     setPhotoWindowDays,
+    photoTags: null,
+    setPhotoTags,
   }),
 }));
 vi.mock('react-i18next', () => ({ useTranslation: () => ({ t: (k: string) => k }) }));
@@ -18,9 +21,20 @@ describe('CoreTimelineControls', () => {
   beforeEach(() => {
     setCurrentDate.mockClear();
     setPhotoWindowDays.mockClear();
+    setPhotoTags.mockClear();
   });
   afterEach(() => {
     vi.useRealTimers();
+  });
+
+  it('toggling a tag from "all" selects every other tag; "all" chip resets', () => {
+    const { getByText } = render(<CoreTimelineControls />);
+    fireEvent.click(getByText('viewer.fieldPhotos.tag.pest'));
+    const arg = setPhotoTags.mock.calls[0][0] as Set<string>;
+    expect(arg.has('pest')).toBe(false);
+    expect(arg.size).toBe(6);
+    fireEvent.click(getByText('viewer.fieldPhotos.allTags'));
+    expect(setPhotoTags).toHaveBeenLastCalledWith(null);
   });
 
   it('selects a window when a window button is clicked', () => {

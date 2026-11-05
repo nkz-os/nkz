@@ -7,7 +7,7 @@ vi.mock('react-i18next', () => ({ useTranslation: () => ({ t: (k: string, o?: an
 
 const mk = (id: string, note: string): FieldPhotoRecord => ({
   id, imageUrl: `/api/field-images/${id}.jpg`, lng: -2.9, lat: 43.2,
-  dateObserved: '2026-05-30T10:00:00Z', note, accuracy: 3, refAgriParcel: null,
+  dateObserved: '2026-05-30T10:00:00Z', note, accuracy: 3, parcelId: null, tag: null,
 });
 const photos = [mk('a', 'note-a'), mk('b', 'note-b'), mk('c', 'note-c')];
 

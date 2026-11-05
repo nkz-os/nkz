@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parseFieldPhotos, FieldPhotoRecord, photosInWindow } from '../fieldPhotos';
+import { parseFieldPhotos, FieldPhotoRecord, photosInWindow, photosByTag, PHOTO_TAGS, PhotoTag } from '../fieldPhotos';
 
 describe('parseFieldPhotos', () => {
   it('maps normalized NGSI-LD AgriParcelRecord entities', () => {
@@ -13,6 +13,7 @@ describe('parseFieldPhotos', () => {
         note: { type: 'Property', value: 'hoja amarilla' },
         accuracy: { type: 'Property', value: 3.4 },
         refAgriParcel: { type: 'Relationship', object: 'urn:ngsi-ld:AgriParcel:P1' },
+        category: { type: 'Property', value: 'pest' },
       },
     ]);
     expect(out).toEqual<FieldPhotoRecord[]>([
@@ -22,7 +23,8 @@ describe('parseFieldPhotos', () => {
         lng: -2.93, lat: 43.26,
         dateObserved: '2026-05-30T10:15:00Z',
         note: 'hoja amarilla', accuracy: 3.4,
-        refAgriParcel: 'urn:ngsi-ld:AgriParcel:P1',
+        parcelId: 'urn:ngsi-ld:AgriParcel:P1',
+        tag: 'pest',
       },
     ]);
   });
@@ -33,8 +35,32 @@ describe('parseFieldPhotos', () => {
       { id: 'urn:r3' },
     ]);
     expect(out).toEqual([
-      { id: 'urn:r2', imageUrl: '/api/field-images/t/x.jpg', lng: null, lat: null, dateObserved: '', note: '', accuracy: null, refAgriParcel: null },
+      { id: 'urn:r2', imageUrl: '/api/field-images/t/x.jpg', lng: null, lat: null, dateObserved: '', note: '', accuracy: null, parcelId: null, tag: null },
     ]);
+  });
+
+  it('reads hasAgriParcel first, then refAgriParcel', () => {
+    const base = { imageUrl: { value: '/i.jpg' } };
+    const both = parseFieldPhotos([{ id: 'a', ...base,
+      hasAgriParcel: { object: 'urn:new' }, refAgriParcel: { object: 'urn:old' } }]);
+    expect(both[0].parcelId).toBe('urn:new');
+    const legacy = parseFieldPhotos([{ id: 'b', ...base, refAgriParcel: { object: 'urn:old' } }]);
+    expect(legacy[0].parcelId).toBe('urn:old');
+  });
+
+  it('reads category compact or as full IRI key; unknown -> other; absent -> null', () => {
+    const base = { imageUrl: { value: '/i.jpg' } };
+    const out = parseFieldPhotos([
+      { id: 'a', ...base, category: { value: 'weed' } },
+      { id: 'b', ...base, 'https://smartdatamodels.org/dataModel.Agrifood/category': { value: 'soil_water' } },
+      { id: 'c', ...base, category: { value: 'bogus' } },
+      { id: 'd', ...base },
+    ]);
+    expect(out.map(p => p.tag)).toEqual(['weed', 'soil_water', 'other', null]);
+  });
+
+  it('still skips records without imageUrl even with a category', () => {
+    expect(parseFieldPhotos([{ id: 'w', category: { value: 'pest' } }])).toEqual([]);
   });
 
   it('returns [] for non-array input', () => {
@@ -43,7 +69,7 @@ describe('parseFieldPhotos', () => {
 });
 
 const mk = (id: string, date: string): FieldPhotoRecord => ({
-  id, imageUrl: `/i/${id}.jpg`, lng: 0, lat: 0, dateObserved: date, note: '', accuracy: null, refAgriParcel: null,
+  id, imageUrl: `/i/${id}.jpg`, lng: 0, lat: 0, dateObserved: date, note: '', accuracy: null, parcelId: null, tag: null,
 });
 
 describe('photosInWindow', () => {
@@ -66,5 +92,40 @@ describe('photosInWindow', () => {
 
   it('excludes undated photos when windowed', () => {
     expect(photosInWindow([mk('z', '')], new Date('2026-05-18T00:00:00Z'), 7)).toEqual([]);
+  });
+});
+
+describe('parseFieldPhotos legacy tag', () => {
+  const base = { imageUrl: { value: '/i.jpg' } };
+  it('reads legacy tag (compact or default-context IRI); category wins', () => {
+    const out = parseFieldPhotos([
+      { id: 'a', ...base, tag: { value: 'pest' } },
+      { id: 'b', ...base, 'https://uri.etsi.org/ngsi-ld/default-context/tag': { value: 'weed' } },
+      { id: 'c', ...base, category: { value: 'soil_water' }, tag: { value: 'pest' } },
+      { id: 'd', ...base, tag: { value: 'bogus' } },
+    ]);
+    expect(out.map(p => p.tag)).toEqual(['pest', 'weed', 'soil_water', 'other']);
+  });
+});
+
+describe('photosByTag', () => {
+  const tagged = (id: string, tag: PhotoTag | null): FieldPhotoRecord => ({ ...mk(id, '2026-05-01T00:00:00Z'), tag });
+  const photos = [tagged('a', 'pest'), tagged('b', 'weed'), tagged('c', null)];
+
+  it('null returns all, including untagged', () => {
+    expect(photosByTag(photos, null).map(p => p.id)).toEqual(['a', 'b', 'c']);
+  });
+
+  it('keeps only selected tags (untagged hidden unless other is selected)', () => {
+    expect(photosByTag(photos, new Set<PhotoTag>(['pest', 'soil_water'])).map(p => p.id)).toEqual(['a']);
+  });
+
+  it('treats untagged photos as other', () => {
+    expect(photosByTag(photos, new Set<PhotoTag>(['other'])).map(p => p.id)).toEqual(['c']);
+    expect(photosByTag(photos, new Set<PhotoTag>(['pest', 'other'])).map(p => p.id)).toEqual(['a', 'c']);
+  });
+
+  it('exposes the vocabulary', () => {
+    expect(PHOTO_TAGS).toEqual(['pest', 'disease', 'weed', 'damage', 'crop_status', 'soil_water', 'other']);
   });
 });
