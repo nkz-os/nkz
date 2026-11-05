@@ -156,3 +156,52 @@ def test_no_entity_publishes_yesterday_only():
     days = {a[3] for a, _ in published}
     assert days == {"2026-10-07"}
     assert s["closed_day_recovered"] == 0
+
+
+def test_fetch_requests_hourly_temperature_for_frost_hours():
+    eng = _engine()
+    resp = MagicMock(status_code=200)
+    resp.json.return_value = {"daily": {}}
+    with patch.object(pe.requests, "get", return_value=resp) as g:
+        eng._fetch_openmeteo_closed_day(42.8, -1.6)
+    assert "temperature_2m" in g.call_args.kwargs["params"]["hourly"]
+
+
+def test_closed_day_counts_frost_hours_after_altitude_delta():
+    """Parcel 500 m above the grid cell is colder: hours at +1 degC raw become frost."""
+    eng = _engine()
+    resp = _response()
+    resp["hourly"]["temperature_2m"] = [1.0] * 6 + [8.0] * 18
+    resp["daily"]["temperature_2m_min"] = [1.0]
+    published = []
+    cluster = [{"id": "urn:ngsi-ld:AgriParcel:p1", "_tenant": "t-1", "_centroid": (-1.6, 42.8),
+                "_altitude": 1000.0}]
+    resp["elevation"] = 500.0
+    with patch.object(pe, "datetime", _FixedDT), \
+         patch("weather_worker.closed_day._read_last_published_day", return_value=None), \
+         patch.object(eng, "_fetch_openmeteo_closed_day", return_value=resp), \
+         patch("weather_worker.closed_day.publish_closed_day",
+               side_effect=lambda *a, **k: published.append(a) or True), \
+         patch("weather_worker.closed_day.WritePacer", return_value=MagicMock()):
+        eng._publish_closed_days([cluster])
+    values = published[0][4]
+    delta = values["tmin_c"] - 1.0
+    assert delta < -1.0  # lapse correction went colder
+    assert values["frost_hours"] == 6.0
+
+
+def test_closed_day_without_altitude_correction_counts_raw_hours():
+    eng = _engine()
+    resp = _response()
+    resp["hourly"]["temperature_2m"] = [-1.0] * 2 + [8.0] * 22
+    published = []
+    cluster = [{"id": "urn:ngsi-ld:AgriParcel:p1", "_tenant": "t-1", "_centroid": (-1.6, 42.8),
+                "_altitude": 0.0}]
+    with patch.object(pe, "datetime", _FixedDT), \
+         patch("weather_worker.closed_day._read_last_published_day", return_value=None), \
+         patch.object(eng, "_fetch_openmeteo_closed_day", return_value=resp), \
+         patch("weather_worker.closed_day.publish_closed_day",
+               side_effect=lambda *a, **k: published.append(a) or True), \
+         patch("weather_worker.closed_day.WritePacer", return_value=MagicMock()):
+        eng._publish_closed_days([cluster])
+    assert published[0][4]["frost_hours"] == 2.0

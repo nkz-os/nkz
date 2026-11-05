@@ -29,6 +29,8 @@ solarRadiation     D54   daily MEAN global horizontal radiation (W m-2);
                          MJ m-2 d-1 = value * 0.0864
 vapourPressure     KPA   mean actual vapour pressure
 windSpeed2m        MTS   mean wind speed at 2 m
+frostHours         HUR   hours of the local day with T <= 0 degC (all 24
+                         hourly values needed), after the altitude shift
 =================  ====  ==================================================
 
 Discriminating attributes (review #1043):
@@ -80,6 +82,7 @@ ATTRIBUTES: Dict[str, Tuple[str, str]] = {
     "radiation_mj_m2": ("solarRadiation", "D54"),
     "vapour_pressure_kpa": ("vapourPressure", "KPA"),
     "wind2m_ms": ("windSpeed2m", "MTS"),
+    "frost_hours": ("frostHours", "HUR"),
 }
 
 _DAY_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
@@ -144,6 +147,21 @@ def _daily(daily: Dict[str, Any], key: str, idx: int) -> Optional[float]:
     return None
 
 
+def count_frost_hours(
+    hourly: Dict[str, Any], day: str, delta_c: float = 0.0
+) -> Optional[float]:
+    """Hours of ``day`` with ``T + delta_c <= 0`` degC; None unless all 24 hours exist.
+
+    ``delta_c`` is the altitude shift applied to the day's minimum (corrected minus
+    raw), so the count refers to the parcel and not to the grid cell. The ``<= 0``
+    threshold is the one weather-api uses for ``hours_below_zero``.
+    """
+    temps = _day_hours(hourly, "temperature_2m", day)
+    if temps is None:
+        return None
+    return float(sum(1 for t in temps if t + delta_c <= 0.0))
+
+
 def compute_closed_day_values(data: Dict[str, Any], day: str) -> Dict[str, Optional[float]]:
     """Reduce an Open-Meteo response to the closed-day values of ``day``.
 
@@ -163,6 +181,7 @@ def compute_closed_day_values(data: Dict[str, Any], day: str) -> Dict[str, Optio
     out["radiation_mj_m2"] = _daily(daily, "shortwave_radiation_sum", i)
 
     hourly = data.get("hourly") or {}
+    out["frost_hours"] = count_frost_hours(hourly, day)
     dew = _day_hours(hourly, "dew_point_2m", day)
     if dew is not None:
         out["vapour_pressure_kpa"] = sum(_vapour_pressure_kpa(t) for t in dew) / 24.0

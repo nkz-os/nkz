@@ -649,6 +649,78 @@ class ParcelWeatherEngine:
             logger.warning(f"Error fetching Open-Meteo: {e}")
             return None
 
+    def _fetch_fine_temps(
+        self, latitude: float, longitude: float
+    ) -> Optional[Dict[str, Any]]:
+        """Day min/max from Open-Meteo automatic model selection (no ``models``).
+
+        Same dates and timezone as ``_fetch_openmeteo``. The finest model is
+        often slower on a cold cache, hence 30 s. Failure returns None and the
+        caller keeps the configured model; the log never names coordinates.
+        """
+        try:
+            today = datetime.utcnow().strftime("%Y-%m-%d")
+            end = (datetime.utcnow() + timedelta(days=self.forecast_days)).strftime(
+                "%Y-%m-%d"
+            )
+            params = {
+                "latitude": latitude,
+                "longitude": longitude,
+                "start_date": today,
+                "end_date": end,
+                "daily": ["temperature_2m_min", "temperature_2m_max"],
+                "timezone": "Europe/Madrid",
+            }
+            resp = requests.get(
+                f"{self.openmeteo_url}/forecast", params=params, timeout=30
+            )
+            if resp.status_code != 200:
+                logger.warning(
+                    "Open-Meteo fine temperatures returned %s; keeping configured model",
+                    resp.status_code,
+                )
+                return None
+            return resp.json()
+        except Exception as e:
+            logger.warning(
+                "Open-Meteo fine temperatures failed (%s); keeping configured model",
+                type(e).__name__,
+            )
+            logger.debug("fine temperatures failure at (%s, %s): %s", latitude, longitude, e)
+            return None
+
+    @staticmethod
+    def _merge_fine_temps(
+        data: Dict[str, Any], fine: Optional[Dict[str, Any]]
+    ) -> Dict[str, Any]:
+        """Replace the running day's min and max with the fine model's.
+
+        Pure: returns a copy. Everything else (mean, rain, ET0, hourly, elevation)
+        stays as in ``data``. The day is replaced only when the fine response has
+        both values for that exact date; otherwise it keeps the original model.
+        """
+        if not fine:
+            return data
+        daily = data.get("daily") or {}
+        dates = daily.get("time") or []
+        fdaily = fine.get("daily") or {}
+        fdates = fdaily.get("time") or []
+        if not dates or dates[0] not in fdates:
+            return data
+        j = fdates.index(dates[0])
+        fmin = (fdaily.get("temperature_2m_min") or [])
+        fmax = (fdaily.get("temperature_2m_max") or [])
+        if j >= len(fmin) or j >= len(fmax) or fmin[j] is None or fmax[j] is None:
+            return data
+        tmin = list(daily.get("temperature_2m_min") or [])
+        tmax = list(daily.get("temperature_2m_max") or [])
+        if not tmin or not tmax:
+            return data
+        tmin[0], tmax[0] = fmin[j], fmax[j]
+        merged = dict(data)
+        merged["daily"] = {**daily, "temperature_2m_min": tmin, "temperature_2m_max": tmax}
+        return merged
+
     def _parse_openmeteo_response(
         self,
         data: Dict[str, Any],
@@ -873,6 +945,12 @@ class ParcelWeatherEngine:
                     stats["errors"] += 1
                     continue
 
+                # Day min/max from the automatic model, once per cluster; the
+                # configured model stays for everything else and as fallback.
+                raw_data = self._merge_fine_temps(
+                    raw_data, self._fetch_fine_temps(cluster_lat, cluster_lon)
+                )
+
                 # Parse into observation dicts
                 station_elevation = raw_data.get("elevation")
                 observations = self._parse_openmeteo_response(
@@ -1089,7 +1167,7 @@ class ParcelWeatherEngine:
         ``timezone=auto`` makes the daily/hourly blocks follow the point's own
         calendar day; the response's ``utc_offset_seconds`` tells which local day is
         "yesterday". Hourly dew point and 10 m wind are needed for vapour pressure
-        and 2 m wind speed. ``past_days > 2`` serves the reconciliation of days
+        and 2 m wind speed; hourly temperature gives the frost hours. ``past_days > 2`` serves the reconciliation of days
         missed while the worker was down.
         """
         try:
@@ -1105,7 +1183,7 @@ class ParcelWeatherEngine:
                     "et0_fao_evapotranspiration",
                     "shortwave_radiation_sum",
                 ],
-                "hourly": ["dew_point_2m", "wind_speed_10m"],
+                "hourly": ["dew_point_2m", "wind_speed_10m", "temperature_2m"],
                 "timezone": "auto",
             }
             resp = requests.get(f"{self.openmeteo_url}/forecast", params=params, timeout=20)
@@ -1258,6 +1336,15 @@ class ParcelWeatherEngine:
                         values = self._downscale_closed_day_temps(
                             base, p, parcel_lat, parcel_lon, data.get("elevation")
                         )
+                        # Frost hours follow the same altitude shift as the minimum.
+                        # Without a raw minimum the shift is unknown: omit, never guess.
+                        raw_min, new_min = base.get("tmin_c"), values.get("tmin_c")
+                        if raw_min is not None and new_min is not None:
+                            values["frost_hours"] = cd.count_frost_hours(
+                                data.get("hourly") or {}, d, new_min - raw_min
+                            )
+                        else:
+                            values["frost_hours"] = None
                         ok = cd.publish_closed_day(
                             p["_tenant"], p["id"], (parcel_lon, parcel_lat), d, values,
                             orion_url=self.orion_url, context_url=self.context_url,
