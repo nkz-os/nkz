@@ -118,3 +118,50 @@ def test_other_routes_keep_mime_order():
     msg = _sent_message(server)
     assert [p.get_content_type() for p in msg.get_payload()] == ["text/html", "text/plain"]
     assert msg["List-Unsubscribe"] is None
+
+
+def _post_with_smtp(client, server, payload=PAYLOAD):
+    with _gate(False), patch.object(es.email_service.config, "enabled", True), patch.object(
+        es.smtplib, "SMTP", return_value=server
+    ), patch.object(es.smtplib, "SMTP_SSL", return_value=server):
+        return client.post("/send/report", json=payload, headers=HDR)
+
+
+def test_report_logs_no_recipient_on_success(client, caplog):
+    import logging
+
+    caplog.set_level(logging.DEBUG)
+    resp = _post_with_smtp(client, MagicMock())
+    assert resp.status_code == 200
+    assert "user@example.org" not in caplog.text
+
+
+def test_report_logs_no_recipient_on_failure(client, caplog):
+    import logging
+
+    caplog.set_level(logging.DEBUG)
+    server = MagicMock()
+    server.sendmail.side_effect = RuntimeError("boom user@example.org")
+    resp = _post_with_smtp(client, server)
+    assert resp.status_code == 500
+    assert "user@example.org" not in caplog.text
+
+
+def test_other_routes_still_log_recipient(caplog):
+    import logging
+
+    caplog.set_level(logging.INFO)
+    with patch.object(es.email_service.config, "enabled", True), patch.object(
+        es.smtplib, "SMTP", return_value=MagicMock()
+    ), patch.object(es.smtplib, "SMTP_SSL", return_value=MagicMock()):
+        es.email_service.send_email("u@example.org", "S", "<p>h</p>", "t")
+    assert "u@example.org" in caplog.text
+
+
+def test_title_is_escaped(client):
+    server = MagicMock()
+    resp = _post_with_smtp(client, server, dict(PAYLOAD, title="<b>Finca & Co</b>"))
+    assert resp.status_code == 200
+    html_part = _sent_message(server).get_payload()[1].get_payload(decode=True).decode()
+    assert "<title><b>" not in html_part
+    assert "&lt;b&gt;Finca &amp; Co&lt;/b&gt;" in html_part

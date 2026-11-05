@@ -468,7 +468,8 @@ class EmailService:
         self.templates_dir = os.path.join(os.path.dirname(__file__), 'templates')
     
     def send_email(self, to_email: str, subject: str, html_content: str, text_content: str = None, reply_to: str = None,
-                   extra_headers: dict = None, text_first: bool = False) -> bool:
+                   extra_headers: dict = None, text_first: bool = False,
+                   log_recipient: bool = True) -> bool:
         """Envía un email usando SMTP"""
         if not self.config.enabled:
             logger.warning("Email service is disabled. Skipping email send.")
@@ -515,18 +516,24 @@ class EmailService:
                 except Exception:
                     pass
 
-            logger.info(f"Email sent successfully to {to_email}")
+            if log_recipient:
+                logger.info(f"Email sent successfully to {to_email}")
+            else:
+                logger.info("Email sent successfully")
             return True
 
         except Exception as e:
-            logger.error(f"Failed to send email to {to_email} via {self.config.smtp_host}: {type(e).__name__}: {e}")
+            if log_recipient:
+                logger.error(f"Failed to send email to {to_email} via {self.config.smtp_host}: {type(e).__name__}: {e}")
+            else:
+                logger.error(f"Failed to send email: {type(e).__name__}")
             return False
     
     def send_report_email(self, email: str, subject: str, content_html: str, text: str,
                           title: str, list_unsubscribe_url: str) -> bool:
         """Envía un informe con asunto propio y baja con un clic (RFC 8058)."""
         html_body = (EmailTemplates.get_base_template()
-                     .replace('{{ title }}', title)
+                     .replace('{{ title }}', html.escape(title))
                      .replace('{{ content }}', content_html))
         return self.send_email(
             email, subject, html_body, text,
@@ -535,6 +542,7 @@ class EmailService:
                 'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
             },
             text_first=True,
+            log_recipient=False,
         )
 
     def send_welcome_email(self, email: str, farmer_name: str, farm_name: str, tenant_id: str, api_key: str) -> bool:
