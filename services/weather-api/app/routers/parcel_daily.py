@@ -291,23 +291,10 @@ def get_parcel_daily(
             logger.warning("parcel location unusable for fill %s: %s", parcel_urn, e)
             loc = None
 
-    forecast: Dict[str, Any] = {}
-    if forecast_days > 0 and loc is not None:
-        remaining = deadline - _monotonic()
-        if remaining > 1.0:
-            lon, lat = loc
-            forecast = fetch_open_meteo_forecast(
-                lat, lon, _parcel_elevation(entity), forecast_days, timeout=remaining,
-            )
-    # The parcel's own calendar day when the forecast told it, UTC otherwise.
-    local_today = date.fromisoformat(forecast["local_today"]) if forecast else today
-    if forecast_days > 0:
-        # Days from the parcel's today on are the forecast's, not the closed series'.
-        days = [d for d in days if date.fromisoformat(d["date"]) < local_today]
-        unfilled = [d for d in unfilled if d < local_today]
-
+    # Fills are keyed on the UTC day in both modes and run first: which closed
+    # days get filled, and so `totals`, must not depend on `forecast_days`.
     if fill == "open_meteo" and unfilled:
-        plan = plan_fill(unfilled, local_today)
+        plan = plan_fill(unfilled, today)
         for d in plan["not_closed"]:
             reasons[d.isoformat()] = "not_closed"
         filled: Dict[str, Dict[str, Any]] = {}
@@ -337,20 +324,38 @@ def get_parcel_daily(
                 reasons[k] = "fill_unavailable"
     else:
         for d in unfilled:
-            reasons[d.isoformat()] = "not_closed" if d >= local_today else "no_data"
+            reasons[d.isoformat()] = "not_closed" if d >= today else "no_data"
 
-    # Sensors only describe days that are over: never running or forecast days.
-    if days or forecast_days == 0:
-        sensors = _apply_sensors(tenant_id, parcel_urn, d0, min(d1, local_today - timedelta(days=1)) if forecast_days > 0 else d1,
-                                 days, entity)
-    else:
-        sensors = {"sensor_devices": [], "sensors_unavailable": False}
+    # The forecast gets what is left of the budget; none left means unavailable.
+    forecast: Dict[str, Any] = {}
+    if forecast_days > 0 and loc is not None:
+        remaining = deadline - _monotonic()
+        if remaining > 1.0:
+            lon, lat = loc
+            forecast = fetch_open_meteo_forecast(
+                lat, lon, _parcel_elevation(entity), forecast_days, timeout=remaining,
+            )
+    # The parcel's own calendar day when the forecast told it, UTC otherwise.
+    local_today = date.fromisoformat(forecast["local_today"]) if forecast else today
+
+    # Sensors only describe finished days: forecast days are appended after this.
+    sensors = _apply_sensors(tenant_id, parcel_urn, d0, d1, days, entity)
 
     if forecast_days > 0:
+        # A day without data from the parcel's today on is the forecast's. A day
+        # that has data is finished (stored rows and fills only exist for those)
+        # and stays, so the closed series is the same as without `forecast_days`.
+        for d in days:
+            if d["source"] is None and date.fromisoformat(d["date"]) >= local_today:
+                reasons.pop(d["date"], None)
+        days = [d for d in days if d["source"] is not None or date.fromisoformat(d["date"]) < local_today]
+        have = {d["date"] for d in days}
         first = max(d0, local_today)
         last = max(d1, local_today + timedelta(days=forecast_days))
         for i in range((last - first).days + 1):
             key = (first + timedelta(days=i)).isoformat()
+            if key in have:
+                continue
             model_day = forecast.get("days", {}).get(key)
             rec = {"date": key, **{f: None for f in _FIELDS}, "source": None, "tmin_coldest_c": None}
             if model_day is not None:
@@ -361,11 +366,15 @@ def get_parcel_daily(
                 reasons[key] = "forecast_unavailable"
                 rec["sources"] = {f: None for f in _FIELDS}
             days.append(rec)
+        days.sort(key=lambda d: d["date"])
 
     for rec in days:
         day = date.fromisoformat(rec["date"])
+        # A non-null source means a finished day: stored rows and fills only exist
+        # for those, and dating it would drop a real closed day from totals around
+        # local midnight.
         if rec["source"] not in (None, "model_forecast"):
-            rec["kind"] = "closed"  # a stored or filled closed day, whatever the clock says
+            rec["kind"] = "closed"
         else:
             rec["kind"] = "closed" if day < local_today else ("running" if day == local_today else "forecast")
 

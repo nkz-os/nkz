@@ -437,10 +437,8 @@ def test_forecast_days_ignore_sensors(client, monkeypatch):
     h["install"]([_row("2026-11-04", tempMin=3.0, tempMax=13.0)])
     monkeypatch.setattr(pd, "_parcel_devices", lambda urn, tid: ["dev1"])
     monkeypatch.setattr(pd, "_fetch_parcel_entity", lambda urn, tid: {"id": urn})
-    seen = {}
 
     def readings(tid, devices, lo, hi):
-        seen["span"] = (lo, hi)
         return _sensor_day("2026-11-04", 2.0, 12.0) + _sensor_day("2026-11-05", -20.0, -10.0)
 
     monkeypatch.setattr(pd, "_sensor_readings", readings)
@@ -495,3 +493,77 @@ def test_forecast_without_location_is_unavailable(client):
         j = tc.get(f"/api/weather/parcel/{PID}/daily?start=2026-11-04&end=2026-11-04&forecast_days=1").json()
     f.assert_not_called()
     assert j["missing_reasons"]["2026-11-04"] == "forecast_unavailable"
+
+
+def _rec(t):
+    return {"tmin_c": t, "tmax_c": t + 10, "precip_mm": 0.5, "et0_mm": 1.0,
+            "radiation_mj_m2": 5.0, "vapour_pressure_kpa": None, "wind2m_ms": 1.0}
+
+
+def _fake_fill(kind, lat, lon, elev, d0, d1, http_get=None, timeout=None):
+    return {(d0 + _td(days=i)).isoformat(): _rec(3.0) for i in range((d1 - d0).days + 1)}
+
+
+def test_totals_identical_with_and_without_forecast_days_at_local_boundary(client):
+    tc, h = client
+    h["install"]([_row("2026-11-02", tempMin=4.0, tempMax=14.0, precipitation=2.0, et0=1.0)])
+    qs = "start=2026-11-01&end=2026-11-04&fill=open_meteo&base_temp=5"
+    # 23:30 UTC on the 4th: the parcel is already on the 5th.
+    ps = _fill_env(today=_date(2026, 11, 4))
+    with ps[0], ps[1], ps[2], _patch.object(pd, "fetch_open_meteo_daily", side_effect=_fake_fill):
+        plain = tc.get(f"/api/weather/parcel/{PID}/daily?{qs}").json()
+    with ps[0], ps[1], ps[2], _patch.object(pd, "fetch_open_meteo_daily", side_effect=_fake_fill), \
+         _patch.object(pd, "fetch_open_meteo_forecast", return_value=_fake_forecast()):
+        withfc = tc.get(f"/api/weather/parcel/{PID}/daily?{qs}&forecast_days=2").json()
+    assert withfc["totals"] == plain["totals"]
+    filled = lambda j: {d["date"]: d["source"] for d in j["days"] if d["source"] not in (None, "model_forecast")}  # noqa: E731
+    assert filled(withfc) == filled(plain)
+    assert filled(plain)["2026-11-03"] == "model_analysis" and "2026-11-04" not in filled(plain)
+    assert plain["missing_reasons"]["2026-11-04"] == withfc["missing_reasons"]["2026-11-04"] == "not_closed"
+    assert withfc["local_today"] == "2026-11-05"
+
+
+def test_slow_fill_leaves_closed_days_intact_when_forecast_budget_runs_out(client):
+    tc, h = client
+    h["install"]([_row("2026-11-02", tempMin=4.0, tempMax=14.0, precipitation=2.0)])
+    clock = {"t": 0.0}
+
+    def slow_fill(kind, lat, lon, elev, d0, d1, http_get=None, timeout=None):
+        clock["t"] += 100.0
+        return _fake_fill(kind, lat, lon, elev, d0, d1)
+
+    ps = _fill_env(today=_date(2026, 11, 4))
+    with ps[0], ps[1], ps[2], _patch.object(pd, "_monotonic", side_effect=lambda: clock["t"]), \
+         _patch.object(pd, "fetch_open_meteo_daily", side_effect=slow_fill), \
+         _patch.object(pd, "fetch_open_meteo_forecast") as f:
+        j = tc.get(f"/api/weather/parcel/{PID}/daily?start=2026-11-01&end=2026-11-03"
+                   "&fill=open_meteo&forecast_days=2").json()
+    f.assert_not_called()
+    by = {d["date"]: d for d in j["days"]}
+    assert by["2026-11-01"]["source"] == "model_analysis" and by["2026-11-02"]["source"] == "parcel_weather"
+    assert j["missing_reasons"]["2026-11-04"] == "forecast_unavailable"
+    assert j["totals"]["precip_mm"] is not None
+
+
+def test_stored_row_dated_utc_today_stays_closed(client):
+    tc, h = client
+    h["install"]([_row("2026-11-04", tempMin=3.0, tempMax=13.0, precipitation=1.0)])
+    ps = _fill_env(today=_date(2026, 11, 4))
+    with ps[0], ps[1], ps[2]:
+        plain = tc.get(f"/api/weather/parcel/{PID}/daily?start=2026-11-04&end=2026-11-04").json()
+    assert plain["days"][0]["kind"] == "closed" and plain["totals"]["precip_mm"] == 1.0
+    # forecast failed: the finished day is still served, not reported unavailable
+    j, _ = _get(tc, "start=2026-11-04&end=2026-11-04&forecast_days=1", {})
+    j = j.json()
+    assert j["days"][0]["date"] == "2026-11-04" and j["days"][0]["kind"] == "closed"
+    assert j["days"][0]["tmin_c"] == 3.0 and "2026-11-04" not in j["missing_reasons"]
+
+
+def test_null_today_without_forecast_days_is_not_closed(client):
+    tc, h = client
+    h["install"]([])
+    ps = _fill_env(today=_date(2026, 11, 4))
+    with ps[0], ps[1], ps[2]:
+        j = tc.get(f"/api/weather/parcel/{PID}/daily?start=2026-11-04&end=2026-11-04").json()
+    assert j["days"][0]["kind"] == "running" and j["days"][0]["source"] is None
+    assert j["totals"]["precip_mm"] is None

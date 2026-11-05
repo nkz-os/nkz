@@ -172,7 +172,7 @@ def fetch_open_meteo_forecast(
         body = resp.json()
         daily = body.get("daily") if isinstance(body, dict) else None
         offset = body.get("utc_offset_seconds") if isinstance(body, dict) else None
-        hourly = body.get("hourly") if isinstance(body.get("hourly"), dict) else {}
+        hourly = body.get("hourly") if isinstance(body, dict) and isinstance(body.get("hourly"), dict) else {}
     except Exception as exc:  # noqa: BLE001 — a failed forecast leaves the days unavailable
         logger.warning("open-meteo forecast failed: %s", exc)
         return {}
