@@ -876,6 +876,43 @@ class TestAssetRoutes:
 
 
 # ============================================================================
+# Same-site guard on the direct-ingress upload route
+# ============================================================================
+
+
+class TestSameSiteGuard:
+    URL = "/api/assets/upload"
+    EVIL = {"Origin": "https://evil.invalid"}
+
+    def _upload(self, client, headers):
+        # An extension the handler refuses: the 400 proves that it read the multipart
+        # body, and nothing reaches storage.
+        return client.post(
+            self.URL,
+            data={"asset_type": "model", "file": (BytesIO(b"x"), "x.txt")},
+            content_type="multipart/form-data",
+            headers=headers,
+        )
+
+    def test_cross_site_cookie_upload_rejected(self, client):
+        r = self._upload(client, self.EVIL)
+        assert r.status_code == 403
+        assert r.get_json() == {"error": "Cross-site request rejected"}
+
+    def test_bearer_not_blocked(self, client):
+        r = self._upload(client, {**self.EVIL, "Authorization": "Bearer t"})
+        assert r.status_code != 403
+
+    def test_no_origin_not_blocked(self, client):
+        assert self._upload(client, {}).status_code != 403
+
+    def test_allowed_origin_multipart_reaches_handler(self, client):
+        r = self._upload(client, {"Origin": "https://app.invalid"})
+        assert r.status_code == 400
+        assert "Invalid file type" in r.get_json()["error"]
+
+
+# ============================================================================
 # Module routes (15 routes)
 # ============================================================================
 

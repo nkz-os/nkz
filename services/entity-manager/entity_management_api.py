@@ -87,6 +87,8 @@ except ImportError:
         def decorator(func): return func
         return decorator
 
+from common.csrf_guard import install_csrf_guard
+
 from helpers import (
     _extract_number, _count_all_entities, _gather_usage_for_tenant,
     get_limits_for_tenant,
@@ -103,6 +105,9 @@ POSTGRES_URL = os.getenv('POSTGRES_URL')
 entity_management_api = sys.modules[__name__]
 
 app = Flask(__name__)
+
+# Direct ingress routes reach this app without the gateway's same-site check.
+install_csrf_guard(app, "entity-manager")
 
 if AUDIT_MIDDLEWARE_AVAILABLE:
     setup_audit_middleware(app, postgres_url=POSTGRES_URL)
