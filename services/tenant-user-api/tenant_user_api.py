@@ -5,6 +5,8 @@
 # Permite a TenantAdmin gestionar usuarios de su tenant desde el dashboard
 
 import os
+import re
+import hmac
 import json
 import logging
 import requests
@@ -35,6 +37,7 @@ KEYCLOAK_REALM = os.getenv('KEYCLOAK_REALM', 'nekazari')
 KEYCLOAK_CLIENT_ID = os.getenv('KEYCLOAK_CLIENT_ID', 'nekazari-api-gateway')
 KEYCLOAK_CLIENT_SECRET = os.getenv('KEYCLOAK_CLIENT_SECRET', '')
 POSTGRES_URL = os.getenv('POSTGRES_URL', '')
+INTERNAL_SERVICE_SECRET = os.getenv('INTERNAL_SERVICE_SECRET', '')
 
 # Roles that TenantAdmin can assign
 TENANT_ADMIN_ASSIGNABLE_ROLES = ['Farmer', 'TechnicalConsultant']
@@ -334,6 +337,97 @@ def list_team_members(user_info: Dict[str, Any], tenant: str):
     except Exception as e:
         logger.error(f"Error listing users: {e}")
         return internal_error(e, 'tenant_user_api')
+
+
+INTERNAL_TENANT_RE = re.compile(r'^[a-z0-9_-]+$')
+INTERNAL_PAGE_SIZE = 500
+
+
+class KeycloakLookupError(Exception):
+    """Keycloak could not answer; the caller must not use a partial result."""
+
+
+def _internal_secret_ok() -> bool:
+    """Constant-time check of X-Internal-Service-Secret; fails closed when unset."""
+    expected = INTERNAL_SERVICE_SECRET
+    if not expected:
+        return False
+    provided = request.headers.get('X-Internal-Service-Secret', '')
+    # Compare bytes: compare_digest raises TypeError on non-ASCII str.
+    return hmac.compare_digest(provided.encode('utf-8'), expected.encode('utf-8'))
+
+
+def _fetch_tenant_users(tenant: str, admin_token: str) -> List[Dict[str, Any]]:
+    """All Keycloak users carrying tenant_id/tenant == tenant (paginated)."""
+    users_url = f"{KEYCLOAK_URL}/admin/realms/{KEYCLOAK_REALM}/users"
+    headers = {'Authorization': f'Bearer {admin_token}'}
+    found: List[Dict[str, Any]] = []
+    first = 0
+    while True:
+        params = {'q': f'tenant_id:{tenant}', 'first': first,
+                  'max': INTERNAL_PAGE_SIZE, 'briefRepresentation': 'false'}
+        resp = requests.get(users_url, headers=headers, params=params, timeout=15)
+        if resp.status_code != 200:
+            raise KeycloakLookupError(f"user search returned {resp.status_code}")
+        page = resp.json()
+        if not isinstance(page, list):
+            raise KeycloakLookupError("user search returned a non-list body")
+        found.extend(page)
+        if len(page) < INTERNAL_PAGE_SIZE:
+            return found
+        first += INTERNAL_PAGE_SIZE
+
+
+def _fetch_user_roles(user_id: str, admin_token: str) -> List[str]:
+    url = (f"{KEYCLOAK_URL}/admin/realms/{KEYCLOAK_REALM}"
+           f"/users/{user_id}/role-mappings/realm/composite")
+    resp = requests.get(url, headers={'Authorization': f'Bearer {admin_token}'}, timeout=10)
+    if resp.status_code != 200:
+        raise KeycloakLookupError(f"role lookup returned {resp.status_code}")
+    data = resp.json()
+    if not isinstance(data, list):
+        raise KeycloakLookupError("role lookup returned a non-list body")
+    return [r['name'] for r in data if isinstance(r, dict) and r.get('name')]
+
+
+@app.route('/internal/tenants/<tenant>/users', methods=['GET'])
+def internal_list_users_by_role(tenant: str):
+    """Internal: users of a tenant holding any of ?roles=A,B (service-to-service)."""
+    if not _internal_secret_ok():
+        logger.warning("Rejected unauthenticated call to internal users endpoint")
+        return jsonify({'error': 'Unauthorized'}), 401
+    if not INTERNAL_TENANT_RE.match(tenant):
+        return jsonify({'error': 'Invalid tenant'}), 400
+    wanted = {r.strip() for r in request.args.get('roles', '').split(',') if r.strip()}
+    if not wanted:
+        return jsonify({'error': 'roles is required'}), 400
+
+    try:
+        admin_token = keycloak.get_admin_token()
+        if not admin_token:
+            raise KeycloakLookupError("no admin token")
+        result = []
+        for user in _fetch_tenant_users(tenant, admin_token):
+            attrs = user.get('attributes') or {}
+            # Exact tenant match; no platform exception (this feeds outbound mail).
+            owners = (attrs.get('tenant_id') or [])[:1] + (attrs.get('tenant') or [])[:1]
+            if tenant not in owners:
+                continue
+            roles = _fetch_user_roles(user['id'], admin_token)
+            if not wanted.intersection(roles):
+                continue
+            locale = (attrs.get('locale') or [None])[0]
+            result.append({
+                'user_id': user['id'],
+                'email': user.get('email', ''),
+                'locale': locale,
+                'roles': roles,
+                'enabled': user.get('enabled', True),
+            })
+        return jsonify({'users': result}), 200
+    except (KeycloakLookupError, requests.RequestException) as e:
+        logger.error("Internal users lookup failed for tenant %s: %s", tenant, e)
+        return jsonify({'error': 'Keycloak lookup failed'}), 502
 
 
 @app.route('/api/tenant/users', methods=['POST'])
