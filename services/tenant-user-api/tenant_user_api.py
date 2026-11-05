@@ -383,7 +383,10 @@ def _fetch_tenant_users(tenant: str, admin_token: str) -> List[Dict[str, Any]]:
     unique: Dict[str, Dict[str, Any]] = {}
     for attr in ('tenant_id', 'tenant'):
         for user in _search_by_attribute(attr, tenant, admin_token):
-            unique.setdefault(user['id'], user)
+            uid = user.get('id') if isinstance(user, dict) else None
+            if not uid:
+                raise KeycloakLookupError("user without id in search result")
+            unique.setdefault(uid, user)
     return list(unique.values())
 
 
@@ -419,8 +422,9 @@ def internal_list_users_by_role(tenant: str):
         for user in _fetch_tenant_users(tenant, admin_token):
             attrs = user.get('attributes') or {}
             # Exact tenant match; no platform exception (this feeds outbound mail).
-            owners = (attrs.get('tenant_id') or [])[:1] + (attrs.get('tenant') or [])[:1]
-            if tenant not in owners:
+            # tenant_id is authoritative; legacy tenant only when it is absent.
+            owner = (attrs.get('tenant_id') or attrs.get('tenant') or [None])[0]
+            if owner != tenant:
                 continue
             roles = _fetch_user_roles(user['id'], admin_token)
             if not wanted.intersection(roles):

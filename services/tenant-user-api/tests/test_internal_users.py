@@ -187,3 +187,21 @@ def test_legacy_search_failure_returns_502(client, monkeypatch):
 
     monkeypatch.setattr(api.requests, "get", get)
     assert client.get(URL + "?roles=TenantAdmin", headers=HDR).status_code == 502
+
+
+def test_conflicting_attributes_use_primary_owner(client, monkeypatch):
+    users = [_user("u1", "other"), _user("u2", "acme")]
+    users[0]["attributes"]["tenant"] = ["acme"]
+    roles = {"u1": ["TenantAdmin"], "u2": ["TenantAdmin"]}
+    _install(monkeypatch, FakeKeycloak(users, roles))
+    r = client.get(URL + "?roles=TenantAdmin", headers=HDR)
+    assert r.status_code == 200
+    assert [u["user_id"] for u in r.get_json()["users"]] == ["u2"]
+
+
+def test_user_without_id_returns_502(client, monkeypatch):
+    u = _user("u1", "acme")
+    del u["id"]
+    _install(monkeypatch, FakeKeycloak([u], {}))
+    r = client.get(URL + "?roles=TenantAdmin", headers=HDR)
+    assert r.status_code == 502
