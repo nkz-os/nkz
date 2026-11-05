@@ -903,6 +903,14 @@ class TestSameSiteGuard:
         r = self._upload(client, {**self.EVIL, "Authorization": "Bearer t"})
         assert r.status_code != 403
 
+    def test_non_bearer_authorization_still_rejected(self, client):
+        # Token extraction falls back to the cookie unless the scheme is Bearer.
+        r = self._upload(client, {**self.EVIL, "Authorization": "Basic x"})
+        assert r.status_code == 403
+
+    def test_null_origin_rejected(self, client):
+        assert self._upload(client, {"Origin": "null"}).status_code == 403
+
     def test_no_origin_not_blocked(self, client):
         assert self._upload(client, {}).status_code != 403
 
