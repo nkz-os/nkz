@@ -20,6 +20,7 @@ sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'common'))
 from auth_middleware import require_auth, inject_fiware_headers, log_entity_operation, require_entity_ownership
 from api_errors import internal_error
 from entity_utils import generate_entity_id
+from common.csrf_guard import install_csrf_guard
 
 # Configure logging to stdout for kubernetes
 logging.basicConfig(
@@ -31,6 +32,8 @@ logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 
 app = Flask(__name__)
+# Direct ingress routes reach this app without the gateway's same-site check.
+install_csrf_guard(app, "sdm-integration")
 _cors_origins = [o.strip() for o in os.getenv('CORS_ORIGINS', 'http://localhost:3000,http://localhost:5173').split(',') if o.strip()]
 CORS(app, origins=_cors_origins, supports_credentials=True)
 
