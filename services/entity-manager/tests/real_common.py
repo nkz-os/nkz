@@ -11,7 +11,7 @@ _COMMON = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__
                                         "..", "..", "common"))
 
 
-def seed_real_common(names=("unit_codes", "context_aliases", "jexl_expressions")):
+def seed_real_common(names=("unit_codes", "context_aliases", "jexl_expressions", "csrf_guard")):
     for name in names:
         key = f"common.{name}"
         if key in sys.modules:
