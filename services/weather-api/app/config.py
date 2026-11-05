@@ -21,6 +21,9 @@ class Settings:
         ).rstrip("/")
         # Comma-separated model list; empty = do not send `models`
         self.openmeteo_models = os.getenv("OPENMETEO_MODELS", "").strip()
+        # Models for the parcel daily fill of recent days; empty = the service's
+        # automatic model selection (do not send `models`).
+        self.openmeteo_daily_models = os.getenv("OPENMETEO_DAILY_MODELS", "").strip()
         # Archive base URL ending in /v1 (callers append /archive); empty = archive
         # fill disabled. Comma-separated archive models; empty = do not send.
         self.openmeteo_archive_url = os.getenv("OPENMETEO_ARCHIVE_URL", "").rstrip("/")

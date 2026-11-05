@@ -26,7 +26,7 @@ from app.deps import get_db_connection
 from app.config import settings
 from app.routers.parcels import _normalize_parcel_id, _orion_headers, _resolve_parcel_location
 from app.services import sensor_daily
-from app.services.daily_fill import fetch_open_meteo_daily, plan_fill
+from app.services.daily_fill import fetch_open_meteo_daily, fetch_open_meteo_forecast, plan_fill
 from app.services.daily_totals import compute_totals
 
 logger = logging.getLogger(__name__)
@@ -47,6 +47,7 @@ _FIELDS = {
     "radiation_mj_m2": "solarRadiation",
     "vapour_pressure_kpa": "vapourPressure",
     "wind2m_ms": "windSpeed2m",
+    "hours_below_zero": "frostHours",
 }
 
 _UNITS = {
@@ -57,6 +58,7 @@ _UNITS = {
     "radiation_mj_m2": "MJ m-2 d-1",
     "vapour_pressure_kpa": "kPa",
     "wind2m_ms": "m s-1",
+    "hours_below_zero": "h",
 }
 
 _SOURCE = (
@@ -87,6 +89,7 @@ def _parse_day(s: str) -> Optional[date]:
 
 
 _FILL_MODES = ("none", "open_meteo")
+MAX_FORECAST_DAYS = 16
 # The whole fill must finish inside the gateway's wait for this service; a day
 # the budget does not reach is reported, not guessed.
 FILL_DEADLINE_S = 25.0
@@ -197,6 +200,7 @@ def get_parcel_daily(
     fill: str = Query("none", description="none | open_meteo"),
     base_temp: Optional[float] = Query(None, description="GDD base temperature, degC"),
     upper_cutoff: Optional[float] = Query(None, description="GDD upper cutoff, degC"),
+    forecast_days: int = Query(0, description="Days of model forecast after the parcel's local today, 0-16"),
     tenant_id: str = Depends(require_auth),
 ):
     d0, d1 = _parse_day(start), _parse_day(end)
@@ -209,6 +213,9 @@ def get_parcel_daily(
         return _error(f"range too long: {n_days} days (max {MAX_RANGE_DAYS})", 400)
     if fill not in _FILL_MODES:
         return _error(f"fill must be one of {', '.join(_FILL_MODES)}", 400)
+
+    if not 0 <= forecast_days <= MAX_FORECAST_DAYS:
+        return _error(f"forecast_days must be between 0 and {MAX_FORECAST_DAYS}", 400)
 
     parcel_urn = _normalize_parcel_id(parcel_id)
     bare = parcel_urn.split(":")[-1]
@@ -271,24 +278,42 @@ def get_parcel_daily(
         days.append(rec)
 
     reasons: Dict[str, str] = {}
-    unfilled = [date.fromisoformat(d["date"]) for d in days if d["source"] is None]
     today = _today()
+    deadline = _monotonic() + FILL_DEADLINE_S
+    unfilled = [date.fromisoformat(d["date"]) for d in days if d["source"] is None]
     entity: Optional[Dict[str, Any]] = None
-    if fill == "open_meteo" and unfilled:
-        plan = plan_fill(unfilled, today)
-        for d in plan["not_closed"]:
-            reasons[d.isoformat()] = "not_closed"
+    loc = None
+    if forecast_days > 0 or (fill == "open_meteo" and unfilled):
         entity = _fetch_parcel_entity(parcel_urn, tenant_id)
         try:
             loc = _resolve_parcel_location(entity) if entity else None
         except Exception as e:  # noqa: BLE001 — unusable geometry means no fill
             logger.warning("parcel location unusable for fill %s: %s", parcel_urn, e)
             loc = None
+
+    forecast: Dict[str, Any] = {}
+    if forecast_days > 0 and loc is not None:
+        remaining = deadline - _monotonic()
+        if remaining > 1.0:
+            lon, lat = loc
+            forecast = fetch_open_meteo_forecast(
+                lat, lon, _parcel_elevation(entity), forecast_days, timeout=remaining,
+            )
+    # The parcel's own calendar day when the forecast told it, UTC otherwise.
+    local_today = date.fromisoformat(forecast["local_today"]) if forecast else today
+    if forecast_days > 0:
+        # Days from the parcel's today on are the forecast's, not the closed series'.
+        days = [d for d in days if date.fromisoformat(d["date"]) < local_today]
+        unfilled = [d for d in unfilled if d < local_today]
+
+    if fill == "open_meteo" and unfilled:
+        plan = plan_fill(unfilled, local_today)
+        for d in plan["not_closed"]:
+            reasons[d.isoformat()] = "not_closed"
         filled: Dict[str, Dict[str, Any]] = {}
         if loc is not None:
             lon, lat = loc
             elev = _parcel_elevation(entity)
-            deadline = _monotonic() + FILL_DEADLINE_S
             for kind in ("model_analysis", "reanalysis"):
                 wanted = {d.isoformat() for d in plan[kind]}
                 remaining = deadline - _monotonic()
@@ -312,12 +337,50 @@ def get_parcel_daily(
                 reasons[k] = "fill_unavailable"
     else:
         for d in unfilled:
-            reasons[d.isoformat()] = "not_closed" if d >= today else "no_data"
+            reasons[d.isoformat()] = "not_closed" if d >= local_today else "no_data"
 
-    sensors = _apply_sensors(tenant_id, parcel_urn, d0, d1, days, entity)
+    # Sensors only describe days that are over: never running or forecast days.
+    if days or forecast_days == 0:
+        sensors = _apply_sensors(tenant_id, parcel_urn, d0, min(d1, local_today - timedelta(days=1)) if forecast_days > 0 else d1,
+                                 days, entity)
+    else:
+        sensors = {"sensor_devices": [], "sensors_unavailable": False}
+
+    if forecast_days > 0:
+        first = max(d0, local_today)
+        last = max(d1, local_today + timedelta(days=forecast_days))
+        for i in range((last - first).days + 1):
+            key = (first + timedelta(days=i)).isoformat()
+            model_day = forecast.get("days", {}).get(key)
+            rec = {"date": key, **{f: None for f in _FIELDS}, "source": None, "tmin_coldest_c": None}
+            if model_day is not None:
+                rec.update(model_day)
+                rec.pop("kind", None)
+                rec["sources"] = {f: ("model_forecast" if rec[f] is not None else None) for f in _FIELDS}
+            else:
+                reasons[key] = "forecast_unavailable"
+                rec["sources"] = {f: None for f in _FIELDS}
+            days.append(rec)
+
+    for rec in days:
+        day = date.fromisoformat(rec["date"])
+        if rec["source"] not in (None, "model_forecast"):
+            rec["kind"] = "closed"  # a stored or filled closed day, whatever the clock says
+        else:
+            rec["kind"] = "closed" if day < local_today else ("running" if day == local_today else "forecast")
 
     missing = [d["date"] for d in days if d["source"] is None]
-    closed = [d for d in days if d["source"] is not None]
+    closed = [d for d in days if d["kind"] == "closed" and d["source"] is not None]
+
+    extra: Dict[str, Any] = {}
+    if forecast_days > 0:
+        extra = {
+            "forecast_issued_at": forecast.get("issued_at"),
+            "local_today": forecast.get("local_today"),
+        }
+    source = _SOURCE if fill == "none" else f"{_SOURCE}; gaps: Open-Meteo model analysis (recent) and reanalysis archive"
+    if forecast_days > 0:
+        source += "; running and forecast days: Open-Meteo model forecast (not stored)"
 
     return {
         "parcel_id": parcel_urn,
@@ -329,5 +392,6 @@ def get_parcel_daily(
         "totals": compute_totals(closed, base_temp, upper_cutoff),
         "units": _UNITS,
         **sensors,
-        "source": _SOURCE if fill == "none" else f"{_SOURCE}; gaps: Open-Meteo model analysis (recent) and reanalysis archive",
+        **extra,
+        "source": source,
     }

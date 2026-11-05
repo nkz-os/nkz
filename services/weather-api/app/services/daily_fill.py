@@ -5,7 +5,7 @@ Nothing is stored: recent days come from the forecast model's own analysis
 archive. A day the source cannot provide stays unfilled.
 """
 import logging
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta, timezone
 from typing import Any, Callable, Dict, List, Optional
 
 import requests
@@ -21,6 +21,13 @@ _DAILY_VARS = (
     "temperature_2m_min,temperature_2m_max,precipitation_sum,"
     "et0_fao_evapotranspiration,shortwave_radiation_sum,wind_speed_10m_mean"
 )
+# Forecast: the automatic selection and ECMWF IFS. The frost warning uses the
+# colder of the two per day (`tmin_coldest_c`), which is a warning input, not an
+# expected temperature.
+FORECAST_MODELS = ("best_match", "ecmwf_ifs025")
+_AUTO, _ECMWF = FORECAST_MODELS
+_OPEN_METEO_MAX_FORECAST_DAYS = 16
+_HOURS_MIN_FOR_DAY = 23  # a 23 h day exists (DST); fewer hours is an incomplete day
 
 
 def plan_fill(days: List[date], today: date) -> Dict[str, List[date]]:
@@ -60,7 +67,7 @@ def fetch_open_meteo_daily(
     if kind == "reanalysis":
         base, models, path = settings.openmeteo_archive_url, settings.openmeteo_archive_models, "archive"
     else:
-        base, models, path = settings.openmeteo_api_url, settings.openmeteo_models, "forecast"
+        base, models, path = settings.openmeteo_api_url, settings.openmeteo_daily_models, "forecast"
     if not base:
         return {}
     params: Dict[str, Any] = {
@@ -107,3 +114,91 @@ def fetch_open_meteo_daily(
         if any(v is not None for v in rec.values()):
             out[day] = rec
     return out
+
+
+def _hours_below_zero(hourly: Dict[str, list], key: str) -> Dict[str, Optional[float]]:
+    """Hours with T <= 0 degC per local day; None when the day's hours are incomplete."""
+    times, col = hourly.get("time"), hourly.get(key)
+    if not isinstance(times, list) or not isinstance(col, list):
+        return {}
+    per_day: Dict[str, List[Optional[float]]] = {}
+    for t, v in zip(times, col):
+        if isinstance(t, str):
+            per_day.setdefault(t[:10], []).append(_num(v))
+    return {
+        day: (float(sum(1 for v in vals if v <= 0)) if len(vals) >= _HOURS_MIN_FOR_DAY and None not in vals else None)
+        for day, vals in per_day.items()
+    }
+
+
+def fetch_open_meteo_forecast(
+    lat: float,
+    lon: float,
+    elevation: Optional[float],
+    forecast_days: int,
+    now: Optional[datetime] = None,
+    http_get: Callable = requests.get,
+    timeout: Optional[float] = None,
+) -> Dict[str, Any]:
+    """Local today plus `forecast_days` days from the model forecast; {} on any failure.
+
+    Nothing is stored. Days carry the automatic selection's values; the day's
+    `kind` is `running` for the parcel's local today and `forecast` after it.
+    `tmin_coldest_c` is the colder of the two models, null unless both gave a value.
+    """
+    base = settings.openmeteo_api_url
+    if not base:
+        return {}
+    now = now or datetime.now(timezone.utc)
+    params: Dict[str, Any] = {
+        "latitude": lat,
+        "longitude": lon,
+        "daily": _DAILY_VARS,
+        "hourly": "temperature_2m",
+        "models": ",".join(FORECAST_MODELS),
+        "timezone": "auto",
+        "wind_speed_unit": "ms",
+        "past_days": 0,
+        # today + N days; Open-Meteo allows at most 16 days in all
+        "forecast_days": min(forecast_days + 1, _OPEN_METEO_MAX_FORECAST_DAYS),
+    }
+    if elevation is not None:
+        params["elevation"] = elevation
+    try:
+        resp = http_get(f"{base}/forecast", params=params, timeout=timeout if timeout is not None else 30)
+        if resp.status_code != 200:
+            logger.warning("open-meteo forecast HTTP %s", resp.status_code)
+            return {}
+        body = resp.json()
+        daily = body.get("daily") if isinstance(body, dict) else None
+        offset = body.get("utc_offset_seconds") if isinstance(body, dict) else None
+        hourly = body.get("hourly") if isinstance(body.get("hourly"), dict) else {}
+    except Exception as exc:  # noqa: BLE001 — a failed forecast leaves the days unavailable
+        logger.warning("open-meteo forecast failed: %s", exc)
+        return {}
+    if not isinstance(daily, dict) or not isinstance(daily.get("time"), list) or _num(offset) is None:
+        return {}
+
+    local_today = (now + timedelta(seconds=_num(offset))).date().isoformat()
+    frost_hours = _hours_below_zero(hourly, f"temperature_2m_{_AUTO}")
+    out: Dict[str, Dict[str, Any]] = {}
+    for i, day in enumerate(daily["time"]):
+        col = lambda name, model=_AUTO: _at(daily, f"{name}_{model}", i)  # noqa: E731
+        wind10 = col("wind_speed_10m_mean")
+        tmin, tmin_ecmwf = col("temperature_2m_min"), col("temperature_2m_min", _ECMWF)
+        rec: Dict[str, Any] = {
+            "tmin_c": tmin,
+            "tmax_c": col("temperature_2m_max"),
+            "precip_mm": col("precipitation_sum"),
+            "et0_mm": col("et0_fao_evapotranspiration"),
+            "radiation_mj_m2": col("shortwave_radiation_sum"),
+            "vapour_pressure_kpa": None,
+            "wind2m_ms": round(wind10 * WIND_10M_TO_2M, 3) if wind10 is not None else None,
+            "hours_below_zero": frost_hours.get(day),
+            "tmin_coldest_c": min(tmin, tmin_ecmwf) if tmin is not None and tmin_ecmwf is not None else None,
+        }
+        if any(v is not None for v in rec.values()):
+            rec["kind"] = "running" if day == local_today else "forecast"
+            rec["source"] = "model_forecast"
+            out[day] = rec
+    return {"days": out, "local_today": local_today, "issued_at": now.isoformat()}

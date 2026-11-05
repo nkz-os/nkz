@@ -76,7 +76,7 @@ def test_one_record_per_day_with_missing_flagged_not_filled(client):
     assert d1["tmin_c"] == 11.2 and d1["tmax_c"] == 24.5 and d1["precip_mm"] == 3.4
     assert d1["et0_mm"] == 3.9 and d1["vapour_pressure_kpa"] == 1.23 and d1["wind2m_ms"] == 3.7
     assert d1["radiation_mj_m2"] == pytest.approx(179.398 * 0.0864, abs=1e-3)
-    assert all(d2[k] is None for k in d2 if k not in ("date", "sources"))  # absent day: nothing invented
+    assert all(d2[k] is None for k in d2 if k not in ("date", "sources", "kind"))  # absent day: nothing invented
     assert all(v is None for v in d2["sources"].values())
     assert d3["tmin_c"] == 5.0 and d3["tmax_c"] is None and d3["et0_mm"] is None
     assert body["missing_days"] == ["2026-10-02"]
@@ -335,7 +335,7 @@ def test_sensor_values_take_precedence_and_say_so(client, monkeypatch):
 
 def test_without_sensors_every_field_names_its_base(client):
     c, h = client
-    h["install"]([_row("2026-10-01", **FULL)])
+    h["install"]([_row("2026-10-01", **FULL, frostHours=2.0)])
     body = c.get(f"/api/weather/parcel/{PID}/daily?start=2026-10-01&end=2026-10-01").json()
     assert set(body["days"][0]["sources"].values()) == {"parcel_weather"}
     assert body["sensor_devices"] == [] and body["sensors_unavailable"] is False
@@ -364,3 +364,134 @@ def test_sensor_readings_query_is_scoped_and_valid_only(monkeypatch):
     assert "DeviceMeasurement" in q and "quality_flag" in q and "tenant_id = %s" in q
     assert params[0] == "tenant-a" and ["dev1"] in params
     assert [(r.device, r.variable, r.value) for r in out] == [("dev1", "airTemperature", 18.5), ("dev1", "batteryLevel", 80.0)]
+
+
+# ---- forecast days --------------------------------------------------------
+
+def _fc_rec(tmin, coldest, kind, hbz=0.0):
+    return {"tmin_c": tmin, "tmax_c": tmin + 10, "precip_mm": 0.2, "et0_mm": 1.0,
+            "radiation_mj_m2": 6.0, "vapour_pressure_kpa": None, "wind2m_ms": 1.5,
+            "hours_below_zero": hbz, "tmin_coldest_c": coldest, "kind": kind, "source": "model_forecast"}
+
+
+def _fake_forecast(local_today="2026-11-05", n=3):
+    t0 = _date.fromisoformat(local_today)
+    days = {}
+    for i in range(n):
+        k = (t0 + _td(days=i)).isoformat()
+        days[k] = _fc_rec(2.0 - i, 1.0 - i, "running" if i == 0 else "forecast")
+    return {"days": days, "local_today": local_today, "issued_at": "2026-11-04T23:30:00+00:00"}
+
+
+def _get(tc, qs, forecast):
+    ps = _fill_env(today=_date(2026, 11, 4))  # UTC date; the parcel is already on the 5th
+    with ps[0], ps[1], ps[2], _patch.object(pd, "fetch_open_meteo_forecast", return_value=forecast) as f:
+        r = tc.get(f"/api/weather/parcel/{PID}/daily?{qs}")
+    return r, f
+
+
+def test_daily_without_forecast_days_returns_same_days_plus_kind(client):
+    tc, h = client
+    h["install"]([_row("2026-10-01", **FULL)])
+    ps = _fill_env(today=_date(2026, 10, 3))
+    with ps[0], ps[1], ps[2], _patch.object(pd, "fetch_open_meteo_forecast") as f:
+        j = tc.get(f"/api/weather/parcel/{PID}/daily?start=2026-10-01&end=2026-10-02").json()
+    f.assert_not_called()
+    assert [d["date"] for d in j["days"]] == ["2026-10-01", "2026-10-02"]
+    assert [d["kind"] for d in j["days"]] == ["closed", "closed"]
+    assert j["days"][0]["tmin_c"] == 11.2 and j["days"][0]["hours_below_zero"] is None
+    assert "forecast_issued_at" not in j and "local_today" not in j
+    assert j["units"]["hours_below_zero"] == "h"
+
+
+def test_daily_with_forecast_appends_days_and_keeps_totals(client):
+    tc, h = client
+    rows = [_row("2026-11-03", tempMin=4.0, tempMax=14.0, precipitation=2.0, et0=1.0),
+            _row("2026-11-04", tempMin=3.0, tempMax=13.0, precipitation=1.0, et0=1.5)]
+    h["install"](rows)
+    base, _ = _get(tc, "start=2026-11-03&end=2026-11-04&base_temp=5", None)
+    r, f = _get(tc, "start=2026-11-03&end=2026-11-05&base_temp=5&forecast_days=2", _fake_forecast())
+    j = r.json()
+    assert r.status_code == 200 and f.call_args.args[3] == 2
+    assert [d["date"] for d in j["days"]] == ["2026-11-03", "2026-11-04", "2026-11-05", "2026-11-06", "2026-11-07"]
+    assert [d["kind"] for d in j["days"]] == ["closed", "closed", "running", "forecast", "forecast"]
+    assert [d["source"] for d in j["days"]][2:] == ["model_forecast"] * 3
+    assert j["days"][3]["tmin_coldest_c"] == 0.0 and j["days"][3]["hours_below_zero"] == 0.0
+    assert "tmin_coldest_c" not in j["days"][0]
+    assert j["local_today"] == "2026-11-05" and j["forecast_issued_at"] == "2026-11-04T23:30:00+00:00"
+    assert j["totals"] == base.json()["totals"]
+    assert j["totals"]["precip_mm"] == 3.0
+    assert j["missing_days"] == []
+
+
+def test_local_day_boundary_labels_running_by_parcel_day_not_utc(client):
+    tc, h = client
+    h["install"]([_row("2026-11-04", tempMin=3.0, tempMax=13.0)])
+    r, _ = _get(tc, "start=2026-11-04&end=2026-11-05&forecast_days=1", _fake_forecast(n=2))
+    kinds = {d["date"]: d["kind"] for d in r.json()["days"]}
+    assert kinds == {"2026-11-04": "closed", "2026-11-05": "running", "2026-11-06": "forecast"}
+
+
+def test_forecast_days_ignore_sensors(client, monkeypatch):
+    tc, h = client
+    h["install"]([_row("2026-11-04", tempMin=3.0, tempMax=13.0)])
+    monkeypatch.setattr(pd, "_parcel_devices", lambda urn, tid: ["dev1"])
+    monkeypatch.setattr(pd, "_fetch_parcel_entity", lambda urn, tid: {"id": urn})
+    seen = {}
+
+    def readings(tid, devices, lo, hi):
+        seen["span"] = (lo, hi)
+        return _sensor_day("2026-11-04", 2.0, 12.0) + _sensor_day("2026-11-05", -20.0, -10.0)
+
+    monkeypatch.setattr(pd, "_sensor_readings", readings)
+    ps = _fill_env(today=_date(2026, 11, 4))
+    with ps[1], ps[2], _patch.object(pd, "fetch_open_meteo_forecast", return_value=_fake_forecast()):
+        j = tc.get(f"/api/weather/parcel/{PID}/daily?start=2026-11-04&end=2026-11-05&forecast_days=2").json()
+    by = {d["date"]: d for d in j["days"]}
+    assert by["2026-11-04"]["sources"]["tmin_c"] == "iot_sensor"
+    assert by["2026-11-05"]["tmin_c"] == 2.0 and by["2026-11-05"]["source"] == "model_forecast"
+    assert by["2026-11-05"]["sources"]["tmin_c"] == "model_forecast"
+    assert by["2026-11-06"]["sources"]["tmin_c"] == "model_forecast"
+    assert "iot_sensor" not in by["2026-11-05"]["sources"].values()
+
+
+@pytest.mark.parametrize("n", [17, -1])
+def test_forecast_days_out_of_range_is_400(client, n):
+    tc, h = client
+    h["install"]([])
+    r = tc.get(f"/api/weather/parcel/{PID}/daily?start=2026-11-04&end=2026-11-05&forecast_days={n}")
+    assert r.status_code == 400
+
+
+def test_forecast_failure_reports_days_missing(client):
+    tc, h = client
+    h["install"]([_row("2026-11-03", tempMin=4.0, tempMax=14.0, precipitation=2.0)])
+    r, _ = _get(tc, "start=2026-11-03&end=2026-11-04&forecast_days=2", {})
+    j = r.json()
+    assert r.status_code == 200
+    assert j["days"][0]["source"] == "parcel_weather" and j["days"][0]["tmin_c"] == 4.0
+    assert j["missing_reasons"]["2026-11-04"] == "forecast_unavailable"
+    assert j["missing_reasons"]["2026-11-06"] == "forecast_unavailable"
+    assert j["local_today"] is None and j["forecast_issued_at"] is None
+    assert j["totals"]["precip_mm"] == 2.0
+
+
+def test_forecast_beyond_model_horizon_leaves_null_days(client):
+    tc, h = client
+    h["install"]([])
+    fc = _fake_forecast(n=2)  # model gave only today and tomorrow
+    r, _ = _get(tc, "start=2026-11-05&end=2026-11-05&forecast_days=3", fc)
+    j = r.json()
+    last = j["days"][-1]
+    assert last["date"] == "2026-11-08" and last["source"] is None and last["tmin_coldest_c"] is None
+    assert j["missing_reasons"]["2026-11-08"] == "forecast_unavailable"
+
+
+def test_forecast_without_location_is_unavailable(client):
+    tc, h = client
+    h["install"]([])
+    ps = _fill_env(loc=None, today=_date(2026, 11, 4))
+    with ps[0], ps[1], ps[2], _patch.object(pd, "fetch_open_meteo_forecast") as f:
+        j = tc.get(f"/api/weather/parcel/{PID}/daily?start=2026-11-04&end=2026-11-04&forecast_days=1").json()
+    f.assert_not_called()
+    assert j["missing_reasons"]["2026-11-04"] == "forecast_unavailable"
