@@ -357,14 +357,14 @@ def _internal_secret_ok() -> bool:
     return hmac.compare_digest(provided.encode('utf-8'), expected.encode('utf-8'))
 
 
-def _fetch_tenant_users(tenant: str, admin_token: str) -> List[Dict[str, Any]]:
-    """All Keycloak users carrying tenant_id/tenant == tenant (paginated)."""
+def _search_by_attribute(attr: str, tenant: str, admin_token: str) -> List[Dict[str, Any]]:
+    """Every Keycloak user whose `attr` attribute matches tenant (paginated)."""
     users_url = f"{KEYCLOAK_URL}/admin/realms/{KEYCLOAK_REALM}/users"
     headers = {'Authorization': f'Bearer {admin_token}'}
     found: List[Dict[str, Any]] = []
     first = 0
     while True:
-        params = {'q': f'tenant_id:{tenant}', 'first': first,
+        params = {'q': f'{attr}:{tenant}', 'first': first,
                   'max': INTERNAL_PAGE_SIZE, 'briefRepresentation': 'false'}
         resp = requests.get(users_url, headers=headers, params=params, timeout=15)
         if resp.status_code != 200:
@@ -376,6 +376,15 @@ def _fetch_tenant_users(tenant: str, admin_token: str) -> List[Dict[str, Any]]:
         if len(page) < INTERNAL_PAGE_SIZE:
             return found
         first += INTERNAL_PAGE_SIZE
+
+
+def _fetch_tenant_users(tenant: str, admin_token: str) -> List[Dict[str, Any]]:
+    """Users carrying tenant_id or legacy tenant == tenant, de-duplicated by id."""
+    unique: Dict[str, Dict[str, Any]] = {}
+    for attr in ('tenant_id', 'tenant'):
+        for user in _search_by_attribute(attr, tenant, admin_token):
+            unique.setdefault(user['id'], user)
+    return list(unique.values())
 
 
 def _fetch_user_roles(user_id: str, admin_token: str) -> List[str]:
@@ -396,7 +405,7 @@ def internal_list_users_by_role(tenant: str):
     if not _internal_secret_ok():
         logger.warning("Rejected unauthenticated call to internal users endpoint")
         return jsonify({'error': 'Unauthorized'}), 401
-    if not INTERNAL_TENANT_RE.match(tenant):
+    if not INTERNAL_TENANT_RE.fullmatch(tenant):
         return jsonify({'error': 'Invalid tenant'}), 400
     wanted = {r.strip() for r in request.args.get('roles', '').split(',') if r.strip()}
     if not wanted:

@@ -50,7 +50,10 @@ class FakeKeycloak:
                 return FakeResp(self.search_status, {})
             first = int((params or {}).get("first", 0))
             mx = int((params or {}).get("max", 500))
-            return FakeResp(200, self.users[first:first + mx])
+            key, _, val = (params or {}).get("q", "").partition(":")
+            matched = [u for u in self.users
+                       if u.get("attributes", {}).get(key) == [val]]
+            return FakeResp(200, matched[first:first + mx])
         if url.endswith("/role-mappings/realm/composite"):
             uid = url.split("/users/")[1].split("/")[0]
             if uid in self.failing_roles:
@@ -133,7 +136,7 @@ def test_admin_token_failure_returns_502(client, monkeypatch):
     assert client.get(URL + "?roles=TenantAdmin", headers=HDR).status_code == 502
 
 
-@pytest.mark.parametrize("tenant", ["Acme", "a.b", "a%20b"])
+@pytest.mark.parametrize("tenant", ["Acme", "a.b", "a%20b", "acme%0A"])
 def test_invalid_tenant_rejected(client, monkeypatch, tenant):
     _install(monkeypatch, FakeKeycloak([], {}))
     r = client.get(f"/internal/tenants/{tenant}/users?roles=TenantAdmin", headers=HDR)
@@ -153,5 +156,34 @@ def test_paginates(client, monkeypatch):
     r = client.get(URL + "?roles=TenantAdmin", headers=HDR)
     assert r.status_code == 200
     assert len(r.get_json()["users"]) == 501
-    assert [p["first"] for p in fake.search_params] == [0, 500]
+    tid = [p for p in fake.search_params if p["q"] == "tenant_id:acme"]
+    assert [p["first"] for p in tid] == [0, 500]
     assert all(p["max"] == 500 for p in fake.search_params)
+
+
+def test_legacy_tenant_attribute_found_once(client, monkeypatch):
+    users = [_user("u1", "acme", key="tenant"), _user("u2", "acme")]
+    both = _user("u3", "acme")
+    both["attributes"]["tenant"] = ["acme"]
+    users.append(both)
+    roles = {u["id"]: ["TenantAdmin"] for u in users}
+    fake = FakeKeycloak(users, roles)
+    _install(monkeypatch, fake)
+    r = client.get(URL + "?roles=TenantAdmin", headers=HDR)
+    assert r.status_code == 200
+    ids = sorted(u["user_id"] for u in r.get_json()["users"])
+    assert ids == ["u1", "u2", "u3"]
+    assert {p["q"] for p in fake.search_params} == {"tenant_id:acme", "tenant:acme"}
+
+
+def test_legacy_search_failure_returns_502(client, monkeypatch):
+    fake = FakeKeycloak([_user("u1", "acme")], {"u1": ["TenantAdmin"]})
+    orig = fake.get
+
+    def get(url, headers=None, params=None, timeout=None):
+        if params and params.get("q") == "tenant:acme":
+            return FakeResp(500, {})
+        return orig(url, headers=headers, params=params, timeout=timeout)
+
+    monkeypatch.setattr(api.requests, "get", get)
+    assert client.get(URL + "?roles=TenantAdmin", headers=HDR).status_code == 502
