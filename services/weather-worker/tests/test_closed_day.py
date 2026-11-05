@@ -206,3 +206,36 @@ def test_publish_uses_pacer_before_post():
     cd.publish_closed_day("t", PARCEL, (0, 0), DAY, {"tmin_c": 1.0},
                           orion_url="http://o", context_url="", http=http, pacer=pacer)
     assert order == ["wait", "post"]
+
+
+def _hourly_temps(temps, hours=24):
+    r = _response(hours=hours)
+    r["hourly"]["temperature_2m"] = list(temps)
+    return r
+
+
+def test_frost_hours_counted_from_hourly_temperature():
+    temps = [-2.0] * 3 + [0.0] + [5.0] * 20  # <= 0 degC, as weather-api counts
+    v = cd.compute_closed_day_values(_hourly_temps(temps), DAY)
+    assert v["frost_hours"] == 4.0
+
+
+def test_closed_day_without_24_hours_omits_frost_hours():
+    v = cd.compute_closed_day_values(_hourly_temps([-3.0] * 23, hours=23), DAY)
+    assert v["frost_hours"] is None
+    v = cd.compute_closed_day_values(_hourly_temps([-3.0] * 23 + [None]), DAY)
+    assert v["frost_hours"] is None
+    assert cd.compute_closed_day_values(_response(), DAY)["frost_hours"] is None
+
+
+def test_count_frost_hours_applies_altitude_delta():
+    hourly = _hourly_temps([1.0] * 5 + [4.0] * 19)["hourly"]
+    assert cd.count_frost_hours(hourly, DAY, 0.0) == 0.0
+    assert cd.count_frost_hours(hourly, DAY, -1.5) == 5.0
+    assert cd.count_frost_hours({"time": [], "temperature_2m": []}, DAY, 0.0) is None
+
+
+def test_entity_frost_hours_attribute_zero_is_published():
+    e = cd.build_closed_day_entity("t", PARCEL, (0, 0), DAY, {"frost_hours": 0.0}, context_url="")
+    assert e["frostHours"]["unitCode"] == "HUR" and e["frostHours"]["value"] == 0.0
+    assert e["frostHours"]["observedAt"] == f"{DAY}T23:59:59Z"
