@@ -182,7 +182,9 @@ def fetch_open_meteo_forecast(
         if not isinstance(daily, dict) or not isinstance(daily.get("time"), list) or _num(offset) is None:
             return {}
 
-        local_today = (now + timedelta(seconds=_num(offset))).date().isoformat()
+        local_dt = now + timedelta(seconds=_num(offset))
+        local_today = local_dt.date().isoformat()
+        local_now = local_dt.strftime("%Y-%m-%dT%H:%M")
         frost_hours = _hours_below_zero(hourly, f"temperature_2m_{_AUTO}")
         out: Dict[str, Dict[str, Any]] = {}
         for i, day in enumerate(daily["time"]):
@@ -204,7 +206,7 @@ def fetch_open_meteo_forecast(
                 rec["kind"] = "running" if day == local_today else "forecast"
                 rec["source"] = "model_forecast"
                 out[day] = rec
-        return {"days": out, "local_today": local_today, "issued_at": now.isoformat()}
+        return {"days": out, "local_today": local_today, "local_now": local_now, "issued_at": now.isoformat()}
     except Exception as exc:  # noqa: BLE001 — a malformed body leaves the days unavailable
         logger.warning("open-meteo forecast unparsable: %s", type(exc).__name__)
         return {}

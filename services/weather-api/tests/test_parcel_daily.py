@@ -568,3 +568,29 @@ def test_null_today_without_forecast_days_is_not_closed(client):
         j = tc.get(f"/api/weather/parcel/{PID}/daily?start=2026-11-04&end=2026-11-04").json()
     assert j["days"][0]["kind"] == "running" and j["days"][0]["source"] is None
     assert j["totals"]["precip_mm"] is None
+
+
+def test_local_now_passes_through_with_forecast(client):
+    tc, h = client
+    h["install"]([_row("2026-11-03", tempMin=4.0, tempMax=14.0, precipitation=2.0)])
+    fc = _fake_forecast()
+    fc["local_now"] = "2026-11-05T00:30"
+    r, _ = _get(tc, "start=2026-11-03&end=2026-11-04&forecast_days=2", fc)
+    assert r.json()["local_now"] == "2026-11-05T00:30"
+
+
+def test_local_now_null_when_forecast_fails(client):
+    tc, h = client
+    h["install"]([_row("2026-11-03", tempMin=4.0, tempMax=14.0, precipitation=2.0)])
+    r, _ = _get(tc, "start=2026-11-03&end=2026-11-04&forecast_days=2", {})
+    j = r.json()
+    assert "local_now" in j and j["local_now"] is None and j["local_today"] is None
+
+
+def test_no_local_now_without_forecast_days(client):
+    tc, h = client
+    h["install"]([_row("2026-10-01", **FULL)])
+    ps = _fill_env(today=_date(2026, 10, 3))
+    with ps[0], ps[1], ps[2], _patch.object(pd, "fetch_open_meteo_forecast"):
+        j = tc.get(f"/api/weather/parcel/{PID}/daily?start=2026-10-01&end=2026-10-02").json()
+    assert "local_now" not in j
