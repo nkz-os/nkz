@@ -130,7 +130,7 @@ def _forecast_payload(ecmwf_tmin=None, hourly=None):
 def _forecast(payload, status=200):
     get = MagicMock(return_value=_resp(payload, status))
     with patch.object(df.settings, "openmeteo_api_url", "http://om/v1"):
-        out = df.fetch_open_meteo_forecast(42.6, -2.1, 580.0, 2, now=NOW, http_get=get)
+        out = df.fetch_open_meteo_forecast(10.0, 10.0, 300.0, 2, now=NOW, http_get=get)
     return out, get
 
 
@@ -140,7 +140,7 @@ def test_fetch_forecast_uses_automatic_selection_and_marks_today():
     assert get.call_args.args[0] == "http://om/v1/forecast"
     assert kw["params"]["models"] == "best_match,ecmwf_ifs025"
     assert kw["params"]["timezone"] == "auto" and kw["params"]["past_days"] == 0
-    assert kw["params"]["forecast_days"] == 3 and kw["params"]["elevation"] == 580.0
+    assert kw["params"]["forecast_days"] == 3 and kw["params"]["elevation"] == 300.0
     assert out["days"]["2026-11-06"]["tmin_c"] == AUTO_TMIN
     assert out["days"]["2026-11-06"]["tmin_coldest_c"] == min(AUTO_TMIN, ECMWF_TMIN)
     assert out["days"]["2026-11-06"]["wind2m_ms"] == round(2.0 * 0.748, 3)
@@ -190,3 +190,25 @@ def test_forecast_days_request_is_capped_at_open_meteo_limit():
     df.fetch_open_meteo_forecast(1, 1, None, 16, now=NOW, http_get=get)
     assert get.call_args.kwargs["params"]["forecast_days"] == 16
     assert "elevation" not in get.call_args.kwargs["params"]
+
+
+def test_forecast_zero_elevation_is_not_sent():
+    get = MagicMock(return_value=_resp(_forecast_payload()))
+    with patch.object(df.settings, "openmeteo_api_url", "http://om/v1"):
+        df.fetch_open_meteo_forecast(10.0, 10.0, 0.0, 2, now=NOW, http_get=get)
+    assert "elevation" not in get.call_args.kwargs["params"]
+
+
+def test_daily_fill_zero_elevation_is_not_sent():
+    get = MagicMock(return_value=_resp({"daily": {"time": []}}))
+    with patch.object(df.settings, "openmeteo_api_url", "http://om/v1"):
+        df.fetch_open_meteo_daily("model_analysis", 10.0, 10.0, 0.0,
+                                  date(2026, 11, 1), date(2026, 11, 2), http_get=get)
+    assert "elevation" not in get.call_args.kwargs["params"]
+
+
+def test_forecast_malformed_body_returns_empty_not_raises():
+    payload = _forecast_payload()
+    payload["daily"]["time"] = [["x"]]
+    out, _ = _forecast(payload)
+    assert out == {}

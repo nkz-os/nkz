@@ -81,7 +81,8 @@ def fetch_open_meteo_daily(
     }
     if models:
         params["models"] = models
-    if elevation is not None:
+    # 0 means "unknown" (as in the worker); sea-level 0 would bias frost inputs
+    if elevation is not None and elevation > 0:
         params["elevation"] = elevation
     try:
         resp = http_get(
@@ -162,7 +163,8 @@ def fetch_open_meteo_forecast(
         # today + N days; Open-Meteo allows at most 16 days in all
         "forecast_days": min(forecast_days + 1, _OPEN_METEO_MAX_FORECAST_DAYS),
     }
-    if elevation is not None:
+    # 0 means "unknown" (as in the worker); sea-level 0 would bias frost inputs
+    if elevation is not None and elevation > 0:
         params["elevation"] = elevation
     try:
         resp = http_get(f"{base}/forecast", params=params, timeout=timeout if timeout is not None else 30)
@@ -176,29 +178,33 @@ def fetch_open_meteo_forecast(
     except Exception as exc:  # noqa: BLE001 — a failed forecast leaves the days unavailable
         logger.warning("open-meteo forecast failed: %s", exc)
         return {}
-    if not isinstance(daily, dict) or not isinstance(daily.get("time"), list) or _num(offset) is None:
-        return {}
+    try:
+        if not isinstance(daily, dict) or not isinstance(daily.get("time"), list) or _num(offset) is None:
+            return {}
 
-    local_today = (now + timedelta(seconds=_num(offset))).date().isoformat()
-    frost_hours = _hours_below_zero(hourly, f"temperature_2m_{_AUTO}")
-    out: Dict[str, Dict[str, Any]] = {}
-    for i, day in enumerate(daily["time"]):
-        col = lambda name, model=_AUTO: _at(daily, f"{name}_{model}", i)  # noqa: E731
-        wind10 = col("wind_speed_10m_mean")
-        tmin, tmin_ecmwf = col("temperature_2m_min"), col("temperature_2m_min", _ECMWF)
-        rec: Dict[str, Any] = {
-            "tmin_c": tmin,
-            "tmax_c": col("temperature_2m_max"),
-            "precip_mm": col("precipitation_sum"),
-            "et0_mm": col("et0_fao_evapotranspiration"),
-            "radiation_mj_m2": col("shortwave_radiation_sum"),
-            "vapour_pressure_kpa": None,
-            "wind2m_ms": round(wind10 * WIND_10M_TO_2M, 3) if wind10 is not None else None,
-            "hours_below_zero": frost_hours.get(day),
-            "tmin_coldest_c": min(tmin, tmin_ecmwf) if tmin is not None and tmin_ecmwf is not None else None,
-        }
-        if any(v is not None for v in rec.values()):
-            rec["kind"] = "running" if day == local_today else "forecast"
-            rec["source"] = "model_forecast"
-            out[day] = rec
-    return {"days": out, "local_today": local_today, "issued_at": now.isoformat()}
+        local_today = (now + timedelta(seconds=_num(offset))).date().isoformat()
+        frost_hours = _hours_below_zero(hourly, f"temperature_2m_{_AUTO}")
+        out: Dict[str, Dict[str, Any]] = {}
+        for i, day in enumerate(daily["time"]):
+            col = lambda name, model=_AUTO: _at(daily, f"{name}_{model}", i)  # noqa: E731
+            wind10 = col("wind_speed_10m_mean")
+            tmin, tmin_ecmwf = col("temperature_2m_min"), col("temperature_2m_min", _ECMWF)
+            rec: Dict[str, Any] = {
+                "tmin_c": tmin,
+                "tmax_c": col("temperature_2m_max"),
+                "precip_mm": col("precipitation_sum"),
+                "et0_mm": col("et0_fao_evapotranspiration"),
+                "radiation_mj_m2": col("shortwave_radiation_sum"),
+                "vapour_pressure_kpa": None,
+                "wind2m_ms": round(wind10 * WIND_10M_TO_2M, 3) if wind10 is not None else None,
+                "hours_below_zero": frost_hours.get(day),
+                "tmin_coldest_c": min(tmin, tmin_ecmwf) if tmin is not None and tmin_ecmwf is not None else None,
+            }
+            if any(v is not None for v in rec.values()):
+                rec["kind"] = "running" if day == local_today else "forecast"
+                rec["source"] = "model_forecast"
+                out[day] = rec
+        return {"days": out, "local_today": local_today, "issued_at": now.isoformat()}
+    except Exception as exc:  # noqa: BLE001 — a malformed body leaves the days unavailable
+        logger.warning("open-meteo forecast unparsable: %s", type(exc).__name__)
+        return {}

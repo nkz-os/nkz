@@ -8,6 +8,9 @@ listed in ``missing_days`` and its fields are null: nothing is interpolated or
 carried forward. With ``fill=open_meteo`` such days are requested on demand from
 Open-Meteo (model analysis for recent days, reanalysis before) and tagged with
 their ``source``; nothing is stored.
+
+``tmin_coldest_c`` (forecast days only) is the colder of two models. It is a
+warning input for frost, not an expected temperature: never show it as a forecast.
 """
 
 import json
@@ -59,6 +62,8 @@ _UNITS = {
     "vapour_pressure_kpa": "kPa",
     "wind2m_ms": "m s-1",
     "hours_below_zero": "h",
+    # coldest of two models: a warning input for frost, not an expected temperature
+    "tmin_coldest_c": "degC",
 }
 
 _SOURCE = (

@@ -180,3 +180,57 @@ def test_fine_fetch_asks_only_for_the_running_day():
         _engine()._fetch_fine_temps(42.8, -1.6)
     p = g.call_args.kwargs["params"]
     assert p["start_date"] == p["end_date"]
+
+
+def _fallbacks(fine, data=None):
+    stats = {"fine_temps_fallbacks": 0}
+    out = _engine()._merge_fine_temps(data if data is not None else _ecmwf(), fine, stats)
+    return stats["fine_temps_fallbacks"], out
+
+
+def test_every_fallback_path_counts_once_and_keeps_ecmwf():
+    no_elev = _fine()
+    del no_elev["elevation"]
+    bad_elev = _fine(elevation="n/a")
+    for fine in (None, _fine(tmin=(None, 2.0)), no_elev,
+                 _fine(days=("2026-11-01", D1)), bad_elev, {"daily": [1]}):
+        n, out = _fallbacks(fine)
+        assert n == 1 and out == _ecmwf()
+
+
+def test_successful_merge_does_not_count():
+    n, out = _fallbacks(_fine())
+    assert n == 0 and out["daily"]["temperature_2m_min"][0] == -1.0
+
+
+def test_fallback_warning_names_no_location(caplog):
+    with caplog.at_level(logging.WARNING, logger=pe.logger.name):
+        _fallbacks(_fine(days=("2026-11-01", D1)))
+    msgs = [r.getMessage() for r in caplog.records if r.levelno == logging.WARNING]
+    assert msgs and not any("42.8" in m or "urn:" in m for m in msgs)
+
+
+def test_run_once_reports_fine_temps_fallbacks():
+    eng = _engine()
+    p = {"id": "urn:ngsi-ld:AgriParcel:p1", "_tenant": "t-1", "_centroid": (-1.6, 42.8), "_altitude": 500.0}
+    with patch.object(eng, "_fetch_all_parcels", return_value=[dict(p)]), \
+         patch.object(eng, "_extract_centroid_and_altitude", side_effect=lambda q: ((-1.6, 42.8), 500.0)), \
+         patch.object(eng, "_ensure_parcel_timezones", return_value={}), \
+         patch.object(eng, "_fetch_openmeteo", return_value=_ecmwf()), \
+         patch.object(eng, "_fetch_fine_temps", return_value=None), \
+         patch.object(eng, "_compute_terrain_attributes", return_value=(0.0, 0.0)), \
+         patch.object(eng, "_write_weather_observed", return_value={"created": 1}), \
+         patch.object(eng, "_write_weather_forecast", return_value=True), \
+         patch.object(eng, "_publish_closed_days", return_value={}), \
+         patch.object(eng, "_get_active_tenants", return_value=[]), \
+         patch.object(pe.time, "sleep"):
+        stats = eng.run_once()
+    assert stats["fine_temps_fallbacks"] == 1
+
+
+def test_open_meteo_fetch_timeouts_are_30s():
+    resp = MagicMock(status_code=200)
+    resp.json.return_value = _ecmwf()
+    with patch.object(pe.requests, "get", return_value=resp) as g:
+        _engine()._fetch_openmeteo(42.8, -1.6)
+    assert g.call_args.kwargs["timeout"] == 30

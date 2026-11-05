@@ -402,6 +402,7 @@ def test_daily_without_forecast_days_returns_same_days_plus_kind(client):
     assert j["days"][0]["tmin_c"] == 11.2 and j["days"][0]["hours_below_zero"] is None
     assert "forecast_issued_at" not in j and "local_today" not in j
     assert j["units"]["hours_below_zero"] == "h"
+    assert j["units"]["tmin_coldest_c"] == "degC"
 
 
 def test_daily_with_forecast_appends_days_and_keeps_totals(client):
