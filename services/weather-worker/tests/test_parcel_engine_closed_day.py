@@ -205,3 +205,21 @@ def test_closed_day_without_altitude_correction_counts_raw_hours():
          patch("weather_worker.closed_day.WritePacer", return_value=MagicMock()):
         eng._publish_closed_days([cluster])
     assert published[0][4]["frost_hours"] == 2.0
+
+
+def test_closed_day_without_raw_tmin_omits_frost_hours():
+    eng = _engine()
+    resp = _response()
+    resp["hourly"]["temperature_2m"] = [-1.0] * 24
+    resp["daily"]["temperature_2m_min"] = [None]
+    published = []
+    cluster = [{"id": "urn:ngsi-ld:AgriParcel:p1", "_tenant": "t-1", "_centroid": (-1.6, 42.8),
+                "_altitude": 1000.0}]
+    with patch.object(pe, "datetime", _FixedDT), \
+         patch("weather_worker.closed_day._read_last_published_day", return_value=None), \
+         patch.object(eng, "_fetch_openmeteo_closed_day", return_value=resp), \
+         patch("weather_worker.closed_day.publish_closed_day",
+               side_effect=lambda *a, **k: published.append(a) or True), \
+         patch("weather_worker.closed_day.WritePacer", return_value=MagicMock()):
+        eng._publish_closed_days([cluster])
+    assert published[0][4]["frost_hours"] is None

@@ -654,20 +654,17 @@ class ParcelWeatherEngine:
     ) -> Optional[Dict[str, Any]]:
         """Day min/max from Open-Meteo automatic model selection (no ``models``).
 
-        Same dates and timezone as ``_fetch_openmeteo``. The finest model is
+        Same start date and timezone as ``_fetch_openmeteo``; only that day. The finest model is
         often slower on a cold cache, hence 30 s. Failure returns None and the
         caller keeps the configured model; the log never names coordinates.
         """
         try:
             today = datetime.utcnow().strftime("%Y-%m-%d")
-            end = (datetime.utcnow() + timedelta(days=self.forecast_days)).strftime(
-                "%Y-%m-%d"
-            )
             params = {
                 "latitude": latitude,
                 "longitude": longitude,
                 "start_date": today,
-                "end_date": end,
+                "end_date": today,  # only the running day is read
                 "daily": ["temperature_2m_min", "temperature_2m_max"],
                 "timezone": "Europe/Madrid",
             }
@@ -698,6 +695,10 @@ class ParcelWeatherEngine:
         Pure: returns a copy. Everything else (mean, rain, ET0, hourly, elevation)
         stays as in ``data``. The day is replaced only when the fine response has
         both values for that exact date; otherwise it keeps the original model.
+        When the two responses report different grid-cell elevations, the fine
+        values are re-based to the original response's elevation with the
+        downscaler's lapse rate, because the later altitude correction assumes
+        that elevation. A fine response without elevation is not used.
         """
         if not fine:
             return data
@@ -716,7 +717,27 @@ class ParcelWeatherEngine:
         tmax = list(daily.get("temperature_2m_max") or [])
         if not tmin or not tmax:
             return data
-        tmin[0], tmax[0] = fmin[j], fmax[j]
+        new_min, new_max = fmin[j], fmax[j]
+        base_elev, fine_elev = data.get("elevation"), fine.get("elevation")
+        if base_elev is not None:
+            if fine_elev is None:
+                logger.warning(
+                    "Open-Meteo fine temperatures carry no elevation; "
+                    "keeping configured model"
+                )
+                return data
+            if float(fine_elev) != float(base_elev):
+                from weather_utils.spatial_downscaler import (
+                    correct_temperature_altitude,
+                )
+
+                new_min = correct_temperature_altitude(
+                    float(new_min), float(fine_elev), float(base_elev)
+                )
+                new_max = correct_temperature_altitude(
+                    float(new_max), float(fine_elev), float(base_elev)
+                )
+        tmin[0], tmax[0] = new_min, new_max
         merged = dict(data)
         merged["daily"] = {**daily, "temperature_2m_min": tmin, "temperature_2m_max": tmax}
         return merged
@@ -1167,7 +1188,8 @@ class ParcelWeatherEngine:
         ``timezone=auto`` makes the daily/hourly blocks follow the point's own
         calendar day; the response's ``utc_offset_seconds`` tells which local day is
         "yesterday". Hourly dew point and 10 m wind are needed for vapour pressure
-        and 2 m wind speed; hourly temperature gives the frost hours. ``past_days > 2`` serves the reconciliation of days
+        and 2 m wind speed; hourly temperature gives the frost hours.
+        ``past_days > 2`` serves the reconciliation of days
         missed while the worker was down.
         """
         try:

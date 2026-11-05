@@ -1,6 +1,7 @@
 """Day min/max of the running day come from the automatic model; the rest stays ECMWF."""
 
 import copy
+import pytest
 import logging
 import os
 import sys
@@ -37,9 +38,9 @@ def _ecmwf():
     }
 
 
-def _fine(tmin=(-1.0, 2.0), tmax=(12.0, 13.0), days=(D0, D1)):
+def _fine(tmin=(-1.0, 2.0), tmax=(12.0, 13.0), days=(D0, D1), elevation=500.0):
     return {
-        "elevation": 480.0,
+        "elevation": elevation,
         "daily": {
             "time": list(days),
             "temperature_2m_min": list(tmin),
@@ -146,3 +147,36 @@ def test_run_once_fetches_fine_temps_once_per_cluster():
     assert len(written) == 2
     # parcel at the grid altitude: no lapse shift, so the fine values arrive as is
     assert all(d["temp_min"] == -1.0 and d["temp_max"] == 12.0 for d in written)
+
+
+def test_merge_rebases_fine_temps_when_elevations_differ():
+    # fine cell 200 m lower than the ECMWF cell: 6.5 C/km -> 1.3 C colder at the ECMWF level
+    out = _engine()._merge_fine_temps(_ecmwf(), _fine(elevation=300.0))
+    assert out["daily"]["temperature_2m_min"][0] == pytest.approx(-1.0 - 1.3)
+    assert out["daily"]["temperature_2m_max"][0] == pytest.approx(12.0 - 1.3)
+    out = _engine()._merge_fine_temps(_ecmwf(), _fine(elevation=700.0))
+    assert out["daily"]["temperature_2m_min"][0] == pytest.approx(-1.0 + 1.3)
+
+
+def test_merge_is_identity_when_elevations_match():
+    out = _engine()._merge_fine_temps(_ecmwf(), _fine(elevation=500.0))
+    assert out["daily"]["temperature_2m_min"][0] == -1.0
+    assert out["daily"]["temperature_2m_max"][0] == 12.0
+
+
+def test_fine_without_elevation_keeps_ecmwf(caplog):
+    fine = _fine()
+    del fine["elevation"]
+    with caplog.at_level(logging.WARNING, logger=pe.logger.name):
+        out = _engine()._merge_fine_temps(_ecmwf(), fine)
+    assert out == _ecmwf()
+    assert any(r.levelno == logging.WARNING for r in caplog.records)
+
+
+def test_fine_fetch_asks_only_for_the_running_day():
+    resp = MagicMock(status_code=200)
+    resp.json.return_value = _fine()
+    with patch.object(pe.requests, "get", return_value=resp) as g:
+        _engine()._fetch_fine_temps(42.8, -1.6)
+    p = g.call_args.kwargs["params"]
+    assert p["start_date"] == p["end_date"]
