@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import { NKZClient } from '@nekazari/sdk';
 import { useNKZRuntime } from '../runtime/NKZContext';
 import '../runtime/globals';
+import { toApiUrl } from '../runtime/apiOrigin';
 
 /** See runtime/NKZProvider.tsx's HostAuthBridge — only the field this hook reads. */
 interface HostAuthBridgeTenant {
@@ -33,7 +34,7 @@ export function useAPI(basePath?: string): NKZClient {
         : undefined;
 
     return new NKZClient({
-      baseUrl: resolvedBasePath,
+      baseUrl: toApiUrl(resolvedBasePath),
       getTenantId,
     });
   }, [basePath, moduleApi.basePath]);

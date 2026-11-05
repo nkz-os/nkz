@@ -18,6 +18,7 @@ import {
   orionEntityPath,
   orionEntitiesPath,
 } from './orionPaths';
+import { toApiUrl } from './apiOrigin';
 
 /**
  * Defensive shape of the auth bridge the host may expose on
@@ -59,7 +60,7 @@ function makeDefaultClient(): QueryClient {
 
 function makeHttp(moduleId: string) {
   return async function httpJson<T>(input: string, init?: RequestInit): Promise<T> {
-    const res = await fetch(input, {
+    const res = await fetch(toApiUrl(input), {
       credentials: 'include',
       headers: {
         Accept: 'application/json',
