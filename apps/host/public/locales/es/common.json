@@ -2089,6 +2089,7 @@
     "search_error": "Búsqueda no disponible",
     "search_open": "Buscar ubicación",
     "search_close": "Cerrar búsqueda",
+    "search_clear": "Limpiar búsqueda",
     "search_type_country": "País",
     "search_type_region": "Comunidad",
     "search_type_county": "Comarca",

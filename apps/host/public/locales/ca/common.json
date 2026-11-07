@@ -2113,6 +2113,7 @@
     "search_error": "Cerca no disponible",
     "search_open": "Cerca una ubicació",
     "search_close": "Tancar la cerca",
+    "search_clear": "Netejar la cerca",
     "search_type_country": "País",
     "search_type_region": "Comunitat",
     "search_type_county": "Comarca",

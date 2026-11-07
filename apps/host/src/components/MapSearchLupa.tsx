@@ -4,14 +4,16 @@ import { useGeocoder } from '@/hooks/useGeocoder';
 import type { GeocodeResult } from '@/types/geocode';
 import { Search, MapPin, X, Loader2 } from 'lucide-react';
 
-export function MapSearchLupa({ onPick, onActiveChange, getCameraBias }: {
+export function MapSearchLupa({ onPick, onClear, onActiveChange, getCameraBias }: {
   onPick: (r: GeocodeResult) => void;
+  onClear?: () => void;
   onActiveChange?: (active: boolean) => void;
   getCameraBias?: () => { lat: number; lon: number } | null;
 }) {
   const { t, i18n: i18nInstance } = useTranslation();
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState('');
+  const [picked, setPicked] = useState<GeocodeResult | null>(null);
   const [activeIndex, setActiveIndex] = useState(-1);
   const containerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -25,11 +27,25 @@ export function MapSearchLupa({ onPick, onActiveChange, getCameraBias }: {
     getCameraBias
   });
 
-  const closeAndClear = () => {
+  const collapseInput = () => {
     setOpen(false);
     setQ('');
     clear();
     setActiveIndex(-1);
+  };
+
+  const closeAndClear = () => {
+    collapseInput();
+    if (picked !== null) {
+      setPicked(null);
+      onClear?.();
+    }
+  };
+
+  const selectResult = (r: GeocodeResult) => {
+    setPicked(r);
+    collapseInput();
+    onPick(r);
   };
 
   useEffect(() => {
@@ -39,8 +55,8 @@ export function MapSearchLupa({ onPick, onActiveChange, getCameraBias }: {
   }, [open]);
 
   useEffect(() => {
-    onActiveChangeRef.current?.(open);
-  }, [open]);
+    onActiveChangeRef.current?.(open || picked !== null);
+  }, [open, picked]);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -86,12 +102,40 @@ export function MapSearchLupa({ onPick, onActiveChange, getCameraBias }: {
 
     if (e.key === 'Enter' && results.length > 0) {
       const selectedIndex = activeIndex >= 0 ? activeIndex : 0;
-      onPick(results[selectedIndex]);
-      closeAndClear();
+      selectResult(results[selectedIndex]);
     }
   };
 
   if (!open) {
+    if (picked) {
+      return (
+        <div className="flex items-center gap-1.5 pl-3 pr-2 h-10 rounded-nkz-lg bg-nkz-surface-raised border border-nkz-border shadow-lg text-nkz-text-primary">
+          <button
+            type="button"
+            aria-label={t('map.search_open')}
+            className="flex items-center gap-2 min-w-0 hover:text-nkz-accent-base transition-colors"
+            onClick={() => setOpen(true)}
+          >
+            <MapPin className="w-4 h-4 text-nkz-accent-base shrink-0" />
+            <span className="text-sm font-medium truncate max-w-[14rem]">
+              {picked.name || picked.label}
+            </span>
+          </button>
+          <button
+            type="button"
+            aria-label={t('map.search_clear')}
+            className="p-1 text-nkz-text-muted hover:text-nkz-text-primary transition-colors"
+            onClick={() => {
+              setPicked(null);
+              onClear?.();
+            }}
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      );
+    }
+
     return (
       <button
         aria-label={t('map.search_open')}
@@ -173,10 +217,7 @@ export function MapSearchLupa({ onPick, onActiveChange, getCameraBias }: {
               role="option"
               aria-selected={i === activeIndex}
               className={`w-full flex items-start gap-2.5 px-3 py-2.5 text-left hover:bg-nkz-accent-soft transition-colors ${i === activeIndex ? 'bg-nkz-accent-soft' : ''}`}
-              onClick={() => {
-                onPick(r);
-                closeAndClear();
-              }}
+              onClick={() => selectResult(r)}
               onMouseEnter={() => setActiveIndex(i)}
             >
               <MapPin className={`w-4 h-4 mt-0.5 shrink-0 ${i === activeIndex ? 'text-nkz-accent-base' : 'text-nkz-text-muted'}`} />

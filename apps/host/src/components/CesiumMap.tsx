@@ -319,6 +319,17 @@ function dropGeocodeMarker(viewer: any, r: Pick<GeocodeResult, 'name' | 'label' 
   }
 }
 
+/** Remove the geocode destination pin when the user clears the search. */
+function clearGeocodeMarker(viewer: any): void {
+  try {
+    if (!viewer || viewer.isDestroyed?.()) return;
+    viewer.entities.removeById(GEOCODE_MARKER_ID);
+    viewer.scene.requestRender?.();
+  } catch (err) {
+    logger.warn('[CesiumMap] Could not clear geocode marker:', err);
+  }
+}
+
 export const CesiumMap = React.memo<CesiumMapProps>(({
   showControls = true,
   robots = [],
@@ -2266,6 +2277,7 @@ export const CesiumMap = React.memo<CesiumMapProps>(({
               flyToForResult(viewerRef.current, r);
               dropGeocodeMarker(viewerRef.current, r);
             }}
+            onClear={() => clearGeocodeMarker(viewerRef.current)}
             onActiveChange={setSearchActive}
             getCameraBias={() => getCameraCenterBias(viewerRef.current)}
           />

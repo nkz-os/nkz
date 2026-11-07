@@ -2089,6 +2089,7 @@
     "search_error": "Search unavailable",
     "search_open": "Search location",
     "search_close": "Close search",
+    "search_clear": "Clear search",
     "search_type_country": "Country",
     "search_type_region": "Region",
     "search_type_county": "County",

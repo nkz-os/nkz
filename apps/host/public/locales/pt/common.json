@@ -2113,6 +2113,7 @@
     "search_error": "Pesquisa indisponível",
     "search_open": "Pesquisar localização",
     "search_close": "Fechar pesquisa",
+    "search_clear": "Limpar pesquisa",
     "search_type_country": "País",
     "search_type_region": "Região",
     "search_type_county": "Distrito",

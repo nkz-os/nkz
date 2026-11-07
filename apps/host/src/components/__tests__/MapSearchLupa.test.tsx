@@ -107,6 +107,35 @@ describe('MapSearchLupa', () => {
     expect(onActiveChange).toHaveBeenLastCalledWith(false);
   });
 
+  it('keeps active state true while a result is picked and calls onClear when cleared', () => {
+    mockHook({ results: [baseResult] });
+    const onPick = vi.fn();
+    const onClear = vi.fn();
+    const onActiveChange = vi.fn();
+    render(
+      <MapSearchLupa
+        onPick={onPick}
+        onClear={onClear}
+        onActiveChange={onActiveChange}
+      />
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: /search/i }));
+    expect(onActiveChange).toHaveBeenLastCalledWith(true);
+
+    fireEvent.click(screen.getByText('Pamplona'));
+    expect(onPick).toHaveBeenCalledWith(baseResult);
+    // Input collapses to a pinned pill, while active state remains true so map labels stay visible
+    expect(screen.queryByRole('textbox')).toBeNull();
+    expect(screen.getByText('Pamplona')).toBeInTheDocument();
+    expect(onActiveChange).toHaveBeenLastCalledWith(true);
+
+    // Clearing the pinned pill calls onClear and turns active state false
+    fireEvent.click(screen.getByRole('button', { name: 'map.search_clear' }));
+    expect(onClear).toHaveBeenCalledTimes(1);
+    expect(onActiveChange).toHaveBeenLastCalledWith(false);
+  });
+
   it('does not fire onActiveChange loops for unstable parent callbacks', () => {
     let calls = 0;
     const Unstable = () => {

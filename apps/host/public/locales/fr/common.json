@@ -2113,6 +2113,7 @@
     "search_error": "Recherche indisponible",
     "search_open": "Rechercher un emplacement",
     "search_close": "Fermer la recherche",
+    "search_clear": "Effacer la recherche",
     "search_type_country": "Pays",
     "search_type_region": "Région",
     "search_type_county": "Comté",

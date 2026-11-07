@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { carryOverViewerSlots, shouldPreload, MAX_PRELOAD_ATTEMPTS } from '../moduleSlotMerge';
+import { isRetiredSlotWidget } from '../SlotRegistry';
 import type { ModuleDefinition } from '../ModuleContext';
 
 const mod = (id: string, extra: Partial<ModuleDefinition> = {}): ModuleDefinition => ({
@@ -70,5 +71,13 @@ describe('shouldPreload', () => {
   it('skips local modules and modules that already have slots', () => {
     expect(shouldPreload(mod('x', { isLocal: true }), new Map(), new Set())).toBe(false);
     expect(shouldPreload(mod('y', { viewerSlots: slots }), new Map(), new Set())).toBe(false);
+  });
+});
+
+describe('isRetiredSlotWidget', () => {
+  it('filters out retired duplicate geosearch widgets', () => {
+    expect(isRetiredSlotWidget({ id: 'catastro-spain-geo-search', component: 'GeoSearchBar' })).toBe(true);
+    expect(isRetiredSlotWidget({ id: 'custom-id', component: 'GeoSearchBar' })).toBe(true);
+    expect(isRetiredSlotWidget({ id: 'catastro-spain-map-layer', component: 'CatastroMapLayer' })).toBe(false);
   });
 });
