@@ -16,6 +16,7 @@ from __future__ import annotations
 from collections.abc import Iterable
 from dataclasses import dataclass, replace
 from datetime import date, timedelta
+import math
 from typing import Any
 
 ASSIGN_TOLERANCE_DAYS = 60
@@ -35,6 +36,23 @@ UPROOTING = "uprooting"
 HARVEST_CAMPAIGN_GAP_DAYS = 120
 # Producers write ``nkz:declaredCampaign``; Orion returns the expanded IRI.
 _DECLARED_CAMPAIGN_TERMS = ("https://nkz-os.org/ns/declaredCampaign", "nkz:declaredCampaign", "declaredCampaign")
+_DECLARED_YIELD_TERMS = (
+    "https://nkz-os.org/ns/declaredYieldKgHa",
+    "nkz:declaredYieldKgHa",
+    "declaredYieldKgHa",
+)
+# Variety is a platform extension attribute on AgriCrop (like cropRole and status), not an SDM field.
+_VARIETY_TERMS = (
+    "https://nkz-os.org/ns/variety",
+    "nkz:variety",
+    "variety",
+    "https://uri.etsi.org/ngsi-ld/default-context/variety",
+)
+_HARVESTED_WEIGHT_TERMS = (
+    "harvestedWeight",
+    "https://smartdatamodels.org/dataModel.Agrifood/harvestedWeight",
+    "https://uri.etsi.org/ngsi-ld/default-context/harvestedWeight",
+)
 
 
 def _value(attr: Any) -> Any:
@@ -74,6 +92,39 @@ def _first(entity: dict, *names: str) -> Any:
         v = _value(entity.get(n))
         if v not in (None, ""):
             return v
+    return None
+
+
+def _positive_float(val: Any) -> float | None:
+    if isinstance(val, (int, float)) and not isinstance(val, bool) and math.isfinite(val) and val > 0:
+        return float(val)
+    return None
+
+
+def _declared_yield(entity: dict) -> float | None:
+    for term in _DECLARED_YIELD_TERMS:
+        v = _value(entity.get(term))
+        pf = _positive_float(v)
+        if pf is not None:
+            return round(pf, 2)
+    return None
+
+
+def _variety(entity: dict) -> str | None:
+    v = _first(entity, *_VARIETY_TERMS)
+    if isinstance(v, str):
+        return v.strip() or None
+    return None
+
+
+def _op_harvested_weight(op: dict) -> float | None:
+    if _value(op.get("operationType")) != "harvesting":
+        return None
+    for term in _HARVESTED_WEIGHT_TERMS:
+        v = _value(op.get(term))
+        pf = _positive_float(v)
+        if pf is not None:
+            return pf
     return None
 
 
@@ -123,6 +174,9 @@ class CropCycle:
     declared_campaign: int | None = None
     # Harvests of a perennial (refs, by date): a harvest does not close a perennial.
     harvests: tuple[dict, ...] = ()
+    variety: str | None = None
+    declared_yield_kg_ha: float | None = None
+    harvested_weight_kg: float | None = None
 
     @property
     def declared_only(self) -> bool:
@@ -176,6 +230,9 @@ class CropCycle:
             "declared_campaign": self.declared_campaign,
             "planned_start": self.planned_start.isoformat() if self.planned_start else None,
             "planned_end": self.planned_end.isoformat() if self.planned_end else None,
+            "variety": self.variety,
+            "declared_yield_kg_ha": self.declared_yield_kg_ha,
+            "harvested_weight_kg": self.harvested_weight_kg,
         }
         out["harvests"] = [dict(h) for h in self.harvests]
         out["harvest_campaigns"] = [c.to_dict() for c in self.harvest_campaigns]
@@ -377,10 +434,14 @@ def resolve_crop_cycles(
             start = Boundary(r["ps"], "planned")
         else:
             start = Boundary()
+        harvest_weights: list[float] = []
         ends = []
         for e, o in r["ends"]:
             if start.date is None or e >= start.date:
                 ends.append(e)
+                hw = _op_harvested_weight(o)
+                if hw is not None:
+                    harvest_weights.append(hw)
             else:  # an end before the cycle began cannot be its end: report it
                 unassigned.append(_op_ref(o, e))
         if ends:
@@ -397,14 +458,21 @@ def resolve_crop_cycles(
         for h, o in r["harvests"]:
             if start.date is None or h >= start.date:
                 harvests.append(_op_ref(o, h))
+                hw = _op_harvested_weight(o)
+                if hw is not None:
+                    harvest_weights.append(hw)
             else:  # a harvest before the planting cannot be this stand's
                 unassigned.append(_op_ref(o, h))
+        harvested_weight_kg = round(sum(harvest_weights), 2) if harvest_weights else None
         cycles.append(CropCycle(
             crop_id=c.get("id"), role=r["role"], species=_value(c.get("species")), status=r["status"],
             lifecycle=r["lifecycle"],
             start=start, end=end, planned_start=r["ps"], planned_end=r["pe"],
             declared_campaign=_declared_campaign(c),
             harvests=tuple(sorted(harvests, key=lambda h: (h["date"], h["id"] or ""))),
+            variety=_variety(c),
+            declared_yield_kg_ha=_declared_yield(c),
+            harvested_weight_kg=harvested_weight_kg,
         ))
 
     def is_pending(cy: CropCycle) -> bool:
