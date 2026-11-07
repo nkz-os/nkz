@@ -2111,7 +2111,20 @@
     "search_placeholder": "Rechercher un lieu, une province, une rue…",
     "search_no_results": "Aucun résultat",
     "search_error": "Recherche indisponible",
-    "search_open": "Rechercher un emplacement"
+    "search_open": "Rechercher un emplacement",
+    "search_close": "Fermer la recherche",
+    "search_clear": "Effacer la recherche",
+    "search_type_country": "Pays",
+    "search_type_region": "Région",
+    "search_type_county": "Comté",
+    "search_type_city": "Ville",
+    "search_type_town": "Bourg",
+    "search_type_village": "Village",
+    "search_type_street": "Rue",
+    "search_type_house": "Adresse",
+    "search_type_other": "Lieu",
+    "labels": "Étiquettes",
+    "labels_desc": "Noms des villes et des voies sur la carte"
   },
   "save_changes_error": "Erreur lors de l'enregistrement des modifications",
   "theme": {

@@ -30,7 +30,8 @@ import { getEntityCoordinates, getEntityGeometryType } from '@/utils/ngsiEntityC
 import { MapSearchLupa } from '@/components/MapSearchLupa';
 import { EU_RECTANGLE, flyToForResult } from '@/utils/cameraFraming';
 import { applyInitialFraming } from '@/hooks/useInitialCameraFraming';
-import { parcelCentroid } from '@/types/geocode';
+import { parcelCentroid, type GeocodeResult } from '@/types/geocode';
+import { useTranslation } from 'react-i18next';
 import { parcelApi } from '@/services/parcelApi';
 // Removed hardcoded vegetation layer import - modules should use slot system
 
@@ -259,6 +260,76 @@ const WebGLFallback: React.FC = () => {
   );
 };
 
+// ---------------------------------------------------------------------------
+// Geocode search helpers
+// ---------------------------------------------------------------------------
+
+const GEOCODE_MARKER_ID = 'geocode-search-marker';
+
+/** Camera centre as a search bias so nearby results rank first. */
+function getCameraCenterBias(viewer: any): { lat: number; lon: number } | null {
+  try {
+    if (!viewer || viewer.isDestroyed?.()) return null;
+    const Cesium = window.Cesium;
+    const carto = viewer.camera.positionCartographic;
+    if (!Cesium || !carto) return null;
+    return {
+      lat: Cesium.Math.toDegrees(carto.latitude),
+      lon: Cesium.Math.toDegrees(carto.longitude),
+    };
+  } catch {
+    return null;
+  }
+}
+
+/** Drop (or replace) the destination pin after a geocode pick. */
+function dropGeocodeMarker(viewer: any, r: Pick<GeocodeResult, 'name' | 'label' | 'lat' | 'lon'>): void {
+  try {
+    if (!viewer || viewer.isDestroyed?.()) return;
+    const Cesium = window.Cesium;
+    if (!Cesium) return;
+    viewer.entities.removeById(GEOCODE_MARKER_ID);
+    viewer.entities.add({
+      id: GEOCODE_MARKER_ID,
+      position: Cesium.Cartesian3.fromDegrees(r.lon, r.lat),
+      point: {
+        pixelSize: 14,
+        color: Cesium.Color.YELLOW,
+        outlineColor: Cesium.Color.BLACK,
+        outlineWidth: 2,
+        heightReference: Cesium.HeightReference.CLAMP_TO_GROUND,
+        disableDepthTestDistance: Number.POSITIVE_INFINITY,
+      },
+      label: {
+        text: r.name || r.label,
+        font: '14pt sans-serif',
+        fillColor: Cesium.Color.WHITE,
+        outlineColor: Cesium.Color.BLACK,
+        outlineWidth: 2,
+        style: Cesium.LabelStyle.FILL_AND_OUTLINE,
+        verticalOrigin: Cesium.VerticalOrigin.BOTTOM,
+        pixelOffset: new Cesium.Cartesian2(0, -22),
+        heightReference: Cesium.HeightReference.CLAMP_TO_GROUND,
+        disableDepthTestDistance: Number.POSITIVE_INFINITY,
+      },
+    });
+    viewer.scene.requestRender?.();
+  } catch (err) {
+    logger.warn('[CesiumMap] Could not drop geocode marker:', err);
+  }
+}
+
+/** Remove the geocode destination pin when the user clears the search. */
+function clearGeocodeMarker(viewer: any): void {
+  try {
+    if (!viewer || viewer.isDestroyed?.()) return;
+    viewer.entities.removeById(GEOCODE_MARKER_ID);
+    viewer.scene.requestRender?.();
+  } catch (err) {
+    logger.warn('[CesiumMap] Could not clear geocode marker:', err);
+  }
+}
+
 export const CesiumMap = React.memo<CesiumMapProps>(({
   showControls = true,
   robots = [],
@@ -293,10 +364,21 @@ export const CesiumMap = React.memo<CesiumMapProps>(({
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [webglFailed, setWebglFailed] = useState(false);
   const [showTerrainPicker, setShowTerrainPicker] = useState(false);
+  const { t } = useTranslation();
   const [currentTerrainProvider, setCurrentTerrainProvider] = useState<string>(terrainProvider);
   const [baseLayer, setBaseLayer] = useState<'pnoa' | 'osm' | 'esri' | 'cesium'>('esri');
   const [currentRegion, setCurrentRegion] = useState<RegionId>('eu');
   const [layerAutoMode, setLayerAutoMode] = useState(true);
+
+  // Reference labels overlay (place names / roads above the base imagery).
+  // Preference persists in localStorage; the search bar forces it on while open.
+  const [showLabels, setShowLabels] = useState(() => {
+    try { return window.localStorage.getItem('map-labels') === 'true'; } catch { return false; }
+  });
+  const [searchActive, setSearchActive] = useState(false);
+  const labelsLayersRef = useRef<any[]>([]);
+  const showLabelsRef = useRef(showLabels); // init from stored preference — layers may load before first effect
+  const searchActiveRef = useRef(false);
   const manualPickRef = useRef(false); // true when user clicked a layer button
   const osmLayerRef = useRef<any>(null);
   const pnoaLayerRef = useRef<any>(null);
@@ -536,6 +618,31 @@ export const CesiumMap = React.memo<CesiumMapProps>(({
             logger.warn('[CesiumMap] Could not set up Cesium Ion:', cesiumError);
           }
 
+          // Reference labels overlay: transparent tiles (place names + roads)
+          // stacked above every base layer. Visibility is driven by the
+          // showLabels/searchActive effect below.
+          try {
+            const labelsUrls = [
+              'https://services.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer',
+              'https://services.arcgisonline.com/ArcGIS/rest/services/Reference/World_Transportation/MapServer',
+            ];
+            labelsUrls.forEach((labelsUrl) => {
+              Cesium.ArcGisMapServerImageryProvider.fromUrl(labelsUrl, {
+                enablePickFeatures: false,
+              }).then((labelsProvider: any) => {
+                if (viewer.isDestroyed()) return;
+                const labelsLayer = viewer.imageryLayers.addImageryProvider(labelsProvider);
+                labelsLayer.show = showLabelsRef.current || searchActiveRef.current;
+                labelsLayersRef.current.push(labelsLayer);
+                viewer.scene.requestRender?.();
+              }).catch((labelsError: any) => {
+                logger.warn('[CesiumMap] Could not load labels layer:', labelsError);
+              });
+            });
+          } catch (labelsInitError) {
+            logger.warn('[CesiumMap] Could not set up labels layers:', labelsInitError);
+          }
+
           // Apply initial visibility. Only the selected base layer is shown.
           if (osmLayer) osmLayer.show = baseLayer === 'osm'
           if (pnoaLayerRef.current) pnoaLayerRef.current.show = baseLayer === 'pnoa';
@@ -664,6 +771,25 @@ export const CesiumMap = React.memo<CesiumMapProps>(({
 
     viewerRef.current?.scene?.requestRender?.();
   }, [baseLayer, isViewerReady]);
+
+  // Labels overlay visibility: user preference, or forced on while the
+  // geocode search bar is open (restores the preference when it closes).
+  const applyLabelsVisibility = useCallback(() => {
+    const visible = showLabelsRef.current || searchActiveRef.current;
+    labelsLayersRef.current.forEach((layer) => { layer.show = visible; });
+    viewerRef.current?.scene?.requestRender?.();
+  }, []);
+
+  useEffect(() => {
+    showLabelsRef.current = showLabels;
+    try { window.localStorage.setItem('map-labels', String(showLabels)); } catch { /* storage unavailable */ }
+    applyLabelsVisibility();
+  }, [showLabels, applyLabelsVisibility]);
+
+  useEffect(() => {
+    searchActiveRef.current = searchActive;
+    applyLabelsVisibility();
+  }, [searchActive, applyLabelsVisibility]);
 
   // Handle 3D Tiles Updates (extracted hook)
   use3DTiles(viewerRef, enable3DTiles, tilesetUrl);
@@ -2079,6 +2205,17 @@ export const CesiumMap = React.memo<CesiumMapProps>(({
                   )}
                 </div>
 
+                {/* Reference labels overlay (place names + roads) */}
+                <div className="p-1 border-b border-slate-700">
+                  <Button variant="ghost"
+                    onClick={() => setShowLabels(!showLabels)}
+                    className={`w-full text-left px-3 py-2 rounded-md text-sm transition-colors ${showLabels ? 'bg-blue-600/20 text-blue-400' : 'text-slate-300 hover:bg-slate-700'}`}
+                  >
+                    <div className="font-medium">{t('map.labels')}</div>
+                    <div className="text-xs text-slate-500">{t('map.labels_desc')}</div>
+                  </Button>
+                </div>
+
                 {/* Terrain Section */}
                 {enable3DTerrain && (
                   <>
@@ -2134,8 +2271,16 @@ export const CesiumMap = React.memo<CesiumMapProps>(({
 
       {/* Search lupa — top-center, above all overlays */}
       {isViewerReady && viewerRef.current && (
-        <div className="absolute top-24 left-1/2 -translate-x-1/2 z-50">
-          <MapSearchLupa onPick={(r) => flyToForResult(viewerRef.current, r)} />
+        <div className="absolute top-4 left-1/2 -translate-x-1/2 z-50">
+          <MapSearchLupa
+            onPick={(r) => {
+              flyToForResult(viewerRef.current, r);
+              dropGeocodeMarker(viewerRef.current, r);
+            }}
+            onClear={() => clearGeocodeMarker(viewerRef.current)}
+            onActiveChange={setSearchActive}
+            getCameraBias={() => getCameraCenterBias(viewerRef.current)}
+          />
         </div>
       )}
 

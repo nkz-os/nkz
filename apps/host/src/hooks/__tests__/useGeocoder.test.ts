@@ -122,8 +122,11 @@ describe('useGeocoder', () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
     const callUrl = fetchMock.mock.calls[0][0] as string;
     expect(callUrl).toContain('q=Pamplona');
-    expect(callUrl).toContain('lang=es');
-    expect(callUrl).toContain('limit=5');
+    // Unsupported UI languages (es default) are NOT forwarded — Photon 400s on them.
+    expect(callUrl).not.toContain('lang=');
+    expect(callUrl).toContain('limit=6');
+    // EU search bounds are always sent
+    expect(callUrl).toContain('bbox=');
 
     // Results should be set
     expect(result.current.results).toHaveLength(1);
@@ -132,6 +135,39 @@ describe('useGeocoder', () => {
     // Final state
     expect(result.current.loading).toBe(false);
     expect(result.current.error).toBeNull();
+  });
+
+  it('forwards only Photon-supported languages', async () => {
+    const fetchMock = makeFetchOk({ results: [mockResult] });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const { result } = renderHook(() => useGeocoder({ lang: 'en' }));
+    act(() => { result.current.search('Pamplona'); });
+    act(() => { vi.advanceTimersByTime(DEBOUNCE_MS); });
+    await act(async () => {});
+    expect(fetchMock.mock.calls[0][0]).toContain('lang=en');
+
+    vi.stubGlobal('fetch', makeFetchOk({ results: [mockResult] }));
+    const { result: esHook } = renderHook(() => useGeocoder({ lang: 'es' }));
+    act(() => { esHook.current.search('Pamplona'); });
+    act(() => { vi.advanceTimersByTime(DEBOUNCE_MS); });
+    await act(async () => {});
+    expect(fetchMock.mock.calls[0][0]).not.toContain('lang=es');
+  });
+
+  it('includes the camera bias when provided at query time', async () => {
+    const fetchMock = makeFetchOk({ results: [mockResult] });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const getCameraBias = vi.fn(() => ({ lat: 40.4168, lon: -3.7038 }));
+    const { result } = renderHook(() => useGeocoder({ getCameraBias }));
+    act(() => { result.current.search('Alcala'); });
+    act(() => { vi.advanceTimersByTime(DEBOUNCE_MS); });
+    await act(async () => {});
+
+    const callUrl = fetchMock.mock.calls[0][0] as string;
+    expect(callUrl).toContain('lat=40.4168');
+    expect(callUrl).toContain('lon=-3.7038');
   });
 
   it('clears results and error when query is empty without fetching', async () => {

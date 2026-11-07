@@ -57,6 +57,25 @@ const LOCAL_MODULE_IDS: ReadonlySet<string> = new Set([
     ...getAllLocalModuleIds(),
 ]);
 
+/**
+ * Retired slot widget IDs/components that have been superseded by core viewer
+ * controls (e.g. unified MapSearchLupa) and must never be mounted from cached
+ * or pre-migration remote manifests.
+ */
+const RETIRED_SLOT_WIDGET_IDS: ReadonlySet<string> = new Set([
+    'catastro-spain-geo-search',
+]);
+const RETIRED_SLOT_WIDGET_COMPONENTS: ReadonlySet<string> = new Set([
+    'GeoSearchBar',
+]);
+
+export function isRetiredSlotWidget(widget: Pick<SlotWidgetDefinition, 'id' | 'component'>): boolean {
+    return (
+        RETIRED_SLOT_WIDGET_IDS.has(widget.id) ||
+        RETIRED_SLOT_WIDGET_COMPONENTS.has(widget.component)
+    );
+}
+
 // =============================================================================
 // Slot Registry Context
 // =============================================================================
@@ -179,7 +198,7 @@ export const SlotRegistryProvider: React.FC<SlotRegistryProviderProps> = ({ chil
 
             const moduleSlots = module.viewerSlots?.[slot];
             if (activeModuleIds.has(module.id) && moduleSlots) {
-                widgets.push(...moduleSlots);
+                widgets.push(...moduleSlots.filter(w => !isRetiredSlotWidget(w)));
             }
         });
 

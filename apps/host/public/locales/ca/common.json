@@ -2111,7 +2111,20 @@
     "search_placeholder": "Cerca un lloc, província, carrer…",
     "search_no_results": "Sense resultats",
     "search_error": "Cerca no disponible",
-    "search_open": "Cerca una ubicació"
+    "search_open": "Cerca una ubicació",
+    "search_close": "Tancar la cerca",
+    "search_clear": "Netejar la cerca",
+    "search_type_country": "País",
+    "search_type_region": "Comunitat",
+    "search_type_county": "Comarca",
+    "search_type_city": "Ciutat",
+    "search_type_town": "Vila",
+    "search_type_village": "Poble",
+    "search_type_street": "Carrer",
+    "search_type_house": "Adreça",
+    "search_type_other": "Lloc",
+    "labels": "Etiquetes",
+    "labels_desc": "Noms de ciutats i vies al mapa"
   },
   "save_changes_error": "Error en desar els canvis",
   "theme": {

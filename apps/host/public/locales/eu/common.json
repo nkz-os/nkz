@@ -2088,7 +2088,20 @@
     "search_placeholder": "Bilatu lekua, probintzia, kalea…",
     "search_no_results": "Emaitzarik ez",
     "search_error": "Bilaketa ez dago erabilgarri",
-    "search_open": "Bilatu kokalekua"
+    "search_open": "Bilatu kokalekua",
+    "search_close": "Itxi bilaketa",
+    "search_clear": "Garbitu bilaketa",
+    "search_type_country": "Herrialdea",
+    "search_type_region": "Eskualdea",
+    "search_type_county": "Eskualdea",
+    "search_type_city": "Hiri",
+    "search_type_town": "Herri",
+    "search_type_village": "Herrixka",
+    "search_type_street": "Kalea",
+    "search_type_house": "Helbidea",
+    "search_type_other": "Lekua",
+    "labels": "Etiketak",
+    "labels_desc": "Hiri eta kaleen izenak mapan"
   },
   "save_changes_error": "Errorea aldaketak gordetzean",
   "parcelModules": {

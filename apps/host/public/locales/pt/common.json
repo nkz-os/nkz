@@ -2111,7 +2111,20 @@
     "search_placeholder": "Pesquisar local, província, rua…",
     "search_no_results": "Sem resultados",
     "search_error": "Pesquisa indisponível",
-    "search_open": "Pesquisar localização"
+    "search_open": "Pesquisar localização",
+    "search_close": "Fechar pesquisa",
+    "search_clear": "Limpar pesquisa",
+    "search_type_country": "País",
+    "search_type_region": "Região",
+    "search_type_county": "Distrito",
+    "search_type_city": "Cidade",
+    "search_type_town": "Vila",
+    "search_type_village": "Aldeia",
+    "search_type_street": "Rua",
+    "search_type_house": "Endereço",
+    "search_type_other": "Local",
+    "labels": "Etiquetas",
+    "labels_desc": "Nomes de cidades e vias no mapa"
   },
   "save_changes_error": "Erro ao guardar as alterações",
   "theme": {

@@ -5,7 +5,12 @@ export type GeocodeType =
   | 'street' | 'house' | 'other';
 
 export interface GeocodeResult {
+  /** Full comma-joined label (backwards compatible). */
   label: string;
+  /** Primary display name (place, street+number…). Optional: older payloads omit it. */
+  name?: string;
+  /** Context line (city, region, country). Optional; may be empty. */
+  secondary?: string;
   lat: number;
   lon: number;
   bbox: [number, number, number, number] | null;
