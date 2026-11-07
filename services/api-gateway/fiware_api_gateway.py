@@ -2722,7 +2722,11 @@ _OSM_TYPE_MAP = {
 
 
 def _normalise_photon(payload):
-    """Normalise Photon JSON to the frozen frontend contract."""
+    """Normalise Photon JSON to the frozen frontend contract.
+
+    ``label`` stays the full comma-joined string (backwards compatible);
+    ``name``/``secondary`` are optional richer fields the viewer may show.
+    """
     out = []
     for f in (payload or {}).get("features", []):
         p = f.get("properties", {}) or {}
@@ -2730,17 +2734,85 @@ def _normalise_photon(payload):
         lon, lat = coords[0], coords[1]
         if lon is None or lat is None:
             continue
-        label = ", ".join([x for x in [p.get("name"), p.get("state"), p.get("country")] if x])
-        ext = p.get("extent")  # photon: [minLon, maxLat, maxLon, minLat]
-        bbox = [ext[0], ext[3], ext[2], ext[1]] if ext and len(ext) == 4 else None
+        name = p.get("name") or ""
+        street = p.get("street") or ""
+        housenumber = p.get("housenumber") or ""
+        if not name and street:
+            # Photon may omit name for house/street hits; rebuild from address parts.
+            name = f"{housenumber} {street}".strip() if housenumber else street
+        city = p.get("city") or p.get("town") or p.get("village") or p.get("locality") or ""
+        county = p.get("county") or ""
+        state = p.get("state") or ""
+        country = p.get("country") or ""
+        context_parts = []
+        for part in (city, county, state, country):
+            if part and part != name and part not in context_parts:
+                context_parts.append(part)
         out.append({
-            "label": label or p.get("name", ""),
+            "label": ", ".join([x for x in [name] + context_parts if x]) or p.get("name", ""),
+            "name": name,
+            "secondary": ", ".join(context_parts),
             "lat": lat, "lon": lon,
-            "bbox": bbox,
+            "bbox": _photon_extent_bbox(p.get("extent")),
             "type": _OSM_TYPE_MAP.get(p.get("osm_value") or p.get("type"), "other"),
             "countryCode": (p.get("countrycode") or "").upper(),
         })
     return out
+
+
+def _photon_extent_bbox(ext):
+    """Photon extent is [minLon, maxLat, maxLon, minLat]; contract bbox is [w, s, e, n]."""
+    if ext and len(ext) == 4:
+        try:
+            return [float(ext[0]), float(ext[3]), float(ext[2]), float(ext[1])]
+        except (TypeError, ValueError):
+            return None
+    return None
+
+
+# Photon only supports these UI languages; anything else (es, eu, ...) is omitted
+# so Photon returns local official names instead of rejecting the query.
+_PHOTON_SUPPORTED_LANGS = frozenset(("de", "en", "fr"))
+
+
+def _validated_float(value):
+    try:
+        f = float(value)
+    except (TypeError, ValueError):
+        return None
+    return f if (f == f and f not in (float("inf"), float("-inf"))) else None
+
+
+def _geocode_upstream_params(args):
+    """Build the Photon query string from request args, dropping invalid values.
+
+    Photon answers 400 for unsupported ``lang`` or malformed bbox/lat/lon, which
+    surfaces to users as an opaque 502 — never forward unvalidated input.
+    """
+    q = args.get("q", "").strip()
+    params = {"q": q}
+    try:
+        limit = min(int(args.get("limit", 5)), 10)
+    except ValueError:
+        limit = 5
+    params["limit"] = max(1, limit)
+    lang = (args.get("lang") or "").strip().lower()
+    if lang in _PHOTON_SUPPORTED_LANGS:
+        params["lang"] = lang
+    bbox_raw = (args.get("bbox") or "").strip()
+    if bbox_raw:
+        parts = bbox_raw.split(",")
+        if len(parts) == 4:
+            w, s, e, n = (_validated_float(x) for x in parts)
+            if None not in (w, s, e, n) and w < e and s < n and \
+                    -180 <= w <= 180 and -180 <= e <= 180 and \
+                    -90 <= s <= 90 and -90 <= n <= 90:
+                params["bbox"] = f"{w:.6f},{s:.6f},{e:.6f},{n:.6f}"
+    for k in ("lat", "lon"):
+        v = _validated_float(args.get(k))
+        if v is not None and ((k == "lat" and -90 <= v <= 90) or (k == "lon" and -180 <= v <= 180)):
+            params[k] = f"{v:.6f}"
+    return params
 
 
 @app.route("/api/geocode", methods=["GET"])
@@ -2762,10 +2834,7 @@ def proxy_geocode():
         limit = min(int(request.args.get("limit", 5)), 10)
     except ValueError:
         limit = 5
-    params = {"q": q, "limit": limit, "lang": request.args.get("lang", "es")}
-    for k in ("lat", "lon"):
-        if request.args.get(k):
-            params[k] = request.args.get(k)
+    params = _geocode_upstream_params(request.args)
     try:
         r = requests.get(f"{GEOCODE_URL}/api", params=params, timeout=8,
                        headers={"User-Agent": "Nekazari-Geocoder/1.0"})
