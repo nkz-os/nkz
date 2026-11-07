@@ -366,7 +366,7 @@ export const CesiumMap = React.memo<CesiumMapProps>(({
   });
   const [searchActive, setSearchActive] = useState(false);
   const labelsLayersRef = useRef<any[]>([]);
-  const showLabelsRef = useRef(false);
+  const showLabelsRef = useRef(showLabels); // init from stored preference — layers may load before first effect
   const searchActiveRef = useRef(false);
   const manualPickRef = useRef(false); // true when user clicked a layer button
   const osmLayerRef = useRef<any>(null);
