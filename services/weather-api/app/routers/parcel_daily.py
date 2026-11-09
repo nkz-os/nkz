@@ -391,6 +391,7 @@ def get_parcel_daily(
         extra = {
             "forecast_issued_at": forecast.get("issued_at"),
             "local_today": forecast.get("local_today"),
+            "local_now": forecast.get("local_now"),
         }
     source = _SOURCE if fill == "none" else f"{_SOURCE}; gaps: Open-Meteo model analysis (recent) and reanalysis archive"
     if forecast_days > 0:

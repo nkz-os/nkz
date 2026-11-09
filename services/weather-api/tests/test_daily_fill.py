@@ -212,3 +212,9 @@ def test_forecast_malformed_body_returns_empty_not_raises():
     payload["daily"]["time"] = [["x"]]
     out, _ = _forecast(payload)
     assert out == {}
+
+
+def test_local_now_uses_offset_at_utc_boundary():
+    out, _ = _forecast(_forecast_payload())
+    assert out["local_now"] == "2026-11-05T00:30"
+    assert out["local_now"][:10] == out["local_today"]
