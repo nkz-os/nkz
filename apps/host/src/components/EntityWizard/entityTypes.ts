@@ -85,6 +85,11 @@ export const ENTITY_CATEGORIES: Record<string, string[]> = {
   energy:            ['PhotovoltaicInstallation', 'AgriEnergyTracker'],
 };
 
+/** True when the wizard may create this type (it is listed in a category). */
+export function isCreatableType(type: string): boolean {
+  return Object.values(ENTITY_CATEGORIES).some(types => types.includes(type));
+}
+
 /**
  * Types offered for search: only those listed in a category. Entries outside
  * ENTITY_CATEGORIES (e.g. the deprecated AgriSensor) stay in the metadata so
@@ -95,10 +100,9 @@ export function searchEntityTypes(
   activeMacro: string | null,
   label: (type: string) => string,
 ): string[] {
-  const selectable = new Set(Object.values(ENTITY_CATEGORIES).flat());
   const s = searchTerm.trim().toLowerCase();
   return Object.keys(ENTITY_TYPE_METADATA).filter(type => {
-    if (!selectable.has(type)) return false;
+    if (!isCreatableType(type)) return false;
     const meta = ENTITY_TYPE_METADATA[type];
     if (activeMacro && meta.macroCategory !== activeMacro) return false;
     if (!s) return true;

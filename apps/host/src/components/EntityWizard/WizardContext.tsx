@@ -8,7 +8,7 @@ import type {
   StepConfig,
 } from './types';
 import { STEP_CONFIGS, INITIAL_STEPS } from './types';
-import { ENTITY_TYPE_METADATA } from './entityTypes';
+import { ENTITY_TYPE_METADATA, isCreatableType } from './entityTypes';
 
 // ─── Initial form data factories ─────────────────────────────────────────────
 
@@ -127,14 +127,14 @@ interface WizardProviderProps {
 }
 
 export function WizardProvider({ children, initialEntityType }: WizardProviderProps) {
-  const [entityType, setEntityTypeState] = useState<string | null>(
-    initialEntityType ?? null
-  );
+  // A preset type the wizard no longer creates falls back to the type picker.
+  const initialType = initialEntityType && isCreatableType(initialEntityType) ? initialEntityType : null;
+  const [entityType, setEntityTypeState] = useState<string | null>(initialType);
   const [formData, setFormData] = useState<WizardFormData | null>(() => {
-    if (!initialEntityType) return null;
-    const meta = ENTITY_TYPE_METADATA[initialEntityType];
+    if (!initialType) return null;
+    const meta = ENTITY_TYPE_METADATA[initialType];
     if (!meta) return null;
-    return makeFormData(initialEntityType, meta.macroCategory);
+    return makeFormData(initialType, meta.macroCategory);
   });
   const [stepIndex, setStepIndex] = useState(0);
   const [loading, setLoading] = useState(false);
