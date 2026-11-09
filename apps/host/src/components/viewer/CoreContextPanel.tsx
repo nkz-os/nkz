@@ -306,8 +306,10 @@ const CoreContextPanel: React.FC<CoreContextPanelProps> = ({ entityData }) => {
             case 'AgriSensor': return <Gauge className="w-5 h-5 text-orange-600" />;
             case 'ManufacturingMachine': return <Tractor className="w-5 h-5 text-amber-600" />;
             case 'WeatherObserved': return <Cloud className="w-5 h-5 text-sky-600" />;
-            case 'LivestockAnimal': return <Leaf className="w-5 h-5 text-emerald-600" />;
-            case 'AgriBuilding': return <Building className="w-5 h-5 text-slate-600" />;
+            case 'LivestockAnimal':
+            case 'Animal': return <Leaf className="w-5 h-5 text-emerald-600" />;
+            case 'AgriBuilding':
+            case 'Building': return <Building className="w-5 h-5 text-slate-600" />;
             default: return <MapPin className="w-5 h-5 text-slate-500" />;
         }
     };

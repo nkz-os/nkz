@@ -33,6 +33,7 @@ import { useAuth } from '@/context/KeycloakAuthContext';
 import { submitGeoAsset } from './submission/submitGeoAsset';
 import { submitPlants, toPlantItems } from './submission/plants';
 import { validateIoTConfig, validateDataloggerStep, validateGeometryStep } from './iotValidation';
+import { missingSdmFields, LOCATION_REQUIRED } from './sdmFields';
 import { submitIoTSensor, type NewDataloggerResult } from './submission/submitIoTSensor';
 import { submitFleet } from './submission/submitFleet';
 import type { EntityWizardProps, GeoAssetFormData, IoTSensorFormData, FleetFormData } from './types';
@@ -155,7 +156,9 @@ function validateStep(
         const parent = (formData as GeoAssetFormData | null)?.parentEntity;
         return parent?.type === 'AgriParcel' ? null : 'wizard.plants.parcel_required';
       }
-      return formData?.name.trim() ? null : 'wizard.validation.name_required';
+      if (!formData?.name.trim()) return 'wizard.validation.name_required';
+      return missingSdmFields(entityType ?? '', (formData as GeoAssetFormData).additionalAttributes).length
+        ? 'wizard.validation.sdm_required' : null;
     case 'fleet-config':
       return formData?.name.trim() ? null : 'wizard.validation.name_required';
 
@@ -182,6 +185,9 @@ function validateStep(
         // single/multi: a point is required (polygons and lines are not plants)
         return toPlantItems(placementState, formData as GeoAssetFormData).length > 0
           ? null : 'wizard.plants.points_required';
+      }
+      if (LOCATION_REQUIRED.has(entityType ?? '') && !formData?.geometry) {
+        return 'wizard.validation.location_required';
       }
       // Point geometry is optional except for a Device (fixed sensor)
       return validateGeometryStep(entityType, formData?.geometry);

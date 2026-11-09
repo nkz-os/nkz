@@ -840,7 +840,9 @@
       "datalogger_role_required": "Demana a un administrador o a un consultor tècnic que doni d'alta aquest sensor.",
       "datalogger_name_required": "El datalogger nou necessita un nom",
       "datalogger_kind_required": "Tria el tipus de datalogger",
-      "external_id_invalid": "L'identificador només admet lletres, números, punt, guionet i guionet baix (1-64 caràcters)"
+      "external_id_invalid": "L'identificador només admet lletres, números, punt, guionet i guionet baix (1-64 caràcters)",
+      "sdm_required": "Omple els camps obligatoris (*).",
+      "location_required": "Marca la ubicació al mapa."
     },
     "errors": {
       "incomplete_state": "Estat de l'assistent incomplet",
@@ -892,7 +894,12 @@
       "AutonomousMobileRobot": "Robot agrícola autònom",
       "ManufacturingMachine": "Maquinària agrícola (tractor/apero)",
       "AgriOperation": "Operació agrícola",
-      "AgriPlant": "Planta individual"
+      "AgriPlant": "Planta individual",
+      "Building": "Edifici",
+      "AgriFarm": "Explotació agrària",
+      "Animal": "Animal",
+      "StorageBatteryDevice": "Bateria",
+      "Tank": "Dipòsit o bassa"
     },
     "macro": {
       "assets": {
@@ -1306,6 +1313,57 @@
       "spacing": "Separació entre plantes (m)",
       "summary": "{{count}} plantes en {{length}} m",
       "required": "Marca l'inici i el final de la fila"
+    },
+    "sdm": {
+      "title": "Dades del model",
+      "fields": {
+        "category": "Tipus d'edifici",
+        "addressLocality": "Municipi",
+        "addressRegion": "Província o regió",
+        "addressCountry": "País",
+        "species": "Espècie",
+        "legalId": "Identificació oficial (crotal)",
+        "sex": "Sexe",
+        "breed": "Raça",
+        "birthdate": "Data de naixement",
+        "batteryType": "Tipus de bateria",
+        "rechargeEnergySource": "Font de recàrrega"
+      },
+      "options": {
+        "category": {
+          "barn": "Graner",
+          "cowshed": "Estable de vaques",
+          "stable": "Quadra",
+          "sty": "Cort de porcs",
+          "shed": "Coberta",
+          "warehouse": "Magatzem",
+          "farm": "Masia",
+          "farm_auxiliary": "Nau auxiliar",
+          "garage": "Garatge",
+          "hangar": "Hangar",
+          "digester": "Biodigestor",
+          "water_tower": "Torre d'aigua"
+        },
+        "species": {
+          "beef_cattle": "Boví de carn",
+          "cow": "Vaca",
+          "dairy_cattle": "Boví de llet",
+          "goat": "Cabra",
+          "horse": "Cavall",
+          "pig": "Porc",
+          "sheep": "Ovella"
+        },
+        "sex": {
+          "female": "Femella",
+          "male": "Mascle"
+        },
+        "rechargeEnergySource": {
+          "electric": "Xarxa elèctrica",
+          "hydraulic": "Hidràulica",
+          "windTurbine": "Aerogenerador",
+          "other": "Altra"
+        }
+      }
     }
   },
   "layout": {
@@ -2051,7 +2109,11 @@
         "Well": "Pou",
         "Pond": "Bassa",
         "WeatherStation": "Estació meteo",
-        "AgriPlant": "Planta"
+        "AgriPlant": "Planta",
+        "Building": "Edifici",
+        "Animal": "Animal",
+        "Tank": "Dipòsit o bassa",
+        "StorageBatteryDevice": "Bateria"
       }
     },
     "filters": {

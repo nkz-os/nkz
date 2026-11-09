@@ -2,6 +2,7 @@ import { parcelApi } from '@/services/parcelApi';
 import api from '@/services/api';
 import type { GeoAssetFormData } from '../types';
 import type { PlacementState } from '@/machines/placementMachine';
+import { sdmAttributes, LOCATED_AT_TYPES } from '../sdmFields';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 export async function submitGeoAsset(
@@ -58,9 +59,11 @@ export async function submitGeoAsset(
     entity.refParent = { type: 'Relationship', object: formData.parentEntity.id };
   }
 
-  // Parcel association for energy-related types (AgriEnergy module integration)
+  // Parcel association: SDM `locatedAt` for canonical types; the energy types keep
+  // the legacy refAgriParcel that the AgriEnergy module reads.
   if (!formData.isSubdivision && formData.parentEntity?.type === 'AgriParcel') {
-    entity.refAgriParcel = { type: 'Relationship', object: formData.parentEntity.id };
+    const rel = LOCATED_AT_TYPES.has(entityType) ? 'locatedAt' : 'refAgriParcel';
+    entity[rel] = { type: 'Relationship', object: formData.parentEntity.id };
   }
 
   // Visualization
@@ -88,11 +91,7 @@ export async function submitGeoAsset(
   }
 
   // Dynamic SDM attributes
-  for (const [k, v] of Object.entries(formData.additionalAttributes)) {
-    if (v !== '' && v !== null && v !== undefined) {
-      entity[k] = { type: 'Property', value: v };
-    }
-  }
+  Object.assign(entity, sdmAttributes(entityType, formData.additionalAttributes));
 
   await api.createSDMEntity(entityType, entity);
 }

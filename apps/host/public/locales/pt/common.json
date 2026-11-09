@@ -840,7 +840,9 @@
       "datalogger_role_required": "Peça a um administrador ou a um consultor técnico que registe este sensor.",
       "datalogger_name_required": "O novo datalogger precisa de um nome",
       "datalogger_kind_required": "Escolha o tipo de datalogger",
-      "external_id_invalid": "O identificador só aceita letras, números, ponto, hífen e sublinhado (1 a 64 caracteres)"
+      "external_id_invalid": "O identificador só aceita letras, números, ponto, hífen e sublinhado (1 a 64 caracteres)",
+      "sdm_required": "Preencha os campos obrigatórios (*).",
+      "location_required": "Marque a localização no mapa."
     },
     "errors": {
       "incomplete_state": "Estado do assistente incompleto",
@@ -892,7 +894,12 @@
       "AutonomousMobileRobot": "Robô agrícola autónomo",
       "ManufacturingMachine": "Maquinaria agrícola (trator/alfaia)",
       "AgriOperation": "Operação agrícola",
-      "AgriPlant": "Planta individual"
+      "AgriPlant": "Planta individual",
+      "Building": "Edifício",
+      "AgriFarm": "Exploração agrícola",
+      "Animal": "Animal",
+      "StorageBatteryDevice": "Bateria",
+      "Tank": "Depósito ou charca"
     },
     "macro": {
       "assets": {
@@ -1306,6 +1313,57 @@
       "spacing": "Espaçamento entre plantas (m)",
       "summary": "{{count}} plantas em {{length}} m",
       "required": "Marque o início e o fim da linha"
+    },
+    "sdm": {
+      "title": "Dados do modelo",
+      "fields": {
+        "category": "Tipo de edifício",
+        "addressLocality": "Município",
+        "addressRegion": "Província ou região",
+        "addressCountry": "País",
+        "species": "Espécie",
+        "legalId": "Identificação oficial (brinco)",
+        "sex": "Sexo",
+        "breed": "Raça",
+        "birthdate": "Data de nascimento",
+        "batteryType": "Tipo de bateria",
+        "rechargeEnergySource": "Fonte de recarga"
+      },
+      "options": {
+        "category": {
+          "barn": "Celeiro",
+          "cowshed": "Estábulo de vacas",
+          "stable": "Cavalariça",
+          "sty": "Pocilga",
+          "shed": "Telheiro",
+          "warehouse": "Armazém",
+          "farm": "Casa de lavoura",
+          "farm_auxiliary": "Anexo agrícola",
+          "garage": "Garagem",
+          "hangar": "Hangar",
+          "digester": "Biodigestor",
+          "water_tower": "Torre de água"
+        },
+        "species": {
+          "beef_cattle": "Bovino de carne",
+          "cow": "Vaca",
+          "dairy_cattle": "Bovino de leite",
+          "goat": "Cabra",
+          "horse": "Cavalo",
+          "pig": "Porco",
+          "sheep": "Ovelha"
+        },
+        "sex": {
+          "female": "Fêmea",
+          "male": "Macho"
+        },
+        "rechargeEnergySource": {
+          "electric": "Rede elétrica",
+          "hydraulic": "Hidráulica",
+          "windTurbine": "Aerogerador",
+          "other": "Outra"
+        }
+      }
     }
   },
   "layout": {
@@ -2051,7 +2109,11 @@
         "Well": "Poço",
         "Pond": "Lagoa",
         "WeatherStation": "Estação meteorológica",
-        "AgriPlant": "Planta"
+        "AgriPlant": "Planta",
+        "Building": "Edifício",
+        "Animal": "Animal",
+        "Tank": "Depósito ou charca",
+        "StorageBatteryDevice": "Bateria"
       }
     },
     "filters": {

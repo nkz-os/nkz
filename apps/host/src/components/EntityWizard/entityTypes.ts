@@ -35,6 +35,12 @@ export const ENTITY_TYPE_METADATA: Record<string, EntityTypeInfo> = {
   PhotovoltaicInstallation: { keywords: ['solar', 'fotovoltaico', 'panel', 'photovoltaic'],           macroCategory: 'assets',  icon: Sun,        description: 'Instalación fotovoltaica',    color: 'yellow' },
   AgriEnergyTracker:        { keywords: ['tracker', 'seguidor', 'panel solar', 'solar tracker', 'pv', 'fotovoltaico'], macroCategory: 'assets', icon: Sun, description: 'Seguidor solar (panel individual)', color: 'yellow' },
   EnergyStorageSystem:      { keywords: ['batería', 'almacenamiento', 'battery', 'storage'],          macroCategory: 'assets',  icon: Zap,        description: 'Sistema de almacenamiento',   color: 'yellow' },
+  // Canonical SDM alternatives (Building, Animal, AgriFarm, StorageBatteryDevice, Tank)
+  Building:                 { keywords: ['edificio', 'nave', 'almacén', 'cuadra', 'establo', 'building', 'barn', 'warehouse'], macroCategory: 'assets', icon: Building2, description: 'Edificio (nave, almacén, cuadra…)', color: 'gray' },
+  AgriFarm:                 { keywords: ['explotación', 'finca', 'granja', 'farm'],                    macroCategory: 'assets',  icon: MapPin,     description: 'Explotación agraria',         color: 'green'  },
+  Animal:                   { keywords: ['animal', 'ganado', 'vaca', 'oveja', 'cabra', 'cerdo', 'caballo', 'livestock', 'crotal'], macroCategory: 'assets', icon: Activity, description: 'Animal individual', color: 'brown' },
+  StorageBatteryDevice:     { keywords: ['batería', 'almacenamiento', 'battery', 'storage'],          macroCategory: 'assets',  icon: Zap,        description: 'Batería',                     color: 'yellow' },
+  Tank:                     { keywords: ['depósito', 'balsa', 'aljibe', 'agua', 'tank', 'water'],      macroCategory: 'assets',  icon: Droplets,   description: 'Depósito o balsa de agua',    color: 'blue'   },
 
   // ── Sensors ──────────────────────────────────────────────────────────────────
   AgriSensor:               { keywords: [],       macroCategory: 'sensors', icon: Gauge,      description: 'Sensor agrícola',             color: 'teal'   },
@@ -79,10 +85,12 @@ export const MACRO_CATEGORIES = {
 export const ENTITY_CATEGORIES: Record<string, string[]> = {
   crops:             ['AgriParcel'],
   trees:             ['AgriPlant'],
+  water:             ['Tank'],
   robotics:          ['AutonomousMobileRobot', 'ManufacturingMachine'],
   sensors:           ['Device', 'WeatherObserved'],
-  infrastructure:    ['AgriGreenhouse'],
-  energy:            ['PhotovoltaicInstallation', 'AgriEnergyTracker'],
+  infrastructure:    ['AgriFarm', 'AgriGreenhouse', 'Building'],
+  livestock:         ['Animal'],
+  energy:            ['PhotovoltaicInstallation', 'AgriEnergyTracker', 'StorageBatteryDevice'],
 };
 
 /** True when the wizard may create this type (it is listed in a category). */

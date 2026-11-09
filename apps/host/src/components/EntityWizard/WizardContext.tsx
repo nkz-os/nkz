@@ -15,7 +15,7 @@ import { ENTITY_TYPE_METADATA, isCreatableType } from './entityTypes';
 const POLYGON_ASSET_TYPES = new Set([
   'AgriParcel', 'Vineyard', 'OliveGrove',
   'AgriBuilding', 'IrrigationSystem', 'PhotovoltaicInstallation',
-  'AgriGreenhouse',
+  'AgriGreenhouse', 'Building',
 ]);
 
 function makeGeoAssetFormData(entityType: string): GeoAssetFormData {

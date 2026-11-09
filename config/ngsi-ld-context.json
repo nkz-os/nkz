@@ -23,6 +23,7 @@
       "AgriProductType": "https://smartdatamodels.org/dataModel.Agrifood/AgriProductType",
       "AgriSoil": "https://smartdatamodels.org/dataModel.Agrifood/AgriSoil",
       "Animal": "https://smartdatamodels.org/dataModel.Agrifood/Animal",
+      "Building": "https://smartdatamodels.org/dataModel.Building/Building",
       "AnimalDisease": "https://smartdatamodels.org/dataModel.Agrifood/AnimalDisease",
       "AnimalMovement": "https://smartdatamodels.org/dataModel.Agrifood/AnimalMovement",
       "Carcass": "https://smartdatamodels.org/dataModel.Agrifood/Carcass",
@@ -30,9 +31,12 @@
       "FeedRegistry": "https://smartdatamodels.org/dataModel.Agrifood/FeedRegistry",
       "MeatProduct": "https://smartdatamodels.org/dataModel.Agrifood/MeatProduct",
       "Pen": "https://smartdatamodels.org/dataModel.Agrifood/Pen",
+      "Tank": "https://smartdatamodels.org/dataModel.WaterDistributionManagementEPANET/Tank",
+      "StorageBatteryDevice": "https://smartdatamodels.org/dataModel.Battery/StorageBatteryDevice",
       "VeterinarianTreatment": "https://smartdatamodels.org/dataModel.Agrifood/VeterinarianTreatment",
       "aacm": "https://smartdatamodels.org/dataModel.Agrifood/aacm",
       "additionalInfo": "https://smartdatamodels.org/dataModel.Agrifood/additionalInfo",
+      "batteryType": "https://smartdatamodels.org/dataModel.Battery/batteryType",
       "address": "https://smartdatamodels.org/address",
       "addressCountry": "https://smartdatamodels.org/addressCountry",
       "addressLocality": "https://smartdatamodels.org/addressLocality",
@@ -151,6 +155,7 @@
       "leafTemperature": "https://smartdatamodels.org/dataModel.Agrifood/leafTemperature",
       "leafWetness": "https://nkz-os.org/ns/leafWetness",
       "legalId": "https://smartdatamodels.org/dataModel.Agrifood/legalId",
+      "rechargeEnergySource": "https://smartdatamodels.org/dataModel.Battery/rechargeEnergySource",
       "locatedAt": "https://nkz-os.org/ns/locatedAt",
       "location": "schema:location",
       "loginname": "https://smartdatamodels.org/dataModel.Agrifood/loginname",
@@ -735,6 +740,7 @@
         "@type": "@id"
       },
       "dateObserved": "https://smartdatamodels.org/dateObserved",
+      "dateLastReported": "https://smartdatamodels.org/dataModel.Battery/dateLastReported",
       "hasAgriCropDeclaration": {
         "@id": "https://nkz-os.org/ns/hasAgriCropDeclaration",
         "@type": "@id"

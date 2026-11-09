@@ -68,3 +68,31 @@ describe('submitGeoAsset AgriParcel subdivision', () => {
     expect(createParcel.mock.calls[0][0].refParent).toBeUndefined();
   });
 });
+
+describe('submitGeoAsset canonical SDM types', () => {
+  beforeEach(() => {
+    createSDMEntity.mockReset();
+    createSDMEntity.mockResolvedValue({});
+  });
+
+  const single = { mode: 'single', stampedInstances: [] } as unknown as PlacementState;
+
+  it('links an Animal to its parcel with locatedAt', async () => {
+    const f = { ...form({ species: 'sheep', legalId: 'ES0123', sex: 'female' }),
+      parentEntity: { id: 'urn:ngsi-ld:AgriParcel:p1', type: 'AgriParcel', name: 'p1', geometry: null },
+      isSubdivision: false };
+    await submitGeoAsset('Animal', f as GeoAssetFormData, single);
+    const [type, body] = createSDMEntity.mock.calls[0];
+    expect(type).toBe('Animal');
+    expect(body.locatedAt).toEqual({ type: 'Relationship', object: 'urn:ngsi-ld:AgriParcel:p1' });
+    expect(body.refAgriParcel).toBeUndefined();
+    expect(body.legalId).toEqual({ type: 'Property', value: 'ES0123' });
+  });
+
+  it('keeps refAgriParcel for the energy types', async () => {
+    const f = { ...form(), parentEntity: { id: 'urn:ngsi-ld:AgriParcel:p1', type: 'AgriParcel', name: 'p1', geometry: null },
+      isSubdivision: false };
+    await submitGeoAsset('PhotovoltaicInstallation', f as GeoAssetFormData, single);
+    expect(createSDMEntity.mock.calls[0][1].refAgriParcel).toBeDefined();
+  });
+});

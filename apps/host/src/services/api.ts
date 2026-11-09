@@ -857,7 +857,8 @@ class ApiService {
       const payload = await fetchAllPages<any>(
         async (offset, limit) => {
           const response = await this.client.get('/ngsi-ld/v1/entities', {
-            params: { type: 'LivestockAnimal', options: 'keyValues', limit, offset },
+            // SDM Animal (what the wizard creates) plus the legacy LivestockAnimal
+            params: { type: 'LivestockAnimal,Animal', options: 'keyValues', limit, offset },
             headers: { 'Accept': 'application/ld+json' },
           });
           return Array.isArray(response.data) ? response.data : [];
@@ -867,8 +868,8 @@ class ApiService {
 
       return payload.map((l: any) => ({
         id: l.id,
-        type: 'LivestockAnimal',
-        name: l.name || 'Unnamed Animal',
+        type: l.type === 'Animal' ? 'Animal' : 'LivestockAnimal',
+        name: l.name || l.legalId || 'Unnamed Animal',
         species: l.species || 'Unknown',
         status: l.status || 'healthy',
         location: l.location, // options=keyValues returns direct GeoJSON
