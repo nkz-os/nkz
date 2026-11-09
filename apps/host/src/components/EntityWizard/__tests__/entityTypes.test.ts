@@ -21,7 +21,7 @@ describe('ENTITY_CATEGORIES', () => {
   });
 
   it('keeps the crops category with its other types', () => {
-    expect(ENTITY_CATEGORIES.crops).toEqual(['Vineyard', 'OliveGrove', 'AgriParcel']);
+    expect(ENTITY_CATEGORIES.crops).toEqual(['AgriParcel']);
   });
 
   it('offers Device and WeatherObserved, not AgriSensor, under sensors', () => {
@@ -46,7 +46,10 @@ describe('searchEntityTypes', () => {
     expect(searchEntityTypes('', null, label)).not.toContain('AgriSensor');
   });
 
-  it('still returns category types', () => {
-    expect(searchEntityTypes('viñedo', null, label)).toContain('Vineyard');
+  it('never offers non-SDM types but keeps their metadata', () => {
+    for (const ty of ['Vineyard', 'OliveGrove', 'AgriTree', 'AgriBuilding', 'Well', 'LivestockAnimal', 'AgriOperation']) {
+      expect(searchEntityTypes('', null, label)).not.toContain(ty);
+      expect(Object.keys(ENTITY_TYPE_METADATA)).toContain(ty);
+    }
   });
 });

@@ -77,15 +77,12 @@ export const MACRO_CATEGORIES = {
 // Keys are i18n slugs: rendered as `wizard.categories.<slug>`.
 
 export const ENTITY_CATEGORIES: Record<string, string[]> = {
-  crops:             ['Vineyard', 'OliveGrove', 'AgriParcel'],
-  trees:             ['AgriPlant', 'AgriTree', 'OliveTree', 'Vine', 'FruitTree'],
-  water:             ['WaterSource', 'Well', 'IrrigationOutlet', 'Spring', 'Pond'],
+  crops:             ['AgriParcel'],
+  trees:             ['AgriPlant'],
   robotics:          ['AutonomousMobileRobot', 'ManufacturingMachine'],
   sensors:           ['Device', 'WeatherObserved'],
-  infrastructure:    ['AgriGreenhouse', 'AgriBuilding', 'IrrigationSystem'],
-  livestock:         ['LivestockAnimal', 'LivestockGroup', 'LivestockFarm'],
-  energy:            ['PhotovoltaicInstallation', 'AgriEnergyTracker', 'EnergyStorageSystem'],
-  operations:        ['AgriOperation'],
+  infrastructure:    ['AgriGreenhouse'],
+  energy:            ['PhotovoltaicInstallation', 'AgriEnergyTracker'],
 };
 
 /**
