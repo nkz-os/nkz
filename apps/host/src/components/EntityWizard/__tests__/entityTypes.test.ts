@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { ENTITY_TYPE_METADATA, ENTITY_CATEGORIES, searchEntityTypes } from '../entityTypes';
+import { ENTITY_TYPE_METADATA, ENTITY_CATEGORIES, searchEntityTypes, isCreatableType } from '../entityTypes';
 
 describe('ENTITY_TYPE_METADATA', () => {
   it('does not offer AgriCrop as a creatable entity type', () => {
@@ -21,7 +21,7 @@ describe('ENTITY_CATEGORIES', () => {
   });
 
   it('keeps the crops category with its other types', () => {
-    expect(ENTITY_CATEGORIES.crops).toEqual(['Vineyard', 'OliveGrove', 'AgriParcel']);
+    expect(ENTITY_CATEGORIES.crops).toEqual(['AgriParcel']);
   });
 
   it('offers Device and WeatherObserved, not AgriSensor, under sensors', () => {
@@ -46,7 +46,18 @@ describe('searchEntityTypes', () => {
     expect(searchEntityTypes('', null, label)).not.toContain('AgriSensor');
   });
 
-  it('still returns category types', () => {
-    expect(searchEntityTypes('viñedo', null, label)).toContain('Vineyard');
+  it('never offers non-SDM types but keeps their metadata', () => {
+    for (const ty of ['Vineyard', 'OliveGrove', 'AgriTree', 'AgriBuilding', 'Well', 'LivestockAnimal', 'AgriOperation']) {
+      expect(searchEntityTypes('', null, label)).not.toContain(ty);
+      expect(Object.keys(ENTITY_TYPE_METADATA)).toContain(ty);
+    }
+  });
+});
+
+describe('isCreatableType', () => {
+  it('accepts listed types and refuses hidden ones', () => {
+    expect(isCreatableType('AgriPlant')).toBe(true);
+    expect(isCreatableType('LivestockAnimal')).toBe(false);
+    expect(isCreatableType('AgriSensor')).toBe(false);
   });
 });
