@@ -52,6 +52,8 @@ CORS(app, origins=_cors_origins, supports_credentials=True)
 EMAIL_REQUIRE_INTERNAL_SECRET = os.getenv("EMAIL_REQUIRE_INTERNAL_SECRET", "false").lower() == "true"
 INTERNAL_SERVICE_SECRET = os.getenv("INTERNAL_SERVICE_SECRET", "")
 _PUBLIC_PATHS = {"/health"}
+# Routes that accept arbitrary HTML: the secret is mandatory regardless of the flag.
+_ALWAYS_SECRET_PATHS = {"/send/report"}
 if EMAIL_REQUIRE_INTERNAL_SECRET and not INTERNAL_SERVICE_SECRET:
     logger.critical("EMAIL_REQUIRE_INTERNAL_SECRET is on but INTERNAL_SERVICE_SECRET is unset: all send routes will answer 401")
 
@@ -60,7 +62,7 @@ if EMAIL_REQUIRE_INTERNAL_SECRET and not INTERNAL_SERVICE_SECRET:
 def _require_internal_secret():
     if request.method == "OPTIONS" or request.path in _PUBLIC_PATHS:
         return None
-    if not EMAIL_REQUIRE_INTERNAL_SECRET:
+    if not EMAIL_REQUIRE_INTERNAL_SECRET and request.path not in _ALWAYS_SECRET_PATHS:
         return None
     provided = request.headers.get("X-Internal-Service-Secret", "")
     # Compare bytes: compare_digest raises TypeError on non-ASCII str, which
@@ -465,7 +467,9 @@ class EmailService:
         self.templates = EmailTemplates()
         self.templates_dir = os.path.join(os.path.dirname(__file__), 'templates')
     
-    def send_email(self, to_email: str, subject: str, html_content: str, text_content: str = None, reply_to: str = None) -> bool:
+    def send_email(self, to_email: str, subject: str, html_content: str, text_content: str = None, reply_to: str = None,
+                   extra_headers: dict = None, text_first: bool = False,
+                   log_recipient: bool = True) -> bool:
         """Envía un email usando SMTP"""
         if not self.config.enabled:
             logger.warning("Email service is disabled. Skipping email send.")
@@ -479,15 +483,20 @@ class EmailService:
             msg['Subject'] = subject
             if reply_to:
                 msg['Reply-To'] = reply_to
-            
-            # Agregar contenido HTML
+            for name, value in (extra_headers or {}).items():
+                msg[name] = value
+
             html_part = MIMEText(html_content, 'html', 'utf-8')
-            msg.attach(html_part)
-            
-            # Agregar contenido texto plano si se proporciona
-            if text_content:
-                text_part = MIMEText(text_content, 'plain', 'utf-8')
-                msg.attach(text_part)
+            text_part = MIMEText(text_content, 'plain', 'utf-8') if text_content else None
+            # Alternatives go from least to most preferred: text_first puts
+            # text/plain before text/html; the default keeps the legacy order.
+            if text_first:
+                parts = [text_part, html_part]
+            else:
+                parts = [html_part, text_part]
+            for part in parts:
+                if part is not None:
+                    msg.attach(part)
             
             # Conectar y enviar
             # Use SMTP_SSL for port 465, SMTP with starttls for port 587
@@ -507,13 +516,35 @@ class EmailService:
                 except Exception:
                     pass
 
-            logger.info(f"Email sent successfully to {to_email}")
+            if log_recipient:
+                logger.info(f"Email sent successfully to {to_email}")
+            else:
+                logger.info("Email sent successfully")
             return True
 
         except Exception as e:
-            logger.error(f"Failed to send email to {to_email} via {self.config.smtp_host}: {type(e).__name__}: {e}")
+            if log_recipient:
+                logger.error(f"Failed to send email to {to_email} via {self.config.smtp_host}: {type(e).__name__}: {e}")
+            else:
+                logger.error(f"Failed to send email: {type(e).__name__}")
             return False
     
+    def send_report_email(self, email: str, subject: str, content_html: str, text: str,
+                          title: str, list_unsubscribe_url: str) -> bool:
+        """Envía un informe con asunto propio y baja con un clic (RFC 8058)."""
+        html_body = (EmailTemplates.get_base_template()
+                     .replace('{{ title }}', html.escape(title))
+                     .replace('{{ content }}', content_html))
+        return self.send_email(
+            email, subject, html_body, text,
+            extra_headers={
+                'List-Unsubscribe': f'<{list_unsubscribe_url}>',
+                'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
+            },
+            text_first=True,
+            log_recipient=False,
+        )
+
     def send_welcome_email(self, email: str, farmer_name: str, farm_name: str, tenant_id: str, api_key: str) -> bool:
         """Envía email de bienvenida con API key"""
         html_content = self.templates.welcome_email(farmer_name, farm_name, tenant_id, api_key, self.config.frontend_url)
@@ -813,6 +844,37 @@ def send_notification():
     except Exception as e:
         logger.error(f"Error in send_notification endpoint: {e}")
         return jsonify({'error': 'Internal server error'}), 500
+
+@app.route('/send/report', methods=['POST'])
+def send_report():
+    """Informe con asunto, HTML y texto propios. El cuerpo no se registra."""
+    try:
+        data = request.get_json(silent=True) or {}
+        fields = ['email', 'subject', 'content_html', 'text', 'title', 'list_unsubscribe_url']
+        for field in fields:
+            if not isinstance(data.get(field), str) or not data[field]:
+                return jsonify({'error': f'Missing required field: {field}'}), 400
+        # Header injection guard: values that end up in headers.
+        for field in ('email', 'subject', 'list_unsubscribe_url'):
+            if '\r' in data[field] or '\n' in data[field]:
+                return jsonify({'error': f'Invalid field: {field}'}), 400
+
+        success = email_service.send_report_email(
+            email=data['email'],
+            subject=data['subject'],
+            content_html=data['content_html'],
+            text=data['text'],
+            title=data['title'],
+            list_unsubscribe_url=data['list_unsubscribe_url'],
+        )
+        if success:
+            return jsonify({'message': 'Report email sent successfully'}), 200
+        return jsonify({'error': 'Failed to send report email'}), 500
+
+    except Exception as e:
+        logger.error(f"Error in send_report endpoint: {type(e).__name__}")
+        return jsonify({'error': 'Internal server error'}), 500
+
 
 @app.route('/send/activation', methods=['POST'])
 def send_activation():
