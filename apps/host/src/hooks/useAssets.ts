@@ -150,6 +150,11 @@ export function useAssets(options: UseAssetsOptions = {}): UseAssetsReturn {
         api.getSDMEntityInstances('AgriGreenhouse').catch(() => []),
         // Individual plants (trees, vines) created by the entity wizard or a file import
         api.getSDMEntityInstances('AgriPlant').catch(() => []),
+        // Canonical Smart Data Models types offered by the entity wizard
+        api.getSDMEntityInstances('Building').catch(() => []),
+        api.getSDMEntityInstances('Animal').catch(() => []),
+        api.getSDMEntityInstances('Tank').catch(() => []),
+        api.getSDMEntityInstances('StorageBatteryDevice').catch(() => []),
       ]);
 
       const [
@@ -158,6 +163,7 @@ export function useAssets(options: UseAssetsOptions = {}): UseAssetsReturn {
         wellsRes, oliveTreesRes, agriTreesRes, fruitTreesRes, vinesRes,
         energyTrackersRes, pvInstallationsRes, solarParksRes, parcelZonesRes, soilsRes,
         extendedSoilsRes, farmsRes, greenhousesRes, plantsRes,
+        sdmBuildingsRes, animalsRes, tanksRes, batteriesRes,
       ] = results;
       
       // Normalize all entities
@@ -200,6 +206,10 @@ export function useAssets(options: UseAssetsOptions = {}): UseAssetsReturn {
       addEntities(extendedSoilsRes, 'AgriSoilExtended');
       addEntities(farmsRes, 'AgriFarm');
       addEntities(greenhousesRes, 'AgriGreenhouse');
+      addEntities(sdmBuildingsRes, 'Building');
+      addEntities(animalsRes, 'Animal');
+      addEntities(tanksRes, 'Tank');
+      addEntities(batteriesRes, 'StorageBatteryDevice');
 
       logger.log(`[useAssets] Loaded ${allAssets.length} assets`);
       setAssets(allAssets);

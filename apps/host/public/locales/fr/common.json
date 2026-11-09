@@ -840,7 +840,9 @@
       "datalogger_role_required": "Demandez à un administrateur ou à un consultant technique d'enregistrer ce capteur.",
       "datalogger_name_required": "Le nouveau datalogger doit avoir un nom",
       "datalogger_kind_required": "Choisissez le type de datalogger",
-      "external_id_invalid": "L'identifiant n'accepte que des lettres, chiffres, point, tiret et tiret bas (1 à 64 caractères)"
+      "external_id_invalid": "L'identifiant n'accepte que des lettres, chiffres, point, tiret et tiret bas (1 à 64 caractères)",
+      "sdm_required": "Remplissez les champs obligatoires (*).",
+      "location_required": "Indiquez l'emplacement sur la carte."
     },
     "errors": {
       "incomplete_state": "État de l'assistant incomplet",
@@ -892,7 +894,12 @@
       "AutonomousMobileRobot": "Robot agricole autonome",
       "ManufacturingMachine": "Machine agricole (tracteur/outil)",
       "AgriOperation": "Opération agricole",
-      "AgriPlant": "Plante individuelle"
+      "AgriPlant": "Plante individuelle",
+      "Building": "Bâtiment",
+      "AgriFarm": "Exploitation agricole",
+      "Animal": "Animal",
+      "StorageBatteryDevice": "Batterie",
+      "Tank": "Réservoir ou bassin"
     },
     "macro": {
       "assets": {
@@ -1306,6 +1313,57 @@
       "spacing": "Écartement entre plantes (m)",
       "summary": "{{count}} plantes sur {{length}} m",
       "required": "Marquez le début et la fin du rang"
+    },
+    "sdm": {
+      "title": "Données du modèle",
+      "fields": {
+        "category": "Type de bâtiment",
+        "addressLocality": "Commune",
+        "addressRegion": "Province ou région",
+        "addressCountry": "Pays",
+        "species": "Espèce",
+        "legalId": "Identifiant officiel (boucle d'oreille)",
+        "sex": "Sexe",
+        "breed": "Race",
+        "birthdate": "Date de naissance",
+        "batteryType": "Type de batterie",
+        "rechargeEnergySource": "Source de recharge"
+      },
+      "options": {
+        "category": {
+          "barn": "Grange",
+          "cowshed": "Étable",
+          "stable": "Écurie",
+          "sty": "Porcherie",
+          "shed": "Abri",
+          "warehouse": "Entrepôt",
+          "farm": "Ferme",
+          "farm_auxiliary": "Bâtiment agricole annexe",
+          "garage": "Garage",
+          "hangar": "Hangar",
+          "digester": "Digesteur",
+          "water_tower": "Château d'eau"
+        },
+        "species": {
+          "beef_cattle": "Bovin à viande",
+          "cow": "Vache",
+          "dairy_cattle": "Bovin laitier",
+          "goat": "Chèvre",
+          "horse": "Cheval",
+          "pig": "Porc",
+          "sheep": "Mouton"
+        },
+        "sex": {
+          "female": "Femelle",
+          "male": "Mâle"
+        },
+        "rechargeEnergySource": {
+          "electric": "Réseau électrique",
+          "hydraulic": "Hydraulique",
+          "windTurbine": "Éolienne",
+          "other": "Autre"
+        }
+      }
     }
   },
   "layout": {
@@ -2051,7 +2109,11 @@
         "Well": "Puits",
         "Pond": "Étang",
         "WeatherStation": "Station météo",
-        "AgriPlant": "Plante"
+        "AgriPlant": "Plante",
+        "Building": "Bâtiment",
+        "Animal": "Animal",
+        "Tank": "Réservoir ou bassin",
+        "StorageBatteryDevice": "Batterie"
       }
     },
     "filters": {

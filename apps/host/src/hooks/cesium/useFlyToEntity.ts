@@ -50,6 +50,7 @@ export function useFlyToEntity(
         range = 100;
         break;
       case 'LivestockAnimal':
+      case 'Animal':
       case 'livestock':
         cesiumEntityId = `livestock-${entityId}`;
         range = 100;
@@ -65,6 +66,7 @@ export function useFlyToEntity(
         range = 200;
         break;
       case 'AgriBuilding':
+      case 'Building':
       case 'building':
         cesiumEntityId = `building-${entityId}`;
         range = 300;

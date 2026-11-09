@@ -3,6 +3,7 @@ import { Sprout } from 'lucide-react';
 import { useWizard } from '../WizardContext';
 import { ParentEntitySelector } from '../ParentEntitySelector';
 import { StepPlantConfig } from './StepPlantConfig';
+import { SdmFieldsSection } from '../SdmFieldsSection';
 import api from '@/services/api';
 import type { GeoAssetFormData } from '../types';
 import { Input } from '@nekazari/ui-kit';
@@ -16,7 +17,7 @@ const SUBDIVISION_CAPABLE = new Set([
 
 // Types that should pick an associated parcel (for module integration)
 const PARCEL_ASSOCIATION_TYPES = new Set([
-  'AgriEnergyTracker', 'PhotovoltaicInstallation',
+  'AgriEnergyTracker', 'PhotovoltaicInstallation', 'Animal',
 ]);
 
 // AgriParcel gets first-class cadastral fields instead of generic additionalAttributes
@@ -134,7 +135,14 @@ export function StepGeoAssetConfig({ onPlantsImported }: { onPlantsImported?: ()
         </div>
       )}
 
-      {/* Parcel association (AgriEnergyTracker, PhotovoltaicInstallation) */}
+      {/* Smart Data Models fields of canonical types (Building, Animal, battery) */}
+      <SdmFieldsSection
+        entityType={entityType ?? ''}
+        values={data.additionalAttributes}
+        onChange={additionalAttributes => updateFormData({ additionalAttributes })}
+      />
+
+      {/* Parcel association (AgriEnergyTracker, PhotovoltaicInstallation, Animal) */}
       {needsParcel && (
         <div className="pt-4 border-t border-nkz-border">
           <label className="block text-sm font-medium text-nkz-text-primary mb-1">

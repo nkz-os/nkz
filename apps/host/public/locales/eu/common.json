@@ -817,7 +817,9 @@
       "datalogger_role_required": "Eskatu administratzaile bati edo aholkulari tekniko bati sentsore hau erregistratzeko.",
       "datalogger_name_required": "Datalogger berriak izena behar du",
       "datalogger_kind_required": "Aukeratu datalogger mota",
-      "external_id_invalid": "Identifikatzaileak letrak, zenbakiak, puntua, gidoia eta azpimarra onartzen ditu soilik (1-64 karaktere)"
+      "external_id_invalid": "Identifikatzaileak letrak, zenbakiak, puntua, gidoia eta azpimarra onartzen ditu soilik (1-64 karaktere)",
+      "sdm_required": "Bete derrigorrezko eremuak (*).",
+      "location_required": "Markatu kokapena mapan."
     },
     "errors": {
       "incomplete_state": "Laguntzailearen egoera osatu gabe dago",
@@ -869,7 +871,12 @@
       "AutonomousMobileRobot": "Nekazaritza-robot autonomoa",
       "ManufacturingMachine": "Nekazaritza-makineria (traktorea/tresna)",
       "AgriOperation": "Nekazaritza-eragiketa",
-      "AgriPlant": "Landare bakarra"
+      "AgriPlant": "Landare bakarra",
+      "Building": "Eraikina",
+      "AgriFarm": "Nekazaritza-ustiategia",
+      "Animal": "Animalia",
+      "StorageBatteryDevice": "Bateria",
+      "Tank": "Ur-biltegia edo urmaela"
     },
     "macro": {
       "assets": {
@@ -1283,6 +1290,57 @@
       "spacing": "Landareen arteko tartea (m)",
       "summary": "{{count}} landare {{length}} m-tan",
       "required": "Markatu ilararen hasiera eta amaiera"
+    },
+    "sdm": {
+      "title": "Ereduaren datuak",
+      "fields": {
+        "category": "Eraikin mota",
+        "addressLocality": "Udalerria",
+        "addressRegion": "Probintzia edo eskualdea",
+        "addressCountry": "Herrialdea",
+        "species": "Espeziea",
+        "legalId": "Identifikazio ofiziala (belarritakoa)",
+        "sex": "Sexua",
+        "breed": "Arraza",
+        "birthdate": "Jaiotze-data",
+        "batteryType": "Bateria mota",
+        "rechargeEnergySource": "Kargatzeko iturria"
+      },
+      "options": {
+        "category": {
+          "barn": "Ganbara",
+          "cowshed": "Behi-ukuilua",
+          "stable": "Zalditegia",
+          "sty": "Txerritegia",
+          "shed": "Txabola",
+          "warehouse": "Biltegia",
+          "farm": "Baserria",
+          "farm_auxiliary": "Nabe osagarria",
+          "garage": "Garajea",
+          "hangar": "Hangarra",
+          "digester": "Biodigestorea",
+          "water_tower": "Ur-dorrea"
+        },
+        "species": {
+          "beef_cattle": "Haragitarako behiak",
+          "cow": "Behia",
+          "dairy_cattle": "Esnetarako behiak",
+          "goat": "Ahuntza",
+          "horse": "Zaldia",
+          "pig": "Txerria",
+          "sheep": "Ardia"
+        },
+        "sex": {
+          "female": "Emea",
+          "male": "Arra"
+        },
+        "rechargeEnergySource": {
+          "electric": "Sare elektrikoa",
+          "hydraulic": "Hidraulikoa",
+          "windTurbine": "Haize-sorgailua",
+          "other": "Beste bat"
+        }
+      }
     }
   },
   "layout": {
@@ -2028,7 +2086,11 @@
         "Well": "Putzua",
         "Pond": "Urmaela",
         "WeatherStation": "Meteo-estazioa",
-        "AgriPlant": "Landarea"
+        "AgriPlant": "Landarea",
+        "Building": "Eraikina",
+        "Animal": "Animalia",
+        "Tank": "Ur-biltegia edo urmaela",
+        "StorageBatteryDevice": "Bateria"
       }
     },
     "filters": {

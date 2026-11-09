@@ -105,7 +105,8 @@ describe('host entity list calls page through Orion-LD', () => {
   });
 
   it('getRobots, getLivestock and getWeatherStations return everything', async () => {
-    serveEntities({ AutonomousMobileRobot: 21, LivestockAnimal: 22, WeatherObserved: 23 });
+    // Livestock is one query over the SDM Animal and the legacy LivestockAnimal
+    serveEntities({ AutonomousMobileRobot: 21, 'LivestockAnimal,Animal': 22, WeatherObserved: 23 });
     expect(await api.getRobots()).toHaveLength(21);
     expect(await api.getLivestock()).toHaveLength(22);
     expect(await api.getWeatherStations()).toHaveLength(23);

@@ -194,7 +194,11 @@ const UnifiedViewerInner: React.FC = () => {
                 api.getWeatherStations().catch(() => []),
                 parcelApi.getParcels().catch(() => []),
                 api.getSDMEntityInstances('AgriCrop').catch(() => []),
-                api.getSDMEntityInstances('AgriBuilding').catch(() => []),
+                // Buildings: legacy AgriBuilding plus SDM Building (what the wizard creates)
+                Promise.all([
+                    api.getSDMEntityInstances('AgriBuilding').catch(() => []),
+                    api.getSDMEntityInstances('Building').catch(() => []),
+                ]).then(([legacy, sdm]) => [...legacy, ...sdm]),
                 // Fetch tree/plant entities
                 api.getSDMEntityInstances('OliveTree').catch(() => []),
                 api.getSDMEntityInstances('AgriTree').catch(() => []),

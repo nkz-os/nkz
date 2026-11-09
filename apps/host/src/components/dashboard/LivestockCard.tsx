@@ -28,7 +28,7 @@ export const LivestockCard: React.FC<LivestockCardProps> = ({ livestock, canMana
             <p className="text-nkz-muted mb-4">{t('dashboard.livestock.no_animals')}</p>
             {canManageDevices && (
               <Button
-                onClick={() => onOpenWizard('LivestockAnimal')}
+                onClick={() => onOpenWizard('Animal')}
                 className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition flex items-center gap-2 mx-auto"
               >
                 <Plus className="w-4 h-4" />

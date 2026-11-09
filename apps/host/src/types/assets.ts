@@ -250,6 +250,24 @@ export const ASSET_TYPE_REGISTRY: Record<string, AssetTypeInfo> = {
     supportsHierarchy: true,
     supportsTelemetry: false,
   },
+  Building: {
+    type: 'Building',
+    category: 'infrastructure',
+    icon: 'building-2',
+    color: 'slate',
+    supportsLocation: true,
+    supportsHierarchy: false,
+    supportsTelemetry: false,
+  },
+  StorageBatteryDevice: {
+    type: 'StorageBatteryDevice',
+    category: 'infrastructure',
+    icon: 'cpu',
+    color: 'yellow',
+    supportsLocation: true,
+    supportsHierarchy: false,
+    supportsTelemetry: true,
+  },
   PhotovoltaicInstallation: {
     type: 'PhotovoltaicInstallation',
     category: 'infrastructure',
@@ -317,6 +335,15 @@ export const ASSET_TYPE_REGISTRY: Record<string, AssetTypeInfo> = {
   },
   
   // Livestock
+  Animal: {
+    type: 'Animal',
+    category: 'livestock',
+    icon: 'beef',
+    color: 'amber',
+    supportsLocation: true,
+    supportsHierarchy: true,
+    supportsTelemetry: true,
+  },
   LivestockAnimal: {
     type: 'LivestockAnimal',
     category: 'livestock',
@@ -350,6 +377,15 @@ export const ASSET_TYPE_REGISTRY: Record<string, AssetTypeInfo> = {
     type: 'Well',
     category: 'water',
     icon: 'circle-dot',
+    color: 'blue',
+    supportsLocation: true,
+    supportsHierarchy: false,
+    supportsTelemetry: true,
+  },
+  Tank: {
+    type: 'Tank',
+    category: 'water',
+    icon: 'droplets',
     color: 'blue',
     supportsLocation: true,
     supportsHierarchy: false,

@@ -61,3 +61,10 @@ describe('isCreatableType', () => {
     expect(isCreatableType('AgriSensor')).toBe(false);
   });
 });
+
+describe('canonical SDM alternatives', () => {
+  it.each(['Building', 'Animal', 'AgriFarm', 'StorageBatteryDevice', 'Tank'])('offers %s', ty => {
+    expect(isCreatableType(ty)).toBe(true);
+    expect(ENTITY_TYPE_METADATA[ty]).toBeDefined();
+  });
+});
