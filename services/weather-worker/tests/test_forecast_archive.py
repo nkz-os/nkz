@@ -341,3 +341,20 @@ def test_logs_do_not_contain_coordinates_or_credentials(caplog):
         _run({"acme": [_parcel("urn:p1", -1.5, 42.0)]}, _openmeteo(), m)
     assert "-1.5" not in caplog.text and "42.0" not in caplog.text
     assert "sk" not in caplog.text.split() and "ak" not in caplog.text.split()
+
+
+def test_parcel_without_elevation_is_null_not_zero():
+    m = FakeMinio()
+    code, _ = _run({"acme": [_parcel("urn:p1", -1.5, 42.0)]}, _openmeteo(), m)
+    assert code == 0
+    doc = m.objects()[("weather-forecast-archive", "acme/2030-01-10.json.gz")]
+    assert doc["parcels"]["urn:p1"]["elevation"] is None
+
+
+def test_no_tenants_discovered_exits_non_zero(monkeypatch):
+    monkeypatch.delenv("PARCEL_ENGINE_TENANTS", raising=False)
+    monkeypatch.setattr(fa.ParcelWeatherEngine, "_get_active_tenants", lambda self: [])
+    m = FakeMinio()
+    code, _ = _run({}, _openmeteo(), m)
+    assert code == 1
+    assert m.puts == []

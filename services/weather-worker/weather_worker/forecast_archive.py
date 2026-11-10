@@ -183,6 +183,13 @@ def _fetch_tenant_parcels(engine: ParcelWeatherEngine, tenant: str) -> List[Dict
     return entities
 
 
+def _parcel_elevation(parcel: Dict[str, Any]) -> Optional[float]:
+    """The parcel's stored elevation, or None. The engine's 0.0 means "unknown"."""
+    elev = parcel.get("elevation")
+    value = elev.get("value") if isinstance(elev, dict) else elev
+    return _num(value)
+
+
 def _prepare_parcels(engine: ParcelWeatherEngine, parcels: List[Dict[str, Any]]):
     usable = []
     for p in parcels:
@@ -226,7 +233,7 @@ def _archive_tenant(
             entries[p["id"]] = {
                 "lat": p["_centroid"][1],
                 "lon": p["_centroid"][0],
-                "elevation": _num(p["_altitude"]),
+                "elevation": _parcel_elevation(p),
                 "grid_elevation": grid_elevation,
                 "models": models,
             }
@@ -277,6 +284,11 @@ def run(now: Optional[datetime] = None) -> int:
     engine = ParcelWeatherEngine()
     tenants = engine._get_active_tenants()
     logger.info("Forecast archive %s: %d tenants", object_date, len(tenants))
+    if not tenants:
+        # Discovery failing looks the same as an empty platform; an archive run
+        # that stores nothing must not pass as a success.
+        logger.error("Forecast archive %s: no tenants discovered; nothing archived", object_date)
+        return 1
 
     total_parcels = total_archived = total_failed = 0
     exit_code = 0
