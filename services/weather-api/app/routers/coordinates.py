@@ -61,6 +61,7 @@ def get_coordinates_forecast(
                 "shortwave_radiation_sum",
             ],
             "timezone": "auto",
+            "wind_speed_unit": "ms",
         }
 
         resp = requests.get(

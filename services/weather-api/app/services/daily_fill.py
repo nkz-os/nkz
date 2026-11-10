@@ -5,6 +5,7 @@ Nothing is stored: recent days come from the forecast model's own analysis
 archive. A day the source cannot provide stays unfilled.
 """
 import logging
+import math
 from datetime import date, datetime, timedelta, timezone
 from typing import Any, Callable, Dict, List, Optional
 
@@ -19,7 +20,8 @@ WIND_10M_TO_2M = 0.748  # FAO-56 log profile, 10 m -> 2 m
 _TIMEOUTS = {"model_analysis": 30, "reanalysis": 120}
 _DAILY_VARS = (
     "temperature_2m_min,temperature_2m_max,precipitation_sum,"
-    "et0_fao_evapotranspiration,shortwave_radiation_sum,wind_speed_10m_mean"
+    "et0_fao_evapotranspiration,shortwave_radiation_sum,wind_speed_10m_mean,"
+    "dew_point_2m_mean"
 )
 # Forecast: the automatic selection and ECMWF IFS. The frost warning uses the
 # colder of the two per day (`tmin_coldest_c`), which is a warning input, not an
@@ -47,6 +49,13 @@ def _num(v: Any) -> Optional[float]:
     if isinstance(v, bool) or not isinstance(v, (int, float)):
         return None
     return float(v)
+
+
+def _vapour_pressure_kpa(dew_point_c: Optional[float]) -> Optional[float]:
+    """Actual vapour pressure (FAO-56 eq. 14 / Tetens) from the daily mean dew point."""
+    if dew_point_c is None:
+        return None
+    return round(0.6108 * math.exp(17.27 * dew_point_c / (dew_point_c + 237.3)), 3)
 
 
 def _at(daily: Dict[str, list], key: str, i: int) -> Optional[float]:
@@ -109,7 +118,7 @@ def fetch_open_meteo_daily(
             "precip_mm": _at(daily, "precipitation_sum", i),
             "et0_mm": _at(daily, "et0_fao_evapotranspiration", i),
             "radiation_mj_m2": _at(daily, "shortwave_radiation_sum", i),
-            "vapour_pressure_kpa": None,
+            "vapour_pressure_kpa": _vapour_pressure_kpa(_at(daily, "dew_point_2m_mean", i)),
             "wind2m_ms": round(wind10 * WIND_10M_TO_2M, 3) if wind10 is not None else None,
         }
         if any(v is not None for v in rec.values()):
@@ -197,7 +206,7 @@ def fetch_open_meteo_forecast(
                 "precip_mm": col("precipitation_sum"),
                 "et0_mm": col("et0_fao_evapotranspiration"),
                 "radiation_mj_m2": col("shortwave_radiation_sum"),
-                "vapour_pressure_kpa": None,
+                "vapour_pressure_kpa": _vapour_pressure_kpa(col("dew_point_2m_mean")),
                 "wind2m_ms": round(wind10 * WIND_10M_TO_2M, 3) if wind10 is not None else None,
                 "hours_below_zero": frost_hours.get(day),
                 "tmin_coldest_c": min(tmin, tmin_ecmwf) if tmin is not None and tmin_ecmwf is not None else None,

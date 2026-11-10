@@ -218,3 +218,45 @@ def test_local_now_uses_offset_at_utc_boundary():
     out, _ = _forecast(_forecast_payload())
     assert out["local_now"] == "2026-11-05T00:30"
     assert out["local_now"][:10] == out["local_today"]
+
+
+def _vp(td):
+    import math
+    return round(0.6108 * math.exp(17.27 * td / (td + 237.3)), 3)
+
+
+def test_dew_point_10c_gives_1_228_kpa():
+    assert _vp(10.0) == 1.228
+
+
+def test_filled_day_has_vapour_pressure():
+    daily = {**DAILY, "dew_point_2m_mean": [10.0, None]}
+    get = MagicMock(return_value=_resp({"daily": daily}))
+    out = df.fetch_open_meteo_daily("model_analysis", 1, 1, None, date(2026, 6, 1), date(2026, 6, 2), http_get=get)
+    assert out["2026-06-01"]["vapour_pressure_kpa"] == 1.228
+    assert "dew_point_2m_mean" in get.call_args.kwargs["params"]["daily"]
+
+
+def test_missing_dew_point_gives_null_vapour_pressure():
+    get = MagicMock(return_value=_resp({"daily": DAILY}))
+    out = df.fetch_open_meteo_daily("model_analysis", 1, 1, None, date(2026, 6, 1), date(2026, 6, 2), http_get=get)
+    assert out["2026-06-01"]["vapour_pressure_kpa"] is None
+
+
+def test_forecast_day_has_vapour_pressure_from_dew_point():
+    now = datetime(2026, 10, 9, 12, 0, tzinfo=timezone.utc)
+    daily = {"time": ["2026-10-09", "2026-10-10"], "utc_offset_seconds": 0}
+    for name, v in (("temperature_2m_min", 8.0), ("temperature_2m_max", 20.0), ("precipitation_sum", 0.0),
+                    ("et0_fao_evapotranspiration", 2.0), ("shortwave_radiation_sum", 12.0),
+                    ("wind_speed_10m_mean", 2.0)):
+        daily[f"{name}_best_match"] = [v, v]
+        daily[f"{name}_ecmwf_ifs025"] = [v, v]
+    daily["dew_point_2m_mean_best_match"] = [10.0, None]
+    daily["dew_point_2m_mean_ecmwf_ifs025"] = [3.0, 3.0]
+    body = {"daily": daily, "hourly": {}, "utc_offset_seconds": 0}
+    get = MagicMock(return_value=_resp(body))
+    with patch.object(df.settings, "openmeteo_api_url", "http://om/v1"):
+        out = df.fetch_open_meteo_forecast(42.6, -2.1, 580.0, 1, now=now, http_get=get)
+    assert out["days"]["2026-10-09"]["vapour_pressure_kpa"] == 1.228
+    assert out["days"]["2026-10-10"]["vapour_pressure_kpa"] is None
+    assert "dew_point_2m_mean" in get.call_args.kwargs["params"]["daily"]
