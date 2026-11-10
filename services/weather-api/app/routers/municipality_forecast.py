@@ -92,6 +92,7 @@ def get_municipality_forecast(
                 "shortwave_radiation_sum",
             ],
             "timezone": "Europe/Madrid",
+            "wind_speed_unit": "ms",
         }
 
         resp = requests.get(
