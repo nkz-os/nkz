@@ -594,3 +594,44 @@ def test_no_local_now_without_forecast_days(client):
     with ps[0], ps[1], ps[2], _patch.object(pd, "fetch_open_meteo_forecast"):
         j = tc.get(f"/api/weather/parcel/{PID}/daily?start=2026-10-01&end=2026-10-02").json()
     assert "local_now" not in j
+
+
+# --- gdd_method ---
+
+_FROST = dict(tempMin=-4.0, tempMax=8.0, precipitation=0.0, et0=0.5)
+
+
+@pytest.mark.parametrize("method,expected", [("legacy", 2.0), ("m2", 4.0), ("aquacrop_m3", 2.0)])
+def test_gdd_method_applies_and_is_echoed(client, method, expected):
+    c, h = client
+    h["install"]([_row("2026-10-01", **_FROST)])
+    j = c.get(f"/api/weather/parcel/{PID}/daily?start=2026-10-01&end=2026-10-01"
+              f"&base_temp=0&upper_cutoff=26&gdd_method={method}").json()
+    assert j["totals"]["gdd"] == expected
+    assert j["gdd_method"] == method
+
+
+def test_gdd_method_defaults_to_legacy_and_is_echoed(client):
+    c, h = client
+    h["install"]([_row("2026-10-01", **_FROST)])
+    j = c.get(f"/api/weather/parcel/{PID}/daily?start=2026-10-01&end=2026-10-01&base_temp=0").json()
+    assert j["totals"]["gdd"] == 2.0 and j["gdd_method"] == "legacy"
+
+
+def test_no_gdd_method_key_without_base_temp(client):
+    c, h = client
+    h["install"]([_row("2026-10-01", **_FROST)])
+    j = c.get(f"/api/weather/parcel/{PID}/daily?start=2026-10-01&end=2026-10-01").json()
+    assert "gdd_method" not in j and "gdd" not in j["totals"]
+
+
+@pytest.mark.parametrize("qs", [
+    "base_temp=0&upper_cutoff=26&gdd_method=m9",
+    "base_temp=0&gdd_method=aquacrop_m3",
+    "gdd_method=m2",
+])
+def test_gdd_method_errors_are_400(client, qs):
+    c, h = client
+    h["install"]([])
+    r = c.get(f"/api/weather/parcel/{PID}/daily?start=2026-10-01&end=2026-10-01&{qs}")
+    assert r.status_code == 400
