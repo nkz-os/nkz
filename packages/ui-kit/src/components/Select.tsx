@@ -68,7 +68,10 @@ export function Select({
           sideOffset={4}
           className={cn(
             'z-nkz-dropdown bg-nkz-surface-raised border border-nkz-border rounded-nkz-md shadow-nkz-lg',
-            'overflow-hidden min-w-[var(--radix-select-trigger-width)]'
+            'overflow-hidden min-w-[var(--radix-select-trigger-width)]',
+            // Radix makes the viewport scrollable; without a height cap a long list
+            // overflows the screen and items below the fold are unreachable.
+            'max-h-[var(--radix-select-content-available-height)]'
           )}
         >
           <RadixSelect.Viewport className="p-nkz-tight">
