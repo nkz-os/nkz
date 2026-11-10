@@ -24,3 +24,30 @@ test('Select — a long list stays inside the viewport and its last option is re
   await last.click();
   expect(picked).toEqual(['opt-59']);
 });
+
+test('Select — arrows show which way the list can still scroll', async ({ mount, page }) => {
+  await mount(<Select value="" onValueChange={() => {}} options={OPTIONS} placeholder="Pick" />);
+  await page.getByRole('combobox').click();
+
+  const up = page.locator('[data-direction="up"]');
+  const down = page.locator('[data-direction="down"]');
+  await expect(down).toBeVisible();
+  await expect(up).toHaveCount(0);
+
+  // Touch-like scroll: the focus stays on the first option. The list must stay at the bottom.
+  const viewport = page.locator('[data-radix-select-viewport]');
+  const bottom = await viewport.evaluate((el) => {
+    el.scrollTop = el.scrollHeight;
+    return el.scrollHeight - el.clientHeight;
+  });
+  await expect(up).toBeVisible();
+  await expect(down).toHaveCount(0);
+  expect(await viewport.evaluate((el) => el.scrollTop)).toBeGreaterThanOrEqual(bottom - 1);
+});
+
+test('Select — a short list shows no arrows', async ({ mount, page }) => {
+  await mount(<Select value="" onValueChange={() => {}} options={OPTIONS.slice(0, 3)} placeholder="Pick" />);
+  await page.getByRole('combobox').click();
+  await expect(page.getByRole('listbox')).toBeVisible();
+  await expect(page.locator('[data-direction]')).toHaveCount(0);
+});
