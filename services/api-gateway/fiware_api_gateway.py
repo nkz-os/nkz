@@ -4814,8 +4814,9 @@ def bioorchestrator_proxy(path):
     return generic_proxy(BIOORCHESTRATOR_API_URL, path)
 
 
-# Agent module management API: link-tokens, links, the tenant LLM config and
-# its usage only. Deliberately NOT a catch-all — the module's Telegram webhook (/api/agent/webhook/telegram)
+# Agent module management API and mobile turns: link-tokens, links, the tenant
+# LLM config, its usage and the mobile turn routes only. Deliberately NOT a
+# catch-all: the module's Telegram webhook (/api/agent/webhook/telegram)
 # has its own dedicated Ingress that bypasses the gateway entirely (the
 # messaging platform cannot authenticate through it), so it must stay
 # unreachable via these routes.
@@ -4853,6 +4854,24 @@ def agent_llm_config_test_proxy():
 def agent_usage_proxy():
     """Proxy the tenant's assistant usage summary to the agent module backend."""
     return _proxy_authenticated_request(f"{AGENT_API_URL}/api/agent/usage")
+
+
+@app.route("/api/agent/mobile/turns", methods=["POST"])
+def agent_mobile_turns_proxy():
+    """Proxy creation of a mobile assistant turn to the agent module backend."""
+    return _proxy_authenticated_request(f"{AGENT_API_URL}/api/agent/mobile/turns")
+
+
+@app.route("/api/agent/mobile/turns/<turn_id>", methods=["GET"])
+def agent_mobile_turn_proxy(turn_id):
+    """Proxy reading one mobile assistant turn from the agent module backend."""
+    return _proxy_authenticated_request(f"{AGENT_API_URL}/api/agent/mobile/turns/{turn_id}")
+
+
+@app.route("/api/agent/mobile/history", methods=["GET"])
+def agent_mobile_history_proxy():
+    """Proxy the mobile assistant turn history to the agent module backend."""
+    return _proxy_authenticated_request(f"{AGENT_API_URL}/api/agent/mobile/history")
 
 
 def _n8n_tenant_from_referer(referer: str) -> str:
