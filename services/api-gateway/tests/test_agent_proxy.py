@@ -160,3 +160,48 @@ def test_llm_config_requires_auth(monkeypatch):
         resp = gw.agent_llm_config_proxy()
     status = resp[1] if isinstance(resp, tuple) else resp.status_code
     assert status == 401
+
+
+def test_mobile_turn_create_forwards_post(monkeypatch):
+    import fiware_api_gateway as gw
+
+    captured = _capture(monkeypatch, gw)
+    with gw.app.test_request_context("/api/agent/mobile/turns", method="POST"):
+        resp = gw.agent_mobile_turns_proxy()
+    assert resp.status_code == 200
+    assert captured["url"] == f"{gw.AGENT_API_URL}/api/agent/mobile/turns"
+    assert captured["method"] == "POST"
+    assert captured["headers"]["X-Tenant-ID"] == "acmefarm"
+    assert captured["headers"]["X-Auth-Signature"] == "sig123"
+
+
+def test_mobile_turn_get_forwards_turn_id(monkeypatch):
+    import fiware_api_gateway as gw
+
+    captured = _capture(monkeypatch, gw)
+    with gw.app.test_request_context("/api/agent/mobile/turns/turn42", method="GET"):
+        resp = gw.agent_mobile_turn_proxy("turn42")
+    assert resp.status_code == 200
+    assert captured["url"] == f"{gw.AGENT_API_URL}/api/agent/mobile/turns/turn42"
+    assert captured["method"] == "GET"
+
+
+def test_mobile_history_forwards_get(monkeypatch):
+    import fiware_api_gateway as gw
+
+    captured = _capture(monkeypatch, gw)
+    with gw.app.test_request_context("/api/agent/mobile/history", method="GET"):
+        resp = gw.agent_mobile_history_proxy()
+    assert resp.status_code == 200
+    assert captured["url"] == f"{gw.AGENT_API_URL}/api/agent/mobile/history"
+    assert captured["method"] == "GET"
+
+
+def test_mobile_turn_id_with_slash_is_not_routed_to_explicit_proxy():
+    """Flask's default converter does not match slashes, so a nested path must
+    not resolve to the single-turn explicit route."""
+    import fiware_api_gateway as gw
+
+    adapter = gw.app.url_map.bind("localhost")
+    endpoint, _args = adapter.match("/api/agent/mobile/turns/a/b", method="GET")
+    assert endpoint == "auto_proxy_module"
