@@ -30,7 +30,7 @@ from app.config import settings
 from app.routers.parcels import _normalize_parcel_id, _orion_headers, _resolve_parcel_location
 from app.services import sensor_daily
 from app.services.daily_fill import fetch_open_meteo_daily, fetch_open_meteo_forecast, plan_fill
-from app.services.daily_totals import compute_totals
+from app.services.daily_totals import GDD_METHODS, compute_totals
 
 logger = logging.getLogger(__name__)
 
@@ -205,6 +205,7 @@ def get_parcel_daily(
     fill: str = Query("none", description="none | open_meteo"),
     base_temp: Optional[float] = Query(None, description="GDD base temperature, degC"),
     upper_cutoff: Optional[float] = Query(None, description="GDD upper cutoff, degC"),
+    gdd_method: Optional[str] = Query(None, description="GDD method: legacy (default) | m2 | aquacrop_m3"),
     forecast_days: int = Query(0, description="Days of model forecast after the parcel's local today, 0-16"),
     tenant_id: str = Depends(require_auth),
 ):
@@ -221,6 +222,13 @@ def get_parcel_daily(
 
     if not 0 <= forecast_days <= MAX_FORECAST_DAYS:
         return _error(f"forecast_days must be between 0 and {MAX_FORECAST_DAYS}", 400)
+    if gdd_method is not None and base_temp is None:
+        return _error("gdd_method requires base_temp", 400)
+    method = gdd_method or "legacy"
+    if method not in GDD_METHODS:
+        return _error(f"gdd_method must be one of {', '.join(GDD_METHODS)}", 400)
+    if method == "aquacrop_m3" and upper_cutoff is None:
+        return _error("gdd_method aquacrop_m3 requires upper_cutoff", 400)
 
     parcel_urn = _normalize_parcel_id(parcel_id)
     bare = parcel_urn.split(":")[-1]
@@ -404,9 +412,10 @@ def get_parcel_daily(
         "days": days,
         "missing_days": missing,
         "missing_reasons": reasons,
-        "totals": compute_totals(closed, base_temp, upper_cutoff),
+        "totals": compute_totals(closed, base_temp, upper_cutoff, method),
         "units": _UNITS,
         **sensors,
         **extra,
+        **({"gdd_method": method} if base_temp is not None else {}),
         "source": source,
     }
