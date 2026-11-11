@@ -196,7 +196,7 @@ def _serve(parcel_id: str, start: str, end: str, resolution: str, vars: Optional
 
     try:
         latest = _latest_available(lat, lon, elev, today, deadline)
-    except DeadlineExceeded:
+    except (DeadlineExceeded, archive.ArchiveTimeout):
         if d1 >= today - timedelta(days=LATEST_LENIENT_DAYS):
             return _not_ready()
         logger.warning("history latest_available skipped: deadline parcel=%s tenant=%s", parcel_urn, tenant_id)
@@ -218,8 +218,8 @@ def _serve(parcel_id: str, start: str, end: str, resolution: str, vars: Optional
             break
         try:
             docs[year] = history_year(lat, lon, elev, year, today=today, deadline=deadline)
-        except DeadlineExceeded:
-            incomplete.append(year)      # a cold year does not fit; an older one may still be cached
+        except (DeadlineExceeded, archive.ArchiveTimeout):
+            incomplete.append(year)      # a cold year does not fit (or the upstream is still warming): retry
             continue
         except (archive.ArchiveError, ValueError) as exc:
             if not docs:

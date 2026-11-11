@@ -423,3 +423,37 @@ def test_archive_errors_log_type_and_status_only(env, monkeypatch, caplog):
     text = " ".join(rec.getMessage() for rec in caplog.records if rec.name.startswith("app.")) + r.text
     assert "ConnectionError" in text
     assert "42.25" not in text and "-1.5" not in text and "latitude" not in text
+
+
+class _SlowArchive(Archive):
+    """The archive times out for the given years (cold upstream), answers for the rest."""
+
+    def __init__(self, slow_years, **k):
+        super().__init__(**k)
+        self.slow = set(slow_years)
+
+    def __call__(self, lat, lon, elev, year, **k):
+        if year in self.slow:
+            self.calls.append(year)
+            raise archive.ArchiveTimeout("archive request failed: ReadTimeout")
+        return super().__call__(lat, lon, elev, year, **k)
+
+
+def test_cold_archive_timeout_on_latest_is_503_retry_not_502(env):
+    c, h = env
+    h["arch"] = _SlowArchive({TODAY.year, TODAY.year - 1})
+    r = _get(c, start="2026-10-01", end="2026-10-31")
+    assert r.status_code == 503 and r.headers["Retry-After"] == "30"
+
+
+def test_cold_archive_timeout_on_a_year_marks_it_incomplete(env):
+    c, h = env
+    h["arch"] = _SlowArchive({2019})
+    r = _get(c, start="2018-01-01", end="2020-12-31")
+    assert r.status_code == 200
+    assert r.json()["incomplete_years"] == [2019]
+    assert r.headers["Retry-After"] == "30"
+
+
+def test_archive_timeout_is_an_archive_error_subclass():
+    assert issubclass(archive.ArchiveTimeout, archive.ArchiveError)
