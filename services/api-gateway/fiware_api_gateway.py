@@ -155,6 +155,11 @@ CONTEXT_URL = os.getenv("CONTEXT_URL")
 if not CONTEXT_URL:
     raise ValueError("CONTEXT_URL environment variable is required")
 
+# CONTEXT_URL is what Orion-LD resolves, usually an in-cluster address that clients
+# outside the cluster cannot reach. When set, NGSI-LD responses name this public copy
+# of the same file instead. Empty keeps responses untouched.
+PUBLIC_CONTEXT_URL = os.getenv("PUBLIC_CONTEXT_URL", "").strip()
+
 GEOSERVER_URL = os.getenv("GEOSERVER_URL", "http://geoserver-service:8080")
 TENANT_WEBHOOK_URL = os.getenv("TENANT_WEBHOOK_URL", "http://tenant-webhook:8080")
 ENTITY_MANAGER_URL = os.getenv("ENTITY_MANAGER_URL", "http://entity-manager:5000")
@@ -353,6 +358,7 @@ PAT_SCOPE_ROUTES = {
     ],
     "entities": [
         ("GET", "/ngsi-ld/v1/entities"),
+        ("GET", "/ngsi-ld/v1/types"),
         ("POST", "/ngsi-ld/v1/entityOperations/query"),
     ],
     "export": [
@@ -1089,6 +1095,29 @@ def safe_proxy_response(response):
     return make_response(response.content, response.status_code, dict(response.headers))
 
 
+def ngsi_proxy_response(response):
+    """``safe_proxy_response`` for Orion-LD reads and writes, naming the public @context.
+
+    Orion echoes the @context URL it was given (in the body for ld+json, in the Link
+    header for json). Only the exact quoted URL and the Link target are replaced, so
+    the JSON is never re-serialized. The upstream Content-Length is dropped because
+    the body length changes; Flask computes the right one.
+    """
+    if response.status_code >= 500 or not PUBLIC_CONTEXT_URL or PUBLIC_CONTEXT_URL == CONTEXT_URL:
+        return safe_proxy_response(response)
+    internal = CONTEXT_URL.encode()
+    public = PUBLIC_CONTEXT_URL.encode()
+    content = response.content.replace(b'"' + internal + b'"', b'"' + public + b'"')
+    headers = {}
+    for name, value in dict(response.headers).items():
+        if name.lower() == "content-length":
+            continue
+        if name.lower() == "link":
+            value = value.replace(f"<{CONTEXT_URL}>", f"<{PUBLIC_CONTEXT_URL}>")
+        headers[name] = value
+    return make_response(content, response.status_code, headers)
+
+
 def get_cors_origin():
     """Return the validated CORS origin or None if not allowed.
 
@@ -1342,7 +1371,7 @@ def entity_by_id(entity_id):
                 f"Orion-LD error {response.status_code} for entity {entity_id}: {response.text}"
             )
 
-        return safe_proxy_response(response)
+        return ngsi_proxy_response(response)
 
     except requests.exceptions.RequestException as e:
         logger.error(
@@ -1402,7 +1431,7 @@ def entities():
         if response.status_code >= 400:
             logger.error(f"Orion-LD error {response.status_code}: {response.text}")
 
-        return safe_proxy_response(response)
+        return ngsi_proxy_response(response)
 
     except requests.exceptions.RequestException as e:
         logger.error(f"Error forwarding request to Orion-LD: {e}")
@@ -1451,12 +1480,34 @@ def entity_operations_query():
                 f"Orion-LD entityOperations/query error {response.status_code}: {response.text[:300]}"
             )
 
-        return make_response(
-            response.content, response.status_code, dict(response.headers)
-        )
+        return ngsi_proxy_response(response)
 
     except requests.exceptions.RequestException as e:
         logger.error(f"Error forwarding to Orion-LD entityOperations/query: {e}")
+        return jsonify({"error": "Internal server error"}), 500
+
+
+@app.route("/ngsi-ld/v1/types", methods=["GET"])
+@app.route("/ngsi-ld/v1/types/<path:type_name>", methods=["GET"])
+def entity_types(type_name=None):
+    """Read-only proxy to Orion-LD /types, scoped to the caller's tenant."""
+    tenant, headers, err = resolve_request_auth(
+        header_mode="canonical",
+        pat_rate_limit=False,
+        pat_tenant_missing_message="PAT tenant not resolved",
+    )
+    if err:
+        return err
+    path = "/ngsi-ld/v1/types" + (f"/{type_name}" if type_name else "")
+    try:
+        response = requests.get(
+            f"{ORION_URL}{path}", headers=headers, params=request.args, timeout=PROXY_TIMEOUT
+        )
+        if response.status_code >= 400:
+            logger.error(f"Orion-LD error {response.status_code} on {path}: {response.text[:300]}")
+        return ngsi_proxy_response(response)
+    except requests.exceptions.RequestException as e:
+        logger.error(f"Error forwarding to Orion-LD {path}: {e}")
         return jsonify({"error": "Internal server error"}), 500
 
 

@@ -101,6 +101,8 @@
   "GET /ngsi-ld/v1/entities": 401,
   "GET /ngsi-ld/v1/entities/<path:entity_id>": 401,
   "GET /ngsi-ld/v1/entityOperations/query": 401,
+  "GET /ngsi-ld/v1/types": 401,
+  "GET /ngsi-ld/v1/types/<path:type_name>": 401,
   "GET /static/<path:subpath>": 404,
   "GET /version": 200,
   "PATCH /<tenant_id>": 404,
