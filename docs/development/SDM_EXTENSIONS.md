@@ -11,7 +11,7 @@ Three states, and only these:
 - **`propuesta-sdm`** — no SDM equivalent exists. Defined here with a number and tracked in the
   knowledge graph (`sdmProposal` / `sdmStatus`) with the intent of contributing it upstream.
 - **`extension-declarada`** — a deviation we accept, with the reason stated. The rationale is
-  copied from the term's `_comment` in the context; it is never invented.
+  copied from the term's note in `config/ngsi-ld-context.notes.json`; it is never invented.
 - **`sin-revisar`** — **explicit debt, not an accepted deviation.** Nobody has justified this term
   yet. Each one should end up either promoted to one of the two states above, or removed from the
   context if nothing uses it any more. Rationale reads `Not yet reviewed` precisely so that it

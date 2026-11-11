@@ -150,8 +150,6 @@ def test_banned_namespace_is_absent(ctx, banned, reason):
     host, path_prefix = banned
     offenders = []
     for term, v in ctx.items():
-        if term == "_comment":
-            continue
         h, path = _host_and_path(_iri(v))
         if h == host and path.startswith(path_prefix):
             offenders.append(term)
@@ -166,8 +164,6 @@ def test_exactly_one_self_namespace(ctx):
     """
     stray = {}
     for term, v in ctx.items():
-        if term == "_comment":
-            continue
         iri = _iri(v)
         host, path = _host_and_path(iri)
         if host == PLATFORM_HOST and not path.startswith(PLATFORM_PATH):
@@ -195,12 +191,26 @@ def test_term_definitions_use_only_jsonld_keywords(ctx):
         if not isinstance(v, dict):
             continue
         for key in v:
-            # _comment is a pre-existing, tolerated annotation across this file.
-            if key == "_comment":
-                continue
             if key not in VALID_TERM_KEYS:
                 bad.append(f"{term}.{key}")
     assert not bad, f"invalid term-definition keys: {bad}"
+
+
+def test_every_term_maps_to_an_iri_or_keyword(ctx):
+    """JSON-LD 1.1: a term maps to an absolute IRI, a compact IRI on a defined prefix,
+    or a keyword. Free text (an annotation stored as a term) makes strict processors
+    reject the whole context; notes live in ngsi-ld-context.notes.json instead."""
+    bad = []
+    for term, v in ctx.items():
+        iri = _iri(v)
+        if iri.startswith("@"):
+            continue
+        prefix, sep, _ = iri.partition(":")
+        if not sep or " " in iri:
+            bad.append(term)
+        elif prefix not in ("http", "https", "urn") and prefix not in ctx:
+            bad.append(term)
+    assert not bad, f"terms that do not map to an IRI: {bad}"
 
 
 def test_no_unit_codes_in_term_definitions(ctx):
