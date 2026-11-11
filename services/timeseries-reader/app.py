@@ -11,11 +11,12 @@ import sys
 import tempfile
 import uuid
 import json
+import functools
 import logging
 import re
 from datetime import datetime, timedelta, timezone
 from typing import Dict, Any, List, Optional, Tuple, Union
-from flask import Flask, request, jsonify, g, Response
+from flask import Flask, request, jsonify, g, Response, make_response
 from flask_cors import CORS
 import psycopg2
 from psycopg2 import sql
@@ -2406,8 +2407,27 @@ def get_entity_stats(entity_id: str):
         return internal_error(e, "timeseries")
 
 
+def _deprecated_endpoint(view):
+    """Mark a route deprecated: `Deprecation: true` header + one WARNING per call."""
+
+    @functools.wraps(view)
+    def wrapper(*args, **kwargs):
+        logger.warning(
+            "deprecated_endpoint tenant=%s path=%s user_agent=%r",
+            get_tenant_from_request() or "-",
+            request.path,
+            (request.headers.get("User-Agent") or "-")[:200],
+        )
+        resp = make_response(view(*args, **kwargs))
+        resp.headers["Deprecation"] = "true"
+        return resp
+
+    return wrapper
+
+
 @app.route("/api/weather/gdd", methods=["GET"])
 @require_auth
+@_deprecated_endpoint
 def get_weather_gdd():
     """Accumulated Growing Degree Days for a parcel from daily Tmin/Tmax."""
     ctx = _resolve_tenant_context()

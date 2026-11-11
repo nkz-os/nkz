@@ -245,3 +245,43 @@ def test_gdd_negative_base_temp(monkeypatch, client):
     # avg=1.5, GDD=1.5-(-5)=6.5/day * 5 => 32.5
     assert data["gdd_total"] == pytest.approx(32.5, rel=0.01)
     assert data["days_count"] == 5
+
+
+# ── Deprecation ──────────────────────────────────────────────────────────
+
+
+def _one_day_rows():
+    return [{"obs_date": date(2026, 3, 1), "tmin": 10.0, "tmax": 20.0}]
+
+
+def test_gdd_endpoint_marks_deprecation_header(monkeypatch, client):
+    monkeypatch.setattr(ts_app, "get_db_connection", lambda: FakeConn(_one_day_rows()))
+    resp = client.get(
+        "/api/weather/gdd?season_start=2026-03-01&base_temp=10&lat=42.0&lon=-1.0",
+        headers={"X-Tenant-ID": "test"},
+    )
+    assert resp.status_code == 200
+    assert resp.headers.get("Deprecation") == "true"
+    # error responses are marked too
+    bad = client.get("/api/weather/gdd", headers={"X-Tenant-ID": "test"})
+    assert bad.status_code == 400
+    assert bad.headers.get("Deprecation") == "true"
+
+
+def test_gdd_endpoint_logs_caller(monkeypatch, client, caplog):
+    monkeypatch.setattr(ts_app, "get_db_connection", lambda: FakeConn(_one_day_rows()))
+    with caplog.at_level("WARNING", logger=ts_app.logger.name):
+        client.get(
+            "/api/weather/gdd?season_start=2026-03-01&base_temp=10&lat=42.0&lon=-1.0",
+            headers={
+                "X-Tenant-ID": "test",
+                "User-Agent": "probe-agent/1.0",
+                "Authorization": "Bearer secret-token-value",
+            },
+        )
+    lines = [r.getMessage() for r in caplog.records if "deprecated_endpoint" in r.getMessage()]
+    assert len(lines) == 1
+    assert "tenant=test" in lines[0]
+    assert "path=/api/weather/gdd" in lines[0]
+    assert "probe-agent/1.0" in lines[0]
+    assert "secret-token-value" not in lines[0]
