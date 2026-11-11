@@ -21,6 +21,10 @@ class ArchiveError(RuntimeError):
     """
 
 
+class ArchiveTimeout(ArchiveError):
+    """The archive did not answer in time (typically a cold upstream cache): retry later, not a failure."""
+
+
 def _col(hourly: dict, key: str, n: int) -> list:
     col = hourly.get(key)
     if not isinstance(col, list) or len(col) != n:
@@ -59,6 +63,8 @@ def probe_cell(
     try:
         resp = http_get(f"{base}/archive", params=params, timeout=timeout)
     except Exception as exc:  # noqa: BLE001
+        if isinstance(exc, requests.exceptions.Timeout):
+            raise ArchiveTimeout(f"archive probe failed: {type(exc).__name__}") from None
         raise ArchiveError(f"archive probe failed: {type(exc).__name__}") from None
     if resp.status_code != 200:
         raise ArchiveError(f"archive probe HTTP {resp.status_code}")
@@ -115,6 +121,8 @@ def fetch_year(
         resp = http_get(f"{base}/archive", params=params, timeout=timeout)
     except Exception as exc:  # noqa: BLE001
         # the exception text carries the request URL (coordinates): type only
+        if isinstance(exc, requests.exceptions.Timeout):
+            raise ArchiveTimeout(f"archive request failed: {type(exc).__name__}") from None
         raise ArchiveError(f"archive request failed: {type(exc).__name__}") from None
     if resp.status_code != 200:
         raise ArchiveError(f"archive HTTP {resp.status_code}")
