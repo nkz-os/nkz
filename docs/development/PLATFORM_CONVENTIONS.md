@@ -110,7 +110,7 @@ Each PAT has one or more scopes. The api-gateway enforces `(HTTP method, path pr
 | Scope | Allowed routes |
 |-------|---------------|
 | `timeseries` | `GET/POST /api/timeseries/*` |
-| `entities` | `GET /ngsi-ld/v1/entities*`, `POST /ngsi-ld/v1/entityOperations/query` |
+| `entities` | `GET /ngsi-ld/v1/entities*`, `GET /ngsi-ld/v1/types*`, `POST /ngsi-ld/v1/entityOperations/query` |
 | `export` | `POST /api/datahub/export`, `POST /api/datahub/timeseries/align` |
 | `telemetry` | `GET /api/devices/*`, `GET /api/sensors*` |
 
