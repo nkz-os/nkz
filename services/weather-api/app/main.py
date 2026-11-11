@@ -36,6 +36,7 @@ from app.routers import (
     municipality_forecast,
     observations,
     parcel_daily,
+    parcel_history,
     parcel_zones_daily,
     parcels,
     preflight,
@@ -71,6 +72,7 @@ app.include_router(locations.router)
 app.include_router(observations.router)
 app.include_router(parcels.router)
 app.include_router(parcel_daily.router)
+app.include_router(parcel_history.router)
 app.include_router(parcel_zones_daily.router)
 app.include_router(alerts.router)
 app.include_router(preflight.router)
