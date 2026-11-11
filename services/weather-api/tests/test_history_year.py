@@ -143,13 +143,13 @@ def test_current_year_open_refreshed_when_stale_not_when_fresh():
     http, cache = FakeHttp(2026, hours=24 * 100), MemCache()
     d1 = date(2026, 4, 12)
     doc = hy.history_year(42.3, -1.4, 580.0, 2026, cache=cache, http_get=http, today=d1)
-    assert doc["closed"] is False and doc["latest_available"] == "2026-04-10"
+    assert doc["closed"] is False and doc["latest_available"] == "2026-04-09"
     assert len(http.calls) == 2
     hy.history_year(42.3, -1.4, 580.0, 2026, cache=cache, http_get=http, today=d1)
     assert len(http.calls) == 2                                      # same day: served from cache
     http2 = FakeHttp(2026, hours=24 * 101)
     doc2 = hy.history_year(42.3, -1.4, 580.0, 2026, cache=cache, http_get=http2, today=date(2026, 4, 13))
-    assert len(http2.calls) == 2 and doc2["latest_available"] == "2026-04-11"
+    assert len(http2.calls) == 2 and doc2["latest_available"] == "2026-04-10"
     assert len(cache.puts) == 2
 
 
@@ -157,7 +157,7 @@ def test_year_ending_within_the_lag_is_not_closed():
     # data stops 2025-12-30: Dec 31 is not before latest-1, so not closed
     http, cache = FakeHttp(2025, hours=24 * 364), MemCache()
     doc = hy.history_year(42.3, -1.4, 580.0, 2025, cache=cache, http_get=http, today=date(2026, 1, 4))
-    assert doc["latest_available"] == "2025-12-30" and doc["closed"] is False
+    assert doc["latest_available"] == "2025-12-29" and doc["closed"] is False
 
 
 def test_future_year_rejected():
@@ -165,10 +165,45 @@ def test_future_year_rejected():
         hy.history_year(42.3, -1.4, 580.0, 2027, cache=MemCache(), http_get=FakeHttp(2027), today=date(2026, 11, 11))
 
 
-def test_full_year_close_margin():
+def test_close_only_after_100_days():
+    # ERA5T preliminary data is replaced by final ERA5 after ~2-3 months
+    for today, closed in ((date(2026, 1, 20), False), (date(2026, 4, 5), False), (date(2026, 4, 12), True)):
+        doc = hy.history_year(42.3, -1.4, 580.0, 2025, cache=MemCache(), http_get=FakeHttp(2025), today=today)
+        assert doc["latest_available"] == "2025-12-31"
+        assert doc["closed"] is closed, today
+
+
+def test_snap_cell_ties_go_to_plus_infinity():
+    assert hy.snap_cell(42.6, -1.6) == (42.5, -1.5)
+    assert hy.snap_cell(42.125, -1.625) == (42.25, -1.5)
+    assert hy.snap_cell(37.88, -1.64) == (38.0, -1.75)
+    assert hy.snap_cell(51.3, 9.4) == (51.25, 9.5)
+
+
+def test_returned_cell_mismatch_serves_but_does_not_cache(caplog):
+    class Shifted(FakeHttp):
+        def __call__(self, url, params=None, timeout=None):
+            self.calls.append((url, dict(params), timeout))
+            b = _body(self.year, 450.0, lat=42.0, lon=-1.0)   # not the snapped 42.25,-1.5
+            return _resp(b)
     cache = MemCache()
-    doc = hy.history_year(42.3, -1.4, 580.0, 2025, cache=cache, http_get=FakeHttp(2025), today=date(2026, 1, 2))
-    assert doc["closed"] is False                                    # ended 2 days ago
-    cache2 = MemCache()
-    doc = hy.history_year(42.3, -1.4, 580.0, 2025, cache=cache2, http_get=FakeHttp(2025), today=date(2026, 1, 20))
-    assert doc["closed"] is True
+    import logging
+    with caplog.at_level(logging.WARNING):
+        doc = hy.history_year(42.3, -1.4, 580.0, 2020, cache=cache, http_get=Shifted(2020), today=date(2026, 11, 11))
+    assert doc["year"] == 2020 and cache.puts == []
+    assert any("cell" in r.message for r in caplog.records)
+
+
+def test_cache_hit_with_wrong_cell_is_a_miss():
+    http, cache = FakeHttp(2020), MemCache()
+    key = "weather-history/era5/v1/42.25_-1.50_580/2020.json.gz"
+    cache.store[key] = {"closed": True, "year": 2020, "cell_lat": 40.0, "cell_lon": 3.0, "t": ["stale"]}
+    doc = hy.history_year(42.3, -1.4, 580.0, 2020, cache=cache, http_get=http, today=date(2026, 11, 11))
+    assert len(http.calls) == 2 and doc["cell_lat"] == 42.25 and doc["t"][0] != "stale"
+
+
+def test_parcel_elevation_rounded_before_fetch_and_key():
+    http, cache = FakeHttp(2020), MemCache()
+    doc = hy.history_year(42.3, -1.4, 579.6, 2020, cache=cache, http_get=http, today=date(2026, 11, 11))
+    assert http.calls[1][1]["elevation"] == 580.0 and doc["elev"] == 580.0
+    assert cache.puts == ["weather-history/era5/v1/42.25_-1.50_580/2020.json.gz"]

@@ -92,12 +92,24 @@ def test_year_boundary_needs_next_year_for_interval_end_vars():
 def test_wind_to_2m_vapour_pressure_rh_and_et0():
     doc = _doc("UTC", date(2024, 7, 5), 49, t=lambda i: 15.0 + (i % 24) / 2.0, td=8.0, rh=60.0,
                wind10=3.0, rad=lambda i: 800.0 if 6 <= i % 24 <= 18 else 0.0)
-    d = _row(aggregate.daily_from_hourly(doc), "2024-07-05")
+    d = _row(aggregate.daily_from_hourly(doc, lat=41.0, elev=300.0), "2024-07-05")
     assert d["wind2m_ms"] == pytest.approx(3.0 * 0.7478, abs=6e-3)
     assert d["vapour_pressure_kpa"] == pytest.approx(1.0720, abs=1e-3)
     assert d["rh_mean_pct"] == pytest.approx(60.0)
     assert d["tmax_c"] == pytest.approx(26.5) and d["tmin_c"] == pytest.approx(15.0)
     assert 3.0 < d["et0_mm"] < 9.0
+    # ET0 uses the requesting parcel's lat/elevation, never values stored in the doc
+    doc["lat"], doc["elev"] = 10.0, 3000.0
+    d2 = _row(aggregate.daily_from_hourly(doc, lat=41.0, elev=300.0), "2024-07-05")
+    assert d2["et0_mm"] == d["et0_mm"]
+    assert _row(aggregate.daily_from_hourly(doc), "2024-07-05")["et0_mm"] is None
+
+
+def test_et0_none_when_no_extraterrestrial_radiation():
+    # polar night: Ra = 0 -> Rso = 0 -> no ET0 (no constant ratio)
+    doc = _doc("UTC", date(2024, 12, 20), 49, t=lambda i: -20.0 + (i % 24) / 4, td=-25.0, rad=0.0)
+    d = _row(aggregate.daily_from_hourly(doc, lat=85.0, elev=10.0), "2024-12-20")
+    assert d["et0_mm"] is None and d["tmean_c"] is not None
 
 
 def test_days_after_latest_available_are_absent():
@@ -105,6 +117,37 @@ def test_days_after_latest_available_are_absent():
     doc["latest_available"] = "2024-01-11"
     dates = [r["date"] for r in aggregate.daily_from_hourly(doc)]
     assert dates == ["2024-01-10", "2024-01-11"]
+
+
+def test_latest_complete_day_needs_every_variable_including_next_midnight():
+    doc = _doc("UTC", date(2024, 1, 10), 49)
+    assert aggregate.latest_complete_day(doc) == date(2024, 1, 11)
+    doc["rad"][48] = None                                     # day 11 radiation needs the 12th 00:00 stamp
+    assert aggregate.latest_complete_day(doc) == date(2024, 1, 10)
+    doc2 = _doc("UTC", date(2024, 1, 10), 49)
+    doc2["wind10"][30] = None
+    assert aggregate.latest_complete_day(doc2) == date(2024, 1, 10)
+
+
+def test_latest_complete_day_none_and_no_days_returned():
+    doc = _doc("UTC", date(2024, 1, 10), 10)
+    assert aggregate.latest_complete_day(doc) is None
+    doc["latest_available"] = None
+    assert aggregate.daily_from_hourly(doc) == []
+
+
+def test_latest_complete_day_on_dst_day_uses_23_hours_for_precip():
+    doc = _doc("Europe/Madrid", date(2024, 3, 30), 24 + 23 + 24 + 1)   # last stamp = Apr 2 00:00 local
+    assert aggregate.latest_complete_day(doc) == date(2024, 4, 1)
+    doc["precip"][24 + 23 + 24] = None                                   # Apr 1 loses its end stamp
+    assert aggregate.latest_complete_day(doc) == date(2024, 3, 31)
+    r = _row(aggregate.daily_from_hourly(doc), "2024-03-31")
+    assert r["precip_mm"] == pytest.approx(23 * 10.0)
+
+
+def test_dec_31_of_a_year_doc_is_complete_without_next_year_midnight():
+    doc = _doc("UTC", date(2023, 12, 30), 48)
+    assert aggregate.latest_complete_day(doc) == date(2023, 12, 31)
 
 
 def test_hourly_rows_units_and_nulls():

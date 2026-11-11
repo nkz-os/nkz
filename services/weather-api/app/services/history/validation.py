@@ -8,6 +8,16 @@ SUMMARY_PATH = os.path.join(os.path.dirname(__file__), "..", "..", "data", "vali
 UNVALIDATED = "unvalidated_region"
 # Variables validated at hourly resolution; every other variable's rows are daily.
 _HOURLY_VARS = frozenset({"t_c", "td_c", "rh_pct"})
+# Altitude method actually served per variable (see year.py provenance).
+_SERVED_METHOD = {
+    "t_c": "blend", "tmin_c": "blend", "tmax_c": "blend", "tmean_c": "blend",
+    "td_c": "om_elevation", "rh_pct": "om_elevation", "rh_mean_pct": "om_elevation",
+    "vapour_pressure_kpa": "om_elevation",
+    "precip_mm": "none", "radiation_mj_m2": "none", "radiation_w_m2": "none", "wind2m_ms": "none",
+    "et0_mm": "none",
+}
+# Served from blended T but validated on another T treatment (rh rows: corrected T; ET0 rows: grid T).
+_T_METHOD_DIFFERS = frozenset({"rh_pct", "rh_mean_pct", "et0_mm"})
 
 
 @lru_cache(maxsize=1)
@@ -32,9 +42,14 @@ def validation_for(lat: float, lon: float, var: str, resolution: str) -> Union[L
         for r in summary["regions"]
         if r["bbox"][0] <= lat <= r["bbox"][1] and r["bbox"][2] <= lon <= r["bbox"][3]
     }
+    method = _SERVED_METHOD.get(var)
     found = [
         dict(e)
         for e in summary["entries"]
         if e["region"] in inside and e["variable"] == var and _resolution_of(e) == resolution
+        and (method is None or e["altitude_method"] == method)
     ]
+    if var in _T_METHOD_DIFFERS:
+        for e in found:
+            e["t_method_differs"] = True
     return found or UNVALIDATED

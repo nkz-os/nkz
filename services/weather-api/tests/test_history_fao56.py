@@ -39,3 +39,7 @@ def test_wind_10m_to_2m_factor():
 
 def test_et0_never_negative():
     assert fao56.et0_fao56_daily(-5.0, -15.0, 0.2, 0.5, 0.5, 50.0, 800.0, 20) >= 0.0
+
+
+def test_et0_none_without_extraterrestrial_radiation():
+    assert fao56.et0_fao56_daily(-18.0, -25.0, 0.1, 2.0, 0.0, 85.0, 10.0, 355) is None

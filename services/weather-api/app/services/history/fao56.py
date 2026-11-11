@@ -1,5 +1,6 @@
 """FAO-56 helpers (stdlib floats). Units: degC, kPa, m/s, MJ m-2 day-1, mm day-1."""
 import math
+from typing import Optional
 
 _WIND_10M_TO_2M = 4.87 / math.log(67.8 * 10.0 - 5.42)  # eq. 47 at z = 10 m
 
@@ -33,8 +34,13 @@ def extraterrestrial_radiation(lat_deg: float, doy: int) -> float:
     )
 
 
-def et0_fao56_daily(tmax, tmin, ea, u2, rs_mj, lat_deg, elev_m, doy) -> float:
-    """FAO-56 Penman-Monteith daily ET0 (mm/day), G = 0, Rs/Rso clipped to [0.3, 1.0]."""
+def et0_fao56_daily(tmax, tmin, ea, u2, rs_mj, lat_deg, elev_m, doy) -> Optional[float]:
+    """FAO-56 Penman-Monteith daily ET0 (mm/day), G = 0, Rs/Rso clipped to [0.3, 1.0].
+
+    Returns None when Rso <= 0 (no clear-sky radiation, e.g. polar night): there is no
+    defensible cloudiness ratio. A negative result is clamped to 0, as FAO-56 practice
+    (ET0 cannot be negative).
+    """
     tmean = (tmax + tmin) / 2.0
     p = 101.3 * ((293.0 - 0.0065 * elev_m) / 293.0) ** 5.26
     gamma = 0.665e-3 * p
@@ -42,7 +48,9 @@ def et0_fao56_daily(tmax, tmin, ea, u2, rs_mj, lat_deg, elev_m, doy) -> float:
     es = (es_kpa(tmax) + es_kpa(tmin)) / 2.0
     ra = extraterrestrial_radiation(lat_deg, doy)
     rso = (0.75 + 2e-5 * elev_m) * ra
-    ratio = max(0.3, min(1.0, rs_mj / rso)) if rso > 0 else 0.5
+    if rso <= 0:
+        return None
+    ratio = max(0.3, min(1.0, rs_mj / rso))
     rns = 0.77 * rs_mj
     sigma = 4.903e-9
     rnl = (sigma * ((tmax + 273.16) ** 4 + (tmin + 273.16) ** 4) / 2.0

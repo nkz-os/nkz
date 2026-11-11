@@ -60,3 +60,20 @@ def test_summary_has_no_station_identifiers():
     for e in data["entries"]:
         assert "station" not in e and "station_id" not in e and "name" not in e
     assert not re.search(r"https?://", raw)
+
+
+def test_entries_match_the_method_actually_served():
+    served = {"tmax_c": "blend", "tmean_c": "blend", "tmin_c": "blend", "precip_mm": "none"}
+    for var, method in served.items():
+        out = validation.validation_for(52.0, 12.5, var, "daily")
+        assert out != "unvalidated_region" and {e["altitude_method"] for e in out} == {method}, var
+    out = validation.validation_for(52.0, 12.5, "td_c", "hourly")
+    assert {e["altitude_method"] for e in out} == {"om_elevation"}
+
+
+def test_rh_entries_are_flagged_t_method_differs():
+    for res, var, lat, lon in (("hourly", "rh_pct", 52.0, 12.5), ("daily", "rh_mean_pct", 42.0, -1.5)):
+        out = validation.validation_for(lat, lon, var, res)
+        assert out != "unvalidated_region" and all(e["t_method_differs"] is True for e in out), var
+    out = validation.validation_for(42.0, -1.5, "tmax_c", "daily")
+    assert all("t_method_differs" not in e for e in out)

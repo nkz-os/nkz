@@ -45,7 +45,8 @@ def _ok(v) -> bool:
 def _merge(years: Union[dict, Sequence[dict]]) -> dict:
     docs = [years] if isinstance(years, dict) else sorted(years, key=lambda d: d["times"][0] if d["times"] else 0)
     first = docs[0]
-    merged = {k: first.get(k) for k in ("lat", "lon", "elev", "tz")}
+    merged = {"tz": first.get("tz")}
+    merged["has_latest"] = "latest_available" in docs[-1]
     merged["latest_available"] = docs[-1].get("latest_available")
     for name in ("times",) + _INSTANT + _INTERVAL_END:
         merged[name] = [v for d in docs for v in d[name]]
@@ -56,14 +57,7 @@ def _r(v: Optional[float], n: int) -> Optional[float]:
     return None if v is None else round(v, n)
 
 
-def daily_from_hourly(years: Union[dict, Sequence[dict]], tz: Optional[str] = None) -> List[dict]:
-    """Daily rows for every local day that has an instantaneous stamp in the data.
-
-    Pass adjacent years together: the last hour of Dec 31 for precipitation/radiation is the
-    first stamp of the next year. Days after the data's `latest_available` are not emitted.
-    """
-    h = _merge(years)
-    tz = tz or h["tz"]
+def _buckets(h: dict, tz: str):
     buckets: Dict[date, Dict[str, list]] = {}
     days_seen = set()
     for i, ts in enumerate(h["times"]):
@@ -78,7 +72,46 @@ def daily_from_hourly(years: Union[dict, Sequence[dict]], tz: Optional[str] = No
             v = h[var][i]
             if _ok(v):
                 buckets.setdefault(d_end, {}).setdefault(var, []).append(float(v))
+    return buckets, days_seen
+
+
+def latest_complete_day(years: Union[dict, Sequence[dict]], tz: Optional[str] = None) -> Optional[date]:
+    """Last local day on which EVERY served variable is complete (None if there is none).
+
+    Precipitation and radiation are interval-end stamped, so a day needs the next day's 00:00
+    stamp too. Dec 31 is the exception: its closing stamp belongs to the next year's document.
+    """
+    h = _merge(years)
+    tz = tz or h["tz"]
+    buckets, days_seen = _buckets(h, tz)
+    for d in sorted(days_seen, reverse=True):
+        need = expected_hours(d, tz)
+        b = buckets.get(d, {})
+        vars_needed = _INSTANT + (() if (d.month, d.day) == (12, 31) else _INTERVAL_END)
+        if all(len(b.get(v, ())) == need for v in vars_needed):
+            return d
+    return None
+
+
+def daily_from_hourly(
+    years: Union[dict, Sequence[dict]],
+    tz: Optional[str] = None,
+    lat: Optional[float] = None,
+    elev: Optional[float] = None,
+) -> List[dict]:
+    """Daily rows for every local day that has an instantaneous stamp in the data.
+
+    Pass adjacent years together: the last hour of Dec 31 for precipitation/radiation is the
+    first stamp of the next year. Days after the last document's `latest_available` are not
+    emitted (a document whose latest_available is None yields no days). `lat` / `elev` are the
+    REQUESTING parcel's (ET0 is None without them); nothing is read from the cached document.
+    """
+    h = _merge(years)
+    tz = tz or h["tz"]
+    buckets, days_seen = _buckets(h, tz)
     latest = h.get("latest_available")
+    if h["has_latest"] and latest is None:
+        return []
     latest_d = date.fromisoformat(latest) if latest else None
     out: List[dict] = []
     for d in sorted(days_seen):
@@ -99,8 +132,8 @@ def daily_from_hourly(years: Union[dict, Sequence[dict]], tz: Optional[str] = No
         u2 = fao56.wind_to_2m(sum(wind) / len(wind)) if wind else None
         rs = sum(rad) * 3600.0 / 1e6 if rad else None
         et0 = None
-        if None not in (tmax, tmin, ea, u2, rs) and h["lat"] is not None and h["elev"] is not None:
-            et0 = fao56.et0_fao56_daily(tmax, tmin, ea, u2, rs, h["lat"], h["elev"], d.timetuple().tm_yday)
+        if None not in (tmax, tmin, ea, u2, rs) and lat is not None and elev is not None:
+            et0 = fao56.et0_fao56_daily(tmax, tmin, ea, u2, rs, lat, elev, d.timetuple().tm_yday)
         out.append({
             "date": d.isoformat(),
             "tmin_c": _r(tmin, 2),

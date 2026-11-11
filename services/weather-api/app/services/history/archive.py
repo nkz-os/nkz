@@ -15,7 +15,10 @@ VARIANTS = ("corrected", "grid")
 
 
 class ArchiveError(RuntimeError):
-    """The archive could not provide the requested year."""
+    """The archive could not provide the requested year.
+
+    The message may contain coordinates or upstream detail: log it, never echo it to clients.
+    """
 
 
 def _col(hourly: dict, key: str, n: int) -> list:
