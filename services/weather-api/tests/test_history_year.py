@@ -232,10 +232,12 @@ def test_probe_params_one_day_for_grid_and_corrected():
     assert gp["elevation"] == "nan" and cp["elevation"] == 580.0
     assert gp["start_date"] == gp["end_date"] == cp["start_date"] and gp["models"] == "era5"
     assert info.coastal is False and (info.corr_lat, info.corr_lon) == (42.25, -1.5)
-    hy.resolve_cell(42.30004, -1.40004, 580.0, http)                      # same 4 decimals: memoised
+    hy.resolve_cell(42.3, -1.4, 580.0, http)                              # same coordinates: memoised
     assert len(http.probes) == 2
-    hy.resolve_cell(42.3, -1.4, 600.0, http)                              # other elevation: new probe
+    hy.resolve_cell(42.30004, -1.40004, 580.0, http)                      # any other coordinates: new probe
     assert len(http.probes) == 4
+    hy.resolve_cell(42.3, -1.4, 600.0, http)                              # other elevation: new probe
+    assert len(http.probes) == 6
 
 
 def test_coastal_collision_each_parcel_gets_its_own_key_and_corrected_data():
@@ -426,3 +428,12 @@ def test_archive_errors_never_log_or_carry_the_coordinates(caplog):
     with pytest.raises(archive.ArchiveError) as ei:
         archive.fetch_year(42.3456, -1.4321, 580.0, 2020, "grid", http_get=junk, today=TODAY)
     assert "42.3456" not in str(ei.value)
+
+
+def test_cell_probe_memo_is_keyed_on_exact_coordinates():
+    from app.services.history import year as hy
+    hy._CELL_PROBES.clear()
+    hy._CELL_PROBES[(42.12496, -1.6, 500.0)] = "A"
+    assert hy.peek_cell(42.12504, -1.6, 500.0) is None
+    assert hy.peek_cell(42.12496, -1.6, 500.0) == "A"
+    hy._CELL_PROBES.clear()

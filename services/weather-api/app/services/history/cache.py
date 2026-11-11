@@ -4,6 +4,7 @@ import io
 import json
 import logging
 import os
+import threading
 import time
 from typing import Optional
 
@@ -47,6 +48,18 @@ class HistoryCache:
         self._clock = clock
         self._disabled_until = 0.0
         self.last_put_ok: Optional[bool] = None
+        # Per request (weather-api runs handlers in a thread pool): did this request read or
+        # write the cache successfully? Decides whether a retry promise can be kept.
+        self._req = threading.local()
+
+    def begin_request(self) -> None:
+        self._req.ok = False
+
+    def request_ok(self) -> bool:
+        return bool(self.enabled and getattr(self._req, "ok", False))
+
+    def _note_ok(self) -> None:
+        self._req.ok = True
 
     @property
     def enabled(self) -> bool:
@@ -62,7 +75,11 @@ class HistoryCache:
     def _ensure_bucket(self) -> None:
         if not self._bucket_ready:
             if not self._client.bucket_exists(self.bucket):
-                self._client.make_bucket(self.bucket)
+                try:
+                    self._client.make_bucket(self.bucket)
+                except Exception as exc:  # noqa: BLE001 -- another writer created it first
+                    if getattr(exc, "code", None) not in ("BucketAlreadyOwnedByYou", "BucketAlreadyExists"):
+                        raise
             self._bucket_ready = True
 
     def get(self, key: str) -> Optional[dict]:
@@ -71,7 +88,9 @@ class HistoryCache:
         try:
             resp = self._client.get_object(self.bucket, key)
             try:
-                return json.loads(gzip.decompress(resp.read()))
+                doc = json.loads(gzip.decompress(resp.read()))
+                self._note_ok()
+                return doc
             finally:
                 resp.close()
                 resp.release_conn()
@@ -98,6 +117,7 @@ class HistoryCache:
             else:
                 if _stored_meta(st, "closed") == "1" and _stored_meta(st, "cell") == tag:
                     self.last_put_ok = True
+                    self._note_ok()
                     return False
             stored = dict(doc)
             stored["closed"] = bool(closed)
@@ -107,6 +127,7 @@ class HistoryCache:
                 metadata={"closed": "1" if closed else "0", "cell": tag},
             )
             self.last_put_ok = True
+            self._note_ok()
             return True
         except Exception as exc:  # noqa: BLE001
             self.last_put_ok = False
@@ -135,8 +156,8 @@ def get_cache() -> HistoryCache:
 
     secure = os.getenv("MINIO_SECURE", "").strip().lower() == "true"
     http_client = urllib3.PoolManager(
-        timeout=urllib3.Timeout(connect=2, read=10),
-        retries=urllib3.Retry(total=1, backoff_factor=0),
+        timeout=urllib3.Timeout(connect=2, read=5),
+        retries=urllib3.Retry(total=0, backoff_factor=0),
     )
     _cache = HistoryCache(minio.Minio(endpoint, access, secret, secure=secure, http_client=http_client), bucket)
     return _cache

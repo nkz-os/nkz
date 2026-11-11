@@ -114,9 +114,10 @@ def _latest_available(lat: float, lon: float, elev: float, today: date, deadline
 
 
 def _retry_promise() -> bool:
-    """True only if a retry will find what this request finished: the cache works and the last write succeeded."""
+    """True only if a retry will find what this request finished: the cache works and THIS request
+    read or wrote it successfully (per request, not process-wide)."""
     c = cache_mod.get_cache()
-    return bool(c.enabled and getattr(c, "last_put_ok", None) is True)
+    return bool(c.request_ok())
 
 
 def _runs(years: List[int]) -> List[List[int]]:
@@ -143,6 +144,7 @@ def get_parcel_history(
         return JSONResponse({"detail": "too many history requests in progress"}, status_code=503,
                             headers={"Retry-After": str(RETRY_AFTER_S)})
     try:
+        cache_mod.get_cache().begin_request()
         return _serve(parcel_id, start, end, resolution, vars, tenant_id, deadline)
     finally:
         _SEM.release()

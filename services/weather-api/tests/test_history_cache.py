@@ -262,7 +262,7 @@ def test_last_put_ok_tracks_the_latest_put():
     assert c.last_put_ok is False
 
 
-def test_minio_client_gets_timeouts_and_one_retry(monkeypatch):
+def test_minio_client_gets_short_timeouts_and_no_retry(monkeypatch):
     import minio, urllib3
     seen = {}
 
@@ -279,6 +279,42 @@ def test_minio_client_gets_timeouts_and_one_retry(monkeypatch):
     pm = seen["http_client"]
     assert isinstance(pm, urllib3.PoolManager)
     t = pm.connection_pool_kw["timeout"]
-    assert t.connect_timeout == 2 and t.read_timeout == 10
+    assert t.connect_timeout == 2 and t.read_timeout == 5
     r = pm.connection_pool_kw["retries"]
-    assert r.total == 1 and r.backoff_factor == 0
+    assert r.total == 0 and r.backoff_factor == 0
+
+
+def test_request_ok_counts_a_cache_hit_without_any_put():
+    # A healthy cache that only served gets in this request still lets a retry find the work.
+    fake = FakeMinio()
+    c = hc.HistoryCache(fake, "weather-history", clock=lambda: 0.0)
+    c.put("a", _doc(), closed=True)
+    c.begin_request()
+    assert c.request_ok() is False
+    assert c.get("a") is not None
+    assert c.request_ok() is True
+
+
+def test_request_ok_is_per_request_and_false_after_failed_put():
+    fake = FakeMinio()
+    c = hc.HistoryCache(fake, "weather-history", clock=lambda: 0.0)
+    c.begin_request()
+    c.put("a", _doc(), closed=True)
+    assert c.request_ok() is True
+    c.begin_request()
+    assert c.request_ok() is False
+    fake.put_error = RuntimeError("x")
+    c.put("b", _doc(), closed=True)
+    assert c.request_ok() is False
+
+
+def test_make_bucket_race_does_not_trip_the_breaker():
+    class Raced(FakeMinio):
+        def make_bucket(self, b):
+            e = Exception("exists")
+            e.code = "BucketAlreadyOwnedByYou"
+            self.buckets.add(b)
+            raise e
+    c = hc.HistoryCache(Raced(), "weather-history", clock=lambda: 0.0)
+    assert c.put("a", _doc(), closed=True) is True
+    assert c.enabled is True

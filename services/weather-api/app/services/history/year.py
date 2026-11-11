@@ -37,7 +37,7 @@ class CellInfo:
                 or (self.grid_elevation is not None and self.grid_elevation <= 0))
 
 
-# (lat 4 dp, lon 4 dp, elevation) -> CellInfo. Failures are never memoised.
+# (exact lat, exact lon, elevation) -> CellInfo; exact so a cell midpoint never merges two parcels. Failures are never memoised.
 _CELL_PROBES: Dict[Tuple[float, float, float], CellInfo] = {}
 
 
@@ -46,14 +46,14 @@ def _close(lat_a: float, lon_a: float, lat_b: float, lon_b: float) -> bool:
 
 
 def peek_cell(lat: float, lon: float, elev: float) -> Optional[CellInfo]:
-    return _CELL_PROBES.get((round(lat, 4), round(lon, 4), float(round(elev))))
+    return _CELL_PROBES.get((float(lat), float(lon), float(round(elev))))
 
 
 def resolve_cell(lat: float, lon: float, elev: float, http_get: Callable = requests.get,
                  deadline: Optional[Deadline] = None, timeout=archive.DEFAULT_TIMEOUT) -> CellInfo:
     """Learn the grid cell and the corrected cell with two 1-day probes; memoised per process."""
     elev = float(round(elev))
-    memo_key = (round(lat, 4), round(lon, 4), elev)
+    memo_key = (float(lat), float(lon), elev)
     hit = _CELL_PROBES.get(memo_key)
     if hit is not None:
         return hit

@@ -337,17 +337,15 @@ def test_cannot_finish_without_a_working_cache_is_503(env, monkeypatch):
     assert _get(c).status_code == 200
 
 
-def test_retry_promise_needs_an_enabled_cache_and_a_successful_last_put(monkeypatch):
+def test_retry_promise_follows_this_requests_cache_success(monkeypatch):
     class C:
-        enabled, last_put_ok = True, True
+        ok = True
+        def request_ok(self):
+            return self.ok
     cache = C()
     monkeypatch.setattr(ph.cache_mod, "get_cache", lambda: cache)
     assert ph._retry_promise() is True
-    cache.last_put_ok = False
-    assert ph._retry_promise() is False
-    cache.last_put_ok, cache.enabled = True, False
-    assert ph._retry_promise() is False
-    cache.enabled, cache.last_put_ok = True, None
+    cache.ok = False
     assert ph._retry_promise() is False
 
 
