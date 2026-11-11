@@ -30,11 +30,12 @@ def _resolution_of(entry: dict) -> str:
     return entry.get("resolution") or ("hourly" if entry["variable"] in _HOURLY_VARS else "daily")
 
 
-def validation_for(lat: float, lon: float, var: str, resolution: str) -> Union[List[dict], str]:
+def validation_for(lat: float, lon: float, var: str, resolution: str, coastal: bool = False) -> Union[List[dict], str]:
     """Entries of the regions whose bbox contains the point, for this variable/resolution.
 
     Each region is one network (AEMET / DWD, or SIAR), so a point covered by both returns
-    both; each entry carries its period. No match -> "unvalidated_region".
+    both; each entry carries its period. No match -> "unvalidated_region". A coastal parcel is
+    served from the elevation-corrected response for every variable: only om_elevation rows apply.
     """
     summary = load_summary()
     inside = {
@@ -42,7 +43,7 @@ def validation_for(lat: float, lon: float, var: str, resolution: str) -> Union[L
         for r in summary["regions"]
         if r["bbox"][0] <= lat <= r["bbox"][1] and r["bbox"][2] <= lon <= r["bbox"][3]
     }
-    method = _SERVED_METHOD.get(var)
+    method = "om_elevation" if coastal else _SERVED_METHOD.get(var)
     found = [
         dict(e)
         for e in summary["entries"]

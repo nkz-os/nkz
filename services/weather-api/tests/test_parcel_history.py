@@ -17,6 +17,7 @@ from app.main import app
 from app.auth import require_auth
 import app.routers.parcel_history as ph
 from app.services.history import archive
+from app.services.history.deadline import DeadlineExceeded
 from app.services.history.aggregate import latest_complete_day
 
 UTC = timezone.utc
@@ -68,8 +69,10 @@ class Archive:
         self.clock = clock
         self.fail = fail
 
-    def __call__(self, lat, lon, elev, year, cache=None, http_get=None, timeout=60.0, today=None):
+    def __call__(self, lat, lon, elev, year, cache=None, http_get=None, timeout=60.0, today=None, deadline=None):
         self.calls.append(year)
+        if deadline is not None and self.advance and not deadline.can_start_cold():
+            raise DeadlineExceeded(str(year))
         if self.clock is not None:
             self.clock[0] += self.advance
         if self.fail:
@@ -98,6 +101,7 @@ def env(monkeypatch):
     monkeypatch.setattr(ph, "_fetch_parcel_entity", lambda urn, tid: holder["entity"])
     monkeypatch.setattr(ph, "_today", lambda: TODAY)
     monkeypatch.setattr(ph, "_monotonic", lambda: clock[0])
+    monkeypatch.setattr(ph, "_retry_promise", lambda: True)
     yield TestClient(app), holder
     app.dependency_overrides.pop(require_auth, None)
 
@@ -172,7 +176,8 @@ def test_daily_response_schema(env):
     assert set(b["units"]) == {"tmax_c", "precip_mm", "et0_mm", "rh_mean_pct"}
     assert b["units"]["precip_mm"] == "mm"
     assert set(b["provenance"]) == set(b["units"])
-    assert b["provenance"]["tmax_c"] == {"source": "era5", "altitude_method": "blend"}
+    assert b["provenance"]["tmax_c"]["altitude_method"] == "blend"
+    assert b["provenance"]["tmax_c"]["source"] == "era5"
     assert set(b["validation"]) == set(b["units"])
     assert b["attribution"] == ATTRIBUTION
     assert "incomplete_years" not in b
@@ -241,7 +246,7 @@ def test_coastal_parcel_reports_corrected_method(env):
 
 def test_deadline_returns_complete_years_and_incomplete_list(env):
     c, h = env
-    h["arch"] = Archive(advance=10.0, clock=h["clock"])
+    h["arch"] = Archive(advance=6.0, clock=h["clock"])
     r = _get(c, vars="tmax_c", start="2016-06-01", end="2020-06-30")
     assert r.status_code == 200, r.text
     b = r.json()
@@ -258,10 +263,9 @@ def test_deadline_hit_before_any_year_gives_all_incomplete(env):
     c, h = env
     h["arch"] = Archive(advance=30.0, clock=h["clock"])
     b = _get(c, vars="tmax_c", start="2019-01-01", end="2020-12-30")
-    assert b.status_code in (200, 503)
-    if b.status_code == 200:
-        assert b.json()["days"] == [] and b.json()["incomplete_years"] == [2019, 2020]
-        assert b.headers["Retry-After"] == "30"
+    assert b.status_code == 200
+    assert b.json()["days"] == [] and b.json()["incomplete_years"] == [2019, 2020]
+    assert b.headers["Retry-After"] == "30"
 
 
 def test_archive_error_is_generic_and_never_echoed(env, caplog):
@@ -269,7 +273,7 @@ def test_archive_error_is_generic_and_never_echoed(env, caplog):
     h["arch"] = Archive(fail="boom lat=42.25 lon=-1.5", clock=h["clock"])
     with caplog.at_level("ERROR"):
         r = _get(c)
-    assert r.status_code in (502, 503)
+    assert r.status_code == 502
     assert "42.25" not in r.text and "boom" not in r.text and "-1.5" not in r.text
     logged = " ".join(rec.getMessage() for rec in caplog.records)
     assert PID in logged and "tenant-a" in logged
@@ -299,3 +303,125 @@ def test_latest_falls_back_to_previous_year_early_in_january(env, monkeypatch):
     h["arch"].calls = []
     b = _get(c, start="2026-12-30", end="2026-12-30", vars="tmax_c").json()
     assert b["latest_available"] == "2026-12-31"
+
+
+# ---- final fix wave ----
+
+def test_deadline_starts_at_handler_entry(env, monkeypatch):
+    c, h = env
+    h["arch"] = Archive(advance=0.5, clock=h["clock"])
+    monkeypatch.setattr(ph, "_fetch_parcel_entity", lambda urn, tid: (h["clock"].__setitem__(0, 15.0), h["entity"])[1])
+    b = _get(c, vars="tmax_c", start="2020-03-01", end="2020-03-05")
+    assert b.status_code == 200
+    assert b.json()["incomplete_years"] == [2020] and b.json()["days"] == []
+
+
+def test_deadline_is_20_seconds_and_cold_years_need_twice_the_estimate(env):
+    assert ph.DEADLINE_S == 20
+    c, h = env
+    h["arch"] = Archive(advance=6.0, clock=h["clock"])
+    b = _get(c, vars="tmax_c", start="2018-06-01", end="2020-06-30").json()
+    assert b["incomplete_years"] == [2018] and {d["date"][:4] for d in b["days"]} == {"2019", "2020"}
+
+
+def test_cannot_finish_without_a_working_cache_is_503(env, monkeypatch):
+    c, h = env
+    monkeypatch.setattr(ph, "_retry_promise", lambda: False)
+    h["arch"] = Archive(advance=6.0, clock=h["clock"])
+    r = _get(c, vars="tmax_c", start="2016-06-01", end="2020-06-30")
+    assert r.status_code == 503 and r.json() == {"detail": "history cache unavailable"}
+    assert "Retry-After" not in r.headers
+    # a request that finishes does not care about the cache
+    h["clock"][0] = 0.0
+    h["arch"] = Archive(clock=h["clock"])
+    assert _get(c).status_code == 200
+
+
+def test_retry_promise_needs_an_enabled_cache_and_a_successful_last_put(monkeypatch):
+    class C:
+        enabled, last_put_ok = True, True
+    cache = C()
+    monkeypatch.setattr(ph.cache_mod, "get_cache", lambda: cache)
+    assert ph._retry_promise() is True
+    cache.last_put_ok = False
+    assert ph._retry_promise() is False
+    cache.last_put_ok, cache.enabled = True, False
+    assert ph._retry_promise() is False
+    cache.enabled, cache.last_put_ok = True, None
+    assert ph._retry_promise() is False
+
+
+def test_two_requests_in_flight_give_503_for_the_third(env, monkeypatch):
+    import threading
+    c, h = env
+    sem = threading.BoundedSemaphore(2)
+    monkeypatch.setattr(ph, "_SEM", sem)
+    assert sem.acquire(blocking=False) and sem.acquire(blocking=False)
+    r = _get(c)
+    assert r.status_code == 503 and r.headers["Retry-After"] == "30"
+    sem.release()
+    assert _get(c).status_code == 200
+    # the slot is released after the request, also after an error
+    h["arch"] = Archive(fail="x", clock=h["clock"])
+    assert _get(c).status_code == 502
+    assert sem.acquire(blocking=False)
+
+
+def test_support_year_without_latest_is_dropped_not_fatal(env):
+    c, h = env
+    base = h["arch"]
+
+    def arch(lat, lon, elev, year, **k):
+        d = base(lat, lon, elev, year, **k)
+        if year == 2021:
+            d = {**d, "latest_available": None}
+        return d
+    h["arch"] = arch
+    arch.calls = base.calls
+    b = _get(c, vars="tmax_c,precip_mm", start="2020-12-30", end="2020-12-31").json()
+    assert [d["date"] for d in b["days"]] == ["2020-12-30", "2020-12-31"]
+    assert b["days"][0]["tmax_c"] is not None
+
+
+def test_daily_provenance_documents_the_local_day(env):
+    c, _ = env
+    p = _get(c, vars="precip_mm").json()["provenance"]["precip_mm"]
+    assert "local" in p["day_definition"] and "previous day" in p["day_definition"]
+    hb = _get(c, resolution="hourly", vars="t_c", start="2020-03-01", end="2020-03-01").json()
+    assert "day_definition" not in hb["provenance"]["t_c"]
+
+
+def test_coastal_parcel_gets_coastal_validation_filter(env):
+    c, h = env
+    h["entity"] = _entity(lon=12.5, lat=52.0)
+    plain = _get(c, vars="tmax_c").json()["validation"]["tmax_c"]
+    assert isinstance(plain, list) and plain
+    h["arch"] = Archive(coastal=True, clock=h["clock"])
+    assert _get(c, vars="tmax_c").json()["validation"]["tmax_c"] == "unvalidated_region"
+
+
+def test_validation_is_a_list_per_variable(env):
+    c, h = env
+    b = _get(c, vars="tmax_c,precip_mm").json()
+    for v in ("tmax_c", "precip_mm"):
+        assert isinstance(b["validation"][v], list) or b["validation"][v] == "unvalidated_region"
+    assert all(isinstance(e, dict) for e in b["validation"]["tmax_c"])
+
+
+def test_archive_errors_log_type_and_status_only(env, monkeypatch, caplog):
+    import requests
+    c, h = env
+    monkeypatch.setattr(archive.settings, "openmeteo_archive_url", "http://om/v1")
+
+    def real(lat, lon, elev, year, **k):
+        def boom(url, params=None, timeout=None):
+            raise requests.ConnectionError(f"max retries: /archive?latitude={params['latitude']}&longitude={params['longitude']}")
+        archive.fetch_year(lat, lon, elev, year, "corrected", boom, today=TODAY)
+    h["arch"] = real
+    h["arch"].calls = []
+    with caplog.at_level("DEBUG"):
+        r = _get(c)
+    assert r.status_code == 502
+    text = " ".join(rec.getMessage() for rec in caplog.records if rec.name.startswith("app.")) + r.text
+    assert "ConnectionError" in text
+    assert "42.25" not in text and "-1.5" not in text and "latitude" not in text

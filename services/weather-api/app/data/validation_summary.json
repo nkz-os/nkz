@@ -755,56 +755,6 @@
    "bias": 0.10619480519480527
   },
   {
-   "region": "east_coast",
-   "variable": "tmean_c",
-   "network": "AEMET",
-   "source": "era5",
-   "altitude_method": "om_elevation",
-   "period": "1991-2020",
-   "n": 65667,
-   "stations": 6,
-   "mae": 0.954586017329863,
-   "bias": 0.5891680752889569,
-   "view": "production_config"
-  },
-  {
-   "region": "east_coast",
-   "variable": "tmean_c",
-   "network": "AEMET",
-   "source": "era5",
-   "altitude_method": "om_elevation",
-   "period": "2024-2025",
-   "n": 4381,
-   "stations": 6,
-   "mae": 0.9595868523168224,
-   "bias": 0.43210454234193096,
-   "view": "production_config"
-  },
-  {
-   "region": "ebro_upper",
-   "variable": "tmean_c",
-   "network": "AEMET",
-   "source": "era5",
-   "altitude_method": "blend",
-   "period": "1991-2020",
-   "n": 46937,
-   "stations": 5,
-   "mae": 0.8965336514902986,
-   "bias": 0.015934124464706996
-  },
-  {
-   "region": "ebro_upper",
-   "variable": "tmean_c",
-   "network": "AEMET",
-   "source": "era5",
-   "altitude_method": "blend",
-   "period": "2024-2025",
-   "n": 3650,
-   "stations": 5,
-   "mae": 0.8396027397260272,
-   "bias": 0.011520547945205475
-  },
-  {
    "region": "germany_east",
    "variable": "tmean_c",
    "network": "DWD",
@@ -851,54 +801,6 @@
    "stations": 6,
    "mae": 0.5641846518672303,
    "bias": -0.07870179692365942
-  },
-  {
-   "region": "interior_south",
-   "variable": "tmean_c",
-   "network": "AEMET",
-   "source": "era5",
-   "altitude_method": "blend",
-   "period": "1991-2020",
-   "n": 65588,
-   "stations": 6,
-   "mae": 0.9458224065377835,
-   "bias": 0.07649722510215459
-  },
-  {
-   "region": "interior_south",
-   "variable": "tmean_c",
-   "network": "AEMET",
-   "source": "era5",
-   "altitude_method": "blend",
-   "period": "2024-2025",
-   "n": 4378,
-   "stations": 6,
-   "mae": 0.8973732297852907,
-   "bias": -0.01432160804020134
-  },
-  {
-   "region": "meseta_north",
-   "variable": "tmean_c",
-   "network": "AEMET",
-   "source": "era5",
-   "altitude_method": "blend",
-   "period": "1991-2020",
-   "n": 65371,
-   "stations": 6,
-   "mae": 0.8541027048181419,
-   "bias": 0.10504431756181422
-  },
-  {
-   "region": "meseta_north",
-   "variable": "tmean_c",
-   "network": "AEMET",
-   "source": "era5",
-   "altitude_method": "blend",
-   "period": "2024-2025",
-   "n": 4383,
-   "stations": 6,
-   "mae": 0.8498174766141916,
-   "bias": -0.2907027150353643
   },
   {
    "region": "siar_east_coast",

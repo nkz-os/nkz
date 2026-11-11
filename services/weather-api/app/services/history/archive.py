@@ -28,6 +28,51 @@ def _col(hourly: dict, key: str, n: int) -> list:
     return [None if (isinstance(v, bool) or not isinstance(v, (int, float))) else float(v) for v in col]
 
 
+PROBE_DAY = "2020-01-01"
+
+
+def probe_cell(
+    lat: float,
+    lon: float,
+    elev: Optional[float],
+    variant: str,
+    http_get: Callable = requests.get,
+    timeout=DEFAULT_TIMEOUT,
+) -> dict:
+    """One-day request that only learns the cell the archive answers with.
+
+    variant "grid": `elevation=nan`; "corrected": the parcel elevation. Returns
+    {"lat", "lon", "grid_elevation"} (the elevation the archive used).
+    """
+    if variant not in VARIANTS:
+        raise ValueError(f"unknown variant {variant!r}")
+    base = settings.openmeteo_archive_url
+    if not base:
+        raise ArchiveError("OPENMETEO_ARCHIVE_URL is not configured")
+    if variant == "corrected" and elev is None:
+        raise ValueError("corrected variant needs the parcel elevation")
+    params = {
+        "latitude": lat, "longitude": lon, "start_date": PROBE_DAY, "end_date": PROBE_DAY,
+        "hourly": "temperature_2m", "models": "era5", "timeformat": "unixtime", "timezone": "auto",
+        "elevation": "nan" if variant == "grid" else elev,
+    }
+    try:
+        resp = http_get(f"{base}/archive", params=params, timeout=timeout)
+    except Exception as exc:  # noqa: BLE001
+        raise ArchiveError(f"archive probe failed: {type(exc).__name__}") from None
+    if resp.status_code != 200:
+        raise ArchiveError(f"archive probe HTTP {resp.status_code}")
+    try:
+        body = resp.json()
+        return {
+            "lat": float(body["latitude"]),
+            "lon": float(body["longitude"]),
+            "grid_elevation": None if body.get("elevation") is None else float(body["elevation"]),
+        }
+    except (KeyError, TypeError, ValueError) as exc:
+        raise ArchiveError(f"malformed archive probe response: {type(exc).__name__}") from None
+
+
 def fetch_year(
     lat: float,
     lon: float,
@@ -69,7 +114,8 @@ def fetch_year(
     try:
         resp = http_get(f"{base}/archive", params=params, timeout=timeout)
     except Exception as exc:  # noqa: BLE001
-        raise ArchiveError(f"archive request failed: {exc}") from exc
+        # the exception text carries the request URL (coordinates): type only
+        raise ArchiveError(f"archive request failed: {type(exc).__name__}") from None
     if resp.status_code != 200:
         raise ArchiveError(f"archive HTTP {resp.status_code}")
     try:
@@ -92,5 +138,5 @@ def fetch_year(
     except ArchiveError:
         raise
     except (KeyError, TypeError, ValueError) as exc:
-        raise ArchiveError(f"malformed archive response: {exc}") from exc
+        raise ArchiveError(f"malformed archive response: {type(exc).__name__}") from None
     return out

@@ -77,3 +77,23 @@ def test_rh_entries_are_flagged_t_method_differs():
         assert out != "unvalidated_region" and all(e["t_method_differs"] is True for e in out), var
     out = validation.validation_for(42.0, -1.5, "tmax_c", "daily")
     assert all("t_method_differs" not in e for e in out)
+
+
+def test_coastal_filters_on_om_elevation_rows_only():
+    # coastal: every variable is the corrected response; blend / none rows do not describe it
+    assert validation.validation_for(52.0, 12.5, "tmax_c", "daily", coastal=True) == "unvalidated_region"
+    assert validation.validation_for(52.0, 12.5, "precip_mm", "daily", coastal=True) == "unvalidated_region"
+    out = validation.validation_for(52.0, 12.5, "td_c", "hourly", coastal=True)
+    assert out != "unvalidated_region" and {e["altitude_method"] for e in out} == {"om_elevation"}
+
+
+def test_list_per_variable_shape_and_no_midrange_aemet_tmean():
+    for res, var in (("daily", "tmean_c"),):
+        for lat, lon in ((42.0, -1.5), (52.0, 12.5)):
+            out = validation.validation_for(lat, lon, var, res)
+            if out != "unvalidated_region":
+                assert isinstance(out, list) and out
+    spanish = validation.validation_for(42.0, -1.5, "tmean_c", "daily")
+    assert spanish == "unvalidated_region" or {e["network"] for e in spanish} == {"SIAR"}
+    entries = validation.load_summary()["entries"]
+    assert not [e for e in entries if e["variable"] == "tmean_c" and e["network"] == "AEMET"]
