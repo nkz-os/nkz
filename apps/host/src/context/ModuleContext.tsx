@@ -130,6 +130,12 @@ const toFederationAlias = (id: string): string => id.replace(/[^a-zA-Z0-9_]/g, '
 interface ModuleContextType {
   modules: ModuleDefinition[];
   isLoading: boolean;
+  /**
+   * True once the module list for this session is known: the first load has
+   * finished, or auth has settled without a session (no load will run). The
+   * router must not declare a path unknown before this.
+   */
+  modulesReady: boolean;
   error: Error | null;
   refresh: () => Promise<void>;
   getModuleById: (id: string) => ModuleDefinition | undefined;
@@ -160,7 +166,7 @@ export const ModuleProvider: React.FC<ModuleProviderProps> = ({
   apiBaseUrl
 }) => {
   const effectiveApiBaseUrl = apiBaseUrl || getConfig().api.baseUrl || '/api';
-  const { isAuthenticated, getToken, tenantId, sessionReady } = useAuth();
+  const { isAuthenticated, getToken, tenantId, sessionReady, isLoading: authLoading } = useAuth();
   // getToken is a new function on every AuthProvider render; reading it through
   // a ref keeps loadModules stable so the module list is not refetched (and the
   // preloaded viewer slots reset) on unrelated auth re-renders.
@@ -168,6 +174,7 @@ export const ModuleProvider: React.FC<ModuleProviderProps> = ({
   getTokenRef.current = getToken;
   const [modules, setModules] = useState<ModuleDefinition[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [loadedOnce, setLoadedOnce] = useState(false);
   const [error, setError] = useState<Error | null>(null);
   const [visibilityRules, setVisibilityRules] = useState<Record<string, { hiddenRoles: string[] }>>({});
   const [incompatibleModules, setIncompatibleModules] = useState<Map<string, string>>(new Map());
@@ -351,7 +358,10 @@ export const ModuleProvider: React.FC<ModuleProviderProps> = ({
       setError(error);
       setModules([]);
     } finally {
-      if (!isStale()) setIsLoading(false);
+      if (!isStale()) {
+        setIsLoading(false);
+        setLoadedOnce(true);
+      }
     }
     // sessionReady: on the mobile WebView the first fetch can race the session
     // cookie (no bearer token there), so fetch again once the cookie is set.
@@ -456,9 +466,12 @@ export const ModuleProvider: React.FC<ModuleProviderProps> = ({
     );
   }, []);
 
+  const modulesReady = loadedOnce || (!authLoading && !isAuthenticated);
+
   const value: ModuleContextType = {
     modules,
     isLoading,
+    modulesReady,
     error,
     refresh: loadModules,
     getModuleById,
