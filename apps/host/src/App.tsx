@@ -33,6 +33,7 @@ import { Layout } from '@/components/Layout';
 import { useVersionCheck } from '@/hooks/useVersionCheck';
 import { EnvNotice } from '@/components/EnvNotice';
 import { NotFound } from '@/components/error/NotFound';
+import { SdkNavigateBridge } from '@/routing/SdkNavigateBridge';
 const UnifiedViewer = React.lazy(() => import('@/components/UnifiedViewer').then(m => ({ default: m.UnifiedViewer })));
 
 // CORE Pages (essential for platform operation)
@@ -67,7 +68,7 @@ const VersionCheckWrapper: React.FC = () => {
 
 // Dynamic routes component that includes remote modules
 const DynamicRoutes = () => {
-  const { modules, isLoading } = useModules();
+  const { modules, modulesReady } = useModules();
 
   try {
     return (
@@ -175,7 +176,8 @@ const DynamicRoutes = () => {
             Note: Pages already include their own Layout
             Modules that need ViewerContext are wrapped with ViewerProvider
             ============================================ */}
-        {!isLoading && Array.isArray(modules) && modules.map((module) => {
+        {/* Kept during a refetch: hiding them would unmount the open module. */}
+        {Array.isArray(modules) && modules.map((module) => {
           if (!module || !module.id || !module.routePath) {
             logger.warn('[DynamicRoutes] Invalid module skipped:', module);
             return null;
@@ -201,8 +203,8 @@ const DynamicRoutes = () => {
           );
         })}
 
-        {/* 404 - Not Found Page */}
-        <Route path="*" element={<NotFound />} />
+        {/* 404 - Not Found Page, only once the module routes are known */}
+        <Route path="*" element={modulesReady ? <NotFound /> : <RouteFallback />} />
       </Routes>
       </React.Suspense>
     );
@@ -216,6 +218,7 @@ const AppRoutes = () => {
   try {
     return (
       <ModuleProvider>
+        <SdkNavigateBridge />
         <DynamicRoutes />
       </ModuleProvider>
     );

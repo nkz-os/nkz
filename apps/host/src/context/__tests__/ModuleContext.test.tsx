@@ -6,6 +6,7 @@ import { renderHook, waitFor, act } from '@testing-library/react';
 
 type AuthState = {
   isAuthenticated: boolean;
+  isLoading?: boolean;
   sessionReady: boolean;
   tenantId: string;
   getToken: () => string | undefined;
@@ -136,5 +137,46 @@ describe('ModuleProvider', () => {
 
     await act(async () => { releaseStale([remote('stale')]); });
     expect(result.current.modules.map((m) => m.id)).toEqual(['lidar']);
+  });
+
+  it('is not ready until the first module list arrives', async () => {
+    let release: (v: unknown[]) => void = () => {};
+    modulesMe = () => new Promise((resolve) => { release = resolve; });
+    const { result } = renderHook(() => useModules(), { wrapper });
+    await waitFor(() => expect(modulesMeCalls.length).toBe(1));
+    expect(result.current.modulesReady).toBe(false);
+
+    await act(async () => { release([remote('lidar')]); });
+    expect(result.current.modulesReady).toBe(true);
+    expect(result.current.modules.map((m) => m.id)).toEqual(['lidar']);
+  });
+
+  it('is not ready while auth is still resolving, ready once anonymous', async () => {
+    auth = { ...auth, isAuthenticated: false, isLoading: true };
+    const { result, rerender } = renderHook(() => useModules(), { wrapper });
+    await act(async () => {});
+    expect(result.current.modulesReady).toBe(false);
+
+    auth = { ...auth, isLoading: false };
+    rerender();
+    expect(result.current.modulesReady).toBe(true);
+    expect(modulesMeCalls).toEqual([]);
+  });
+
+  it('keeps the module list and readiness during a refetch', async () => {
+    auth = { ...auth, sessionReady: false };
+    const { result, rerender } = renderHook(() => useModules(), { wrapper });
+    await waitFor(() => expect(result.current.modulesReady).toBe(true));
+
+    let release: (v: unknown[]) => void = () => {};
+    modulesMe = () => new Promise((resolve) => { release = resolve; });
+    auth = { ...auth, sessionReady: true };
+    rerender();
+    await waitFor(() => expect(result.current.isLoading).toBe(true));
+    expect(result.current.modulesReady).toBe(true);
+    expect(result.current.modules.map((m) => m.id)).toEqual(['lidar']);
+
+    await act(async () => { release([remote('lidar')]); });
+    expect(result.current.isLoading).toBe(false);
   });
 });
