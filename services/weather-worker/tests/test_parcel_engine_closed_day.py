@@ -371,3 +371,37 @@ def test_stopped_parcel_is_retried_next_cycle():
     grid["daily"]["temperature_2m_min"] = [9.0, 9.0, 9.0]
     _, published = _publish_one(eng, _HIGH, corr, grid, last="2026-10-05")
     assert [a[3] for a in published] == ["2026-10-06", "2026-10-07"]
+
+
+def test_failed_publish_stops_later_days():
+    """A day that fails to write must not be overtaken by a later one (it would never be retried)."""
+    days = ["2026-10-05", "2026-10-06", "2026-10-07"]
+    corr, grid = _multi_day_response(days), _multi_day_response(days)
+    attempts = []
+    eng = _engine()
+    with patch.object(pe, "datetime", _FixedDT), \
+         patch("weather_worker.closed_day._read_last_published_day", return_value="2026-10-04"), \
+         patch.object(eng, "_fetch_openmeteo_closed_day", side_effect=_two_calls(corr, grid)), \
+         patch("weather_worker.closed_day.publish_closed_day",
+               side_effect=lambda *a, **k: attempts.append(a[3]) and False), \
+         patch("weather_worker.closed_day.WritePacer", return_value=MagicMock()):
+        eng._publish_closed_days([_HIGH])
+    assert attempts == ["2026-10-05"]
+
+
+def test_day_missing_from_response_stops_later_days():
+    days = ["2026-10-05", "2026-10-07"]  # 10-06 absent from the provider response
+    corr, grid = _multi_day_response(days), _multi_day_response(days)
+    _, published = _publish_one(_engine(), _HIGH, corr, grid, last="2026-10-04")
+    assert [a[3] for a in published] == ["2026-10-05"]
+
+
+def test_day_without_any_value_stops_later_days():
+    days = ["2026-10-05", "2026-10-06", "2026-10-07"]
+    corr, grid = _multi_day_response(days), _multi_day_response(days)
+    for k in ("temperature_2m_max", "temperature_2m_min", "precipitation_sum",
+              "et0_fao_evapotranspiration", "shortwave_radiation_sum"):
+        corr["daily"][k][1] = None
+    corr["hourly"] = {"time": []}
+    _, published = _publish_one(_engine(), _HIGH, corr, grid, last="2026-10-04")
+    assert [a[3] for a in published] == ["2026-10-05"]

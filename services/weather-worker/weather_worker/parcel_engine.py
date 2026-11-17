@@ -1463,12 +1463,15 @@ class ParcelWeatherEngine:
                     recovered = 0
                     ok_any = False
                     last_ok = None
+                    # Days in order; a day that cannot be written stops the parcel:
+                    # writing a later one would move dateObserved past it and the
+                    # day would never be retried (stored days are written once).
                     for d in sorted(missing):
                         if d not in days_available:
-                            continue
+                            break
                         base = cd.compute_closed_day_values(data, d)
                         if all(v is None for v in base.values()):
-                            continue
+                            break
                         values = self._downscale_closed_day_temps(
                             base, p, parcel_lat, parcel_lon, data.get("elevation")
                         )
@@ -1507,6 +1510,7 @@ class ParcelWeatherEngine:
                                 recovered += 1
                         else:
                             stats["closed_day_errors"] += 1
+                            break
                     if ok_any:
                         # The last day really stored: a parcel stopped before
                         # yesterday is retried next cycle.
