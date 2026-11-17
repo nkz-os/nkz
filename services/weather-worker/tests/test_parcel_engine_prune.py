@@ -267,3 +267,37 @@ def test_prune_reads_candidates_before_parcels():
     _prune_with(get)
     types = [t for t, _ in get.calls]
     assert types.index("AgriParcel") == len(types) - 1
+
+
+def test_prune_deduplicates_entities_seen_on_two_pages():
+    """A deletion while paging can shift an entity onto the next page as well."""
+    orphan = {"id": "urn:ngsi-ld:WeatherObserved:t:parcel-GONE", "refParcel": "urn:ngsi-ld:AgriParcel:GONE"}
+    filler = [{"id": f"urn:ngsi-ld:WeatherObserved:t:parcel-P1-{i}", "refParcel": "urn:ngsi-ld:AgriParcel:P1"}
+              for i in range(999)]
+    get = _paged_get(LIVE, {"WeatherObserved": [filler + [orphan], [orphan]], "WeatherForecast": [[]]})
+    deleted, ids = _prune_with(get)
+    assert ids == [orphan["id"]] and deleted == 1
+
+
+def test_prune_mid_page_failure_keeps_what_was_read():
+    orphan = {"id": "urn:ngsi-ld:WeatherObserved:t:parcel-GONE", "refParcel": "urn:ngsi-ld:AgriParcel:GONE"}
+    filler = [{"id": f"urn:ngsi-ld:WeatherObserved:t:parcel-P1-{i}", "refParcel": "urn:ngsi-ld:AgriParcel:P1"}
+              for i in range(999)]
+    eng = _engine()
+    captured = []
+
+    def fake_get(url, params=None, headers=None, timeout=None):
+        if params["type"] == "AgriParcel":
+            return _resp(200, LIVE)
+        if params["type"] == "WeatherObserved":
+            return _resp(200, filler + [orphan]) if params["offset"] == 0 else _resp(500)
+        return _resp(200, [])
+
+    def fake_post(url, json=None, headers=None, timeout=None):
+        captured.extend(json)
+        return _resp(204)
+
+    with patch.object(pe.requests, "get", side_effect=fake_get), \
+         patch.object(pe.requests, "post", side_effect=fake_post):
+        assert eng._prune_orphan_weather_observed("t") == 1
+    assert captured == [orphan["id"]]

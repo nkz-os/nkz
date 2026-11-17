@@ -324,6 +324,8 @@ class ParcelWeatherEngine:
                     continue
                 if ref not in live:
                     orphans.append(eid)
+        # Paging while entities change can return one on two pages.
+        orphans = list(dict.fromkeys(orphans))
         if not orphans:
             return 0
 
