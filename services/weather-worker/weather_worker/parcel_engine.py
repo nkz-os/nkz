@@ -86,9 +86,9 @@ class ParcelWeatherEngine:
         self.cluster_radius_km = cluster_radius_km
         self.max_parcels = max_parcels
         self.context_url = context_url or os.getenv("CONTEXT_URL", "")
-        # (tenant, parcel id) -> (closed day published, utc offset seconds of the
-        # cell it was fetched for). In-memory only: after a restart the day is
-        # published again, which is safe (the write is an idempotent replace).
+        # (tenant, parcel id) -> (latest closed day stored, utc offset seconds of
+        # the cell it was fetched for). In-memory only: after a restart the daily
+        # entity's dateObserved is read again, so a stored day is never rewritten.
         self._closed_done: Dict[Tuple[str, str], Tuple[str, int]] = {}
 
     # ------------------------------------------------------------------
@@ -1307,7 +1307,8 @@ class ParcelWeatherEngine:
         """
         from weather_worker import closed_day as cd
 
-        stats = {"closed_day_published": 0, "closed_day_errors": 0, "closed_day_recovered": 0}
+        stats = {"closed_day_published": 0, "closed_day_errors": 0, "closed_day_recovered": 0,
+                 "closed_day_unreadable": 0}
         pacer = cd.WritePacer()
         pacer.touch()  # the running-value pass just wrote to the same subscription
 
@@ -1328,7 +1329,13 @@ class ParcelWeatherEngine:
                     )
                 except cd.LastPublishedUnreadable:
                     # Unknown whether the day is stored: writing could store it twice.
+                    # ERROR: while this repeats the parcel gets no closed day.
+                    logger.error(
+                        "closed day skipped: daily entity unreadable tenant=%s parcel=%s",
+                        tenant_id, pid,
+                    )
                     stats["closed_day_errors"] += 1
+                    stats["closed_day_unreadable"] += 1
                     continue
                 if last is None and done:
                     last = done[0]

@@ -275,3 +275,12 @@ def test_last_published_exception_raises():
 def test_last_published_missing_date_raises():
     with pytest.raises(cd.LastPublishedUnreadable):
         cd._read_last_published_day("t", PARCEL, orion_url="http://o", http=_http(200, {"id": "x"}))
+
+
+def test_last_published_reads_whole_entity_so_404_means_absent():
+    """An attrs filter turns 'entity lacks the attribute' (or a context mismatch)
+    into a 404, indistinguishable from 'never published'."""
+    http = _http(404)
+    cd._read_last_published_day("t", PARCEL, orion_url="http://o", http=http)
+    url = http.get.call_args.args[0]
+    assert url == f"http://o/ngsi-ld/v1/entities/{cd.closed_day_entity_id('t', PARCEL)}"

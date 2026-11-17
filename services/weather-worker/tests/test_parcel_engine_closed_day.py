@@ -282,3 +282,14 @@ def test_after_settle_hour_yesterday_closed():
     resp = _multi_day_response(["2026-10-05", "2026-10-06", "2026-10-07"])
     _, pub, _, _ = _run(eng, "2026-10-06", resp, _At6)
     assert set(pub) == {"2026-10-07"}
+
+
+def test_unreadable_entity_is_counted_and_logged_as_error(caplog):
+    import logging
+    from weather_worker import closed_day as cd
+    eng = _engine()
+    with caplog.at_level(logging.ERROR, logger=pe.logger.name):
+        s, _, _, _ = _run(eng, cd.LastPublishedUnreadable("x"), _response())
+    assert s["closed_day_unreadable"] == 2
+    errs = [r for r in caplog.records if r.levelno == logging.ERROR and "p1" in r.getMessage()]
+    assert errs and "t-1" in errs[0].getMessage()

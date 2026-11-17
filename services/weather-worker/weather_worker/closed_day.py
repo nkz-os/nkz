@@ -109,7 +109,9 @@ def _read_last_published_day(
     eid = closed_day_entity_id(tenant_id, parcel_id)
     try:
         resp = http.get(
-            f"{orion_url}/ngsi-ld/v1/entities/{eid}?attrs=dateObserved",
+            # Whole entity, no attrs filter: Orion answers 404 to an entity that
+            # lacks the filtered attribute, which would read as "never published".
+            f"{orion_url}/ngsi-ld/v1/entities/{eid}",
             headers=inject_fiware_headers({}, tenant=tenant_id, body=None),
             timeout=10,
         )
