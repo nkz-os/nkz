@@ -26,12 +26,17 @@ MARGINS_PATH = os.path.join(os.path.dirname(__file__), "..", "data", "frost_marg
 FIELDS = ("tmin_frost_risk_c", "tmin_hard_frost_risk_c")
 SOURCES = ("history", "daily_closed")
 SCHEMA_VERSION = 2
+# Event threshold of each field (degC); equals margins["fields"] (tested). Every provenance entry carries it.
+THRESHOLD_C = {"tmin_frost_risk_c": 0.0, "tmin_hard_frost_risk_c": -2.0}
+STATUS_NOT_VALIDATED = "sin_validar"
 
 REASON_ISLAND = "sin validar (isla/fuera de península)"
 REASON_COASTAL = "sin validar (celda costera)"
 REASON_REGION = "sin validar (región no calibrada)"
 REASON_NO_MARGINS = "sin validar (márgenes no disponibles)"
-REASON_METHOD = "method_changed"
+REASON_METHOD = "sin validar (method_changed: el método de Tmin cambió desde el ajuste)"
+REASON_NO_COUNTRIES = "sin validar (contornos de país no disponibles)"
+REASON_SENSOR_DAY = "sin validar (dato de sensor)"
 REASON_NONE_VALIDATED = "sin validar (ninguna región validada)"
 
 # Off-mainland boxes (name, lat_min, lat_max, lon_min, lon_max), degrees. Copied as data from the
@@ -150,10 +155,29 @@ def margin_region(lat: float, lon: float) -> Optional[str]:
     )
 
 
-def _null(field: str, source: str, status: str, reason: str, **extra: Any) -> Tuple[None, Dict[str, Any]]:
-    prov = {"field": field, "source": source, "status": status, "reason": reason}
+def _null(field: str, source: str, reason: str, **extra: Any) -> Tuple[None, Dict[str, Any]]:
+    """A field that is not served: status is always sin_validar, the cause is in `reason`."""
+    prov = {"field": field, "source": source, "status": STATUS_NOT_VALIDATED, "threshold_c": THRESHOLD_C[field],
+            "reason": reason}
     prov.update(extra)
     return None, prov
+
+
+def gate_reason(entry: dict) -> str:
+    """Plain-Spanish cause of a region that did not pass its gate (numbers are the held-out ones)."""
+    raw = entry.get("reason") or ""
+    if raw.startswith("sin validar:"):
+        if "no German stations" in raw:
+            return "sin validar (sin estaciones de observación para esta fuente)"
+        return (f"sin validar (datos insuficientes: {entry.get('n_clusters')} clústeres de 50 km, "
+                f"{entry.get('n_frost')} noches de helada; mínimo 5 y 30)")
+    if "POD" in raw:
+        return f"sin validar (POD fuera de muestra {entry.get('pod'):.2f} < 0.90)"
+    if "FAR" in raw:
+        return f"sin validar (FAR fuera de muestra {entry.get('far'):.2f} > 0.50)"
+    if "no (T_c, m)" in raw:
+        return "sin validar (ningún margen alcanza POD 0.90 en los datos de ajuste)"
+    return "sin validar (no superó la validación)"
 
 
 def frost_risk_context(lat: float, lon: float) -> Tuple[Optional[str], Optional[str]]:
@@ -182,24 +206,23 @@ def frost_risk_tmin(
         raise ValueError(f"unknown field/source: {field}/{source}")
     margins = load_margins()
     if margins is None:
-        return _null(field, source, "sin_validar", REASON_NO_MARGINS)
+        return _null(field, source, REASON_NO_MARGINS)
     if margins.get("method_version", {}).get(source) != method_version:
-        return _null(field, source, "sin_validar", REASON_METHOD)
+        return _null(field, source, REASON_METHOD)
     if not any_validated(source, field):
-        return _null(field, source, "sin_validar", REASON_NONE_VALIDATED)
+        return _null(field, source, REASON_NONE_VALIDATED)
     if off_mainland_box:
-        return _null(field, source, "sin_validar", REASON_ISLAND)
+        return _null(field, source, REASON_ISLAND)
     if region is None:
-        return _null(field, source, "sin_validar", REASON_REGION)
+        return _null(field, source, REASON_REGION if load_countries() else REASON_NO_COUNTRIES)
     if coastal is None or coastal:
-        return _null(field, source, "sin_validar", REASON_COASTAL, region=region)
+        return _null(field, source, REASON_COASTAL, region=region)
     entry = margins.get("regions", {}).get(region, {}).get(source, {}).get(field)
     if not entry:
-        return _null(field, source, "sin_validar", REASON_REGION, region=region)
+        return _null(field, source, REASON_REGION, region=region)
     if entry.get("status") != "validated":
-        return _null(field, source, entry.get("status") or "sin_validar",
-                     entry.get("reason") or "sin validar", region=region,
-                     threshold_c=entry.get("threshold_c"))
+        return _null(field, source, gate_reason(entry), region=region, networks=entry.get("networks"),
+                     period=entry.get("period"))
     m, t_c = entry["m"], entry["T_c"]
     prov = {
         "field": field, "source": source, "status": "validado", "region": region,
@@ -207,7 +230,7 @@ def frost_risk_tmin(
         "pod": entry.get("pod"), "pod_ci": entry.get("pod_ci"), "far": entry.get("far"),
         "n_frost": entry.get("n_frost"), "n_stations": entry.get("n_stations"),
         "n_clusters": entry.get("n_clusters"), "networks": entry.get("networks"),
-        "label": entry.get("label"), "method_version": method_version,
+        "label": entry.get("label"), "period": entry.get("period"), "method_version": method_version,
     }
     if tmin_c is None or (isinstance(tmin_c, float) and math.isnan(tmin_c)):
         return None, prov

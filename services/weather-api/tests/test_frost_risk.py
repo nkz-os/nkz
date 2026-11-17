@@ -64,9 +64,16 @@ def test_missing_tmin_gives_null_value_but_keeps_provenance():
 
 def test_failed_region_is_null_with_the_gate_reason():
     v, p = fr.frost_risk_tmin(-1.0, "east_coast", "history", H)
-    assert v is None and p["status"] == "failed" and "FAR" in p["reason"] and p["region"] == "east_coast"
+    assert v is None and p["status"] == "sin_validar" and p["region"] == "east_coast"
+    assert p["reason"] == "sin validar (FAR fuera de muestra 0.53 > 0.50)"
+    assert p["threshold_c"] == 0.0 and p["networks"] == ["AEMET"]
+    assert p["period"] == {"start": "2021-01-01", "end": "2025-12-31", "season": "Oct-Apr"}
     v, p = fr.frost_risk_tmin(-1.0, "ebro_upper", "history", H, "tmin_hard_frost_risk_c")
-    assert v is None and "FAR" in p["reason"]
+    assert v is None and p["reason"] == "sin validar (FAR fuera de muestra 0.54 > 0.50)" and p["threshold_c"] == -2.0
+    v, p = fr.frost_risk_tmin(-1.0, "interior_south", "history", H)
+    assert p["reason"] == "sin validar (POD fuera de muestra 0.90 < 0.90)" or "POD fuera de muestra" in p["reason"]
+    v, p = fr.frost_risk_tmin(-1.0, "germany_east", "daily_closed", D)
+    assert p["reason"] == fr.REASON_NONE_VALIDATED
 
 
 def test_no_region_island_and_coastal_reasons():
@@ -80,8 +87,9 @@ def test_no_region_island_and_coastal_reasons():
 
 def test_method_mismatch_is_null_method_changed():
     v, p = fr.frost_risk_tmin(-1.0, "ebro_upper", "history", H + " changed")
-    assert v is None and p["reason"] == "method_changed"
-    assert fr.frost_risk_tmin(-1.0, "ebro_upper", "history", None)[1]["reason"] == "method_changed"
+    assert v is None and p["reason"] == fr.REASON_METHOD and "method_changed" in p["reason"]
+    assert p["status"] == "sin_validar" and p["threshold_c"] == 0.0
+    assert fr.frost_risk_tmin(-1.0, "ebro_upper", "history", None)[1]["reason"] == fr.REASON_METHOD
 
 
 def test_daily_closed_is_null_everywhere_today():
@@ -235,7 +243,8 @@ def test_history_cold_and_warm_days_and_hard_field_null_for_failed_region(env):
     assert day["tmin_hard_frost_risk_c"] is None
     p = b["provenance"]
     assert p["tmin_frost_risk_c"]["status"] == "validado" and p["tmin_frost_risk_c"]["m"] == 2.3
-    assert p["tmin_hard_frost_risk_c"]["status"] == "failed" and "FAR" in p["tmin_hard_frost_risk_c"]["reason"]
+    assert p["tmin_hard_frost_risk_c"]["status"] == "sin_validar" and "FAR" in p["tmin_hard_frost_risk_c"]["reason"]
+    assert p["tmin_frost_risk_c"]["period"]["end"] == "2025-12-31" and p["tmin_hard_frost_risk_c"]["threshold_c"] == -2.0
     assert set(b["validation"]) == {"tmin_c"}
     assert b["units"]["tmin_frost_risk_c"] == "degC"
     h["shift"] = 0.0                                      # daily tmin 10
@@ -297,7 +306,7 @@ def test_history_method_change_is_null(env, monkeypatch):
     monkeypatch.setattr(ph, "TMIN_METHOD_VERSION", {**TMIN_METHOD_VERSION, "history": "other method"})
     b = _hist(c, vars="tmin_c,tmin_frost_risk_c").json()
     assert b["days"][0]["tmin_frost_risk_c"] is None and b["days"][0]["tmin_c"] == pytest.approx(-0.5)
-    assert b["provenance"]["tmin_frost_risk_c"]["reason"] == "method_changed"
+    assert b["provenance"]["tmin_frost_risk_c"]["reason"] == fr.REASON_METHOD
 
 
 def test_history_missing_margins_file_serves_null_not_500(env, monkeypatch, tmp_path):
@@ -421,3 +430,127 @@ def test_daily_filled_days_are_null(dclient, monkeypatch):
     b = c.get(URL + "&fill=open_meteo").json()
     d3 = b["days"][2]
     assert d3["tmin_c"] == -2.0 and d3["source"] != "parcel_weather" and d3["tmin_frost_risk_c"] is None
+
+
+# ---------------------------------------------------------------- contracts added in the final fix wave
+
+# sha256 of the margins file the calibration harness wrote (frostrisk/frost_margins.json). A refit changes
+# it: update this constant WITH the file and TMIN_METHOD_VERSION, never alone.
+MARGINS_SHA256 = "213244a3b28247879840b3c10ffc418db728fff7c86e3ef17de5ef2522e218e6"
+
+
+def test_served_margins_file_is_the_harness_file():
+    import hashlib
+    with open(fr.MARGINS_PATH, "rb") as fh:
+        assert hashlib.sha256(fh.read()).hexdigest() == MARGINS_SHA256
+
+
+def test_thresholds_match_the_margins_file_and_every_null_carries_one():
+    assert fr.THRESHOLD_C == {k: v["threshold_c"] for k, v in fr.load_margins()["fields"].items()}
+    cases = [
+        dict(region="ebro_upper", method_version="x"), dict(region="ebro_upper", off_mainland_box="canary_islands"),
+        dict(region=None), dict(region="ebro_upper", coastal=True), dict(region="east_coast"),
+    ]
+    for f in fr.FIELDS:
+        for c in cases:
+            kw = {"method_version": H, **c}
+            region = kw.pop("region")
+            v, p = fr.frost_risk_tmin(-1.0, region, "history", kw.pop("method_version"), f, **kw)
+            assert v is None and p["status"] == "sin_validar" and p["threshold_c"] == fr.THRESHOLD_C[f], (f, c)
+        assert fr.frost_risk_tmin(-1.0, "ebro_upper", "daily_closed", D, f)[1]["threshold_c"] == fr.THRESHOLD_C[f]
+
+
+def test_no_provenance_ever_says_failed():
+    for region in fr.load_margins()["regions"]:
+        for src, mv in (("history", H), ("daily_closed", D)):
+            for f in fr.FIELDS:
+                assert fr.frost_risk_tmin(-1.0, region, src, mv, f)[1]["status"] in ("validado", "sin_validar")
+
+
+def test_every_entry_of_the_margins_file_names_period_and_networks():
+    for reg, d in fr.load_margins()["regions"].items():
+        for src, flds in d.items():
+            for f, e in flds.items():
+                if e.get("period") is None:
+                    assert reg.startswith("germany") and src == "daily_closed"        # no stations at all
+                else:
+                    assert e["period"]["start"] < e["period"]["end"] and e["period"]["season"] == "Oct-Apr"
+                    assert e["networks"]
+
+
+def test_missing_country_file_reason_is_its_own(monkeypatch, tmp_path):
+    monkeypatch.setattr(fr, "COUNTRIES_PATH", str(tmp_path / "absent.geojson"))
+    fr.load_countries.cache_clear()
+    try:
+        v, p = fr.frost_risk_tmin(-1.0, fr.margin_region(*EBRO), "history", H)
+        assert v is None and p["reason"] == fr.REASON_NO_COUNTRIES
+    finally:
+        fr.load_countries.cache_clear()
+
+
+def test_golden_daily_from_hourly_tmin():
+    """Freezes the Tmin computation the history margins were fitted to.
+
+    If this test fails you changed how /history computes tmin_c (or its inputs): update
+    TMIN_METHOD_VERSION and refit the margins BEFORE changing the golden values below. Until a refit,
+    the margins must not be served for the new method.
+    """
+    from datetime import timedelta
+    from app.services.history.aggregate import daily_from_hourly
+    t0 = datetime(2024, 1, 9, 23, tzinfo=timezone.utc)
+    n = 96
+    doc = {
+        "tz": "Europe/Madrid",
+        "times": [int((t0 + timedelta(hours=i)).timestamp()) for i in range(n)],
+        "t": [round(3.0 + ((i * 7) % 24) * 0.35 - (i // 24) * 1.1, 2) for i in range(n)],
+        "td": [round(1.0 + ((i * 5) % 24) * 0.1, 2) for i in range(n)],
+        "rh": [70.0 + (i % 10) for i in range(n)],
+        "precip": [round((i % 5) * 0.1, 1) for i in range(n)],
+        "rad": [float((i % 24) * 20) for i in range(n)],
+        "wind10": [2.0 + (i % 4) * 0.5 for i in range(n)],
+        "latest_available": "2024-01-12",
+    }
+    rows = daily_from_hourly(doc, lat=42.0, elev=400.0)
+    assert rows == [
+        {"date": "2024-01-10", "tmin_c": 3.0, "tmax_c": 11.05, "tmean_c": 7.02, "precip_mm": 5.0, "et0_mm": 2.13,
+         "radiation_mj_m2": 19.87, "vapour_pressure_kpa": 0.713, "rh_mean_pct": 74.0, "wind2m_ms": 2.06},
+        {"date": "2024-01-11", "tmin_c": 1.9, "tmax_c": 9.95, "tmean_c": 5.92, "precip_mm": 4.6, "et0_mm": 1.93,
+         "radiation_mj_m2": 19.87, "vapour_pressure_kpa": 0.713, "rh_mean_pct": 74.7, "wind2m_ms": 2.06},
+        {"date": "2024-01-12", "tmin_c": 0.8, "tmax_c": 8.85, "tmean_c": 4.83, "precip_mm": 4.7, "et0_mm": 1.73,
+         "radiation_mj_m2": 19.87, "vapour_pressure_kpa": 0.713, "rh_mean_pct": 74.5, "wind2m_ms": 2.06},
+    ]
+
+
+def test_daily_iot_sensor_day_is_null_with_reason_and_sources_totals_unchanged(dclient, monkeypatch):
+    """A sensor-overridden tmin_c is not the model value the margin corrects: the field is null with
+    the reason «dato de sensor». The model day beside it is served. sources and totals are untouched."""
+    c, h = dclient
+    _validate_daily(monkeypatch)
+    monkeypatch.setattr(pd, "_parcel_devices", lambda urn, tid: ["dev1"])
+    monkeypatch.setattr(pd, "_sensor_readings", lambda *a, **k: [
+        pd.sensor_daily.Reading("dev1", datetime(2026, 11, 1, 3, tzinfo=timezone.utc), "tmin_c", -1.0)])
+    monkeypatch.setattr(pd.sensor_daily, "aggregate",
+                        lambda readings, tz: {datetime(2026, 11, 1).date(): {"tmin_c": -1.0}})
+    b = c.get(URL).json()
+    d1, d2, _ = b["days"]
+    assert d1["sources"]["tmin_c"] == "iot_sensor" and d1["tmin_c"] == -1.0
+    assert d1["tmin_frost_risk_c"] is None
+    assert b["provenance"]["tmin_frost_risk_c"]["day_reasons"] == {"2026-11-01": "sin validar (dato de sensor)"}
+    assert d2["tmin_frost_risk_c"] == 8.0                       # the model day beside it is served
+    # same request with the frost fields stripped out must equal the pre-change shape
+    for d in b["days"]:
+        assert "tmin_frost_risk_c" not in d["sources"] and "tmin_hard_frost_risk_c" not in d["sources"]
+    assert set(b["totals"]) == set(c.get(URL).json()["totals"])
+
+
+def test_daily_sources_and_totals_are_unchanged_by_the_new_fields(dclient, monkeypatch):
+    c, h = dclient
+    base = c.get(URL + "&base_temp=5").json()
+    _validate_daily(monkeypatch)
+    new = c.get(URL + "&base_temp=5").json()
+    assert new["totals"] == base["totals"]
+    for a, b2 in zip(base["days"], new["days"]):
+        assert a["sources"] == b2["sources"]
+        for k in a:
+            if k not in fr.FIELDS:
+                assert b2[k] == a[k]

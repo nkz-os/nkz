@@ -236,6 +236,9 @@ def _apply_frost_risk(days: List[Dict[str, Any]], parcel_urn: str, tenant_id: st
                     coastal = None
             else:
                 coastal = None
+    # A closed day whose tmin_c comes from an IoT sensor is not the model value the margin corrects.
+    sensor_days = [d["date"] for d in days if d["kind"] == "closed" and d["source"] == "parcel_weather"
+                   and (d.get("sources") or {}).get("tmin_c") == "iot_sensor"]
     prov: Dict[str, Dict[str, Any]] = {}
     for f in fields:
         _, prov[f] = frost_risk.frost_risk_tmin(None, region, "daily_closed", version, f,
@@ -243,6 +246,8 @@ def _apply_frost_risk(days: List[Dict[str, Any]], parcel_urn: str, tenant_id: st
         for d in candidates:
             d[f] = frost_risk.frost_risk_tmin(d.get("tmin_c"), region, "daily_closed", version, f,
                                               off_mainland_box=island, coastal=coastal)[0]
+        if sensor_days:
+            prov[f]["day_reasons"] = {day: frost_risk.REASON_SENSOR_DAY for day in sensor_days}
     return prov
 
 

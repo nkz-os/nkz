@@ -4,7 +4,7 @@
   "history": "nkz@8c7050a: ERA5 grid hourly (elevation=nan) aggregated to the local civil day by weather-api daily_from_hourly",
   "daily_closed": "nkz@8c7050a: best_match /forecast past_days with the worker lapse (stored closed days)"
  },
- "generated_utc": "2026-11-17T20:36:19Z",
+ "generated_utc": "2026-11-17T20:59:08Z",
  "seed": 20261117,
  "fields": {
   "tmin_frost_risk_c": {
@@ -36,7 +36,9 @@
      "n_frost": 7553,
      "n_stations": 76,
      "n_clusters": 29,
-     "networks": null,
+     "networks": [
+      "AEMET"
+     ],
      "label": null,
      "reason": "held-out FAR 0.5300738899247289 > 0.5",
      "fit_all": {
@@ -77,7 +79,12 @@
       "far": 0.1991
      },
      "cold_nights_tmin_le_T": 18458,
-     "mean_bias_frost_nights_c": 2.06
+     "mean_bias_frost_nights_c": 2.06,
+     "period": {
+      "start": "2021-01-01",
+      "end": "2025-12-31",
+      "season": "Oct-Apr"
+     }
     },
     "tmin_hard_frost_risk_c": {
      "threshold_c": -2.0,
@@ -98,7 +105,9 @@
      "n_frost": 3547,
      "n_stations": 76,
      "n_clusters": 29,
-     "networks": null,
+     "networks": [
+      "AEMET"
+     ],
      "label": null,
      "reason": "held-out POD 0.897378 < 0.9",
      "fit_all": {
@@ -139,7 +148,12 @@
       "far": 0.219
      },
      "cold_nights_tmin_le_T": 10383,
-     "mean_bias_frost_nights_c": 2.403
+     "mean_bias_frost_nights_c": 2.403,
+     "period": {
+      "start": "2021-01-01",
+      "end": "2025-12-31",
+      "season": "Oct-Apr"
+     }
     }
    },
    "daily_closed": {
@@ -162,7 +176,9 @@
      "n_frost": 89,
      "n_stations": 7,
      "n_clusters": 6,
-     "networks": null,
+     "networks": [
+      "AEMET"
+     ],
      "label": null,
      "reason": "held-out POD 0.438202 < 0.9",
      "fit_all": {
@@ -203,7 +219,12 @@
       "far": 0.025
      },
      "cold_nights_tmin_le_T": 151,
-     "mean_bias_frost_nights_c": 2.324
+     "mean_bias_frost_nights_c": 2.324,
+     "period": {
+      "start": "2023-06-01",
+      "end": "2025-12-30",
+      "season": "Oct-Apr"
+     }
     },
     "tmin_hard_frost_risk_c": {
      "threshold_c": -2.0,
@@ -224,7 +245,9 @@
      "n_frost": 46,
      "n_stations": 7,
      "n_clusters": 6,
-     "networks": null,
+     "networks": [
+      "AEMET"
+     ],
      "label": null,
      "reason": "held-out POD 0.000000 < 0.9",
      "fit_all": {
@@ -265,7 +288,12 @@
       "far": 0.0
      },
      "cold_nights_tmin_le_T": 101,
-     "mean_bias_frost_nights_c": 2.393
+     "mean_bias_frost_nights_c": 2.393,
+     "period": {
+      "start": "2023-06-01",
+      "end": "2025-12-30",
+      "season": "Oct-Apr"
+     }
     }
    }
   },
@@ -333,7 +361,12 @@
       "far": 0.1989
      },
      "cold_nights_tmin_le_T": 77617,
-     "mean_bias_frost_nights_c": 1.358
+     "mean_bias_frost_nights_c": 1.358,
+     "period": {
+      "start": "2021-01-01",
+      "end": "2025-12-31",
+      "season": "Oct-Apr"
+     }
     },
     "tmin_hard_frost_risk_c": {
      "threshold_c": -2.0,
@@ -354,7 +387,9 @@
      "n_frost": 23341,
      "n_stations": 214,
      "n_clusters": 63,
-     "networks": null,
+     "networks": [
+      "AEMET"
+     ],
      "label": null,
      "reason": "held-out FAR 0.5394659272036507 > 0.5",
      "fit_all": {
@@ -395,7 +430,12 @@
       "far": 0.3001
      },
      "cold_nights_tmin_le_T": 62849,
-     "mean_bias_frost_nights_c": 1.705
+     "mean_bias_frost_nights_c": 1.705,
+     "period": {
+      "start": "2021-01-01",
+      "end": "2025-12-31",
+      "season": "Oct-Apr"
+     }
     }
    },
    "daily_closed": {
@@ -418,7 +458,9 @@
      "n_frost": 433,
      "n_stations": 6,
      "n_clusters": 6,
-     "networks": null,
+     "networks": [
+      "AEMET"
+     ],
      "label": null,
      "reason": "held-out POD 0.891455 < 0.9",
      "fit_all": {
@@ -459,7 +501,12 @@
       "far": 0.1093
      },
      "cold_nights_tmin_le_T": 713,
-     "mean_bias_frost_nights_c": 1.284
+     "mean_bias_frost_nights_c": 1.284,
+     "period": {
+      "start": "2023-06-01",
+      "end": "2025-12-30",
+      "season": "Oct-Apr"
+     }
     },
     "tmin_hard_frost_risk_c": {
      "threshold_c": -2.0,
@@ -480,7 +527,9 @@
      "n_frost": 184,
      "n_stations": 6,
      "n_clusters": 6,
-     "networks": null,
+     "networks": [
+      "AEMET"
+     ],
      "label": null,
      "reason": "held-out POD 0.864130 < 0.9",
      "fit_all": {
@@ -521,7 +570,12 @@
       "far": 0.1635
      },
      "cold_nights_tmin_le_T": 713,
-     "mean_bias_frost_nights_c": 1.688
+     "mean_bias_frost_nights_c": 1.688,
+     "period": {
+      "start": "2023-06-01",
+      "end": "2025-12-30",
+      "season": "Oct-Apr"
+     }
     }
    }
   },
@@ -589,7 +643,12 @@
       "far": 0.0556
      },
      "cold_nights_tmin_le_T": 86477,
-     "mean_bias_frost_nights_c": 1.105
+     "mean_bias_frost_nights_c": 1.105,
+     "period": {
+      "start": "2021-01-01",
+      "end": "2025-12-31",
+      "season": "Oct-Apr"
+     }
     },
     "tmin_hard_frost_risk_c": {
      "threshold_c": -2.0,
@@ -653,7 +712,12 @@
       "far": 0.074
      },
      "cold_nights_tmin_le_T": 86477,
-     "mean_bias_frost_nights_c": 1.271
+     "mean_bias_frost_nights_c": 1.271,
+     "period": {
+      "start": "2021-01-01",
+      "end": "2025-12-31",
+      "season": "Oct-Apr"
+     }
     }
    },
    "daily_closed": {
@@ -663,6 +727,8 @@
      "T_c": null,
      "m": null,
      "form": "constant",
+     "networks": null,
+     "period": null,
      "reason": "sin validar: daily_closed has no German stations"
     },
     "tmin_hard_frost_risk_c": {
@@ -671,6 +737,8 @@
      "T_c": null,
      "m": null,
      "form": "constant",
+     "networks": null,
+     "period": null,
      "reason": "sin validar: daily_closed has no German stations"
     }
    }
@@ -739,7 +807,12 @@
       "far": 0.0669
      },
      "cold_nights_tmin_le_T": 125614,
-     "mean_bias_frost_nights_c": 1.208
+     "mean_bias_frost_nights_c": 1.208,
+     "period": {
+      "start": "2021-01-01",
+      "end": "2025-12-31",
+      "season": "Oct-Apr"
+     }
     },
     "tmin_hard_frost_risk_c": {
      "threshold_c": -2.0,
@@ -803,7 +876,12 @@
       "far": 0.097
      },
      "cold_nights_tmin_le_T": 125614,
-     "mean_bias_frost_nights_c": 1.361
+     "mean_bias_frost_nights_c": 1.361,
+     "period": {
+      "start": "2021-01-01",
+      "end": "2025-12-31",
+      "season": "Oct-Apr"
+     }
     }
    },
    "daily_closed": {
@@ -813,6 +891,8 @@
      "T_c": null,
      "m": null,
      "form": "constant",
+     "networks": null,
+     "period": null,
      "reason": "sin validar: daily_closed has no German stations"
     },
     "tmin_hard_frost_risk_c": {
@@ -821,6 +901,8 @@
      "T_c": null,
      "m": null,
      "form": "constant",
+     "networks": null,
+     "period": null,
      "reason": "sin validar: daily_closed has no German stations"
     }
    }
@@ -846,7 +928,9 @@
      "n_frost": 10903,
      "n_stations": 153,
      "n_clusters": 72,
-     "networks": null,
+     "networks": [
+      "AEMET"
+     ],
      "label": null,
      "reason": "held-out POD 0.899844 < 0.9",
      "fit_all": {
@@ -887,7 +971,12 @@
       "far": 0.2641
      },
      "cold_nights_tmin_le_T": 30599,
-     "mean_bias_frost_nights_c": 2.428
+     "mean_bias_frost_nights_c": 2.428,
+     "period": {
+      "start": "2021-01-01",
+      "end": "2025-12-31",
+      "season": "Oct-Apr"
+     }
     },
     "tmin_hard_frost_risk_c": {
      "threshold_c": -2.0,
@@ -908,7 +997,9 @@
      "n_frost": 4684,
      "n_stations": 153,
      "n_clusters": 72,
-     "networks": null,
+     "networks": [
+      "AEMET"
+     ],
      "label": null,
      "reason": "held-out POD 0.889411 < 0.9",
      "fit_all": {
@@ -949,7 +1040,12 @@
       "far": 0.3402
      },
      "cold_nights_tmin_le_T": 22545,
-     "mean_bias_frost_nights_c": 3.132
+     "mean_bias_frost_nights_c": 3.132,
+     "period": {
+      "start": "2021-01-01",
+      "end": "2025-12-31",
+      "season": "Oct-Apr"
+     }
     }
    },
    "daily_closed": {
@@ -972,7 +1068,9 @@
      "n_frost": 119,
      "n_stations": 5,
      "n_clusters": 5,
-     "networks": null,
+     "networks": [
+      "AEMET"
+     ],
      "label": null,
      "reason": "held-out POD 0.798319 < 0.9",
      "fit_all": {
@@ -1013,7 +1111,12 @@
       "far": 0.1753
      },
      "cold_nights_tmin_le_T": 307,
-     "mean_bias_frost_nights_c": 0.967
+     "mean_bias_frost_nights_c": 0.967,
+     "period": {
+      "start": "2023-06-01",
+      "end": "2025-12-30",
+      "season": "Oct-Apr"
+     }
     },
     "tmin_hard_frost_risk_c": {
      "threshold_c": -2.0,
@@ -1034,7 +1137,9 @@
      "n_frost": 35,
      "n_stations": 5,
      "n_clusters": 5,
-     "networks": null,
+     "networks": [
+      "AEMET"
+     ],
      "label": null,
      "reason": "held-out POD 0.885714 < 0.9",
      "fit_all": {
@@ -1075,7 +1180,12 @@
       "far": 0.3448
      },
      "cold_nights_tmin_le_T": 208,
-     "mean_bias_frost_nights_c": 0.448
+     "mean_bias_frost_nights_c": 0.448,
+     "period": {
+      "start": "2023-06-01",
+      "end": "2025-12-30",
+      "season": "Oct-Apr"
+     }
     }
    }
   },
@@ -1143,7 +1253,12 @@
       "far": 0.1743
      },
      "cold_nights_tmin_le_T": 64104,
-     "mean_bias_frost_nights_c": 2.109
+     "mean_bias_frost_nights_c": 2.109,
+     "period": {
+      "start": "2021-01-01",
+      "end": "2025-12-31",
+      "season": "Oct-Apr"
+     }
     },
     "tmin_hard_frost_risk_c": {
      "threshold_c": -2.0,
@@ -1164,7 +1279,9 @@
      "n_frost": 19907,
      "n_stations": 204,
      "n_clusters": 67,
-     "networks": null,
+     "networks": [
+      "AEMET"
+     ],
      "label": null,
      "reason": "held-out FAR 0.5762425493969118 > 0.5",
      "fit_all": {
@@ -1205,7 +1322,12 @@
       "far": 0.2311
      },
      "cold_nights_tmin_le_T": 50185,
-     "mean_bias_frost_nights_c": 2.505
+     "mean_bias_frost_nights_c": 2.505,
+     "period": {
+      "start": "2021-01-01",
+      "end": "2025-12-31",
+      "season": "Oct-Apr"
+     }
     }
    },
    "daily_closed": {
@@ -1228,7 +1350,9 @@
      "n_frost": 401,
      "n_stations": 5,
      "n_clusters": 5,
-     "networks": null,
+     "networks": [
+      "AEMET"
+     ],
      "label": null,
      "reason": "held-out POD 0.885287 < 0.9",
      "fit_all": {
@@ -1269,7 +1393,12 @@
       "far": 0.131
      },
      "cold_nights_tmin_le_T": 757,
-     "mean_bias_frost_nights_c": 0.184
+     "mean_bias_frost_nights_c": 0.184,
+     "period": {
+      "start": "2023-06-01",
+      "end": "2025-12-30",
+      "season": "Oct-Apr"
+     }
     },
     "tmin_hard_frost_risk_c": {
      "threshold_c": -2.0,
@@ -1290,7 +1419,9 @@
      "n_frost": 140,
      "n_stations": 5,
      "n_clusters": 5,
-     "networks": null,
+     "networks": [
+      "AEMET"
+     ],
      "label": null,
      "reason": "held-out POD 0.885714 < 0.9",
      "fit_all": {
@@ -1331,7 +1462,12 @@
       "far": 0.3311
      },
      "cold_nights_tmin_le_T": 757,
-     "mean_bias_frost_nights_c": 0.38
+     "mean_bias_frost_nights_c": 0.38,
+     "period": {
+      "start": "2023-06-01",
+      "end": "2025-12-30",
+      "season": "Oct-Apr"
+     }
     }
    }
   }
