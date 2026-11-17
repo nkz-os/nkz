@@ -22,6 +22,9 @@ export function useEntitySelection(
       const pickedObject = viewer.scene.pick(click.position);
       if (Cesium.defined(pickedObject) && pickedObject.id) {
         const entity = pickedObject.id;
+        // Entities of a module's own data source (map-layer slots) are not
+        // platform entities: the module handles their clicks itself.
+        if (entity.entityCollection !== viewer.entities) return;
         const entityId: string = entity.id;
 
         logger.log('[CesiumMap] Clicked entity:', entityId);
