@@ -101,7 +101,9 @@ def _broker(daily_status=200, daily_body=None, parcel_status=200):
 
 
 def test_inspect_daily_gone_is_none():
-    assert cc.inspect_daily("tenant-a", EID, orion_url="http://o", http=_broker(404)) is None
+    http = _broker_by_url({EID: 404, "urn:ngsi-ld:AgriParcel:p1": 404,
+                           "urn:ngsi-ld:AgriParcel:tenant-a:p1": 404})
+    assert cc.inspect_daily("tenant-a", EID, orion_url="http://o", http=http) is None
 
 
 def test_inspect_daily_reads_ref_parcel_alias():
@@ -122,7 +124,8 @@ def test_inspect_daily_without_relationship_counts_as_alive():
 
 def test_inspect_daily_unreadable_raises():
     import pytest
-    for http in (_broker(503), _broker(200, _daily_body(), 503), _broker(200, {"id": EID})):
+    for http in (_broker(503), _broker(200, _daily_body(), 503), _broker(200, {"id": EID}),
+                 _broker_by_url({EID: 404, "urn:ngsi-ld:AgriParcel:p1": 503})):
         with pytest.raises(cd.LastPublishedUnreadable):
             cc.inspect_daily("tenant-a", EID, orion_url="http://o", http=http)
 
@@ -152,11 +155,12 @@ def test_latest_stored_days_query_is_read_only_and_daily_scoped():
     q, params = conn.executed[0]
     assert q.lstrip().upper().startswith("SELECT")
     assert "INSERT" not in q.upper() and "UPDATE" not in q.upper() and "DELETE" not in q.upper()
-    assert "%-daily" in params and 14 in params
+    assert "%:parcel-%-daily" in params and 14 in params
 
 
 def test_run_exit_codes(monkeypatch):
     monkeypatch.setenv("POSTGRES_URL", "postgresql://x")
+    monkeypatch.setenv("CONTEXT_URL", "http://ctx")
     fresh = _Conn([("tenant-a", EID, _ts(date(2026, 11, 16)))])
     assert cc.run(TODAY, connect=lambda url: fresh, inspect=_inspect(None), sleep=lambda s: None) == 0
     assert fresh.closed
@@ -173,6 +177,7 @@ def test_run_without_database_url_fails(monkeypatch):
 def test_run_accepts_database_url(monkeypatch):
     monkeypatch.delenv("POSTGRES_URL", raising=False)
     monkeypatch.setenv("DATABASE_URL", "postgresql://y")
+    monkeypatch.setenv("CONTEXT_URL", "http://ctx")
     seen = []
     conn = _Conn([])
     assert cc.run(TODAY, connect=lambda url: seen.append(url) or conn, inspect=_inspect(None),
@@ -182,6 +187,7 @@ def test_run_accepts_database_url(monkeypatch):
 
 def test_run_retries_db_connect(monkeypatch):
     monkeypatch.setenv("POSTGRES_URL", "postgresql://x")
+    monkeypatch.setenv("CONTEXT_URL", "http://ctx")
     attempts, sleeps = [], []
     conn = _Conn([])
 
@@ -202,3 +208,55 @@ def test_run_db_always_down_fails(monkeypatch):
         raise OSError("connection refused")
 
     assert cc.run(TODAY, connect=connect, inspect=_inspect(None), sleep=lambda s: None) == 1
+
+
+# --- review fixes ----------------------------------------------------------------
+
+def test_run_without_context_url_fails(monkeypatch):
+    """Without the platform context Orion returns full IRIs: every parcel would read as unreadable."""
+    monkeypatch.setenv("POSTGRES_URL", "postgresql://x")
+    monkeypatch.delenv("CONTEXT_URL", raising=False)
+    assert cc.run(TODAY, connect=lambda url: _Conn([]), inspect=_inspect(None), sleep=lambda s: None) == 1
+
+
+def test_query_matches_parcel_daily_entities_only():
+    conn = _Conn([])
+    cc.latest_stored_days(conn, 60)
+    assert "%:parcel-%-daily" in conn.executed[0][1]
+
+
+def test_default_lookback_is_60_days():
+    assert cc.DEFAULT_LOOKBACK_DAYS == 60
+
+
+def test_daily_entity_missing_but_parcel_alive_is_reported():
+    out = cc.find_stale(_rows(date(2026, 11, 10)), TODAY, 2, _inspect((None, True)))
+    assert out[0]["reason"] == "daily_missing" and out[0]["orion_day"] is None
+
+
+def _broker_by_url(statuses):
+    def get(url, headers=None, timeout=None):
+        for suffix, status in statuses.items():
+            if url.endswith(suffix):
+                return MagicMock(status_code=status, json=MagicMock(return_value={}))
+        raise AssertionError(url)
+    http = MagicMock()
+    http.get.side_effect = get
+    return http
+
+
+def test_inspect_daily_gone_parcel_alive_is_daily_missing():
+    http = _broker_by_url({EID: 404, "urn:ngsi-ld:AgriParcel:p1": 200})
+    assert cc.inspect_daily("tenant-a", EID, orion_url="http://o", http=http) == (None, True)
+
+
+def test_inspect_daily_gone_parcel_with_tenant_segment_alive():
+    http = _broker_by_url({EID: 404, "urn:ngsi-ld:AgriParcel:p1": 404,
+                           "urn:ngsi-ld:AgriParcel:tenant-a:p1": 200})
+    assert cc.inspect_daily("tenant-a", EID, orion_url="http://o", http=http) == (None, True)
+
+
+def test_inspect_daily_and_parcel_gone_is_none():
+    http = _broker_by_url({EID: 404, "urn:ngsi-ld:AgriParcel:p1": 404,
+                           "urn:ngsi-ld:AgriParcel:tenant-a:p1": 404})
+    assert cc.inspect_daily("tenant-a", EID, orion_url="http://o", http=http) is None

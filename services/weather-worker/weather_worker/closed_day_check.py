@@ -33,7 +33,8 @@ from weather_worker import closed_day as cd  # noqa: E402
 logger = logging.getLogger(__name__)
 
 DEFAULT_MAX_LAG_DAYS = 2
-DEFAULT_LOOKBACK_DAYS = 14
+# Long enough that a parcel stuck for weeks keeps alerting instead of dropping out.
+DEFAULT_LOOKBACK_DAYS = 60
 DB_CONNECT_ATTEMPTS = 5
 DB_BACKOFF_S = 10
 
@@ -65,7 +66,7 @@ def parcel_id_from_entity(entity_id: str) -> str:
 def latest_stored_days(conn: Any, lookback_days: int) -> List[Row]:
     """(tenant, daily entity id, latest stored day) for entities with recent rows."""
     cur = conn.cursor()
-    cur.execute(_LATEST_SQL, ("WeatherObserved", f"%{_DAILY_SUFFIX}", lookback_days))
+    cur.execute(_LATEST_SQL, ("WeatherObserved", f"%{_PARCEL_MARK}%{_DAILY_SUFFIX}", lookback_days))
     out: List[Row] = []
     for tenant, entity_id, latest in cur.fetchall():
         if latest.tzinfo is None:
@@ -82,11 +83,12 @@ def inspect_daily(
     orion_url: str = "",
     http: Any = requests,
 ) -> Optional[Tuple[str, bool]]:
-    """(day in Orion, parcel still exists) for a daily entity; None when it is gone.
+    """(day in Orion, parcel still exists) for a daily entity; None when both are gone.
 
-    Raises ``closed_day.LastPublishedUnreadable`` when either read fails. A daily
-    entity that names no parcel counts as alive: better a false alert than a
-    hidden outage.
+    A daily entity that is gone while its parcel lives gives ``(None, True)``
+    (rows in the store prove it existed). Raises
+    ``closed_day.LastPublishedUnreadable`` when a read fails. A daily entity that
+    names no parcel counts as alive: better a false alert than a hidden outage.
     """
     orion_url = orion_url or os.getenv("ORION_URL", "http://orion-ld-service:1026")
     base = f"{orion_url}/ngsi-ld/v1/entities/"
@@ -100,6 +102,14 @@ def inspect_daily(
 
     resp = get(entity_id)
     if resp.status_code == 404:
+        # The daily entity names its parcel; without it, try both URN forms.
+        bare = parcel_id_from_entity(entity_id)
+        for urn in (f"urn:ngsi-ld:AgriParcel:{bare}", f"urn:ngsi-ld:AgriParcel:{tenant}:{bare}"):
+            presp = get(urn)
+            if presp.status_code == 200:
+                return None, True
+            if presp.status_code != 404:
+                raise cd.LastPublishedUnreadable(urn)
         return None
     if resp.status_code != 200:
         raise cd.LastPublishedUnreadable(entity_id)
@@ -149,6 +159,10 @@ def find_stale(
             logger.info("closed days behind but parcel gone: tenant=%s parcel=%s", tenant, parcel)
             continue
         orion_day = seen[0]
+        if orion_day is None:
+            findings.append({"tenant": tenant, "parcel": parcel, "stored_day": stored.isoformat(),
+                             "orion_day": None, "reason": "daily_missing"})
+            continue
         reason = "notification_lost" if orion_day > stored.isoformat() else "stale"
         findings.append({"tenant": tenant, "parcel": parcel, "stored_day": stored.isoformat(),
                          "orion_day": orion_day, "reason": reason})
@@ -189,6 +203,11 @@ def run(
     url = (os.getenv("POSTGRES_URL") or os.getenv("DATABASE_URL") or "").strip()
     if not url:
         logger.error("Closed-day check cannot run: POSTGRES_URL / DATABASE_URL not set")
+        return 1
+    if not os.getenv("CONTEXT_URL", "").strip():
+        # Without the platform context Orion answers with full IRIs and every
+        # parcel would read as unreadable: refuse to run instead.
+        logger.error("Closed-day check cannot run: CONTEXT_URL not set")
         return 1
     max_lag = int(os.getenv("MAX_LAG_DAYS", DEFAULT_MAX_LAG_DAYS))
     lookback = int(os.getenv("LOOKBACK_DAYS", DEFAULT_LOOKBACK_DAYS))
