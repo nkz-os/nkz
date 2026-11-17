@@ -1,0 +1,1339 @@
+{
+ "schema_version": 2,
+ "method_version": {
+  "history": "nkz@8c7050a: ERA5 grid hourly (elevation=nan) aggregated to the local civil day by weather-api daily_from_hourly",
+  "daily_closed": "nkz@8c7050a: best_match /forecast past_days with the worker lapse (stored closed days)"
+ },
+ "generated_utc": "2026-11-17T20:36:19Z",
+ "seed": 20261117,
+ "fields": {
+  "tmin_frost_risk_c": {
+   "threshold_c": 0.0
+  },
+  "tmin_hard_frost_risk_c": {
+   "threshold_c": -2.0
+  }
+ },
+ "regions": {
+  "east_coast": {
+   "history": {
+    "tmin_frost_risk_c": {
+     "threshold_c": 0.0,
+     "status": "failed",
+     "T_c": null,
+     "m": null,
+     "form": "constant",
+     "pod": 0.901,
+     "pod_ci": [
+      0.8345,
+      0.9478
+     ],
+     "far": 0.5301,
+     "far_ci": [
+      0.4663,
+      0.6077
+     ],
+     "n_frost": 7553,
+     "n_stations": 76,
+     "n_clusters": 29,
+     "networks": null,
+     "label": null,
+     "reason": "held-out FAR 0.5300738899247289 > 0.5",
+     "fit_all": {
+      "T_c": 4.0,
+      "m": 3.1,
+      "in_sample_pod": 0.9036,
+      "in_sample_far": 0.5283
+     },
+     "n_clusters_unreachable": 0,
+     "threshold_sensitivity": {
+      "-2": {
+       "pod": 0.8833,
+       "far": 0.6019,
+       "n_events": 3547
+      },
+      "+0": {
+       "pod": 0.901,
+       "far": 0.5301,
+       "n_events": 7553
+      },
+      "+2": {
+       "pod": 0.8391,
+       "far": 0.3406,
+       "n_events": 13802
+      }
+     },
+     "loco_m_range": [
+      2.8,
+      3.2
+     ],
+     "linear": {
+      "pod": 0.901,
+      "far": 0.5301,
+      "replaces_constant": false
+     },
+     "baseline_no_margin": {
+      "pod": 0.5582,
+      "far": 0.1991
+     },
+     "cold_nights_tmin_le_T": 18458,
+     "mean_bias_frost_nights_c": 2.06
+    },
+    "tmin_hard_frost_risk_c": {
+     "threshold_c": -2.0,
+     "status": "failed",
+     "T_c": null,
+     "m": null,
+     "form": "constant",
+     "pod": 0.8974,
+     "pod_ci": [
+      0.8138,
+      0.9592
+     ],
+     "far": 0.6376,
+     "far_ci": [
+      0.5797,
+      0.7034
+     ],
+     "n_frost": 3547,
+     "n_stations": 76,
+     "n_clusters": 29,
+     "networks": null,
+     "label": null,
+     "reason": "held-out POD 0.897378 < 0.9",
+     "fit_all": {
+      "T_c": 2.0,
+      "m": 3.4,
+      "in_sample_pod": 0.9019,
+      "in_sample_far": 0.6286
+     },
+     "n_clusters_unreachable": 0,
+     "threshold_sensitivity": {
+      "-2": {
+       "pod": 0.8974,
+       "far": 0.6376,
+       "n_events": 3547
+      },
+      "+0": {
+       "pod": 0.8154,
+       "far": 0.4068,
+       "n_events": 7553
+      },
+      "+2": {
+       "pod": 0.6311,
+       "far": 0.1611,
+       "n_events": 13802
+      }
+     },
+     "loco_m_range": [
+      3.0,
+      3.7
+     ],
+     "linear": {
+      "pod": 0.8974,
+      "far": 0.6374,
+      "replaces_constant": false
+     },
+     "baseline_no_margin": {
+      "pod": 0.4725,
+      "far": 0.219
+     },
+     "cold_nights_tmin_le_T": 10383,
+     "mean_bias_frost_nights_c": 2.403
+    }
+   },
+   "daily_closed": {
+    "tmin_frost_risk_c": {
+     "threshold_c": 0.0,
+     "status": "failed",
+     "T_c": null,
+     "m": null,
+     "form": "constant",
+     "pod": 0.4382,
+     "pod_ci": [
+      0.4318,
+      1.0
+     ],
+     "far": 0.4091,
+     "far_ci": [
+      0.0732,
+      1.0
+     ],
+     "n_frost": 89,
+     "n_stations": 7,
+     "n_clusters": 6,
+     "networks": null,
+     "label": null,
+     "reason": "held-out POD 0.438202 < 0.9",
+     "fit_all": {
+      "T_c": 3.0,
+      "m": 2.7,
+      "in_sample_pod": 0.9101,
+      "in_sample_far": 0.3955
+     },
+     "n_clusters_unreachable": 0,
+     "threshold_sensitivity": {
+      "-2": {
+       "pod": 0.3696,
+       "far": 0.1905,
+       "n_events": 46
+      },
+      "+0": {
+       "pod": 0.4382,
+       "far": 0.4091,
+       "n_events": 89
+      },
+      "+2": {
+       "pod": 0.5275,
+       "far": 0.1933,
+       "n_events": 182
+      }
+     },
+     "loco_m_range": [
+      0.0,
+      2.7
+     ],
+     "linear": {
+      "pod": 0.4382,
+      "far": 0.4091,
+      "replaces_constant": false
+     },
+     "baseline_no_margin": {
+      "pod": 0.4382,
+      "far": 0.025
+     },
+     "cold_nights_tmin_le_T": 151,
+     "mean_bias_frost_nights_c": 2.324
+    },
+    "tmin_hard_frost_risk_c": {
+     "threshold_c": -2.0,
+     "status": "failed",
+     "T_c": null,
+     "m": null,
+     "form": "constant",
+     "pod": 0.0,
+     "pod_ci": [
+      0.0,
+      0.0
+     ],
+     "far": 1.0,
+     "far_ci": [
+      1.0,
+      1.0
+     ],
+     "n_frost": 46,
+     "n_stations": 7,
+     "n_clusters": 6,
+     "networks": null,
+     "label": null,
+     "reason": "held-out POD 0.000000 < 0.9",
+     "fit_all": {
+      "T_c": 2.0,
+      "m": 3.1,
+      "in_sample_pod": 0.913,
+      "in_sample_far": 0.4085
+     },
+     "n_clusters_unreachable": 1,
+     "threshold_sensitivity": {
+      "-2": {
+       "pod": 0.0,
+       "far": 1.0,
+       "n_events": 46
+      },
+      "+0": {
+       "pod": 0.0112,
+       "far": 0.9231,
+       "n_events": 89
+      },
+      "+2": {
+       "pod": 0.033,
+       "far": 0.5385,
+       "n_events": 182
+      }
+     },
+     "loco_m_range": [
+      3.1,
+      3.1
+     ],
+     "linear": {
+      "pod": 0.0,
+      "far": 1.0,
+      "replaces_constant": false
+     },
+     "baseline_no_margin": {
+      "pod": 0.3696,
+      "far": 0.0
+     },
+     "cold_nights_tmin_le_T": 101,
+     "mean_bias_frost_nights_c": 2.393
+    }
+   }
+  },
+  "ebro_upper": {
+   "history": {
+    "tmin_frost_risk_c": {
+     "threshold_c": 0.0,
+     "status": "validated",
+     "T_c": 3.0,
+     "m": 2.3,
+     "form": "constant",
+     "pod": 0.9036,
+     "pod_ci": [
+      0.8764,
+      0.9255
+     ],
+     "far": 0.3919,
+     "far_ci": [
+      0.3621,
+      0.4228
+     ],
+     "n_frost": 45199,
+     "n_stations": 214,
+     "n_clusters": 63,
+     "networks": [
+      "AEMET"
+     ],
+     "label": "validado con estaciones AEMET",
+     "reason": null,
+     "fit_all": {
+      "T_c": 3.0,
+      "m": 2.3,
+      "in_sample_pod": 0.9034,
+      "in_sample_far": 0.3911
+     },
+     "n_clusters_unreachable": 0,
+     "threshold_sensitivity": {
+      "-2": {
+       "pod": 0.8641,
+       "far": 0.4952,
+       "n_events": 23341
+      },
+      "+0": {
+       "pod": 0.9036,
+       "far": 0.3919,
+       "n_events": 45199
+      },
+      "+2": {
+       "pod": 0.8458,
+       "far": 0.2003,
+       "n_events": 73389
+      }
+     },
+     "loco_m_range": [
+      2.2,
+      2.4
+     ],
+     "linear": {
+      "pod": 0.9036,
+      "far": 0.3919,
+      "replaces_constant": false
+     },
+     "baseline_no_margin": {
+      "pod": 0.664,
+      "far": 0.1989
+     },
+     "cold_nights_tmin_le_T": 77617,
+     "mean_bias_frost_nights_c": 1.358
+    },
+    "tmin_hard_frost_risk_c": {
+     "threshold_c": -2.0,
+     "status": "failed",
+     "T_c": null,
+     "m": null,
+     "form": "constant",
+     "pod": 0.9036,
+     "pod_ci": [
+      0.8744,
+      0.9266
+     ],
+     "far": 0.5395,
+     "far_ci": [
+      0.4996,
+      0.5767
+     ],
+     "n_frost": 23341,
+     "n_stations": 214,
+     "n_clusters": 63,
+     "networks": null,
+     "label": null,
+     "reason": "held-out FAR 0.5394659272036507 > 0.5",
+     "fit_all": {
+      "T_c": 2.0,
+      "m": 2.7,
+      "in_sample_pod": 0.9035,
+      "in_sample_far": 0.5383
+     },
+     "n_clusters_unreachable": 0,
+     "threshold_sensitivity": {
+      "-2": {
+       "pod": 0.904,
+       "far": 0.5405,
+       "n_events": 23341
+      },
+      "+0": {
+       "pod": 0.8823,
+       "far": 0.3655,
+       "n_events": 45199
+      },
+      "+2": {
+       "pod": 0.7393,
+       "far": 0.1367,
+       "n_events": 73389
+      }
+     },
+     "loco_m_range": [
+      2.6,
+      2.9
+     ],
+     "linear": {
+      "pod": 0.9036,
+      "far": 0.5395,
+      "replaces_constant": false
+     },
+     "baseline_no_margin": {
+      "pod": 0.5776,
+      "far": 0.3001
+     },
+     "cold_nights_tmin_le_T": 62849,
+     "mean_bias_frost_nights_c": 1.705
+    }
+   },
+   "daily_closed": {
+    "tmin_frost_risk_c": {
+     "threshold_c": 0.0,
+     "status": "failed",
+     "T_c": null,
+     "m": null,
+     "form": "constant",
+     "pod": 0.8915,
+     "pod_ci": [
+      0.8282,
+      0.977
+     ],
+     "far": 0.3502,
+     "far_ci": [
+      0.2267,
+      0.456
+     ],
+     "n_frost": 433,
+     "n_stations": 6,
+     "n_clusters": 6,
+     "networks": null,
+     "label": null,
+     "reason": "held-out POD 0.891455 < 0.9",
+     "fit_all": {
+      "T_c": 2.0,
+      "m": 1.4,
+      "in_sample_pod": 0.903,
+      "in_sample_far": 0.3282
+     },
+     "n_clusters_unreachable": 0,
+     "threshold_sensitivity": {
+      "-2": {
+       "pod": 0.7772,
+       "far": 0.3941,
+       "n_events": 184
+      },
+      "+0": {
+       "pod": 0.8915,
+       "far": 0.3502,
+       "n_events": 433
+      },
+      "+2": {
+       "pod": 0.7754,
+       "far": 0.0898,
+       "n_events": 837
+      }
+     },
+     "loco_m_range": [
+      1.3,
+      1.7
+     ],
+     "linear": {
+      "pod": 0.8891,
+      "far": 0.3441,
+      "replaces_constant": false
+     },
+     "baseline_no_margin": {
+      "pod": 0.6212,
+      "far": 0.1093
+     },
+     "cold_nights_tmin_le_T": 713,
+     "mean_bias_frost_nights_c": 1.284
+    },
+    "tmin_hard_frost_risk_c": {
+     "threshold_c": -2.0,
+     "status": "failed",
+     "T_c": null,
+     "m": null,
+     "form": "constant",
+     "pod": 0.8641,
+     "pod_ci": [
+      0.759,
+      0.9934
+     ],
+     "far": 0.5324,
+     "far_ci": [
+      0.3195,
+      0.6601
+     ],
+     "n_frost": 184,
+     "n_stations": 6,
+     "n_clusters": 6,
+     "networks": null,
+     "label": null,
+     "reason": "held-out POD 0.864130 < 0.9",
+     "fit_all": {
+      "T_c": 2.0,
+      "m": 2.2,
+      "in_sample_pod": 0.9022,
+      "in_sample_far": 0.5015
+     },
+     "n_clusters_unreachable": 0,
+     "threshold_sensitivity": {
+      "-2": {
+       "pod": 0.875,
+       "far": 0.5426,
+       "n_events": 184
+      },
+      "+0": {
+       "pod": 0.9446,
+       "far": 0.4223,
+       "n_events": 433
+      },
+      "+2": {
+       "pod": 0.7754,
+       "far": 0.0898,
+       "n_events": 837
+      }
+     },
+     "loco_m_range": [
+      1.9,
+      2.5
+     ],
+     "linear": {
+      "pod": 0.8641,
+      "far": 0.5296,
+      "replaces_constant": false
+     },
+     "baseline_no_margin": {
+      "pod": 0.4728,
+      "far": 0.1635
+     },
+     "cold_nights_tmin_le_T": 713,
+     "mean_bias_frost_nights_c": 1.688
+    }
+   }
+  },
+  "germany_east": {
+   "history": {
+    "tmin_frost_risk_c": {
+     "threshold_c": 0.0,
+     "status": "validated",
+     "T_c": 2.0,
+     "m": 1.2,
+     "form": "constant",
+     "pod": 0.9048,
+     "pod_ci": [
+      0.8901,
+      0.9176
+     ],
+     "far": 0.1784,
+     "far_ci": [
+      0.1682,
+      0.1881
+     ],
+     "n_frost": 65966,
+     "n_stations": 190,
+     "n_clusters": 81,
+     "networks": [
+      "DWD"
+     ],
+     "label": "validado con estaciones DWD",
+     "reason": null,
+     "fit_all": {
+      "T_c": 2.0,
+      "m": 1.2,
+      "in_sample_pod": 0.9074,
+      "in_sample_far": 0.1805
+     },
+     "n_clusters_unreachable": 0,
+     "threshold_sensitivity": {
+      "-2": {
+       "pod": 0.8842,
+       "far": 0.2385,
+       "n_events": 36351
+      },
+      "+0": {
+       "pod": 0.9048,
+       "far": 0.1784,
+       "n_events": 65966
+      },
+      "+2": {
+       "pod": 0.8344,
+       "far": 0.0345,
+       "n_events": 100070
+      }
+     },
+     "loco_m_range": [
+      1.1,
+      1.2
+     ],
+     "linear": {
+      "pod": 0.9048,
+      "far": 0.1784,
+      "replaces_constant": false
+     },
+     "baseline_no_margin": {
+      "pod": 0.7655,
+      "far": 0.0556
+     },
+     "cold_nights_tmin_le_T": 86477,
+     "mean_bias_frost_nights_c": 1.105
+    },
+    "tmin_hard_frost_risk_c": {
+     "threshold_c": -2.0,
+     "status": "validated",
+     "T_c": 2.0,
+     "m": 1.5,
+     "form": "constant",
+     "pod": 0.9114,
+     "pod_ci": [
+      0.8921,
+      0.9296
+     ],
+     "far": 0.2887,
+     "far_ci": [
+      0.2725,
+      0.3028
+     ],
+     "n_frost": 36351,
+     "n_stations": 190,
+     "n_clusters": 81,
+     "networks": [
+      "DWD"
+     ],
+     "label": "validado con estaciones DWD",
+     "reason": null,
+     "fit_all": {
+      "T_c": 2.0,
+      "m": 1.5,
+      "in_sample_pod": 0.9129,
+      "in_sample_far": 0.2892
+     },
+     "n_clusters_unreachable": 0,
+     "threshold_sensitivity": {
+      "-2": {
+       "pod": 0.9114,
+       "far": 0.2887,
+       "n_events": 36351
+      },
+      "+0": {
+       "pod": 0.9272,
+       "far": 0.2159,
+       "n_events": 65966
+      },
+      "+2": {
+       "pod": 0.8344,
+       "far": 0.0345,
+       "n_events": 100070
+      }
+     },
+     "loco_m_range": [
+      1.3,
+      1.5
+     ],
+     "linear": {
+      "pod": 0.9045,
+      "far": 0.2726,
+      "replaces_constant": false
+     },
+     "baseline_no_margin": {
+      "pod": 0.7216,
+      "far": 0.074
+     },
+     "cold_nights_tmin_le_T": 86477,
+     "mean_bias_frost_nights_c": 1.271
+    }
+   },
+   "daily_closed": {
+    "tmin_frost_risk_c": {
+     "threshold_c": 0.0,
+     "status": "sin_validar",
+     "T_c": null,
+     "m": null,
+     "form": "constant",
+     "reason": "sin validar: daily_closed has no German stations"
+    },
+    "tmin_hard_frost_risk_c": {
+     "threshold_c": -2.0,
+     "status": "sin_validar",
+     "T_c": null,
+     "m": null,
+     "form": "constant",
+     "reason": "sin validar: daily_closed has no German stations"
+    }
+   }
+  },
+  "germany_south": {
+   "history": {
+    "tmin_frost_risk_c": {
+     "threshold_c": 0.0,
+     "status": "validated",
+     "T_c": 2.0,
+     "m": 1.3,
+     "form": "constant",
+     "pod": 0.9016,
+     "pod_ci": [
+      0.8909,
+      0.911
+     ],
+     "far": 0.1768,
+     "far_ci": [
+      0.165,
+      0.1888
+     ],
+     "n_frost": 101830,
+     "n_stations": 250,
+     "n_clusters": 83,
+     "networks": [
+      "DWD"
+     ],
+     "label": "validado con estaciones DWD",
+     "reason": null,
+     "fit_all": {
+      "T_c": 2.0,
+      "m": 1.3,
+      "in_sample_pod": 0.9003,
+      "in_sample_far": 0.1738
+     },
+     "n_clusters_unreachable": 0,
+     "threshold_sensitivity": {
+      "-2": {
+       "pod": 0.8809,
+       "far": 0.2467,
+       "n_events": 59898
+      },
+      "+0": {
+       "pod": 0.9016,
+       "far": 0.1768,
+       "n_events": 101830
+      },
+      "+2": {
+       "pod": 0.826,
+       "far": 0.0456,
+       "n_events": 145142
+      }
+     },
+     "loco_m_range": [
+      1.3,
+      1.4
+     ],
+     "linear": {
+      "pod": 0.9016,
+      "far": 0.1768,
+      "replaces_constant": false
+     },
+     "baseline_no_margin": {
+      "pod": 0.7606,
+      "far": 0.0669
+     },
+     "cold_nights_tmin_le_T": 125614,
+     "mean_bias_frost_nights_c": 1.208
+    },
+    "tmin_hard_frost_risk_c": {
+     "threshold_c": -2.0,
+     "status": "validated",
+     "T_c": 2.0,
+     "m": 1.6,
+     "form": "constant",
+     "pod": 0.9052,
+     "pod_ci": [
+      0.8924,
+      0.9174
+     ],
+     "far": 0.281,
+     "far_ci": [
+      0.2659,
+      0.2965
+     ],
+     "n_frost": 59898,
+     "n_stations": 250,
+     "n_clusters": 83,
+     "networks": [
+      "DWD"
+     ],
+     "label": "validado con estaciones DWD",
+     "reason": null,
+     "fit_all": {
+      "T_c": 2.0,
+      "m": 1.6,
+      "in_sample_pod": 0.9055,
+      "in_sample_far": 0.2813
+     },
+     "n_clusters_unreachable": 0,
+     "threshold_sensitivity": {
+      "-2": {
+       "pod": 0.9052,
+       "far": 0.281,
+       "n_events": 59898
+      },
+      "+0": {
+       "pod": 0.9198,
+       "far": 0.2005,
+       "n_events": 101830
+      },
+      "+2": {
+       "pod": 0.826,
+       "far": 0.0456,
+       "n_events": 145142
+      }
+     },
+     "loco_m_range": [
+      1.5,
+      1.6
+     ],
+     "linear": {
+      "pod": 0.9052,
+      "far": 0.281,
+      "replaces_constant": false
+     },
+     "baseline_no_margin": {
+      "pod": 0.6951,
+      "far": 0.097
+     },
+     "cold_nights_tmin_le_T": 125614,
+     "mean_bias_frost_nights_c": 1.361
+    }
+   },
+   "daily_closed": {
+    "tmin_frost_risk_c": {
+     "threshold_c": 0.0,
+     "status": "sin_validar",
+     "T_c": null,
+     "m": null,
+     "form": "constant",
+     "reason": "sin validar: daily_closed has no German stations"
+    },
+    "tmin_hard_frost_risk_c": {
+     "threshold_c": -2.0,
+     "status": "sin_validar",
+     "T_c": null,
+     "m": null,
+     "form": "constant",
+     "reason": "sin validar: daily_closed has no German stations"
+    }
+   }
+  },
+  "interior_south": {
+   "history": {
+    "tmin_frost_risk_c": {
+     "threshold_c": 0.0,
+     "status": "failed",
+     "T_c": null,
+     "m": null,
+     "form": "constant",
+     "pod": 0.8998,
+     "pod_ci": [
+      0.853,
+      0.9444
+     ],
+     "far": 0.6132,
+     "far_ci": [
+      0.5613,
+      0.6643
+     ],
+     "n_frost": 10903,
+     "n_stations": 153,
+     "n_clusters": 72,
+     "networks": null,
+     "label": null,
+     "reason": "held-out POD 0.899844 < 0.9",
+     "fit_all": {
+      "T_c": 4.0,
+      "m": 3.4,
+      "in_sample_pod": 0.9048,
+      "in_sample_far": 0.615
+     },
+     "n_clusters_unreachable": 0,
+     "threshold_sensitivity": {
+      "-2": {
+       "pod": 0.8365,
+       "far": 0.6871,
+       "n_events": 4684
+      },
+      "+0": {
+       "pod": 0.8998,
+       "far": 0.6132,
+       "n_events": 10903
+      },
+      "+2": {
+       "pod": 0.8438,
+       "far": 0.3849,
+       "n_events": 21929
+      }
+     },
+     "loco_m_range": [
+      3.0,
+      3.4
+     ],
+     "linear": {
+      "pod": 0.8998,
+      "far": 0.6132,
+      "replaces_constant": false
+     },
+     "baseline_no_margin": {
+      "pod": 0.4733,
+      "far": 0.2641
+     },
+     "cold_nights_tmin_le_T": 30599,
+     "mean_bias_frost_nights_c": 2.428
+    },
+    "tmin_hard_frost_risk_c": {
+     "threshold_c": -2.0,
+     "status": "failed",
+     "T_c": null,
+     "m": null,
+     "form": "constant",
+     "pod": 0.8894,
+     "pod_ci": [
+      0.7818,
+      0.9724
+     ],
+     "far": 0.7629,
+     "far_ci": [
+      0.7166,
+      0.8098
+     ],
+     "n_frost": 4684,
+     "n_stations": 153,
+     "n_clusters": 72,
+     "networks": null,
+     "label": null,
+     "reason": "held-out POD 0.889411 < 0.9",
+     "fit_all": {
+      "T_c": 3.0,
+      "m": 4.3,
+      "in_sample_pod": 0.9014,
+      "in_sample_far": 0.763
+     },
+     "n_clusters_unreachable": 0,
+     "threshold_sensitivity": {
+      "-2": {
+       "pod": 0.8894,
+       "far": 0.7629,
+       "n_events": 4684
+      },
+      "+0": {
+       "pod": 0.8685,
+       "far": 0.5715,
+       "n_events": 10903
+      },
+      "+2": {
+       "pod": 0.7197,
+       "far": 0.2858,
+       "n_events": 21929
+      }
+     },
+     "loco_m_range": [
+      3.4,
+      4.4
+     ],
+     "linear": {
+      "pod": 0.8875,
+      "far": 0.7629,
+      "replaces_constant": false
+     },
+     "baseline_no_margin": {
+      "pod": 0.3296,
+      "far": 0.3402
+     },
+     "cold_nights_tmin_le_T": 22545,
+     "mean_bias_frost_nights_c": 3.132
+    }
+   },
+   "daily_closed": {
+    "tmin_frost_risk_c": {
+     "threshold_c": 0.0,
+     "status": "failed",
+     "T_c": null,
+     "m": null,
+     "form": "constant",
+     "pod": 0.7983,
+     "pod_ci": [
+      0.1273,
+      1.0
+     ],
+     "far": 0.7086,
+     "far_ci": [
+      0.6391,
+      0.9565
+     ],
+     "n_frost": 119,
+     "n_stations": 5,
+     "n_clusters": 5,
+     "networks": null,
+     "label": null,
+     "reason": "held-out POD 0.798319 < 0.9",
+     "fit_all": {
+      "T_c": 3.0,
+      "m": 2.8,
+      "in_sample_pod": 0.9076,
+      "in_sample_far": 0.625
+     },
+     "n_clusters_unreachable": 0,
+     "threshold_sensitivity": {
+      "-2": {
+       "pod": 0.8857,
+       "far": 0.8075,
+       "n_events": 35
+      },
+      "+0": {
+       "pod": 0.7983,
+       "far": 0.7086,
+       "n_events": 119
+      },
+      "+2": {
+       "pod": 0.7193,
+       "far": 0.4209,
+       "n_events": 285
+      }
+     },
+     "loco_m_range": [
+      0.3,
+      3.8
+     ],
+     "linear": {
+      "pod": 0.7983,
+      "far": 0.7121,
+      "replaces_constant": false
+     },
+     "baseline_no_margin": {
+      "pod": 0.6723,
+      "far": 0.1753
+     },
+     "cold_nights_tmin_le_T": 307,
+     "mean_bias_frost_nights_c": 0.967
+    },
+    "tmin_hard_frost_risk_c": {
+     "threshold_c": -2.0,
+     "status": "failed",
+     "T_c": null,
+     "m": null,
+     "form": "constant",
+     "pod": 0.8857,
+     "pod_ci": [
+      0.1111,
+      1.0
+     ],
+     "far": 0.7417,
+     "far_ci": [
+      0.5714,
+      0.8889
+     ],
+     "n_frost": 35,
+     "n_stations": 5,
+     "n_clusters": 5,
+     "networks": null,
+     "label": null,
+     "reason": "held-out POD 0.885714 < 0.9",
+     "fit_all": {
+      "T_c": 2.0,
+      "m": 1.8,
+      "in_sample_pod": 0.9143,
+      "in_sample_far": 0.6404
+     },
+     "n_clusters_unreachable": 0,
+     "threshold_sensitivity": {
+      "-2": {
+       "pod": 0.8857,
+       "far": 0.7417,
+       "n_events": 35
+      },
+      "+0": {
+       "pod": 0.7815,
+       "far": 0.5327,
+       "n_events": 119
+      },
+      "+2": {
+       "pod": 0.5895,
+       "far": 0.1923,
+       "n_events": 285
+      }
+     },
+     "loco_m_range": [
+      1.1,
+      3.5
+     ],
+     "linear": {
+      "pod": 0.8857,
+      "far": 0.7417,
+      "replaces_constant": false
+     },
+     "baseline_no_margin": {
+      "pod": 0.5429,
+      "far": 0.3448
+     },
+     "cold_nights_tmin_le_T": 208,
+     "mean_bias_frost_nights_c": 0.448
+    }
+   }
+  },
+  "meseta_north": {
+   "history": {
+    "tmin_frost_risk_c": {
+     "threshold_c": 0.0,
+     "status": "validated",
+     "T_c": 3.0,
+     "m": 2.8,
+     "form": "constant",
+     "pod": 0.9021,
+     "pod_ci": [
+      0.8794,
+      0.9241
+     ],
+     "far": 0.4282,
+     "far_ci": [
+      0.386,
+      0.4754
+     ],
+     "n_frost": 39009,
+     "n_stations": 204,
+     "n_clusters": 67,
+     "networks": [
+      "AEMET"
+     ],
+     "label": "validado con estaciones AEMET",
+     "reason": null,
+     "fit_all": {
+      "T_c": 3.0,
+      "m": 2.8,
+      "in_sample_pod": 0.9011,
+      "in_sample_far": 0.4257
+     },
+     "n_clusters_unreachable": 0,
+     "threshold_sensitivity": {
+      "-2": {
+       "pod": 0.8582,
+       "far": 0.512,
+       "n_events": 19907
+      },
+      "+0": {
+       "pod": 0.9021,
+       "far": 0.4282,
+       "n_events": 39009
+      },
+      "+2": {
+       "pod": 0.7994,
+       "far": 0.1976,
+       "n_events": 64344
+      }
+     },
+     "loco_m_range": [
+      2.8,
+      2.9
+     ],
+     "linear": {
+      "pod": 0.9021,
+      "far": 0.4282,
+      "replaces_constant": false
+     },
+     "baseline_no_margin": {
+      "pod": 0.576,
+      "far": 0.1743
+     },
+     "cold_nights_tmin_le_T": 64104,
+     "mean_bias_frost_nights_c": 2.109
+    },
+    "tmin_hard_frost_risk_c": {
+     "threshold_c": -2.0,
+     "status": "failed",
+     "T_c": null,
+     "m": null,
+     "form": "constant",
+     "pod": 0.9071,
+     "pod_ci": [
+      0.8797,
+      0.932
+     ],
+     "far": 0.5762,
+     "far_ci": [
+      0.5355,
+      0.619
+     ],
+     "n_frost": 19907,
+     "n_stations": 204,
+     "n_clusters": 67,
+     "networks": null,
+     "label": null,
+     "reason": "held-out FAR 0.5762425493969118 > 0.5",
+     "fit_all": {
+      "T_c": 2.0,
+      "m": 3.4,
+      "in_sample_pod": 0.9077,
+      "in_sample_far": 0.5761
+     },
+     "n_clusters_unreachable": 0,
+     "threshold_sensitivity": {
+      "-2": {
+       "pod": 0.9071,
+       "far": 0.5762,
+       "n_events": 19907
+      },
+      "+0": {
+       "pod": 0.8372,
+       "far": 0.3492,
+       "n_events": 39009
+      },
+      "+2": {
+       "pod": 0.6792,
+       "far": 0.1292,
+       "n_events": 64344
+      }
+     },
+     "loco_m_range": [
+      3.2,
+      3.4
+     ],
+     "linear": {
+      "pod": 0.9027,
+      "far": 0.574,
+      "replaces_constant": false
+     },
+     "baseline_no_margin": {
+      "pod": 0.4491,
+      "far": 0.2311
+     },
+     "cold_nights_tmin_le_T": 50185,
+     "mean_bias_frost_nights_c": 2.505
+    }
+   },
+   "daily_closed": {
+    "tmin_frost_risk_c": {
+     "threshold_c": 0.0,
+     "status": "failed",
+     "T_c": null,
+     "m": null,
+     "form": "constant",
+     "pod": 0.8853,
+     "pod_ci": [
+      0.778,
+      0.9666
+     ],
+     "far": 0.2076,
+     "far_ci": [
+      0.14,
+      0.2769
+     ],
+     "n_frost": 401,
+     "n_stations": 5,
+     "n_clusters": 5,
+     "networks": null,
+     "label": null,
+     "reason": "held-out POD 0.885287 < 0.9",
+     "fit_all": {
+      "T_c": 2.0,
+      "m": 0.4,
+      "in_sample_pod": 0.9027,
+      "in_sample_far": 0.1865
+     },
+     "n_clusters_unreachable": 0,
+     "threshold_sensitivity": {
+      "-2": {
+       "pod": 0.75,
+       "far": 0.4167,
+       "n_events": 140
+      },
+      "+0": {
+       "pod": 0.8853,
+       "far": 0.2076,
+       "n_events": 401
+      },
+      "+2": {
+       "pod": 0.8845,
+       "far": 0.1202,
+       "n_events": 753
+      }
+     },
+     "loco_m_range": [
+      0.1,
+      0.5
+     ],
+     "linear": {
+      "pod": 0.8853,
+      "far": 0.2076,
+      "replaces_constant": false
+     },
+     "baseline_no_margin": {
+      "pod": 0.8105,
+      "far": 0.131
+     },
+     "cold_nights_tmin_le_T": 757,
+     "mean_bias_frost_nights_c": 0.184
+    },
+    "tmin_hard_frost_risk_c": {
+     "threshold_c": -2.0,
+     "status": "failed",
+     "T_c": null,
+     "m": null,
+     "form": "constant",
+     "pod": 0.8857,
+     "pod_ci": [
+      0.8,
+      0.9896
+     ],
+     "far": 0.5231,
+     "far_ci": [
+      0.3246,
+      0.6714
+     ],
+     "n_frost": 140,
+     "n_stations": 5,
+     "n_clusters": 5,
+     "networks": null,
+     "label": null,
+     "reason": "held-out POD 0.885714 < 0.9",
+     "fit_all": {
+      "T_c": 2.0,
+      "m": 1.2,
+      "in_sample_pod": 0.9071,
+      "in_sample_far": 0.5208
+     },
+     "n_clusters_unreachable": 0,
+     "threshold_sensitivity": {
+      "-2": {
+       "pod": 0.8857,
+       "far": 0.5231,
+       "n_events": 140
+      },
+      "+0": {
+       "pod": 0.98,
+       "far": 0.3417,
+       "n_events": 401
+      },
+      "+2": {
+       "pod": 0.8845,
+       "far": 0.1202,
+       "n_events": 753
+      }
+     },
+     "loco_m_range": [
+      1.0,
+      1.3
+     ],
+     "linear": {
+      "pod": 0.8857,
+      "far": 0.5231,
+      "replaces_constant": false
+     },
+     "baseline_no_margin": {
+      "pod": 0.7214,
+      "far": 0.3311
+     },
+     "cold_nights_tmin_le_T": 757,
+     "mean_bias_frost_nights_c": 0.38
+    }
+   }
+  }
+ }
+}

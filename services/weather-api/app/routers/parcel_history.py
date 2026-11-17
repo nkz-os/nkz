@@ -33,9 +33,11 @@ from fastapi.responses import JSONResponse
 from app.auth import require_auth
 from app.routers.parcel_daily import _fetch_parcel_entity, _num, _parcel_elevation, _parse_day
 from app.routers.parcels import _normalize_parcel_id, _resolve_parcel_location
+from app.services import frost_risk
 from app.services.history import archive, cache as cache_mod
 from app.services.history.aggregate import daily_from_hourly, hourly_rows, local_date
 from app.services.history.deadline import Deadline, DeadlineExceeded
+from app.services.history.method_version import TMIN_METHOD_VERSION
 from app.services.history.validation import validation_for
 from app.services.history.year import history_year, peek_cell
 
@@ -60,6 +62,8 @@ DAY_DEFINITION = ("parcel local civil day; hourly precipitation and radiation st
 DAILY_UNITS = {
     "tmin_c": "degC", "tmax_c": "degC", "tmean_c": "degC", "precip_mm": "mm", "et0_mm": "mm",
     "radiation_mj_m2": "MJ m-2", "vapour_pressure_kpa": "kPa", "rh_mean_pct": "%", "wind2m_ms": "m s-1",
+    # frost-risk Tmin (additive, derived from tmin_c; null where not calibrated): see services/frost_risk.py
+    "tmin_frost_risk_c": "degC", "tmin_hard_frost_risk_c": "degC",
 }
 HOURLY_UNITS = {
     "t_c": "degC", "td_c": "degC", "rh_pct": "%", "precip_mm": "mm", "radiation_w_m2": "W m-2",
@@ -246,6 +250,22 @@ def _serve(parcel_id: str, start: str, end: str, resolution: str, vars: Optional
     incomplete.sort()
     if incomplete and not _retry_promise():
         return JSONResponse({"detail": "history cache unavailable"}, status_code=503)
+    ref = docs[max(docs)] if docs else (next(iter(support.values())) if support else None)
+    if ref is not None:
+        coastal = bool(ref.get("coastal"))
+    else:
+        info = peek_cell(lat, lon, elev)
+        coastal = bool(info and info.coastal)
+    frost_fields = [v for v in wanted if v in frost_risk.FIELDS]
+    frost_prov: Dict[str, Dict[str, Any]] = {}
+    region, island = frost_risk.frost_risk_context(lat, lon) if frost_fields else (None, None)
+
+    def frost_value(field: str, tmin_c: Optional[float]):
+        return frost_risk.frost_risk_tmin(tmin_c, region, "history", TMIN_METHOD_VERSION["history"], field,
+                                          off_mainland_box=island, coastal=coastal)
+
+    for f in frost_fields:
+        frost_prov[f] = frost_value(f, None)[1]
     cap = latest if latest is not None else today
     rows: List[Dict[str, Any]] = []
     all_docs = {**support, **docs}
@@ -264,11 +284,16 @@ def _serve(parcel_id: str, start: str, end: str, resolution: str, vars: Optional
         rows.extend(part)
     key = "date" if resolution == "daily" else "time"
     rows.sort(key=lambda r: r[key])
+    for f in frost_fields:      # tmin_c is read before the column filter: it need not be requested
+        for r in rows:
+            r[f] = frost_value(f, r.get("tmin_c"))[0]
     rows = [{k: r[k] for k in (key, *wanted)} for r in rows]
 
-    ref = docs[max(docs)] if docs else (next(iter(support.values())) if support else None)
     prov: Dict[str, Any] = {}
     for v in wanted:
+        if v in frost_prov:
+            prov[v] = frost_prov[v]
+            continue
         src = _DAILY_FROM[v] if resolution == "daily" else v
         if ref is not None:
             p = dict(ref["provenance"][src])
@@ -282,11 +307,6 @@ def _serve(parcel_id: str, start: str, end: str, resolution: str, vars: Optional
             if resolution == "daily":
                 prov[v]["day_definition"] = DAY_DEFINITION
 
-    if ref is not None:
-        coastal = bool(ref.get("coastal"))
-    else:
-        info = peek_cell(lat, lon, elev)
-        coastal = bool(info and info.coastal)
     body: Dict[str, Any] = {
         "parcel_id": parcel_urn,
         "start": start,
@@ -296,7 +316,7 @@ def _serve(parcel_id: str, start: str, end: str, resolution: str, vars: Optional
         ("days" if resolution == "daily" else "hours"): rows,
         "units": {v: units[v] for v in wanted},
         "provenance": prov,
-        "validation": {v: validation_for(lat, lon, v, resolution, coastal=coastal) for v in wanted},
+        "validation": {v: validation_for(lat, lon, v, resolution, coastal=coastal) for v in wanted if v not in frost_prov},
         "attribution": _attribution(today.year),
     }
     headers = {}

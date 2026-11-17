@@ -28,7 +28,9 @@ from app.auth import require_auth
 from app.deps import get_db_connection
 from app.config import settings
 from app.routers.parcels import _normalize_parcel_id, _orion_headers, _resolve_parcel_location
-from app.services import sensor_daily
+from app.services import frost_risk, sensor_daily
+from app.services.history.method_version import TMIN_METHOD_VERSION
+from app.services.history.year import resolve_cell
 from app.services.daily_fill import fetch_open_meteo_daily, fetch_open_meteo_forecast, plan_fill
 from app.services.daily_totals import GDD_METHODS, compute_totals
 
@@ -64,6 +66,9 @@ _UNITS = {
     "hours_below_zero": "h",
     # coldest of two models: a warning input for frost, not an expected temperature
     "tmin_coldest_c": "degC",
+    # frost-risk Tmin: closed stored days only (see services/frost_risk.py)
+    "tmin_frost_risk_c": "degC",
+    "tmin_hard_frost_risk_c": "degC",
 }
 
 _SOURCE = (
@@ -189,6 +194,56 @@ def _apply_sensors(tenant_id: str, parcel_urn: str, d0: date, d1: date, days: Li
         logger.warning("IoT sensors unavailable for %s tenant=%s: %s", parcel_urn, tenant_id, e)
         sensor_daily.merge(days, {})
         return {"sensor_devices": [], "sensors_unavailable": True}
+
+
+def _apply_frost_risk(days: List[Dict[str, Any]], parcel_urn: str, tenant_id: str,
+                      entity: Optional[Dict[str, Any]], loc) -> Dict[str, Dict[str, Any]]:
+    """Set the frost-risk fields on `days` and return their provenance.
+
+    Only closed days read from the stored parcel series (the series the margins were fitted to)
+    can carry a value: filled, sensor-overridden, running and forecast days are null. The parcel
+    is looked up only when some region is validated at all, since otherwise every value is null.
+    """
+    version = TMIN_METHOD_VERSION["daily_closed"]
+    fields = frost_risk.FIELDS
+    for rec in days:
+        for f in fields:
+            rec[f] = None
+    candidates = [
+        d for d in days
+        if d["kind"] == "closed" and d["source"] == "parcel_weather"
+        and (d.get("sources") or {}).get("tmin_c") != "iot_sensor"
+    ]
+    region = island = None
+    coastal: Optional[bool] = False
+    if candidates and any(frost_risk.any_validated("daily_closed", f) for f in fields):
+        if entity is None:
+            entity = _fetch_parcel_entity(parcel_urn, tenant_id)
+        if loc is None and entity:
+            try:
+                loc = _resolve_parcel_location(entity)
+            except Exception as e:  # noqa: BLE001 — unusable geometry means no region
+                logger.warning("parcel location unusable for frost risk %s: %s", parcel_urn, e)
+        if loc is not None:
+            lon, lat = loc
+            region, island = frost_risk.frost_risk_context(lat, lon)
+            elev = _parcel_elevation(entity) if entity else None
+            if region is not None and elev is not None and elev > 0:
+                try:
+                    coastal = resolve_cell(lat, lon, elev).coastal      # the history coastal rule
+                except Exception as e:  # noqa: BLE001 — an undetermined cell is not served
+                    logger.warning("cell probe for frost risk failed %s: %s", parcel_urn, type(e).__name__)
+                    coastal = None
+            else:
+                coastal = None
+    prov: Dict[str, Dict[str, Any]] = {}
+    for f in fields:
+        _, prov[f] = frost_risk.frost_risk_tmin(None, region, "daily_closed", version, f,
+                                                off_mainland_box=island, coastal=coastal)
+        for d in candidates:
+            d[f] = frost_risk.frost_risk_tmin(d.get("tmin_c"), region, "daily_closed", version, f,
+                                              off_mainland_box=island, coastal=coastal)[0]
+    return prov
 
 
 def _parcel_elevation(entity: Dict[str, Any]) -> Optional[float]:
@@ -392,6 +447,8 @@ def get_parcel_daily(
         else:
             rec["kind"] = "closed" if day < local_today else ("running" if day == local_today else "forecast")
 
+    frost_prov = _apply_frost_risk(days, parcel_urn, tenant_id, entity, loc)
+
     missing = [d["date"] for d in days if d["source"] is None]
     closed = [d for d in days if d["kind"] == "closed" and d["source"] is not None]
 
@@ -415,6 +472,7 @@ def get_parcel_daily(
         "missing_reasons": reasons,
         "totals": compute_totals(closed, base_temp, upper_cutoff, method),
         "units": _UNITS,
+        "provenance": frost_prov,
         **sensors,
         **extra,
         **({"gdd_method": method} if base_temp is not None else {}),
