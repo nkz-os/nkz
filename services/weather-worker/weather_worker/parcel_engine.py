@@ -243,7 +243,22 @@ class ParcelWeatherEngine:
         headers = self._make_headers(tenant_id)
         base = f"{self.orion_url}/ngsi-ld/v1/entities"
 
-        # 1. Live parcel ids — skip prune on ANY non-200 (false-zero guard)
+        # 1. WeatherObserved first: a WeatherObserved created after this read is
+        # not a candidate, so a parcel created between the two reads cannot
+        # lose its new entity. A parcel deleted in between is pruned next cycle.
+        try:
+            rw = requests.get(
+                base, params={"type": "WeatherObserved", "options": "keyValues", "limit": self.PRUNE_PAGE_LIMIT},
+                headers=headers, timeout=15,
+            )
+        except Exception as e:
+            logger.warning("Prune %s: WeatherObserved query failed (%s) — skip", tenant_id, e)
+            return 0
+        if rw.status_code != 200 or not isinstance(rw.json(), list):
+            logger.warning("Prune %s: WeatherObserved query %s — skip", tenant_id, rw.status_code)
+            return 0
+
+        # 2. Live parcel ids — skip prune on ANY non-200 (false-zero guard)
         try:
             rp = requests.get(
                 base, params={"type": "AgriParcel", "options": "keyValues", "limit": self.PRUNE_PAGE_LIMIT},
@@ -266,27 +281,21 @@ class ParcelWeatherEngine:
             logger.warning("Prune %s: no live parcels returned — skip", tenant_id)
             return 0
 
-        # 2. WeatherObserved for the tenant
-        try:
-            rw = requests.get(
-                base, params={"type": "WeatherObserved", "options": "keyValues", "limit": self.PRUNE_PAGE_LIMIT},
-                headers=headers, timeout=15,
-            )
-        except Exception as e:
-            logger.warning("Prune %s: WeatherObserved query failed (%s) — skip", tenant_id, e)
-            return 0
-        if rw.status_code != 200 or not isinstance(rw.json(), list):
-            logger.warning("Prune %s: WeatherObserved query %s — skip", tenant_id, rw.status_code)
-            return 0
-
-        # 3. Orphans: parcel not in the live set. The platform context maps
-        # refParcel to locatedAt's IRI, so Orion may compact it under either name.
+        # 3. Orphans: only this engine's parcel-bound entities, whose parcel is
+        # not in the live set. The platform context maps refParcel to
+        # locatedAt's IRI, so Orion may compact it under either name.
+        own_prefix = f"urn:ngsi-ld:WeatherObserved:{tenant_id}:parcel-"
         orphans = []
         for wo in rw.json():
+            wid = wo.get("id")
+            if not isinstance(wid, str) or not wid.startswith(own_prefix):
+                continue
             loc = wo.get("locatedAt") or wo.get("refParcel")
             ref = loc.get("object") if isinstance(loc, dict) else loc
-            if ref and ref not in live and wo.get("id"):
-                orphans.append(wo["id"])
+            if not isinstance(ref, str) or not ref.startswith("urn:ngsi-ld:AgriParcel:"):
+                continue
+            if ref not in live:
+                orphans.append(wid)
         if not orphans:
             return 0
 

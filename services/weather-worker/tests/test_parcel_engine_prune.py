@@ -140,3 +140,42 @@ def test_prune_skips_when_no_live_parcels():
         [{"id": "urn:ngsi-ld:WeatherObserved:t:parcel-X", "locatedAt": "urn:ngsi-ld:AgriParcel:X"}],
     )
     assert deleted == 0 and ids is None
+
+
+def test_prune_reads_weather_before_parcels():
+    """A parcel created between the two reads must not lose its new WeatherObserved."""
+    eng = _engine()
+    order = []
+
+    def fake_get(url, params=None, headers=None, timeout=None):
+        order.append(params.get("type"))
+        if params.get("type") == "AgriParcel":
+            return _resp(200, [{"id": "urn:ngsi-ld:AgriParcel:P1"}])
+        return _resp(200, [])
+
+    with patch.object(pe.requests, "get", side_effect=fake_get), \
+         patch.object(pe.requests, "post"):
+        eng._prune_orphan_weather_observed("t")
+    assert order == ["WeatherObserved", "AgriParcel"]
+
+
+def test_prune_never_deletes_entities_it_does_not_own():
+    deleted, ids = _run_prune(
+        [{"id": "urn:ngsi-ld:AgriParcel:P1"}],
+        [
+            # station entity: no relationship
+            {"id": "urn:ngsi-ld:WeatherObserved:t:station-1"},
+            # not a parcel-bound id
+            {"id": "urn:ngsi-ld:WeatherObserved:t:zone-9", "refParcel": "urn:ngsi-ld:AgriParcel:GONE"},
+            # relationship to something that is not a parcel
+            {"id": "urn:ngsi-ld:WeatherObserved:t:parcel-Z", "refParcel": "urn:ngsi-ld:Device:Z"},
+            # another tenant's id form
+            {"id": "urn:ngsi-ld:WeatherObserved:other:parcel-Q", "refParcel": "urn:ngsi-ld:AgriParcel:Q"},
+            # list-valued relationship: skipped, no crash
+            {"id": "urn:ngsi-ld:WeatherObserved:t:parcel-L", "refParcel": ["urn:ngsi-ld:AgriParcel:L"]},
+            # the one real orphan
+            {"id": "urn:ngsi-ld:WeatherObserved:t:parcel-GONE", "refParcel": "urn:ngsi-ld:AgriParcel:GONE"},
+        ],
+    )
+    assert deleted == 1
+    assert ids == ["urn:ngsi-ld:WeatherObserved:t:parcel-GONE"]
