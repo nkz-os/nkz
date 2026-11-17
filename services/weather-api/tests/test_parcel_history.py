@@ -189,7 +189,8 @@ def test_default_vars_are_all_daily_vars(env):
     c, _ = env
     b = _get(c).json()
     assert set(b["days"][0]) == {"date", "tmin_c", "tmax_c", "tmean_c", "precip_mm", "et0_mm",
-                                 "radiation_mj_m2", "vapour_pressure_kpa", "rh_mean_pct", "wind2m_ms"}
+                                 "radiation_mj_m2", "vapour_pressure_kpa", "rh_mean_pct", "wind2m_ms",
+                                 "tmin_frost_risk_c", "tmin_hard_frost_risk_c"}
 
 
 def test_hourly_response_schema(env):
