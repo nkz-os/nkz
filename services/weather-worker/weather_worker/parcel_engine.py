@@ -1236,10 +1236,16 @@ class ParcelWeatherEngine:
             logger.warning("Error fetching Open-Meteo closed day: %s", e)
             return None
 
-    @staticmethod
-    def _local_yesterday(offset_seconds: int) -> str:
+    # A closed day is written once and never changes, so it is not written until
+    # the provider has settled it: yesterday becomes closable at this local hour.
+    CLOSED_DAY_SETTLE_HOURS = 6
+
+    @classmethod
+    def _local_closable_day(cls, offset_seconds: int) -> str:
+        """Latest local day that may be closed: yesterday from 06:00 local on."""
         local_now = datetime.utcnow() + timedelta(seconds=int(offset_seconds))
-        return (local_now - timedelta(days=1)).strftime("%Y-%m-%d")
+        settled = local_now - timedelta(hours=cls.CLOSED_DAY_SETTLE_HOURS)
+        return (settled - timedelta(days=1)).strftime("%Y-%m-%d")
 
     def _downscale_closed_day_temps(
         self,
@@ -1287,7 +1293,10 @@ class ParcelWeatherEngine:
         """Publish yesterday (final) for every parcel that does not have it yet.
 
         Runs after the running-value pass on every cycle; parcels already done for
-        their local "yesterday" cost nothing. Writes go through a pacer so the
+        their latest closable day cost nothing. A stored day is written ONCE: only
+        days after the entity's ``dateObserved`` are published, yesterday only from
+        ``CLOSED_DAY_SETTLE_HOURS`` local, and a parcel whose entity cannot be read
+        is skipped until the next cycle. Writes go through a pacer so the
         WeatherObserved subscription (throttling 1 s) never drops a notification.
 
         Missed days are recovered (#1043 review): the in-memory done flag alone
@@ -1309,13 +1318,18 @@ class ParcelWeatherEngine:
                 if not tenant_id or not pid:
                     continue
                 done = self._closed_done.get((tenant_id, pid))
-                if done and done[0] == self._local_yesterday(done[1]):
-                    continue  # yesterday already published by this process
+                if done and done[0] >= self._local_closable_day(done[1]):
+                    continue  # latest closable day already stored
                 # Reconciliation (#1043 review): the in-memory flag alone cannot
                 # know what was published before a restart — ask the entity.
-                last = cd._read_last_published_day(
-                    tenant_id, pid, orion_url=self.orion_url
-                )
+                try:
+                    last = cd._read_last_published_day(
+                        tenant_id, pid, orion_url=self.orion_url
+                    )
+                except cd.LastPublishedUnreadable:
+                    # Unknown whether the day is stored: writing could store it twice.
+                    stats["closed_day_errors"] += 1
+                    continue
                 if last is None and done:
                     last = done[0]
                 pending.append((p, last))
@@ -1343,7 +1357,7 @@ class ParcelWeatherEngine:
                     logger.warning("Closed day skipped: response has no utc_offset_seconds")
                     stats["closed_day_errors"] += len(pending)
                     continue
-                day = self._local_yesterday(offset)
+                day = self._local_closable_day(offset)
                 days_available = set((data.get("daily") or {}).get("time") or [])
                 for p, last in pending:
                     parcel_lon, parcel_lat = p["_centroid"]
@@ -1364,6 +1378,12 @@ class ParcelWeatherEngine:
                             (d0 + timedelta(days=i)).isoformat()
                             for i in range((d1 - d0).days + 1)
                         )
+                    if last:
+                        # Write once: a day already stored is never written again.
+                        missing = {d for d in missing if d > last}
+                    if not missing:
+                        self._closed_done[(p["_tenant"], p["id"])] = (last, int(offset))
+                        continue
                     recovered = 0
                     ok_any = False
                     for d in sorted(missing):
