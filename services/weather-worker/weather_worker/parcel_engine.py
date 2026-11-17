@@ -221,11 +221,43 @@ class ParcelWeatherEngine:
 
     # Page size of the prune queries (Orion's maximum).
     PRUNE_PAGE_LIMIT = 1000
+    # Per-parcel entities this engine writes and prunes when the parcel is gone.
+    PRUNE_TYPES = ("WeatherObserved", "WeatherForecast")
+    # Bound on candidate paging (PRUNE_MAX_PAGES * PRUNE_PAGE_LIMIT entities per type).
+    PRUNE_MAX_PAGES = 20
+
+    def _list_prune_candidates(
+        self, tenant_id: str, etype: str, base: str, headers: Dict[str, str]
+    ) -> List[Dict[str, Any]]:
+        """Every ``etype`` entity of the tenant, paged. A failed or partial read
+        only means fewer candidates, never a wrong deletion."""
+        out: List[Dict[str, Any]] = []
+        for page in range(self.PRUNE_MAX_PAGES):
+            try:
+                r = requests.get(
+                    base,
+                    params={"type": etype, "options": "keyValues",
+                            "limit": self.PRUNE_PAGE_LIMIT, "offset": page * self.PRUNE_PAGE_LIMIT},
+                    headers=headers, timeout=15,
+                )
+                batch = r.json() if r.status_code == 200 else None
+            except Exception as e:
+                logger.warning("Prune %s: %s query failed (%s)", tenant_id, etype, e)
+                break
+            if not isinstance(batch, list):
+                logger.warning("Prune %s: %s query %s", tenant_id, etype, r.status_code)
+                break
+            out.extend(batch)
+            if len(batch) < self.PRUNE_PAGE_LIMIT:
+                break
+        else:
+            logger.warning("Prune %s: %s paging stopped at %d pages", tenant_id, etype, self.PRUNE_MAX_PAGES)
+        return out
 
     def _prune_orphan_weather_observed(self, tenant_id: str) -> int:
-        """Delete WeatherObserved entities whose parcel no longer exists.
+        """Delete WeatherObserved / WeatherForecast entities whose parcel no longer exists.
 
-        Safe by construction: each WeatherObserved is 1:1 with a parcel
+        Safe by construction: each entity is 1:1 with a parcel
         (id ``...:parcel-<id>``, ``locatedAt`` -> parcel), so deleting an orphan
         never affects a live parcel. False-zero guard: never prune when
         ``CONTEXT_URL`` is unset or the live-parcel query is not HTTP 200 — a
@@ -243,22 +275,17 @@ class ParcelWeatherEngine:
         headers = self._make_headers(tenant_id)
         base = f"{self.orion_url}/ngsi-ld/v1/entities"
 
-        # 1. WeatherObserved first: a WeatherObserved created after this read is
-        # not a candidate, so a parcel created between the two reads cannot
-        # lose its new entity. A parcel deleted in between is pruned next cycle.
-        try:
-            rw = requests.get(
-                base, params={"type": "WeatherObserved", "options": "keyValues", "limit": self.PRUNE_PAGE_LIMIT},
-                headers=headers, timeout=15,
-            )
-        except Exception as e:
-            logger.warning("Prune %s: WeatherObserved query failed (%s) — skip", tenant_id, e)
-            return 0
-        if rw.status_code != 200 or not isinstance(rw.json(), list):
-            logger.warning("Prune %s: WeatherObserved query %s — skip", tenant_id, rw.status_code)
-            return 0
+        # 1. Candidates first: an entity created after this read is not a
+        # candidate, so a parcel created before the parcel read cannot lose its
+        # new entities. A parcel deleted in between is pruned next cycle.
+        candidates = {
+            etype: self._list_prune_candidates(tenant_id, etype, base, headers)
+            for etype in self.PRUNE_TYPES
+        }
 
-        # 2. Live parcel ids — skip prune on ANY non-200 (false-zero guard)
+        # 2. Live parcel ids — skip prune on ANY non-200 (false-zero guard).
+        # One page only: paging could miss a live parcel if another is deleted
+        # while reading, and its entities would then be deleted.
         try:
             rp = requests.get(
                 base, params={"type": "AgriParcel", "options": "keyValues", "limit": self.PRUNE_PAGE_LIMIT},
@@ -284,18 +311,19 @@ class ParcelWeatherEngine:
         # 3. Orphans: only this engine's parcel-bound entities, whose parcel is
         # not in the live set. The platform context maps refParcel to
         # locatedAt's IRI, so Orion may compact it under either name.
-        own_prefix = f"urn:ngsi-ld:WeatherObserved:{tenant_id}:parcel-"
         orphans = []
-        for wo in rw.json():
-            wid = wo.get("id")
-            if not isinstance(wid, str) or not wid.startswith(own_prefix):
-                continue
-            loc = wo.get("locatedAt") or wo.get("refParcel")
-            ref = loc.get("object") if isinstance(loc, dict) else loc
-            if not isinstance(ref, str) or not ref.startswith("urn:ngsi-ld:AgriParcel:"):
-                continue
-            if ref not in live:
-                orphans.append(wid)
+        for etype, entities in candidates.items():
+            own_prefix = f"urn:ngsi-ld:{etype}:{tenant_id}:parcel-"
+            for ent in entities:
+                eid = ent.get("id")
+                if not isinstance(eid, str) or not eid.startswith(own_prefix):
+                    continue
+                loc = ent.get("locatedAt") or ent.get("refParcel")
+                ref = loc.get("object") if isinstance(loc, dict) else loc
+                if not isinstance(ref, str) or not ref.startswith("urn:ngsi-ld:AgriParcel:"):
+                    continue
+                if ref not in live:
+                    orphans.append(eid)
         if not orphans:
             return 0
 
@@ -313,7 +341,7 @@ class ParcelWeatherEngine:
                 if resp.status_code in (200, 204, 207):
                     deleted += len(chunk)
                     logger.info(
-                        "Prune %s: deleted %d orphan WeatherObserved", tenant_id, len(chunk)
+                        "Prune %s: deleted %d orphan weather entities", tenant_id, len(chunk)
                     )
                 else:
                     logger.warning("Prune %s: delete -> %s", tenant_id, resp.status_code)

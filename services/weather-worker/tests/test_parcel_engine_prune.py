@@ -156,7 +156,7 @@ def test_prune_reads_weather_before_parcels():
     with patch.object(pe.requests, "get", side_effect=fake_get), \
          patch.object(pe.requests, "post"):
         eng._prune_orphan_weather_observed("t")
-    assert order == ["WeatherObserved", "AgriParcel"]
+    assert order == ["WeatherObserved", "WeatherForecast", "AgriParcel"]
 
 
 def test_prune_never_deletes_entities_it_does_not_own():
@@ -179,3 +179,91 @@ def test_prune_never_deletes_entities_it_does_not_own():
     )
     assert deleted == 1
     assert ids == ["urn:ngsi-ld:WeatherObserved:t:parcel-GONE"]
+
+
+# --- forecasts and paging ----------------------------------------------------------
+
+def _paged_get(parcels, by_type):
+    """by_type: entity type -> list of pages (each a list) or an int status."""
+    calls = []
+
+    def fake_get(url, params=None, headers=None, timeout=None):
+        etype = params.get("type")
+        calls.append((etype, params.get("offset", 0)))
+        if etype == "AgriParcel":
+            return _resp(200, parcels)
+        spec = by_type.get(etype, [])
+        if isinstance(spec, int):
+            return _resp(spec)
+        page = params.get("offset", 0) // params["limit"]
+        return _resp(200, spec[page] if page < len(spec) else [])
+
+    fake_get.calls = calls
+    return fake_get
+
+
+def _prune_with(fake_get):
+    eng = _engine()
+    captured = []
+
+    def fake_post(url, json=None, headers=None, timeout=None):
+        captured.extend(json)
+        return _resp(204)
+
+    with patch.object(pe.requests, "get", side_effect=fake_get), \
+         patch.object(pe.requests, "post", side_effect=fake_post):
+        deleted = eng._prune_orphan_weather_observed("t")
+    return deleted, captured
+
+
+LIVE = [{"id": "urn:ngsi-ld:AgriParcel:P1"}]
+
+
+def test_prune_deletes_orphan_forecasts():
+    get = _paged_get(LIVE, {
+        "WeatherObserved": [[]],
+        "WeatherForecast": [[
+            {"id": "urn:ngsi-ld:WeatherForecast:t:parcel-P1", "refParcel": "urn:ngsi-ld:AgriParcel:P1"},
+            {"id": "urn:ngsi-ld:WeatherForecast:t:parcel-GONE", "refParcel": "urn:ngsi-ld:AgriParcel:GONE"},
+            # a forecast id must not pass as an observed one and vice versa
+            {"id": "urn:ngsi-ld:WeatherObserved:t:parcel-X", "refParcel": "urn:ngsi-ld:AgriParcel:X"},
+        ]],
+    })
+    deleted, ids = _prune_with(get)
+    assert deleted == 1 and ids == ["urn:ngsi-ld:WeatherForecast:t:parcel-GONE"]
+
+
+def test_prune_pages_through_candidates():
+    full = [{"id": f"urn:ngsi-ld:WeatherObserved:t:parcel-P1-{i}", "refParcel": "urn:ngsi-ld:AgriParcel:P1"}
+            for i in range(1000)]
+    orphan = {"id": "urn:ngsi-ld:WeatherObserved:t:parcel-GONE", "refParcel": "urn:ngsi-ld:AgriParcel:GONE"}
+    get = _paged_get(LIVE, {"WeatherObserved": [full, [orphan]], "WeatherForecast": [[]]})
+    deleted, ids = _prune_with(get)
+    assert ids == [orphan["id"]] and deleted == 1
+    assert [o for t, o in get.calls if t == "WeatherObserved"] == [0, 1000]
+
+
+def test_prune_paging_is_capped():
+    full = [{"id": f"urn:ngsi-ld:WeatherObserved:t:parcel-P1-{i}", "refParcel": "urn:ngsi-ld:AgriParcel:P1"}
+            for i in range(1000)]
+    get = _paged_get(LIVE, {"WeatherObserved": [full] * 1000, "WeatherForecast": [[]]})
+    _prune_with(get)
+    pages = [o for t, o in get.calls if t == "WeatherObserved"]
+    assert len(pages) == pe.ParcelWeatherEngine.PRUNE_MAX_PAGES
+
+
+def test_prune_failed_candidate_type_does_not_block_the_other():
+    get = _paged_get(LIVE, {
+        "WeatherObserved": 500,
+        "WeatherForecast": [[{"id": "urn:ngsi-ld:WeatherForecast:t:parcel-GONE",
+                              "refParcel": "urn:ngsi-ld:AgriParcel:GONE"}]],
+    })
+    deleted, ids = _prune_with(get)
+    assert ids == ["urn:ngsi-ld:WeatherForecast:t:parcel-GONE"] and deleted == 1
+
+
+def test_prune_reads_candidates_before_parcels():
+    get = _paged_get(LIVE, {"WeatherObserved": [[]], "WeatherForecast": [[]]})
+    _prune_with(get)
+    types = [t for t, _ in get.calls]
+    assert types.index("AgriParcel") == len(types) - 1
