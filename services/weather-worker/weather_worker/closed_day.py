@@ -146,6 +146,29 @@ def parse_date_observed(entity: Any) -> Optional[str]:
     return value[:10]
 
 
+# Coastal rule, copied from weather-api app/services/history/year.py (CellInfo.coastal)
+# so /daily stored days and /history pick Tmin the same way. Keep them in sync.
+CELL_TOL_DEG = 0.01
+
+
+def grid_cell_is_coastal(grid: Dict[str, Any], corrected: Dict[str, Any]) -> Optional[bool]:
+    """Whether the point is coastal for the Tmin rule; None when a response lacks its cell.
+
+    ``grid`` is the Open-Meteo response with ``elevation=nan`` (raw model cell),
+    ``corrected`` the default call (90 m DEM downscaling). Coastal: the corrected
+    call lands in another cell, or the grid cell is sea (elevation <= 0).
+    """
+    try:
+        g_lat, g_lon = float(grid["latitude"]), float(grid["longitude"])
+        c_lat, c_lon = float(corrected["latitude"]), float(corrected["longitude"])
+    except (KeyError, TypeError, ValueError):
+        return None
+    if abs(g_lat - c_lat) > CELL_TOL_DEG or abs(g_lon - c_lon) > CELL_TOL_DEG:
+        return True
+    elev = grid.get("elevation")
+    return isinstance(elev, (int, float)) and elev <= 0
+
+
 def closed_day_entity_id(tenant_id: str, parcel_id: str) -> str:
     bare = parcel_id.split(":")[-1] if ":" in parcel_id else parcel_id
     return f"urn:ngsi-ld:WeatherObserved:{tenant_id}:parcel-{bare}-daily"

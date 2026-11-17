@@ -34,6 +34,8 @@ def _response(dew=10.0, wind_kmh=18.0, hours=24, daily_over=None):
     daily.update(daily_over or {})
     times = [f"{DAY}T{h:02d}:00" for h in range(hours)]
     return {
+        "latitude": 42.8,
+        "longitude": -1.6,
         "elevation": 500.0,
         "utc_offset_seconds": 7200,
         "daily": daily,
@@ -284,3 +286,28 @@ def test_last_published_reads_whole_entity_so_404_means_absent():
     cd._read_last_published_day("t", PARCEL, orion_url="http://o", http=http)
     url = http.get.call_args.args[0]
     assert url == f"http://o/ngsi-ld/v1/entities/{cd.closed_day_entity_id('t', PARCEL)}"
+
+
+
+# --- grid (elevation=nan) cell vs the default call: coastal rule ------------------
+
+def _cell(lat=42.8, lon=-1.6, elevation=300.0):
+    return {"latitude": lat, "longitude": lon, "elevation": elevation}
+
+
+def test_inland_cell_is_not_coastal():
+    assert cd.grid_cell_is_coastal(_cell(), _cell(elevation=480.0)) is False
+
+
+def test_corrected_call_in_another_cell_is_coastal():
+    assert cd.grid_cell_is_coastal(_cell(), _cell(lat=42.9)) is True
+
+
+def test_sea_grid_cell_is_coastal():
+    assert cd.grid_cell_is_coastal(_cell(elevation=0.0), _cell()) is True
+    assert cd.grid_cell_is_coastal(_cell(elevation=-3.0), _cell()) is True
+
+
+def test_unknown_cells_are_none():
+    assert cd.grid_cell_is_coastal({"elevation": 10.0}, _cell()) is None
+    assert cd.grid_cell_is_coastal(_cell(), {}) is None
