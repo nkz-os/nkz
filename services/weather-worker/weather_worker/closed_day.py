@@ -88,6 +88,10 @@ ATTRIBUTES: Dict[str, Tuple[str, str]] = {
 _DAY_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 
 
+class LastPublishedUnreadable(Exception):
+    """The daily entity could not be read: whether a day is stored is unknown."""
+
+
 def _read_last_published_day(
     tenant_id: str,
     parcel_id: str,
@@ -95,7 +99,12 @@ def _read_last_published_day(
     orion_url: str = "",
     http: Any = requests,
 ) -> Optional[str]:
-    """The ``YYYY-MM-DD`` last described by the parcel's daily entity, if any."""
+    """The ``YYYY-MM-DD`` last described by the parcel's daily entity.
+
+    None only when the entity does not exist (404). Any other failure raises
+    ``LastPublishedUnreadable``: a stored day is written once, so the caller must
+    not publish when it cannot know what is already stored.
+    """
     orion_url = orion_url or os.getenv("ORION_URL", "http://orion-ld-service:1026")
     eid = closed_day_entity_id(tenant_id, parcel_id)
     try:
@@ -104,16 +113,26 @@ def _read_last_published_day(
             headers=inject_fiware_headers({}, tenant=tenant_id, body=None),
             timeout=10,
         )
-        if resp.status_code != 200:
-            return None
-        node = resp.json().get("dateObserved") or {}
-        value = node.get("value") if isinstance(node, dict) else None
-        if isinstance(value, dict):
-            value = value.get("@value")
-        return value[:10] if isinstance(value, str) else None
     except Exception as e:
         logger.warning("closed-day last-published read failed (%s): %s", eid, e)
+        raise LastPublishedUnreadable(eid) from e
+    if resp.status_code == 404:
         return None
+    if resp.status_code != 200:
+        logger.warning("closed-day last-published read %s returned %s", eid, resp.status_code)
+        raise LastPublishedUnreadable(eid)
+    try:
+        node = resp.json().get("dateObserved") or {}
+    except Exception as e:
+        logger.warning("closed-day last-published body unreadable (%s): %s", eid, e)
+        raise LastPublishedUnreadable(eid) from e
+    value = node.get("value") if isinstance(node, dict) else None
+    if isinstance(value, dict):
+        value = value.get("@value")
+    if not isinstance(value, str) or not _DAY_RE.match(value[:10]):
+        logger.warning("closed-day entity %s has no readable dateObserved", eid)
+        raise LastPublishedUnreadable(eid)
+    return value[:10]
 
 
 def closed_day_entity_id(tenant_id: str, parcel_id: str) -> str:
