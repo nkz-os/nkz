@@ -19,7 +19,6 @@ from functools import lru_cache
 from typing import Any, Dict, Optional, Tuple
 
 from app.services.history.method_version import TMIN_METHOD_VERSION
-from app.services.history.validation import regions_containing
 
 logger = logging.getLogger(__name__)
 
@@ -45,17 +44,6 @@ OFF_MAINLAND_BOXES = (
     ("melilla", 35.2, 35.4, -3.0, -2.8),
 )
 
-# The /history validation unit (bbox regions of validation_summary.json, AEMET / DWD networks) ->
-# the frost_margins region it feeds. One explicit table; the SIAR regions are another network and
-# are not part of the margins. Ids not listed here are ignored.
-VALIDATION_TO_MARGIN_REGION = {
-    "ebro_upper": "ebro_upper",
-    "meseta_north": "meseta_north",
-    "interior_south": "interior_south",
-    "east_coast": "east_coast",
-    "germany_east": "germany_east",
-    "germany_south": "germany_south",
-}
 # Calibration assigned every station to the nearest P1 zone centroid of its country; the same
 # rule picks the margin region of a parcel. Centroids copied as data from
 # validation/frostrisk/regions.json ("centroids"): (lat, lon, country).
@@ -67,7 +55,24 @@ _CENTROIDS = {
     "germany_east": (51.73582, 12.91062, "DE"),
     "germany_south": (49.150067, 10.974333, "DE"),
 }
-_NETWORK_COUNTRY = {"AEMET": "ES", "DWD": "DE"}
+
+# ASSUMPTION: no country geometry exists in the repo or the calibration (stations carried their
+# network's country). These are COARSE mainland outlines (lon, lat), drawn slightly inside the
+# borders so that a border-line parcel gets null rather than another country's margin. Only
+# Spain and Germany have P1 zones; any other point (Portugal, France, islands...) is not calibrated.
+_COUNTRY_OUTLINES = {
+    "ES": ((-9.2, 43.1), (-8.0, 43.7), (-4.0, 43.45), (-1.85, 43.3), (-1.4, 42.9), (0.7, 42.75),
+           (3.1, 42.35), (3.2, 41.8), (2.2, 41.3), (0.9, 41.0), (0.2, 40.2), (-0.3, 39.4),
+           (-0.1, 38.8), (-0.7, 37.9), (-1.6, 37.5), (-2.2, 36.75), (-4.5, 36.55), (-5.3, 36.15),
+           (-6.3, 36.55), (-7.35, 37.2), (-7.3, 38.0), (-6.95, 38.25), (-7.1, 39.1), (-7.1, 39.65),
+           (-6.9, 40.2), (-6.75, 41.0), (-6.25, 41.5), (-6.55, 41.9), (-8.1, 41.85), (-8.8, 41.95),
+           (-9.1, 42.3)),
+    "DE": ((7.1, 53.4), (8.1, 53.55), (8.7, 53.9), (8.7, 54.8), (9.8, 54.75), (11.0, 54.25),
+           (13.4, 54.45), (14.1, 53.9), (14.2, 52.8), (14.8, 51.9), (14.7, 51.0), (14.2, 50.8),
+           (12.2, 50.3), (12.6, 49.5), (13.7, 48.65), (13.0, 47.8), (12.0, 47.65), (10.4, 47.45),
+           (9.5, 47.65), (7.6, 47.65), (7.65, 48.0), (8.2, 48.95), (7.0, 49.2), (6.4, 49.55),
+           (6.3, 50.2), (6.1, 50.65), (6.05, 51.0), (6.2, 51.9), (7.0, 52.2), (7.1, 52.9)),
+}
 
 
 @lru_cache(maxsize=1)
@@ -110,20 +115,31 @@ def _km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
     return 6371.0 * 2 * math.asin(math.sqrt(a))
 
 
-def margin_region(lat: float, lon: float) -> Optional[str]:
-    """Margin region of a point, or None.
+def _inside(lat: float, lon: float, outline) -> bool:
+    """Ray casting on (lon, lat) vertices."""
+    inside = False
+    n = len(outline)
+    for i in range(n):
+        x1, y1 = outline[i]
+        x2, y2 = outline[(i + 1) % n]
+        if (y1 > lat) != (y2 > lat) and lon < (x2 - x1) * (lat - y1) / (y2 - y1) + x1:
+            inside = not inside
+    return inside
 
-    Coverage is the /history validation lookup (a point must lie in an AEMET or DWD validation
-    bbox); the region is then the nearest P1 centroid of that country, as in the calibration.
-    """
-    countries = {
-        _NETWORK_COUNTRY[net]
-        for rid, net in regions_containing(lat, lon).items()
-        if rid in VALIDATION_TO_MARGIN_REGION and net in _NETWORK_COUNTRY
-    }
-    if len(countries) != 1:
+
+def country_of(lat: float, lon: float) -> Optional[str]:
+    for country, outline in _COUNTRY_OUTLINES.items():
+        if _inside(lat, lon, outline):
+            return country
+    return None
+
+
+def margin_region(lat: float, lon: float) -> Optional[str]:
+    """Margin region of a point: the nearest P1 zone centroid of its country (the calibration
+    rule), or None when the point is in no calibrated country."""
+    country = country_of(lat, lon)
+    if country is None:
         return None
-    country = next(iter(countries))
     return min(
         (r for r, c in _CENTROIDS.items() if c[2] == country),
         key=lambda r: _km(lat, lon, _CENTROIDS[r][0], _CENTROIDS[r][1]),

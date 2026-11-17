@@ -30,15 +30,6 @@ def _resolution_of(entry: dict) -> str:
     return entry.get("resolution") or ("hourly" if entry["variable"] in _HOURLY_VARS else "daily")
 
 
-def regions_containing(lat: float, lon: float) -> dict:
-    """{region id: network} of the validation regions whose bbox contains the point."""
-    return {
-        r["id"]: r["network"]
-        for r in load_summary()["regions"]
-        if r["bbox"][0] <= lat <= r["bbox"][1] and r["bbox"][2] <= lon <= r["bbox"][3]
-    }
-
-
 def validation_for(lat: float, lon: float, var: str, resolution: str, coastal: bool = False) -> Union[List[dict], str]:
     """Entries of the regions whose bbox contains the point, for this variable/resolution.
 
@@ -47,7 +38,11 @@ def validation_for(lat: float, lon: float, var: str, resolution: str, coastal: b
     served from the elevation-corrected response for every variable: only om_elevation rows apply.
     """
     summary = load_summary()
-    inside = regions_containing(lat, lon)
+    inside = {
+        r["id"]
+        for r in summary["regions"]
+        if r["bbox"][0] <= lat <= r["bbox"][1] and r["bbox"][2] <= lon <= r["bbox"][3]
+    }
     method = "om_elevation" if coastal else _SERVED_METHOD.get(var)
     found = [
         dict(e)

@@ -121,25 +121,46 @@ def test_pinned_method_versions_match_the_margins_file():
     assert TMIN_METHOD_VERSION == margins["method_version"]
 
 
-def test_every_margin_region_is_reachable_from_the_validation_unit():
+def test_every_margin_region_has_a_centroid():
     margins = fr.load_margins()
-    assert set(fr.VALIDATION_TO_MARGIN_REGION.values()) == set(margins["regions"]) == set(fr._CENTROIDS)
+    assert set(margins["regions"]) == set(fr._CENTROIDS)
     assert set(fr.FIELDS) == set(margins["fields"])
+
+
+def test_method_version_pins_the_calibration_commit():
+    for v in TMIN_METHOD_VERSION.values():
+        assert "8c7050a" in v
+    for v in fr.load_margins()["method_version"].values():
+        assert v.startswith("nkz@8c7050a")
+    assert TMIN_METHOD_VERSION == fr.load_margins()["method_version"]
 
 
 @pytest.mark.parametrize("pt,region", [
     (EBRO, "ebro_upper"), (DE_SOUTH, "germany_south"), (EAST_COAST, "east_coast"),
     ((52.0, 13.0), "germany_east"), ((41.0, -5.0), "meseta_north"), ((38.5, -4.0), "interior_south"),
-    ((42.0, -3.0), "ebro_upper"),                  # overlap of two validation bboxes: nearest centroid decides
-    ((50.3, 12.0), "germany_south"),               # overlap of the two German bboxes: nearest centroid
+    ((42.0, -3.0), "ebro_upper"), ((50.3, 12.0), "germany_south"),
+    ((42.9, -8.0), "meseta_north"),                 # Galicia: outside any validation bbox, nearest zone
+    ((43.3, -5.8), "meseta_north"),                 # Asturias
+    ((37.4, -6.0), "interior_south"),               # Seville
+    ((54.3, 10.1), "germany_east"),                 # Kiel
 ])
-def test_margin_region_lookup(pt, region):
+def test_margin_region_is_the_nearest_centroid_of_the_country(pt, region):
     assert fr.margin_region(*pt) == region
 
 
-def test_margin_region_none_outside_validation_coverage():
-    assert fr.margin_region(10.0, 100.0) is None
-    assert fr.margin_region(43.2, -8.4) is None        # Galicia: not in any validation bbox
+@pytest.mark.parametrize("pt", [(10.0, 100.0), (38.7, -9.1), (43.6, 1.45), (51.1, 17.0), (52.4, 4.9),
+                                (46.2, 6.1), (28.1, -15.4)])
+def test_margin_region_none_outside_spain_and_germany(pt):
+    assert fr.margin_region(*pt) is None            # Lisbon, Toulouse, Wroclaw, Amsterdam, Geneva, Canary
+
+
+def test_a_galicia_like_point_gets_a_value_when_its_zone_validated(env):
+    c, h = env
+    h["entity"] = th._entity(lat=42.9, lon=-8.0)
+    h["shift"] = -10.5
+    b = _hist(c, vars="tmin_frost_risk_c").json()
+    assert b["days"][0]["tmin_frost_risk_c"] == pytest.approx(-0.5 - _m("meseta_north", "tmin_frost_risk_c")["m"])
+    assert b["provenance"]["tmin_frost_risk_c"]["region"] == "meseta_north"
 
 
 @pytest.mark.parametrize("pt,box", [(CANARY, "canary_islands"), (BALEARIC, "balearic_islands"),
@@ -220,6 +241,7 @@ def test_tmin_c_and_other_fields_are_identical_with_and_without_the_new_fields(e
 
 @pytest.mark.parametrize("pt,reason", [
     ((10.0, 100.0), "sin validar (región no calibrada)"),
+    ((38.7, -9.1), "sin validar (región no calibrada)"),
     (CANARY, "sin validar (isla/fuera de península)"),
     (BALEARIC, "sin validar (isla/fuera de península)"),
 ])
