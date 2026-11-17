@@ -511,7 +511,7 @@ def test_golden_daily_from_hourly_tmin():
         "latest_available": "2024-01-12",
     }
     rows = daily_from_hourly(doc, lat=42.0, elev=400.0)
-    assert rows == [
+    golden = [
         {"date": "2024-01-10", "tmin_c": 3.0, "tmax_c": 11.05, "tmean_c": 7.02, "precip_mm": 5.0, "et0_mm": 2.13,
          "radiation_mj_m2": 19.87, "vapour_pressure_kpa": 0.713, "rh_mean_pct": 74.0, "wind2m_ms": 2.06},
         {"date": "2024-01-11", "tmin_c": 1.9, "tmax_c": 9.95, "tmean_c": 5.92, "precip_mm": 4.6, "et0_mm": 1.93,
@@ -519,6 +519,12 @@ def test_golden_daily_from_hourly_tmin():
         {"date": "2024-01-12", "tmin_c": 0.8, "tmax_c": 8.85, "tmean_c": 4.83, "precip_mm": 4.7, "et0_mm": 1.73,
          "radiation_mj_m2": 19.87, "vapour_pressure_kpa": 0.713, "rh_mean_pct": 74.5, "wind2m_ms": 2.06},
     ]
+    assert [r["date"] for r in rows] == [g["date"] for g in golden]
+    for r, g in zip(rows, golden):
+        assert r["tmin_c"] == g["tmin_c"]                # exact: the value the margins depend on
+        for k, v in g.items():                           # the rest may differ in the last rounded digit across numpy builds
+            if k not in ("date", "tmin_c"):
+                assert r[k] == pytest.approx(v, abs=0.011), (g["date"], k)
 
 
 def test_daily_iot_sensor_day_is_null_with_reason_and_sources_totals_unchanged(dclient, monkeypatch):
