@@ -223,3 +223,73 @@ def test_closed_day_without_raw_tmin_omits_frost_hours():
          patch("weather_worker.closed_day.WritePacer", return_value=MagicMock()):
         eng._publish_closed_days([cluster])
     assert published[0][4]["frost_hours"] is None
+
+
+# --- write once (owner rule: a stored day never changes) ----------------------
+
+def _run(eng, last, resp, dt_cls=_FixedDT):
+    published = []
+    with patch.object(pe, "datetime", dt_cls), \
+         patch("weather_worker.closed_day._read_last_published_day",
+               **({"side_effect": last} if callable(last) or isinstance(last, BaseException) else {"return_value": last})) as rd, \
+         patch.object(eng, "_fetch_openmeteo_closed_day", return_value=resp) as fetch, \
+         patch("weather_worker.closed_day.publish_closed_day",
+               side_effect=lambda *a, **k: published.append(a[3]) or True), \
+         patch("weather_worker.closed_day.WritePacer", return_value=MagicMock()):
+        stats = eng._publish_closed_days([_cluster()])
+    return stats, published, rd, fetch
+
+
+def test_restart_with_yesterday_stored_publishes_nothing():
+    eng = _engine()  # fresh process, like after a deploy
+    s1, pub1, _, _ = _run(eng, "2026-10-07", _response())
+    assert pub1 == [] and s1["closed_day_published"] == 0
+    s2, pub2, rd2, fetch2 = _run(eng, "2026-10-07", _response())
+    assert pub2 == []
+    assert rd2.call_count == 0 and fetch2.call_count == 0  # marked done, nothing re-read
+
+
+def test_unreadable_entity_skips_and_retries():
+    from weather_worker import closed_day as cd
+    eng = _engine()
+    s1, pub1, _, _ = _run(eng, cd.LastPublishedUnreadable("x"), _response())
+    assert pub1 == [] and s1["closed_day_errors"] == 2 and s1["closed_day_published"] == 0
+    s2, pub2, _, _ = _run(eng, None, _response())
+    assert sorted(pub2) == ["2026-10-07", "2026-10-07"]
+
+
+class _Before6(datetime):
+    @classmethod
+    def utcnow(cls):
+        return cls(2026, 10, 8, 3, 0, 0)  # +7200 -> 05:00 local
+
+
+class _At6(datetime):
+    @classmethod
+    def utcnow(cls):
+        return cls(2026, 10, 8, 4, 0, 0)  # +7200 -> 06:00 local
+
+
+def test_before_settle_hour_yesterday_not_closed():
+    eng = _engine()
+    resp = _multi_day_response(["2026-10-05", "2026-10-06", "2026-10-07"])
+    _, pub, _, _ = _run(eng, "2026-10-05", resp, _Before6)
+    assert set(pub) == {"2026-10-06"}
+
+
+def test_after_settle_hour_yesterday_closed():
+    eng = _engine()
+    resp = _multi_day_response(["2026-10-05", "2026-10-06", "2026-10-07"])
+    _, pub, _, _ = _run(eng, "2026-10-06", resp, _At6)
+    assert set(pub) == {"2026-10-07"}
+
+
+def test_unreadable_entity_is_counted_and_logged_as_error(caplog):
+    import logging
+    from weather_worker import closed_day as cd
+    eng = _engine()
+    with caplog.at_level(logging.ERROR, logger=pe.logger.name):
+        s, _, _, _ = _run(eng, cd.LastPublishedUnreadable("x"), _response())
+    assert s["closed_day_unreadable"] == 2
+    errs = [r for r in caplog.records if r.levelno == logging.ERROR and "p1" in r.getMessage()]
+    assert errs and "t-1" in errs[0].getMessage()

@@ -112,11 +112,20 @@ def test_like_wildcards_in_id_are_escaped(client):
     assert "a\\%b\\_c" in pat
 
 
-def test_duplicate_rows_same_day_last_wins(client):
+def test_duplicate_rows_same_day_first_ingested_wins(client):
+    """A stored day never changes: of two rows for one day the first ingested is served."""
     c, h = client
     h["install"]([_row("2026-10-01", tempMin=1.0), _row("2026-10-01", tempMin=2.0)])
     d = c.get(f"/api/weather/parcel/{PID}/daily?start=2026-10-01&end=2026-10-01").json()["days"][0]
-    assert d["tmin_c"] == 2.0
+    assert d["tmin_c"] == 1.0
+
+
+def test_daily_query_orders_by_ingestion(client):
+    c, h = client
+    conn = h["install"]([])
+    c.get(f"/api/weather/parcel/{PID}/daily?start=2026-10-01&end=2026-10-01")
+    q = " ".join(conn.executed[0][0].split())
+    assert "ORDER BY observed_at ASC, ingested_at ASC, id ASC" in q
 
 
 def test_non_numeric_value_is_null_not_coerced(client):

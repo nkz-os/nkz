@@ -239,3 +239,48 @@ def test_entity_frost_hours_attribute_zero_is_published():
     e = cd.build_closed_day_entity("t", PARCEL, (0, 0), DAY, {"frost_hours": 0.0}, context_url="")
     assert e["frostHours"]["unitCode"] == "HUR" and e["frostHours"]["value"] == 0.0
     assert e["frostHours"]["observedAt"] == f"{DAY}T23:59:59Z"
+
+
+# --- last published day: absent (404) vs unreadable (write-once guard) --------
+
+def _http(status=200, body=None, exc=None):
+    http = MagicMock()
+    if exc is not None:
+        http.get.side_effect = exc
+    else:
+        http.get.return_value = MagicMock(status_code=status, json=MagicMock(return_value=body or {}))
+    return http
+
+
+def test_last_published_404_is_none():
+    assert cd._read_last_published_day("t", PARCEL, orion_url="http://o", http=_http(404)) is None
+
+
+def test_last_published_200_returns_day():
+    body = {"dateObserved": {"type": "Property",
+                             "value": {"@type": "DateTime", "@value": "2026-10-07T00:00:00Z"}}}
+    assert cd._read_last_published_day("t", PARCEL, orion_url="http://o", http=_http(200, body)) == DAY
+
+
+def test_last_published_5xx_raises():
+    with pytest.raises(cd.LastPublishedUnreadable):
+        cd._read_last_published_day("t", PARCEL, orion_url="http://o", http=_http(503))
+
+
+def test_last_published_exception_raises():
+    with pytest.raises(cd.LastPublishedUnreadable):
+        cd._read_last_published_day("t", PARCEL, orion_url="http://o", http=_http(exc=TimeoutError("t")))
+
+
+def test_last_published_missing_date_raises():
+    with pytest.raises(cd.LastPublishedUnreadable):
+        cd._read_last_published_day("t", PARCEL, orion_url="http://o", http=_http(200, {"id": "x"}))
+
+
+def test_last_published_reads_whole_entity_so_404_means_absent():
+    """An attrs filter turns 'entity lacks the attribute' (or a context mismatch)
+    into a 404, indistinguishable from 'never published'."""
+    http = _http(404)
+    cd._read_last_published_day("t", PARCEL, orion_url="http://o", http=http)
+    url = http.get.call_args.args[0]
+    assert url == f"http://o/ngsi-ld/v1/entities/{cd.closed_day_entity_id('t', PARCEL)}"
