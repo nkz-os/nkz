@@ -249,7 +249,7 @@ def get_parcel_daily(
               AND entity_type = 'WeatherObserved'
               AND entity_id LIKE %s ESCAPE '\\'
               AND observed_at >= %s AND observed_at < %s
-            ORDER BY observed_at ASC
+            ORDER BY observed_at ASC, ingested_at ASC, id ASC
             """,
             (tenant_id, pattern, lo, hi),
         )
@@ -275,7 +275,8 @@ def get_parcel_daily(
                 m = json.loads(m)
             except json.JSONDecodeError:
                 m = {}
-        by_day[ts.astimezone(timezone.utc).strftime("%Y-%m-%d")] = m  # last row wins
+        # A stored day never changes: the first ingested row of a day is served.
+        by_day.setdefault(ts.astimezone(timezone.utc).strftime("%Y-%m-%d"), m)
 
     days: List[Dict[str, Any]] = []
     for i in range(n_days):
