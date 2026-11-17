@@ -1250,7 +1250,7 @@ class ParcelWeatherEngine:
             return None
 
     def _fetch_openmeteo_closed_day(
-        self, latitude: float, longitude: float, past_days: int = 2
+        self, latitude: float, longitude: float, past_days: int = 2, grid_cell: bool = False
     ) -> Optional[Dict[str, Any]]:
         """Fetch the last ``past_days`` local days plus today for a point.
 
@@ -1260,6 +1260,10 @@ class ParcelWeatherEngine:
         and 2 m wind speed; hourly temperature gives the frost hours.
         ``past_days > 2`` serves the reconciliation of days
         missed while the worker was down.
+
+        ``grid_cell=True`` asks the raw model cell (``elevation=nan``, no DEM
+        downscaling) for the daily minimum and hourly temperature only: the
+        owner rule is that Tmin is not corrected for altitude.
         """
         try:
             params = {
@@ -1277,6 +1281,10 @@ class ParcelWeatherEngine:
                 "hourly": ["dew_point_2m", "wind_speed_10m", "temperature_2m"],
                 "timezone": "auto",
             }
+            if grid_cell:
+                params["elevation"] = "nan"
+                params["daily"] = ["temperature_2m_min"]
+                params["hourly"] = ["temperature_2m"]
             resp = requests.get(f"{self.openmeteo_url}/forecast", params=params, timeout=30)
             if resp.status_code != 200:
                 logger.warning(
@@ -1416,6 +1424,15 @@ class ParcelWeatherEngine:
                     logger.warning("Closed day skipped: response has no utc_offset_seconds")
                     stats["closed_day_errors"] += len(pending)
                     continue
+                # Tmin (and frost hours) come from the raw model cell unless the
+                # point is coastal (owner rule: Tmin is not corrected for altitude).
+                # Without that cell the day cannot be written by the rule: retry.
+                grid = self._fetch_openmeteo_closed_day(lat, lon, past_days=past_days, grid_cell=True)
+                coastal = cd.grid_cell_is_coastal(grid, data) if grid is not None else None
+                if coastal is None:
+                    logger.warning("Closed day skipped: raw-cell temperature unavailable for a cluster")
+                    stats["closed_day_errors"] += len(pending)
+                    continue
                 day = self._local_closable_day(offset)
                 days_available = set((data.get("daily") or {}).get("time") or [])
                 for p, last in pending:
@@ -1445,6 +1462,7 @@ class ParcelWeatherEngine:
                         continue
                     recovered = 0
                     ok_any = False
+                    last_ok = None
                     for d in sorted(missing):
                         if d not in days_available:
                             continue
@@ -1454,15 +1472,29 @@ class ParcelWeatherEngine:
                         values = self._downscale_closed_day_temps(
                             base, p, parcel_lat, parcel_lon, data.get("elevation")
                         )
-                        # Frost hours follow the same altitude shift as the minimum.
-                        # Without a raw minimum the shift is unknown: omit, never guess.
-                        raw_min, new_min = base.get("tmin_c"), values.get("tmin_c")
-                        if raw_min is not None and new_min is not None:
-                            values["frost_hours"] = cd.count_frost_hours(
-                                data.get("hourly") or {}, d, new_min - raw_min
-                            )
+                        if coastal:
+                            # As /history: coastal points keep the corrected series.
+                            # Frost hours follow the same altitude shift as the minimum.
+                            # Without a raw minimum the shift is unknown: omit, never guess.
+                            raw_min, new_min = base.get("tmin_c"), values.get("tmin_c")
+                            if raw_min is not None and new_min is not None:
+                                values["frost_hours"] = cd.count_frost_hours(
+                                    data.get("hourly") or {}, d, new_min - raw_min
+                                )
+                            else:
+                                values["frost_hours"] = None
                         else:
-                            values["frost_hours"] = None
+                            grid_min = cd.compute_closed_day_values(grid, d).get("tmin_c")
+                            if grid_min is None:
+                                # Never freeze a day without Tmin, nor later days over it.
+                                logger.warning(
+                                    "closed day %s parcel %s: raw-cell Tmin missing; retry later",
+                                    d, p["id"],
+                                )
+                                stats["closed_day_errors"] += 1
+                                break
+                            values["tmin_c"] = grid_min
+                            values["frost_hours"] = cd.count_frost_hours(grid.get("hourly") or {}, d)
                         ok = cd.publish_closed_day(
                             p["_tenant"], p["id"], (parcel_lon, parcel_lat), d, values,
                             orion_url=self.orion_url, context_url=self.context_url,
@@ -1470,12 +1502,15 @@ class ParcelWeatherEngine:
                         )
                         if ok:
                             ok_any = True
+                            last_ok = d
                             if d != day:
                                 recovered += 1
                         else:
                             stats["closed_day_errors"] += 1
                     if ok_any:
-                        self._closed_done[(p["_tenant"], p["id"])] = (day, int(offset))
+                        # The last day really stored: a parcel stopped before
+                        # yesterday is retried next cycle.
+                        self._closed_done[(p["_tenant"], p["id"])] = (last_ok, int(offset))
                         stats["closed_day_published"] += 1
                         stats["closed_day_recovered"] += recovered
                 time.sleep(0.5)  # rate limiting between Open-Meteo calls

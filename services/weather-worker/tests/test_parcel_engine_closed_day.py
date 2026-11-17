@@ -41,7 +41,7 @@ def test_pass_publishes_yesterday_once_per_parcel():
         s2 = eng._publish_closed_days([_cluster()])
     assert s1["closed_day_published"] == 2
     assert s2["closed_day_published"] == 0  # already done for that day
-    assert fetch.call_count == 1  # second pass needs no fetch at all
+    assert fetch.call_count == 2  # default + grid call; second pass needs no fetch at all
     days = {a[3] for a, _ in published}
     assert days == {"2026-10-07"}
 
@@ -167,27 +167,102 @@ def test_fetch_requests_hourly_temperature_for_frost_hours():
     assert "temperature_2m" in g.call_args.kwargs["params"]["hourly"]
 
 
-def test_closed_day_counts_frost_hours_after_altitude_delta():
-    """Parcel 500 m above the grid cell is colder: hours at +1 degC raw become frost."""
-    eng = _engine()
-    resp = _response()
-    resp["hourly"]["temperature_2m"] = [1.0] * 6 + [8.0] * 18
-    resp["daily"]["temperature_2m_min"] = [1.0]
+def _two_calls(corr, grid):
+    """Fake _fetch_openmeteo_closed_day: default call vs grid (elevation=nan) call."""
+    def fetch(lat, lon, past_days=2, grid_cell=False):
+        return grid if grid_cell else corr
+    return fetch
+
+
+def _publish_one(eng, cluster, corr, grid, last=None, dt_cls=None):
     published = []
-    cluster = [{"id": "urn:ngsi-ld:AgriParcel:p1", "_tenant": "t-1", "_centroid": (-1.6, 42.8),
-                "_altitude": 1000.0}]
-    resp["elevation"] = 500.0
-    with patch.object(pe, "datetime", _FixedDT), \
-         patch("weather_worker.closed_day._read_last_published_day", return_value=None), \
-         patch.object(eng, "_fetch_openmeteo_closed_day", return_value=resp), \
+    with patch.object(pe, "datetime", dt_cls or _FixedDT), \
+         patch("weather_worker.closed_day._read_last_published_day", return_value=last), \
+         patch.object(eng, "_fetch_openmeteo_closed_day", side_effect=_two_calls(corr, grid)), \
          patch("weather_worker.closed_day.publish_closed_day",
                side_effect=lambda *a, **k: published.append(a) or True), \
          patch("weather_worker.closed_day.WritePacer", return_value=MagicMock()):
-        eng._publish_closed_days([cluster])
+        stats = eng._publish_closed_days([cluster])
+    return stats, published
+
+
+_HIGH = [{"id": "urn:ngsi-ld:AgriParcel:p1", "_tenant": "t-1", "_centroid": (-1.6, 42.8), "_altitude": 1000.0}]
+
+
+def test_coastal_closed_day_keeps_lapse_and_shifted_frost_hours():
+    """Coastal (grid cell is sea): Tmin, Tmax and frost hours as before (as /history does)."""
+    corr = _response()
+    corr["hourly"]["temperature_2m"] = [1.0] * 6 + [8.0] * 18
+    corr["daily"]["temperature_2m_min"] = [1.0]
+    corr["elevation"] = 500.0
+    grid = _response()
+    grid["elevation"] = 0.0
+    _, published = _publish_one(_engine(), _HIGH, corr, grid)
     values = published[0][4]
-    delta = values["tmin_c"] - 1.0
-    assert delta < -1.0  # lapse correction went colder
+    assert values["tmin_c"] - 1.0 < -1.0  # lapse correction went colder
     assert values["frost_hours"] == 6.0
+
+
+def test_inland_closed_day_tmin_and_frost_from_grid_cell():
+    """Owner rule: Tmin is not corrected for altitude; frost hours from the same grid series."""
+    corr = _response()
+    corr["daily"]["temperature_2m_min"] = [1.0]
+    corr["hourly"]["temperature_2m"] = [1.0] * 6 + [8.0] * 18
+    corr["elevation"] = 500.0
+    grid = _response()
+    grid["elevation"] = 450.0
+    grid["daily"]["temperature_2m_min"] = [0.5]
+    grid["hourly"]["temperature_2m"] = [-1.0] * 3 + [5.0] * 21
+    _, published = _publish_one(_engine(), _HIGH, corr, grid)
+    values = published[0][4]
+    assert values["tmin_c"] == 0.5
+    assert values["frost_hours"] == 3.0
+    assert values["tmax_c"] < 24.5  # Tmax still lapse-corrected to the parcel
+
+
+def test_grid_call_failure_publishes_nothing_and_retries():
+    eng = _engine()
+    stats, published = _publish_one(eng, _HIGH, _response(), None)
+    assert published == [] and stats["closed_day_errors"] == 1
+    _, published = _publish_one(eng, _HIGH, _response(), _response())
+    assert [a[3] for a in published] == ["2026-10-07"]
+
+
+def test_inland_day_without_grid_tmin_stops_there():
+    """Never freeze a day without Tmin, nor publish later days over the gap."""
+    days = ["2026-10-05", "2026-10-06", "2026-10-07"]
+    corr = _multi_day_response(days)
+    grid = _multi_day_response(days)
+    grid["daily"]["temperature_2m_min"] = [9.0, None, 9.0]
+    _, published = _publish_one(_engine(), _HIGH, corr, grid, last="2026-10-04")
+    assert [a[3] for a in published] == ["2026-10-05"]
+
+
+def test_unknown_cell_publishes_nothing():
+    grid = _response()
+    del grid["latitude"]
+    stats, published = _publish_one(_engine(), _HIGH, _response(), grid)
+    assert published == [] and stats["closed_day_errors"] == 1
+
+
+def test_fetch_grid_cell_requests_elevation_nan():
+    eng = _engine()
+    resp = MagicMock(status_code=200)
+    resp.json.return_value = {"daily": {}}
+    with patch.object(pe.requests, "get", return_value=resp) as g:
+        eng._fetch_openmeteo_closed_day(42.8, -1.6, past_days=4, grid_cell=True)
+    params = g.call_args.kwargs["params"]
+    assert params["elevation"] == "nan" and params["past_days"] == 4 and params["timezone"] == "auto"
+    assert params["daily"] == ["temperature_2m_min"] and params["hourly"] == ["temperature_2m"]
+
+
+def test_fetch_default_call_sends_no_elevation():
+    eng = _engine()
+    resp = MagicMock(status_code=200)
+    resp.json.return_value = {"daily": {}}
+    with patch.object(pe.requests, "get", return_value=resp) as g:
+        eng._fetch_openmeteo_closed_day(42.8, -1.6)
+    assert "elevation" not in g.call_args.kwargs["params"]
 
 
 def test_closed_day_without_altitude_correction_counts_raw_hours():
@@ -207,25 +282,14 @@ def test_closed_day_without_altitude_correction_counts_raw_hours():
     assert published[0][4]["frost_hours"] == 2.0
 
 
-def test_closed_day_without_raw_tmin_omits_frost_hours():
-    eng = _engine()
-    resp = _response()
-    resp["hourly"]["temperature_2m"] = [-1.0] * 24
-    resp["daily"]["temperature_2m_min"] = [None]
-    published = []
-    cluster = [{"id": "urn:ngsi-ld:AgriParcel:p1", "_tenant": "t-1", "_centroid": (-1.6, 42.8),
-                "_altitude": 1000.0}]
-    with patch.object(pe, "datetime", _FixedDT), \
-         patch("weather_worker.closed_day._read_last_published_day", return_value=None), \
-         patch.object(eng, "_fetch_openmeteo_closed_day", return_value=resp), \
-         patch("weather_worker.closed_day.publish_closed_day",
-               side_effect=lambda *a, **k: published.append(a) or True), \
-         patch("weather_worker.closed_day.WritePacer", return_value=MagicMock()):
-        eng._publish_closed_days([cluster])
+def test_coastal_closed_day_without_raw_tmin_omits_frost_hours():
+    corr = _response()
+    corr["hourly"]["temperature_2m"] = [-1.0] * 24
+    corr["daily"]["temperature_2m_min"] = [None]
+    grid = _response()
+    grid["elevation"] = 0.0
+    _, published = _publish_one(_engine(), _HIGH, corr, grid)
     assert published[0][4]["frost_hours"] is None
-
-
-# --- write once (owner rule: a stored day never changes) ----------------------
 
 def _run(eng, last, resp, dt_cls=_FixedDT):
     published = []
@@ -293,3 +357,17 @@ def test_unreadable_entity_is_counted_and_logged_as_error(caplog):
     assert s["closed_day_unreadable"] == 2
     errs = [r for r in caplog.records if r.levelno == logging.ERROR and "p1" in r.getMessage()]
     assert errs and "t-1" in errs[0].getMessage()
+
+
+def test_stopped_parcel_is_retried_next_cycle():
+    """The in-memory done flag must name the last day really published, not yesterday."""
+    days = ["2026-10-05", "2026-10-06", "2026-10-07"]
+    corr = _multi_day_response(days)
+    grid = _multi_day_response(days)
+    grid["daily"]["temperature_2m_min"] = [9.0, None, 9.0]
+    eng = _engine()
+    _publish_one(eng, _HIGH, corr, grid, last="2026-10-04")
+    assert eng._closed_done[("t-1", "urn:ngsi-ld:AgriParcel:p1")][0] == "2026-10-05"
+    grid["daily"]["temperature_2m_min"] = [9.0, 9.0, 9.0]
+    _, published = _publish_one(eng, _HIGH, corr, grid, last="2026-10-05")
+    assert [a[3] for a in published] == ["2026-10-06", "2026-10-07"]
