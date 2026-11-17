@@ -219,6 +219,9 @@ class ParcelWeatherEngine:
         logger.info(f"Total parcels discovered: {len(all_parcels)}")
         return all_parcels
 
+    # Page size of the prune queries (Orion's maximum).
+    PRUNE_PAGE_LIMIT = 1000
+
     def _prune_orphan_weather_observed(self, tenant_id: str) -> int:
         """Delete WeatherObserved entities whose parcel no longer exists.
 
@@ -240,24 +243,12 @@ class ParcelWeatherEngine:
         headers = self._make_headers(tenant_id)
         base = f"{self.orion_url}/ngsi-ld/v1/entities"
 
-        # 1. Live parcel ids — skip prune on ANY non-200 (false-zero guard)
-        try:
-            rp = requests.get(
-                base, params={"type": "AgriParcel", "options": "keyValues", "limit": 1000},
-                headers=headers, timeout=15,
-            )
-        except Exception as e:
-            logger.warning("Prune %s: parcel query failed (%s) — skip", tenant_id, e)
-            return 0
-        if rp.status_code != 200 or not isinstance(rp.json(), list):
-            logger.warning("Prune %s: parcel query %s — skip", tenant_id, rp.status_code)
-            return 0
-        live = {p["id"] for p in rp.json() if p.get("id")}
-
-        # 2. WeatherObserved for the tenant
+        # 1. WeatherObserved first: a WeatherObserved created after this read is
+        # not a candidate, so a parcel created between the two reads cannot
+        # lose its new entity. A parcel deleted in between is pruned next cycle.
         try:
             rw = requests.get(
-                base, params={"type": "WeatherObserved", "options": "keyValues", "limit": 1000},
+                base, params={"type": "WeatherObserved", "options": "keyValues", "limit": self.PRUNE_PAGE_LIMIT},
                 headers=headers, timeout=15,
             )
         except Exception as e:
@@ -267,13 +258,44 @@ class ParcelWeatherEngine:
             logger.warning("Prune %s: WeatherObserved query %s — skip", tenant_id, rw.status_code)
             return 0
 
-        # 3. Orphans: locatedAt parcel not in the live set
+        # 2. Live parcel ids — skip prune on ANY non-200 (false-zero guard)
+        try:
+            rp = requests.get(
+                base, params={"type": "AgriParcel", "options": "keyValues", "limit": self.PRUNE_PAGE_LIMIT},
+                headers=headers, timeout=15,
+            )
+        except Exception as e:
+            logger.warning("Prune %s: parcel query failed (%s) — skip", tenant_id, e)
+            return 0
+        if rp.status_code != 200 or not isinstance(rp.json(), list):
+            logger.warning("Prune %s: parcel query %s — skip", tenant_id, rp.status_code)
+            return 0
+        parcels = rp.json()
+        if len(parcels) >= self.PRUNE_PAGE_LIMIT:
+            # A full page may be truncated: parcels beyond it would read as orphans.
+            logger.warning("Prune %s: %d parcels fill one page — skip", tenant_id, len(parcels))
+            return 0
+        live = {p["id"] for p in parcels if p.get("id")}
+        if not live:
+            # An empty set can be a false zero: never delete a whole tenant.
+            logger.warning("Prune %s: no live parcels returned — skip", tenant_id)
+            return 0
+
+        # 3. Orphans: only this engine's parcel-bound entities, whose parcel is
+        # not in the live set. The platform context maps refParcel to
+        # locatedAt's IRI, so Orion may compact it under either name.
+        own_prefix = f"urn:ngsi-ld:WeatherObserved:{tenant_id}:parcel-"
         orphans = []
         for wo in rw.json():
-            loc = wo.get("locatedAt")
+            wid = wo.get("id")
+            if not isinstance(wid, str) or not wid.startswith(own_prefix):
+                continue
+            loc = wo.get("locatedAt") or wo.get("refParcel")
             ref = loc.get("object") if isinstance(loc, dict) else loc
-            if ref and ref not in live and wo.get("id"):
-                orphans.append(wo["id"])
+            if not isinstance(ref, str) or not ref.startswith("urn:ngsi-ld:AgriParcel:"):
+                continue
+            if ref not in live:
+                orphans.append(wid)
         if not orphans:
             return 0
 

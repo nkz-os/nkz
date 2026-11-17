@@ -86,3 +86,96 @@ def test_prune_skips_on_parcel_fetch_error():
         deleted = eng._prune_orphan_weather_observed("t")
     assert deleted == 0
     p.assert_not_called()
+
+
+def _run_prune(parcels, wos):
+    eng = _engine()
+
+    def fake_get(url, params=None, headers=None, timeout=None):
+        if params and params.get("type") == "AgriParcel":
+            return _resp(200, parcels)
+        if params and params.get("type") == "WeatherObserved":
+            return _resp(200, wos)
+        return _resp(404)
+
+    captured = {"ids": None}
+
+    def fake_post(url, json=None, headers=None, timeout=None):
+        captured["ids"] = json
+        return _resp(204)
+
+    with patch.object(pe.requests, "get", side_effect=fake_get), \
+         patch.object(pe.requests, "post", side_effect=fake_post):
+        deleted = eng._prune_orphan_weather_observed("t")
+    return deleted, captured["ids"]
+
+
+def test_prune_reads_ref_parcel_alias():
+    """The platform context maps refParcel to locatedAt's IRI: Orion compacts it as refParcel."""
+    deleted, ids = _run_prune(
+        [{"id": "urn:ngsi-ld:AgriParcel:P1"}],
+        [{"id": "urn:ngsi-ld:WeatherObserved:t:parcel-P1", "refParcel": "urn:ngsi-ld:AgriParcel:P1"},
+         {"id": "urn:ngsi-ld:WeatherObserved:t:parcel-GONE", "refParcel": "urn:ngsi-ld:AgriParcel:GONE"},
+         {"id": "urn:ngsi-ld:WeatherObserved:t:parcel-GONE-daily", "refParcel": "urn:ngsi-ld:AgriParcel:GONE"}],
+    )
+    assert deleted == 2
+    assert ids == ["urn:ngsi-ld:WeatherObserved:t:parcel-GONE",
+                   "urn:ngsi-ld:WeatherObserved:t:parcel-GONE-daily"]
+
+
+def test_prune_skips_when_parcel_list_is_full_page():
+    """A full page may be truncated: live parcels beyond it would read as orphans."""
+    parcels = [{"id": f"urn:ngsi-ld:AgriParcel:P{i}"} for i in range(1000)]
+    deleted, ids = _run_prune(
+        parcels,
+        [{"id": "urn:ngsi-ld:WeatherObserved:t:parcel-X", "locatedAt": "urn:ngsi-ld:AgriParcel:X"}],
+    )
+    assert deleted == 0 and ids is None
+
+
+def test_prune_skips_when_no_live_parcels():
+    """An empty parcel list can be a false zero: never delete a whole tenant."""
+    deleted, ids = _run_prune(
+        [],
+        [{"id": "urn:ngsi-ld:WeatherObserved:t:parcel-X", "locatedAt": "urn:ngsi-ld:AgriParcel:X"}],
+    )
+    assert deleted == 0 and ids is None
+
+
+def test_prune_reads_weather_before_parcels():
+    """A parcel created between the two reads must not lose its new WeatherObserved."""
+    eng = _engine()
+    order = []
+
+    def fake_get(url, params=None, headers=None, timeout=None):
+        order.append(params.get("type"))
+        if params.get("type") == "AgriParcel":
+            return _resp(200, [{"id": "urn:ngsi-ld:AgriParcel:P1"}])
+        return _resp(200, [])
+
+    with patch.object(pe.requests, "get", side_effect=fake_get), \
+         patch.object(pe.requests, "post"):
+        eng._prune_orphan_weather_observed("t")
+    assert order == ["WeatherObserved", "AgriParcel"]
+
+
+def test_prune_never_deletes_entities_it_does_not_own():
+    deleted, ids = _run_prune(
+        [{"id": "urn:ngsi-ld:AgriParcel:P1"}],
+        [
+            # station entity: no relationship
+            {"id": "urn:ngsi-ld:WeatherObserved:t:station-1"},
+            # not a parcel-bound id
+            {"id": "urn:ngsi-ld:WeatherObserved:t:zone-9", "refParcel": "urn:ngsi-ld:AgriParcel:GONE"},
+            # relationship to something that is not a parcel
+            {"id": "urn:ngsi-ld:WeatherObserved:t:parcel-Z", "refParcel": "urn:ngsi-ld:Device:Z"},
+            # another tenant's id form
+            {"id": "urn:ngsi-ld:WeatherObserved:other:parcel-Q", "refParcel": "urn:ngsi-ld:AgriParcel:Q"},
+            # list-valued relationship: skipped, no crash
+            {"id": "urn:ngsi-ld:WeatherObserved:t:parcel-L", "refParcel": ["urn:ngsi-ld:AgriParcel:L"]},
+            # the one real orphan
+            {"id": "urn:ngsi-ld:WeatherObserved:t:parcel-GONE", "refParcel": "urn:ngsi-ld:AgriParcel:GONE"},
+        ],
+    )
+    assert deleted == 1
+    assert ids == ["urn:ngsi-ld:WeatherObserved:t:parcel-GONE"]
