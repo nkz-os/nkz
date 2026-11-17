@@ -56,23 +56,23 @@ _CENTROIDS = {
     "germany_south": (49.150067, 10.974333, "DE"),
 }
 
-# ASSUMPTION: no country geometry exists in the repo or the calibration (stations carried their
-# network's country). These are COARSE mainland outlines (lon, lat), drawn slightly inside the
-# borders so that a border-line parcel gets null rather than another country's margin. Only
-# Spain and Germany have P1 zones; any other point (Portugal, France, islands...) is not calibrated.
-_COUNTRY_OUTLINES = {
-    "ES": ((-9.2, 43.1), (-8.0, 43.7), (-4.0, 43.45), (-1.85, 43.3), (-1.4, 42.9), (0.7, 42.75),
-           (3.1, 42.35), (3.2, 41.8), (2.2, 41.3), (0.9, 41.0), (0.2, 40.2), (-0.3, 39.4),
-           (-0.1, 38.8), (-0.7, 37.9), (-1.6, 37.5), (-2.2, 36.75), (-4.5, 36.55), (-5.3, 36.15),
-           (-6.3, 36.55), (-7.35, 37.2), (-7.3, 38.0), (-6.95, 38.25), (-7.1, 39.1), (-7.1, 39.65),
-           (-6.9, 40.2), (-6.75, 41.0), (-6.25, 41.5), (-6.55, 41.9), (-8.1, 41.85), (-8.8, 41.95),
-           (-9.1, 42.3)),
-    "DE": ((7.1, 53.4), (8.1, 53.55), (8.7, 53.9), (8.7, 54.8), (9.8, 54.75), (11.0, 54.25),
-           (13.4, 54.45), (14.1, 53.9), (14.2, 52.8), (14.8, 51.9), (14.7, 51.0), (14.2, 50.8),
-           (12.2, 50.3), (12.6, 49.5), (13.7, 48.65), (13.0, 47.8), (12.0, 47.65), (10.4, 47.45),
-           (9.5, 47.65), (7.6, 47.65), (7.65, 48.0), (8.2, 48.95), (7.0, 49.2), (6.4, 49.55),
-           (6.3, 50.2), (6.1, 50.65), (6.05, 51.0), (6.2, 51.9), (7.0, 52.2), (7.1, 52.9)),
-}
+COUNTRIES_PATH = os.path.join(os.path.dirname(__file__), "..", "data", "frost_countries.geojson")
+
+
+@lru_cache(maxsize=1)
+def load_countries() -> Dict[str, list]:
+    """{country: [polygon, ...]} (polygon = [outer ring, hole rings...] of (lon, lat)) from the bundled
+    Natural Earth outlines (source cited in the file header). Empty when missing: nothing is served."""
+    try:
+        with open(COUNTRIES_PATH, encoding="utf-8") as fh:
+            doc = json.load(fh)
+        out: Dict[str, list] = {}
+        for f in doc["features"]:
+            out.setdefault(f["properties"]["country"], []).extend(f["geometry"]["coordinates"])
+        return out
+    except (OSError, ValueError, KeyError, TypeError) as exc:
+        logger.error("frost country outlines unavailable: %s: %s", type(exc).__name__, exc)
+        return {}
 
 
 @lru_cache(maxsize=1)
@@ -127,9 +127,13 @@ def _inside(lat: float, lon: float, outline) -> bool:
     return inside
 
 
+def _in_polygon(lat: float, lon: float, polygon) -> bool:
+    return _inside(lat, lon, polygon[0]) and not any(_inside(lat, lon, hole) for hole in polygon[1:])
+
+
 def country_of(lat: float, lon: float) -> Optional[str]:
-    for country, outline in _COUNTRY_OUTLINES.items():
-        if _inside(lat, lon, outline):
+    for country, polygons in load_countries().items():
+        if any(_in_polygon(lat, lon, poly) for poly in polygons):
             return country
     return None
 

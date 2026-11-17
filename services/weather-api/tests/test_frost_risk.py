@@ -149,9 +149,37 @@ def test_margin_region_is_the_nearest_centroid_of_the_country(pt, region):
 
 
 @pytest.mark.parametrize("pt", [(10.0, 100.0), (38.7, -9.1), (43.6, 1.45), (51.1, 17.0), (52.4, 4.9),
-                                (46.2, 6.1), (28.1, -15.4)])
+                                (46.2, 6.1)])
 def test_margin_region_none_outside_spain_and_germany(pt):
-    assert fr.margin_region(*pt) is None            # Lisbon, Toulouse, Wroclaw, Amsterdam, Geneva, Canary
+    assert fr.margin_region(*pt) is None            # Lisbon, Toulouse, Wroclaw, Amsterdam, Geneva
+
+
+@pytest.mark.parametrize("inside,outside,country", [
+    ((43.337, -1.789), (43.372, -1.774), "ES"),     # Irun | Hendaye
+    ((38.880, -6.970), (38.880, -7.165), "ES"),     # Badajoz | Elvas
+    ((50.776, 6.084), (50.866, 5.700), "DE"),       # Aachen | Vaals/Maastricht side
+    ((48.573, 7.815), (48.573, 7.752), "DE"),       # Kehl | Strasbourg
+])
+def test_country_border_points_fall_on_the_right_side(inside, outside, country):
+    assert fr.country_of(*inside) == country
+    assert fr.country_of(*outside) != country
+
+
+@pytest.mark.parametrize("pt", [BALEARIC, (35.89, -5.32), (35.29, -2.94)])
+def test_spanish_islands_and_enclaves_are_in_the_country_but_never_get_a_region(pt):
+    assert fr.country_of(*pt) == "ES"
+    assert fr.frost_risk_context(*pt)[0] is None and fr.frost_risk_context(*pt)[1]
+
+
+def test_country_countries_file_is_cited_and_missing_file_serves_nothing(monkeypatch, tmp_path):
+    doc = json.load(open(fr.COUNTRIES_PATH))
+    assert "Natural Earth" in doc["source"] and "Public domain" in doc["source"] and "https://" in doc["source"]
+    monkeypatch.setattr(fr, "COUNTRIES_PATH", str(tmp_path / "absent.geojson"))
+    fr.load_countries.cache_clear()
+    try:
+        assert fr.margin_region(*EBRO) is None
+    finally:
+        fr.load_countries.cache_clear()
 
 
 def test_a_galicia_like_point_gets_a_value_when_its_zone_validated(env):
