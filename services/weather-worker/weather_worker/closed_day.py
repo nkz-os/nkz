@@ -124,16 +124,25 @@ def _read_last_published_day(
         logger.warning("closed-day last-published read %s returned %s", eid, resp.status_code)
         raise LastPublishedUnreadable(eid)
     try:
-        node = resp.json().get("dateObserved") or {}
+        entity = resp.json()
     except Exception as e:
         logger.warning("closed-day last-published body unreadable (%s): %s", eid, e)
         raise LastPublishedUnreadable(eid) from e
+    day = parse_date_observed(entity)
+    if day is None:
+        logger.warning("closed-day entity %s has no readable dateObserved", eid)
+        raise LastPublishedUnreadable(eid)
+    return day
+
+
+def parse_date_observed(entity: Any) -> Optional[str]:
+    """``YYYY-MM-DD`` of a daily entity's ``dateObserved``, or None if unreadable."""
+    node = entity.get("dateObserved") if isinstance(entity, dict) else None
     value = node.get("value") if isinstance(node, dict) else None
     if isinstance(value, dict):
         value = value.get("@value")
     if not isinstance(value, str) or not _DAY_RE.match(value[:10]):
-        logger.warning("closed-day entity %s has no readable dateObserved", eid)
-        raise LastPublishedUnreadable(eid)
+        return None
     return value[:10]
 
 
