@@ -967,7 +967,9 @@
       "ros2_namespace": "Namespace ROS2",
       "ros2_namespace_placeholder": "Ex. : /robot_nord_01",
       "ros2_namespace_hint": "Namespace ROS2 unique. Les identifiants réseau sont générés à la fin.",
-      "isobus_compatible": "Compatible ISOBUS (ISO 11783)"
+      "isobus_compatible": "Compatible ISOBUS (ISO 11783)",
+      "dimensions": "Dimensions",
+      "dimensions_hint": "Facultatives. Elles améliorent les fourrières, les demi-tours et le guidage ; vous pouvez les compléter plus tard dans l'éditeur."
     },
     "fields": {
       "name_required": "Nom *",

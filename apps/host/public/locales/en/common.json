@@ -943,7 +943,9 @@
       "ros2_namespace": "ROS2 namespace",
       "ros2_namespace_placeholder": "e.g. /robot_north_01",
       "ros2_namespace_hint": "Unique ROS2 namespace. Network credentials are generated when you finish.",
-      "isobus_compatible": "ISOBUS compatible (ISO 11783)"
+      "isobus_compatible": "ISOBUS compatible (ISO 11783)",
+      "dimensions": "Dimensions",
+      "dimensions_hint": "Optional. They improve headlands, turns and guidance; you can complete them later in the editor."
     },
     "fields": {
       "name_required": "Name *",

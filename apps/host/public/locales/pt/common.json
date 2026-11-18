@@ -967,7 +967,9 @@
       "ros2_namespace": "Namespace ROS2",
       "ros2_namespace_placeholder": "Ex.: /robot_norte_01",
       "ros2_namespace_hint": "Namespace ROS2 único. As credenciais de rede são geradas no final.",
-      "isobus_compatible": "Compatível com ISOBUS (ISO 11783)"
+      "isobus_compatible": "Compatível com ISOBUS (ISO 11783)",
+      "dimensions": "Dimensões",
+      "dimensions_hint": "Opcionais. Melhoram as cabeceiras, as viragens e a orientação; pode completá-las depois no editor."
     },
     "fields": {
       "name_required": "Nome *",

@@ -944,7 +944,9 @@
       "ros2_namespace": "ROS2 namespace-a",
       "ros2_namespace_placeholder": "Adib.: /robot_iparra_01",
       "ros2_namespace_hint": "ROS2 namespace bakarra. Sareko kredentzialak amaitzean sortzen dira.",
-      "isobus_compatible": "ISOBUS-ekin bateragarria (ISO 11783)"
+      "isobus_compatible": "ISOBUS-ekin bateragarria (ISO 11783)",
+      "dimensions": "Neurriak",
+      "dimensions_hint": "Aukerakoak. Goiburuak, birak eta gidatzea hobetzen dituzte; geroago osa ditzakezu editorean."
     },
     "fields": {
       "name_required": "Izena *",

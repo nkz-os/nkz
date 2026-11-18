@@ -1,6 +1,7 @@
 import api from '@/services/api';
 import type { FleetFormData } from '../types';
 import type { RobotCredentials } from '../RobotCredentialsModal';
+import { getSchemasForType } from '@/components/EntityEditor/attributeSchemas';
 
 export interface FleetSubmitResult {
   robotCredentials: RobotCredentials | null;
@@ -52,6 +53,9 @@ export async function submitFleet(
   if (formData.isobusCompatible !== undefined) {
     entity.isobusCompatible = { type: 'Property', value: formData.isobusCompatible };
   }
+  if (entityType === 'ManufacturingMachine') {
+    Object.assign(entity, machineGeometryAttributes(formData));
+  }
 
   if (formData.iconUrl) {
     entity.icon2d = { type: 'Property', value: formData.iconUrl };
@@ -72,4 +76,18 @@ export async function submitFleet(
 
   await api.createSDMEntity(entityType, entity);
   return { robotCredentials: null };
+}
+
+/** Role (tractor when absent) and the given dimensions that belong to it; lengths carry unitCode. */
+function machineGeometryAttributes(formData: FleetFormData): Record<string, unknown> {
+  const category = formData.category ?? 'tractor';
+  const out: Record<string, unknown> = { category: { type: 'Property', value: category } };
+  const geometry = formData.machineGeometry ?? {};
+  for (const schema of getSchemasForType('ManufacturingMachine', category)) {
+    if (schema.section !== 'kinematic') continue;
+    const value = geometry[schema.key];
+    if (value === undefined || value === null || value === '') continue;
+    out[schema.key] = { type: 'Property', value, ...(schema.unitCode ? { unitCode: schema.unitCode } : {}) };
+  }
+  return out;
 }

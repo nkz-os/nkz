@@ -94,6 +94,10 @@ export interface FleetFormData extends BaseFormData {
   manufacturer?: string;
   serialNumber?: string;
   isobusCompatible?: boolean;
+  /** ManufacturingMachine role; tractor when absent (gis-routing lists machines by it). */
+  category?: 'tractor' | 'implement';
+  /** ManufacturingMachine geometry by attribute key (see EntityEditor attributeSchemas); absent = not given. */
+  machineGeometry?: Record<string, number | string>;
   additionalAttributes: Record<string, string | number>;
 }
 
