@@ -152,6 +152,7 @@ function MachineGeometryFields({ data, updateFormData }: {
     <div className="pt-3 border-t border-nkz-border space-y-3">
       <AttributeField
         schema={categorySchema}
+        required
         value={attr(category)}
         onChange={a => updateFormData({ category: (a?.value || undefined) as FleetFormData['category'] })}
       />

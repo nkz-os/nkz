@@ -11,9 +11,11 @@ interface Props {
   value: NGSAttribute | undefined;
   /** undefined = the user emptied the field: the attribute is removed, never saved as ''. */
   onChange: (attr: NGSAttribute | undefined) => void;
+  /** A select that must hold a value: no empty '—' option. */
+  required?: boolean;
 }
 
-export const AttributeField: React.FC<Props> = ({ schema, value, onChange }) => {
+export const AttributeField: React.FC<Props> = ({ schema, value, onChange, required = false }) => {
   const { t } = useI18n();
   const currentValue = value ? getNGSIValue(value) : undefined;
   const help = schema.helpKey ? <p className="text-xs text-nkz-muted">{t(schema.helpKey)}</p> : null;
@@ -53,7 +55,7 @@ export const AttributeField: React.FC<Props> = ({ schema, value, onChange }) => 
           onChange={(e: any) => emit(e.target.value)}
           className="w-full px-3 py-2 border border-nkz-border rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
         >
-          <option value="">—</option>
+          {!required && <option value="">—</option>}
           {schema.options?.map(opt => (
             <option key={opt.value} value={opt.value}>{t(opt.labelKey)}</option>
           ))}
