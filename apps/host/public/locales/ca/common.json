@@ -1883,7 +1883,7 @@
       "mountPosition": "Si l'apero va darrere del tractor o davant (frontal).",
       "implementWidth": "Amplada que treballa a cada passada. En adobadores, l'amplada d'escampat.",
       "transportWidth": "Amplada de l'apero plegat per circular.",
-      "implementOffsetX": "Centre de treball: metres des del punt d'enganx (negatiu = darrere). En una màquina autopropulsada, des del seu eix posterior.",
+      "implementOffsetX": "Centre de treball: metres des del punt d'enganx (negatiu = darrere). En una màquina autopropulsada, des del seu punt de gir (eix posterior, o el centre si és articulada o d'erugues).",
       "implementOffsetY": "Centre de treball desplaçat a la dreta (positiu) o a l'esquerra (negatiu), p. ex. dalladores laterals.",
       "implementLength": "Llargada total de l'apero."
     }

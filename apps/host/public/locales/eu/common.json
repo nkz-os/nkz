@@ -1860,7 +1860,7 @@
       "mountPosition": "Tresna traktorearen atzean edo aurrean (aurrekoa) doan.",
       "implementWidth": "Pasada bakoitzean lantzen den zabalera. Ongarri-banatzaileetan, banaketa-zabalera.",
       "transportWidth": "Tresna tolestuaren zabalera errepidean ibiltzeko.",
-      "implementOffsetX": "Lan-erdigunea: metroak enganche-puntutik (negatiboa = atzean). Makina autopropultsatuetan, bere atzeko ardatzetik.",
+      "implementOffsetX": "Lan-erdigunea: metroak enganche-puntutik (negatiboa = atzean). Makina autopropultsatuetan, bere biraketa-puntutik (atzeko ardatza, edo erdigunea artikulatua edo beltzeduna bada).",
       "implementOffsetY": "Lan-erdigunea eskuinera (positiboa) edo ezkerrera (negatiboa) desplazatuta, adib. alboko segagailuak.",
       "implementLength": "Tresnaren luzera osoa."
     }

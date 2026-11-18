@@ -1883,7 +1883,7 @@
       "mountPosition": "Se a alfaia vai atrás do trator ou à frente (frontal).",
       "implementWidth": "Largura trabalhada em cada passagem. Nos distribuidores de adubo, a largura de distribuição.",
       "transportWidth": "Largura da alfaia dobrada para circular.",
-      "implementOffsetX": "Centro de trabalho: metros a partir do ponto de engate (negativo = atrás). Numa máquina automotriz, a partir do seu eixo traseiro.",
+      "implementOffsetX": "Centro de trabalho: metros a partir do ponto de engate (negativo = atrás). Numa máquina automotriz, a partir do seu ponto de viragem (eixo traseiro, ou o centro se for articulada ou de rastos).",
       "implementOffsetY": "Centro de trabalho deslocado para a direita (positivo) ou para a esquerda (negativo), p. ex. gadanheiras laterais.",
       "implementLength": "Comprimento total da alfaia."
     }

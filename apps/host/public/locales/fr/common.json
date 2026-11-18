@@ -1883,7 +1883,7 @@
       "mountPosition": "Si l'outil est derrière le tracteur ou devant (frontal).",
       "implementWidth": "Largeur travaillée à chaque passage. Pour les épandeurs, la largeur d'épandage.",
       "transportWidth": "Largeur de l'outil replié pour circuler.",
-      "implementOffsetX": "Centre de travail : mètres depuis le point d'attelage (négatif = derrière). Sur une machine automotrice, depuis son essieu arrière.",
+      "implementOffsetX": "Centre de travail : mètres depuis le point d'attelage (négatif = derrière). Sur une machine automotrice, depuis son point de pivot (essieu arrière, ou le centre si elle est articulée ou à chenilles).",
       "implementOffsetY": "Centre de travail décalé à droite (positif) ou à gauche (négatif), p. ex. faucheuses latérales.",
       "implementLength": "Longueur totale de l'outil."
     }

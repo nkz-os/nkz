@@ -153,7 +153,7 @@ function MachineGeometryFields({ data, updateFormData }: {
       <AttributeField
         schema={categorySchema}
         value={attr(category)}
-        onChange={a => updateFormData({ category: ((a as any).value || undefined) as FleetFormData['category'] })}
+        onChange={a => updateFormData({ category: (a?.value || undefined) as FleetFormData['category'] })}
       />
       <h4 className="text-sm font-medium text-nkz-text-primary">{t('wizard.fleet.dimensions')}</h4>
       <p className="text-xs text-nkz-muted">{t('wizard.fleet.dimensions_hint')}</p>
@@ -163,7 +163,7 @@ function MachineGeometryFields({ data, updateFormData }: {
             key={schema.key}
             schema={schema}
             value={geometry[schema.key] !== undefined ? attr(geometry[schema.key]) : undefined}
-            onChange={a => setDimension(schema.key, (a as any).value)}
+            onChange={a => setDimension(schema.key, a?.value)}
           />
         ))}
       </div>

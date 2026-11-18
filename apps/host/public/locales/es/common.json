@@ -1859,7 +1859,7 @@
       "mountPosition": "Si el apero va detrás del tractor o delante (frontal).",
       "implementWidth": "Ancho que trabaja en cada pasada. En abonadoras, el ancho de esparcido.",
       "transportWidth": "Ancho del apero plegado para circular.",
-      "implementOffsetX": "Centro de trabajo: metros desde el punto de enganche (negativo = detrás). En una máquina autopropulsada, desde su eje trasero.",
+      "implementOffsetX": "Centro de trabajo: metros desde el punto de enganche (negativo = detrás). En una máquina autopropulsada, desde su punto de giro (eje trasero, o el centro si es articulada o de cadenas).",
       "implementOffsetY": "Centro de trabajo desplazado a la derecha (positivo) o a la izquierda (negativo), p. ej. segadoras laterales.",
       "implementLength": "Largo total del apero."
     }

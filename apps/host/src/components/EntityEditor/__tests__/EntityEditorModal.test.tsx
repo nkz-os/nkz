@@ -216,4 +216,25 @@ describe('EntityEditorModal machine geometry', () => {
     const select = screen.getByText('editor.field.category').parentElement!.querySelector('select') as HTMLSelectElement;
     expect(select.value).toBe('harvester');
   });
+
+  it('keeps a stored value of the other role visible so it can be fixed or cleared', async () => {
+    openEditor({ id: MACHINE, type: 'ManufacturingMachine', name: { type: 'Property', value: 'Old drill' },
+      category: { type: 'Property', value: 'implement' },
+      minTurningRadius: { type: 'Property', value: 6, unitCode: 'MTR' } });
+    await waitFor(() => expect(screen.getByText('editor.field.minTurningRadius')).toBeTruthy());
+    expect(screen.queryByText('editor.field.gpsOffsetX')).toBeNull();
+  });
+
+  it('clearing a number deletes the attribute instead of saving an empty value', async () => {
+    const onSuccess = openEditor({ id: MACHINE, type: 'ManufacturingMachine', name: { type: 'Property', value: 'T' },
+      category: { type: 'Property', value: 'tractor' },
+      trackWidth: { type: 'Property', value: 1.9, unitCode: 'MTR' } });
+    await waitFor(() => expect(field('editor.field.trackWidth').value).toBe('1.9'));
+    fireEvent.change(field('editor.field.trackWidth'), { target: { value: '' } });
+    fireEvent.click(screen.getByText('common.save'));
+    await waitFor(() => expect(onSuccess).toHaveBeenCalled());
+    expect(api.deleteSDMEntityAttribute).toHaveBeenCalledWith(MACHINE, 'trackWidth');
+    expect(api.mergeSDMEntity).not.toHaveBeenCalledWith(MACHINE, expect.objectContaining({ trackWidth: expect.anything() }));
+  });
 });
+

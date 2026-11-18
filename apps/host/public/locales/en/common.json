@@ -1859,7 +1859,7 @@
       "mountPosition": "Whether the implement is behind the tractor or in front (front-mounted).",
       "implementWidth": "Width worked on each pass. For spreaders, the spread width.",
       "transportWidth": "Width of the folded implement on the road.",
-      "implementOffsetX": "Working centre: metres from the hitch point (negative = behind). On a self-propelled machine, from its rear axle.",
+      "implementOffsetX": "Working centre: metres from the hitch point (negative = behind). On a self-propelled machine, from its turning point (rear axle, or the centre if articulated or tracked).",
       "implementOffsetY": "Working centre offset to the right (positive) or left (negative), e.g. side mowers.",
       "implementLength": "Overall length of the implement."
     }

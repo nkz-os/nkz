@@ -9,7 +9,8 @@ import { Input } from '@nekazari/ui-kit';
 interface Props {
   schema: AttributeSchema;
   value: NGSAttribute | undefined;
-  onChange: (attr: NGSAttribute) => void;
+  /** undefined = the user emptied the field: the attribute is removed, never saved as ''. */
+  onChange: (attr: NGSAttribute | undefined) => void;
 }
 
 export const AttributeField: React.FC<Props> = ({ schema, value, onChange }) => {
@@ -18,6 +19,10 @@ export const AttributeField: React.FC<Props> = ({ schema, value, onChange }) => 
   const help = schema.helpKey ? <p className="text-xs text-nkz-muted">{t(schema.helpKey)}</p> : null;
 
   const emit = (newValue: string | number | boolean) => {
+    if (newValue === '' && (schema.type === 'number' || schema.type === 'select')) {
+      onChange(undefined);
+      return;
+    }
     onChange({
       type: 'Property',
       value: newValue,
