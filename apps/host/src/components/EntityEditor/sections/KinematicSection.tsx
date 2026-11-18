@@ -3,11 +3,23 @@ import { useI18n } from '@/context/I18nContext';
 import { useEntityEditor } from '../EntityEditorContext';
 import { AttributeField } from '../AttributeField';
 import { getSchemasForType } from '../attributeSchemas';
+import { getNGSIValue } from '@/types/ngsi-ld';
 
 export const KinematicSection: React.FC = () => {
   const { t } = useI18n();
   const { formState, setField, entityType } = useEntityEditor();
-  const schemas = getSchemasForType(entityType).filter(s => s.section === 'kinematic');
+  const categoryAttr = formState.attributes.category;
+  const category = categoryAttr ? String(getNGSIValue(categoryAttr) ?? '') : undefined;
+  const forRole = new Set(getSchemasForType(entityType, category || undefined).map(s => s.key));
+  // A value stored for the other role (older entities were edited without roles) stays
+  // visible, so it can be checked or cleared instead of lingering unseen.
+  const hasValue = (key: string) => {
+    const attr = formState.attributes[key];
+    const v = attr ? getNGSIValue(attr) : undefined;
+    return v !== undefined && v !== null && v !== '';
+  };
+  const schemas = getSchemasForType(entityType)
+    .filter(s => s.section === 'kinematic' && (forRole.has(s.key) || hasValue(s.key)));
   if (schemas.length === 0) return null;
 
   return (

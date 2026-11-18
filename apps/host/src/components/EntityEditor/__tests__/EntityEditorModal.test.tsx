@@ -187,3 +187,54 @@ describe('EntityEditorModal parcel save', () => {
     expect(await screen.findByText('A parcel keeps its geometry; location cannot be removed')).toBeTruthy();
   });
 });
+
+describe('EntityEditorModal machine geometry', () => {
+  const MACHINE = 'urn:ngsi-ld:ManufacturingMachine:tenant-a:m1';
+
+  it('shows the geometry of the machine category with its help, and keeps an unknown category visible', async () => {
+    openEditor({ id: MACHINE, type: 'ManufacturingMachine', name: { type: 'Property', value: 'Drill' },
+      category: { type: 'Property', value: 'implement' } });
+    await waitFor(() => expect(screen.getByText('editor.field.mountPosition')).toBeTruthy());
+    expect(screen.queryByText('editor.field.minTurningRadius')).toBeNull();
+    expect(screen.getByText('editor.help.mountPosition')).toBeTruthy();
+  });
+
+  it('switches the geometry fields when the category changes', async () => {
+    openEditor({ id: MACHINE, type: 'ManufacturingMachine', name: { type: 'Property', value: 'T' },
+      category: { type: 'Property', value: 'implement' } });
+    await waitFor(() => expect(screen.getByText('editor.field.mountPosition')).toBeTruthy());
+    const select = screen.getByText('editor.field.category').parentElement!.querySelector('select') as HTMLSelectElement;
+    fireEvent.change(select, { target: { value: 'tractor' } });
+    await waitFor(() => expect(screen.getByText('editor.field.minTurningRadius')).toBeTruthy());
+    expect(screen.queryByText('editor.field.mountPosition')).toBeNull();
+  });
+
+  it('keeps a category value outside the list visible instead of showing it empty', async () => {
+    openEditor({ id: MACHINE, type: 'ManufacturingMachine', name: { type: 'Property', value: 'H' },
+      category: { type: 'Property', value: 'harvester' } });
+    await waitFor(() => expect(screen.getByText('editor.field.category')).toBeTruthy());
+    const select = screen.getByText('editor.field.category').parentElement!.querySelector('select') as HTMLSelectElement;
+    expect(select.value).toBe('harvester');
+  });
+
+  it('keeps a stored value of the other role visible so it can be fixed or cleared', async () => {
+    openEditor({ id: MACHINE, type: 'ManufacturingMachine', name: { type: 'Property', value: 'Old drill' },
+      category: { type: 'Property', value: 'implement' },
+      minTurningRadius: { type: 'Property', value: 6, unitCode: 'MTR' } });
+    await waitFor(() => expect(screen.getByText('editor.field.minTurningRadius')).toBeTruthy());
+    expect(screen.queryByText('editor.field.gpsOffsetX')).toBeNull();
+  });
+
+  it('clearing a number deletes the attribute instead of saving an empty value', async () => {
+    const onSuccess = openEditor({ id: MACHINE, type: 'ManufacturingMachine', name: { type: 'Property', value: 'T' },
+      category: { type: 'Property', value: 'tractor' },
+      trackWidth: { type: 'Property', value: 1.9, unitCode: 'MTR' } });
+    await waitFor(() => expect(field('editor.field.trackWidth').value).toBe('1.9'));
+    fireEvent.change(field('editor.field.trackWidth'), { target: { value: '' } });
+    fireEvent.click(screen.getByText('common.save'));
+    await waitFor(() => expect(onSuccess).toHaveBeenCalled());
+    expect(api.deleteSDMEntityAttribute).toHaveBeenCalledWith(MACHINE, 'trackWidth');
+    expect(api.mergeSDMEntity).not.toHaveBeenCalledWith(MACHINE, expect.objectContaining({ trackWidth: expect.anything() }));
+  });
+});
+

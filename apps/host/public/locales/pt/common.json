@@ -967,7 +967,9 @@
       "ros2_namespace": "Namespace ROS2",
       "ros2_namespace_placeholder": "Ex.: /robot_norte_01",
       "ros2_namespace_hint": "Namespace ROS2 único. As credenciais de rede são geradas no final.",
-      "isobus_compatible": "Compatível com ISOBUS (ISO 11783)"
+      "isobus_compatible": "Compatível com ISOBUS (ISO 11783)",
+      "dimensions": "Dimensões",
+      "dimensions_hint": "Opcionais. Melhoram as cabeceiras, as viragens e a orientação; pode completá-las depois no editor."
     },
     "fields": {
       "name_required": "Nome *",
@@ -1832,7 +1834,13 @@
       "icon2d": "Ícone 2D",
       "ref3DModel": "Modelo 3D",
       "modelScale": "Escala do modelo",
-      "modelRotation": "Rotação do modelo"
+      "modelRotation": "Rotação do modelo",
+      "frontHitchOffsetX": "Engate dianteiro X",
+      "guidanceDeviceOffsetX": "Tablet de orientação X",
+      "guidanceDeviceOffsetY": "Tablet de orientação Y",
+      "mountPosition": "Posição da alfaia",
+      "implementOffsetY": "Offset alfaia Y",
+      "transportWidth": "Largura de transporte"
     },
     "hitch": {
       "none": "Nenhum",
@@ -1852,6 +1860,32 @@
       "rear": "Traseiro",
       "both": "Ambos",
       "none": "Nenhum"
+    },
+    "category": {
+      "tractor": "Trator ou máquina automotriz",
+      "implement": "Alfaia"
+    },
+    "mount": {
+      "rear": "Traseira",
+      "front": "Frontal"
+    },
+    "help": {
+      "minTurningRadius": "Raio descrito pelo centro do eixo traseiro com a direção no máximo. Se o manual indica o raio exterior, subtraia metade da bitola.",
+      "trackWidth": "Distância entre os centros das rodas de um mesmo eixo.",
+      "wheelbase": "Distância entre o eixo dianteiro e o traseiro.",
+      "gpsOffsetX": "Antena GNSS: metros para a frente a partir do centro do eixo traseiro (negativo = atrás).",
+      "gpsOffsetY": "Antena GNSS: metros à direita do eixo do trator (negativo = esquerda).",
+      "gpsOffsetZ": "Antena GNSS: altura acima do solo.",
+      "hitchOffsetX": "Engate traseiro: metros a partir do centro do eixo traseiro; normalmente negativo (atrás).",
+      "frontHitchOffsetX": "Engate dianteiro: metros para a frente a partir do centro do eixo traseiro.",
+      "guidanceDeviceOffsetX": "Tablet ou telemóvel de orientação na cabina: metros para a frente a partir do centro do eixo traseiro.",
+      "guidanceDeviceOffsetY": "Tablet ou telemóvel de orientação: metros à direita do eixo do trator.",
+      "mountPosition": "Se a alfaia vai atrás do trator ou à frente (frontal).",
+      "implementWidth": "Largura trabalhada em cada passagem. Nos distribuidores de adubo, a largura de distribuição.",
+      "transportWidth": "Largura da alfaia dobrada para circular.",
+      "implementOffsetX": "Centro de trabalho: metros a partir do ponto de engate (negativo = atrás). Numa máquina automotriz, a partir do seu ponto de viragem (eixo traseiro, ou o centro se for articulada ou de rastos).",
+      "implementOffsetY": "Centro de trabalho deslocado para a direita (positivo) ou para a esquerda (negativo), p. ex. gadanheiras laterais.",
+      "implementLength": "Comprimento total da alfaia."
     }
   },
   "common": {

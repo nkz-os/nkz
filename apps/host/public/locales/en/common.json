@@ -943,7 +943,9 @@
       "ros2_namespace": "ROS2 namespace",
       "ros2_namespace_placeholder": "e.g. /robot_north_01",
       "ros2_namespace_hint": "Unique ROS2 namespace. Network credentials are generated when you finish.",
-      "isobus_compatible": "ISOBUS compatible (ISO 11783)"
+      "isobus_compatible": "ISOBUS compatible (ISO 11783)",
+      "dimensions": "Dimensions",
+      "dimensions_hint": "Optional. They improve headlands, turns and guidance; you can complete them later in the editor."
     },
     "fields": {
       "name_required": "Name *",
@@ -1808,7 +1810,13 @@
       "icon2d": "2D icon",
       "ref3DModel": "3D model",
       "modelScale": "Model scale",
-      "modelRotation": "Model rotation"
+      "modelRotation": "Model rotation",
+      "frontHitchOffsetX": "Front hitch X",
+      "guidanceDeviceOffsetX": "Guidance tablet X",
+      "guidanceDeviceOffsetY": "Guidance tablet Y",
+      "mountPosition": "Implement position",
+      "implementOffsetY": "Implement offset Y",
+      "transportWidth": "Transport width"
     },
     "hitch": {
       "none": "None",
@@ -1828,6 +1836,32 @@
       "rear": "Rear",
       "both": "Both",
       "none": "None"
+    },
+    "category": {
+      "tractor": "Tractor or self-propelled machine",
+      "implement": "Implement"
+    },
+    "mount": {
+      "rear": "Rear",
+      "front": "Front"
+    },
+    "help": {
+      "minTurningRadius": "Radius traced by the rear-axle centre at full lock. If the manual gives the outer radius, subtract half the track width.",
+      "trackWidth": "Distance between the wheel centres of one axle.",
+      "wheelbase": "Distance between the front and rear axles.",
+      "gpsOffsetX": "GNSS antenna: metres forward of the rear-axle centre (negative = behind).",
+      "gpsOffsetY": "GNSS antenna: metres to the right of the tractor centreline (negative = left).",
+      "gpsOffsetZ": "GNSS antenna: height above the ground.",
+      "hitchOffsetX": "Rear hitch: metres from the rear-axle centre; usually negative (behind).",
+      "frontHitchOffsetX": "Front hitch: metres forward of the rear-axle centre.",
+      "guidanceDeviceOffsetX": "Guidance tablet or phone in the cab: metres forward of the rear-axle centre.",
+      "guidanceDeviceOffsetY": "Guidance tablet or phone: metres to the right of the tractor centreline.",
+      "mountPosition": "Whether the implement is behind the tractor or in front (front-mounted).",
+      "implementWidth": "Width worked on each pass. For spreaders, the spread width.",
+      "transportWidth": "Width of the folded implement on the road.",
+      "implementOffsetX": "Working centre: metres from the hitch point (negative = behind). On a self-propelled machine, from its turning point (rear axle, or the centre if articulated or tracked).",
+      "implementOffsetY": "Working centre offset to the right (positive) or left (negative), e.g. side mowers.",
+      "implementLength": "Overall length of the implement."
     }
   },
   "common": {

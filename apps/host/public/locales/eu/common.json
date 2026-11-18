@@ -944,7 +944,9 @@
       "ros2_namespace": "ROS2 namespace-a",
       "ros2_namespace_placeholder": "Adib.: /robot_iparra_01",
       "ros2_namespace_hint": "ROS2 namespace bakarra. Sareko kredentzialak amaitzean sortzen dira.",
-      "isobus_compatible": "ISOBUS-ekin bateragarria (ISO 11783)"
+      "isobus_compatible": "ISOBUS-ekin bateragarria (ISO 11783)",
+      "dimensions": "Neurriak",
+      "dimensions_hint": "Aukerakoak. Goiburuak, birak eta gidatzea hobetzen dituzte; geroago osa ditzakezu editorean."
     },
     "fields": {
       "name_required": "Izena *",
@@ -1809,7 +1811,13 @@
       "icon2d": "2D ikonoa",
       "ref3DModel": "3D eredua",
       "modelScale": "Ereduaren eskala",
-      "modelRotation": "Ereduaren biraketa"
+      "modelRotation": "Ereduaren biraketa",
+      "frontHitchOffsetX": "Aurreko enganchea X",
+      "guidanceDeviceOffsetX": "Gidatze-tableta X",
+      "guidanceDeviceOffsetY": "Gidatze-tableta Y",
+      "mountPosition": "Tresnaren kokapena",
+      "implementOffsetY": "Tresnaren desplazamendua Y",
+      "transportWidth": "Garraio-zabalera"
     },
     "hitch": {
       "none": "Bat ere ez",
@@ -1829,6 +1837,32 @@
       "rear": "Atzekoa",
       "both": "Biak",
       "none": "Bat ere ez"
+    },
+    "category": {
+      "tractor": "Traktorea edo makina autopropultsatua",
+      "implement": "Tresna"
+    },
+    "mount": {
+      "rear": "Atzekoa",
+      "front": "Aurrekoa"
+    },
+    "help": {
+      "minTurningRadius": "Atzeko ardatzaren erdiguneak bolantea guztiz biratuta egiten duen erradioa. Eskuliburuak kanpoko erradioa ematen badu, kendu bide-zabaleraren erdia.",
+      "trackWidth": "Ardatz bereko gurpilen erdiguneen arteko distantzia.",
+      "wheelbase": "Aurreko eta atzeko ardatzen arteko distantzia.",
+      "gpsOffsetX": "GNSS antena: metroak aurrerantz atzeko ardatzaren erdigunetik (negatiboa = atzean).",
+      "gpsOffsetY": "GNSS antena: metroak eskuinera traktorearen ardatzetik (negatiboa = ezkerrera).",
+      "gpsOffsetZ": "GNSS antena: lurretik gorako altuera.",
+      "hitchOffsetX": "Atzeko enganchea: metroak atzeko ardatzaren erditik; normalean negatiboa (atzean).",
+      "frontHitchOffsetX": "Aurreko enganchea: metroak aurrerantz atzeko ardatzaren erdigunetik.",
+      "guidanceDeviceOffsetX": "Kabinako gidatze-tableta edo mugikorra: metroak aurrerantz atzeko ardatzaren erdigunetik.",
+      "guidanceDeviceOffsetY": "Gidatze-tableta edo mugikorra: metroak eskuinera traktorearen ardatzetik.",
+      "mountPosition": "Tresna traktorearen atzean edo aurrean (aurrekoa) doan.",
+      "implementWidth": "Pasada bakoitzean lantzen den zabalera. Ongarri-banatzaileetan, banaketa-zabalera.",
+      "transportWidth": "Tresna tolestuaren zabalera errepidean ibiltzeko.",
+      "implementOffsetX": "Lan-erdigunea: metroak enganche-puntutik (negatiboa = atzean). Makina autopropultsatuetan, bere biraketa-puntutik (atzeko ardatza, edo erdigunea artikulatua edo beltzeduna bada).",
+      "implementOffsetY": "Lan-erdigunea eskuinera (positiboa) edo ezkerrera (negatiboa) desplazatuta, adib. alboko segagailuak.",
+      "implementLength": "Tresnaren luzera osoa."
     }
   },
   "common": {

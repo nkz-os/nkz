@@ -967,7 +967,9 @@
       "ros2_namespace": "Namespace ROS2",
       "ros2_namespace_placeholder": "Ex. : /robot_nord_01",
       "ros2_namespace_hint": "Namespace ROS2 unique. Les identifiants réseau sont générés à la fin.",
-      "isobus_compatible": "Compatible ISOBUS (ISO 11783)"
+      "isobus_compatible": "Compatible ISOBUS (ISO 11783)",
+      "dimensions": "Dimensions",
+      "dimensions_hint": "Facultatives. Elles améliorent les fourrières, les demi-tours et le guidage ; vous pouvez les compléter plus tard dans l'éditeur."
     },
     "fields": {
       "name_required": "Nom *",
@@ -1832,7 +1834,13 @@
       "icon2d": "Icône 2D",
       "ref3DModel": "Modèle 3D",
       "modelScale": "Échelle du modèle",
-      "modelRotation": "Rotation du modèle"
+      "modelRotation": "Rotation du modèle",
+      "frontHitchOffsetX": "Attelage avant X",
+      "guidanceDeviceOffsetX": "Tablette de guidage X",
+      "guidanceDeviceOffsetY": "Tablette de guidage Y",
+      "mountPosition": "Position de l'outil",
+      "implementOffsetY": "Décalage outil Y",
+      "transportWidth": "Largeur de transport"
     },
     "hitch": {
       "none": "Aucun",
@@ -1852,6 +1860,32 @@
       "rear": "Arrière",
       "both": "Les deux",
       "none": "Aucun"
+    },
+    "category": {
+      "tractor": "Tracteur ou machine automotrice",
+      "implement": "Outil"
+    },
+    "mount": {
+      "rear": "Arrière",
+      "front": "Frontal"
+    },
+    "help": {
+      "minTurningRadius": "Rayon décrit par le centre de l'essieu arrière, braquage maximal. Si le manuel donne le rayon extérieur, retranchez la moitié de la voie.",
+      "trackWidth": "Distance entre les centres des roues d'un même essieu.",
+      "wheelbase": "Distance entre l'essieu avant et l'essieu arrière.",
+      "gpsOffsetX": "Antenne GNSS : mètres vers l'avant depuis le centre de l'essieu arrière (négatif = derrière).",
+      "gpsOffsetY": "Antenne GNSS : mètres à droite de l'axe du tracteur (négatif = gauche).",
+      "gpsOffsetZ": "Antenne GNSS : hauteur au-dessus du sol.",
+      "hitchOffsetX": "Attelage arrière : mètres depuis le centre de l'essieu arrière ; généralement négatif (derrière).",
+      "frontHitchOffsetX": "Attelage avant : mètres vers l'avant depuis le centre de l'essieu arrière.",
+      "guidanceDeviceOffsetX": "Tablette ou téléphone de guidage en cabine : mètres vers l'avant depuis le centre de l'essieu arrière.",
+      "guidanceDeviceOffsetY": "Tablette ou téléphone de guidage : mètres à droite de l'axe du tracteur.",
+      "mountPosition": "Si l'outil est derrière le tracteur ou devant (frontal).",
+      "implementWidth": "Largeur travaillée à chaque passage. Pour les épandeurs, la largeur d'épandage.",
+      "transportWidth": "Largeur de l'outil replié pour circuler.",
+      "implementOffsetX": "Centre de travail : mètres depuis le point d'attelage (négatif = derrière). Sur une machine automotrice, depuis son point de pivot (essieu arrière, ou le centre si elle est articulée ou à chenilles).",
+      "implementOffsetY": "Centre de travail décalé à droite (positif) ou à gauche (négatif), p. ex. faucheuses latérales.",
+      "implementLength": "Longueur totale de l'outil."
     }
   },
   "common": {

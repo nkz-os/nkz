@@ -2,6 +2,9 @@ import { useWizard } from '../WizardContext';
 import type { FleetFormData } from '../types';
 import { Input } from '@nekazari/ui-kit';
 import { useI18n } from '@/context/I18nContext';
+import { AttributeField } from '@/components/EntityEditor/AttributeField';
+import { getSchemasForType } from '@/components/EntityEditor/attributeSchemas';
+import type { NGSAttribute } from '@/types/ngsi-ld';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 const ROBOT_TYPES = ['Wheeled', 'Tracked', 'Aerial', 'Legged', 'Hybrid'] as const;
@@ -102,6 +105,7 @@ export function StepFleetConfig() {
       )}
 
       {/* Machine-specific (tractor/implement) */}
+      {isMachine && <MachineGeometryFields data={data} updateFormData={updateFormData} />}
       {isMachine && (
         <div className="pt-3 border-t border-nkz-border">
           <div className="flex items-center gap-2">
@@ -118,6 +122,51 @@ export function StepFleetConfig() {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+/**
+ * Role and dimensions of a machine, from the same field list as the entity editor so both
+ * ask the same thing. Every dimension is optional; an emptied field leaves no value.
+ */
+function MachineGeometryFields({ data, updateFormData }: {
+  data: FleetFormData;
+  updateFormData: (patch: Partial<FleetFormData>) => void;
+}) {
+  const { t } = useI18n();
+  const category = data.category ?? 'tractor';
+  const geometry = data.machineGeometry ?? {};
+  const categorySchema = getSchemasForType('ManufacturingMachine').find(s => s.key === 'category')!;
+  const fields = getSchemasForType('ManufacturingMachine', category).filter(s => s.section === 'kinematic');
+  const attr = (value: unknown) => ({ type: 'Property', value }) as NGSAttribute;
+
+  const setDimension = (key: string, value: unknown) => {
+    const next = { ...geometry };
+    if (value === '' || value === null || value === undefined) delete next[key];
+    else next[key] = value as number | string;
+    updateFormData({ machineGeometry: next });
+  };
+
+  return (
+    <div className="pt-3 border-t border-nkz-border space-y-3">
+      <AttributeField
+        schema={categorySchema}
+        value={attr(category)}
+        onChange={a => updateFormData({ category: (a?.value || undefined) as FleetFormData['category'] })}
+      />
+      <h4 className="text-sm font-medium text-nkz-text-primary">{t('wizard.fleet.dimensions')}</h4>
+      <p className="text-xs text-nkz-muted">{t('wizard.fleet.dimensions_hint')}</p>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        {fields.map(schema => (
+          <AttributeField
+            key={schema.key}
+            schema={schema}
+            value={geometry[schema.key] !== undefined ? attr(geometry[schema.key]) : undefined}
+            onChange={a => setDimension(schema.key, a?.value)}
+          />
+        ))}
+      </div>
     </div>
   );
 }

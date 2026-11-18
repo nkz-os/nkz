@@ -943,7 +943,9 @@
       "ros2_namespace": "Namespace ROS2",
       "ros2_namespace_placeholder": "Ej: /robot_norte_01",
       "ros2_namespace_hint": "Namespace ROS2 único. Las credenciales de red se generan al finalizar.",
-      "isobus_compatible": "Compatible con ISOBUS (ISO 11783)"
+      "isobus_compatible": "Compatible con ISOBUS (ISO 11783)",
+      "dimensions": "Dimensiones",
+      "dimensions_hint": "Opcionales. Mejoran las cabeceras, los giros y el guiado; puedes completarlas después en el editor."
     },
     "fields": {
       "name_required": "Nombre *",
@@ -1808,7 +1810,13 @@
       "icon2d": "Icono 2D",
       "ref3DModel": "Modelo 3D",
       "modelScale": "Escala modelo",
-      "modelRotation": "Rotación modelo"
+      "modelRotation": "Rotación modelo",
+      "frontHitchOffsetX": "Enganche delantero X",
+      "guidanceDeviceOffsetX": "Tablet de guiado X",
+      "guidanceDeviceOffsetY": "Tablet de guiado Y",
+      "mountPosition": "Posición del apero",
+      "implementOffsetY": "Offset apero Y",
+      "transportWidth": "Ancho de transporte"
     },
     "hitch": {
       "none": "Ninguno",
@@ -1828,6 +1836,32 @@
       "rear": "Trasero",
       "both": "Ambos",
       "none": "Ninguno"
+    },
+    "category": {
+      "tractor": "Tractor o máquina autopropulsada",
+      "implement": "Apero"
+    },
+    "mount": {
+      "rear": "Trasero",
+      "front": "Frontal"
+    },
+    "help": {
+      "minTurningRadius": "Radio que describe el centro del eje trasero con la dirección a tope. Si el manual da el radio exterior, réstale la mitad del ancho de vía.",
+      "trackWidth": "Distancia entre los centros de las ruedas de un mismo eje.",
+      "wheelbase": "Distancia entre el eje delantero y el trasero.",
+      "gpsOffsetX": "Antena GNSS: metros hacia delante desde el centro del eje trasero (negativo = detrás).",
+      "gpsOffsetY": "Antena GNSS: metros a la derecha del eje del tractor (negativo = izquierda).",
+      "gpsOffsetZ": "Antena GNSS: altura sobre el suelo.",
+      "hitchOffsetX": "Enganche trasero: metros desde el centro del eje trasero; normalmente negativo (detrás).",
+      "frontHitchOffsetX": "Enganche delantero: metros hacia delante desde el centro del eje trasero.",
+      "guidanceDeviceOffsetX": "Tablet o móvil de guiado en cabina: metros hacia delante desde el centro del eje trasero.",
+      "guidanceDeviceOffsetY": "Tablet o móvil de guiado: metros a la derecha del eje del tractor.",
+      "mountPosition": "Si el apero va detrás del tractor o delante (frontal).",
+      "implementWidth": "Ancho que trabaja en cada pasada. En abonadoras, el ancho de esparcido.",
+      "transportWidth": "Ancho del apero plegado para circular.",
+      "implementOffsetX": "Centro de trabajo: metros desde el punto de enganche (negativo = detrás). En una máquina autopropulsada, desde su punto de giro (eje trasero, o el centro si es articulada o de cadenas).",
+      "implementOffsetY": "Centro de trabajo desplazado a la derecha (positivo) o a la izquierda (negativo), p. ej. segadoras laterales.",
+      "implementLength": "Largo total del apero."
     }
   },
   "common": {
