@@ -127,3 +127,20 @@ def test_existing_fields_are_byte_identical_to_pre_seam_snapshot(env):
         body = r.json()
         body.pop("seam")
         assert json.dumps(body, sort_keys=True) == json.dumps(snap[name], sort_keys=True), name
+
+
+def test_single_region_is_a_one_element_list_keyed_by_id(monkeypatch):
+    real = seam.load_summary()
+    only = {**real, "regions": [r for r in real["regions"] if r["id"] == "siar_interior_south"]}
+    monkeypatch.setattr(seam, "load_summary", lambda: only)
+    out = seam.seam_for(38.0, -4.0, "precip_mm", "daily")
+    assert out["status"] == "medido"
+    assert out["region"] == ["siar_interior_south"]
+    assert list(out["season_cells"]) == ["siar_interior_south"]
+    assert set(out["season_cells"]["siar_interior_south"]) == {"DJF", "MAM", "JJA", "SON", "annual"}
+
+
+def test_overlap_is_a_multi_element_list_keyed_by_id():
+    out = seam.seam_for(38.0, -4.0, "precip_mm", "daily")       # AEMET + SIAR, same bbox
+    assert sorted(out["region"]) == ["interior_south", "siar_interior_south"]
+    assert sorted(out["season_cells"]) == sorted(out["region"])
