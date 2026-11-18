@@ -10,6 +10,11 @@ TMIN_METHOD_VERSION = {
     # /history daily tmin_c: ERA5 grid hourly (elevation=nan) aggregated to the local civil day
     "history": ("nkz@8c7050a: ERA5 grid hourly (elevation=nan) aggregated to the local civil day "
                 "by weather-api daily_from_hourly"),
-    # /daily stored closed-day tmin_c: best_match forecast past_days with the worker lapse
-    "daily_closed": "nkz@8c7050a: best_match /forecast past_days with the worker lapse (stored closed days)",
+    # /daily closed-day tmin_c (stored days from 2026-11-17, filled days always): Open-Meteo daily
+    # temperature_2m_min of the raw model cell (elevation=nan) over the local day, no altitude
+    # correction; coastal points keep the elevation-corrected series. The margins file still
+    # carries the previous lapse-corrected method, so daily_closed margins are served null
+    # (method_changed) until a refit on this method.
+    "daily_closed": ("nkz@4d8bc4b: best_match /forecast temperature_2m_min of the raw model cell "
+                     "(elevation=nan) over the local day, coastal points keep the corrected series"),
 }

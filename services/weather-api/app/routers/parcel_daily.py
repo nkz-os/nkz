@@ -372,6 +372,7 @@ def get_parcel_daily(
         for d in plan["not_closed"]:
             reasons[d.isoformat()] = "not_closed"
         filled: Dict[str, Dict[str, Any]] = {}
+        tmin_reasons: Dict[str, str] = {}
         if loc is not None:
             lon, lat = loc
             elev = _parcel_elevation(entity)
@@ -389,11 +390,16 @@ def get_parcel_daily(
                 for k, v in got.items():
                     if k in wanted:
                         filled[k] = {**v, "source": kind}
+                        reason = filled[k].pop("tmin_reason", None)
+                        if reason:
+                            tmin_reasons[k] = reason
         by_key = {d["date"]: d for d in days}
         for d in plan["model_analysis"] + plan["reanalysis"]:
             k = d.isoformat()
             if k in filled:
                 by_key[k].update(filled[k])
+                if k in tmin_reasons:
+                    reasons[k] = tmin_reasons[k]
             else:
                 reasons[k] = "fill_unavailable"
     else:
@@ -435,6 +441,9 @@ def get_parcel_daily(
             if model_day is not None:
                 rec.update(model_day)
                 rec.pop("kind", None)
+                tmin_reason = rec.pop("tmin_reason", None)
+                if tmin_reason:
+                    reasons[key] = tmin_reason
                 rec["sources"] = {f: ("model_forecast" if rec[f] is not None else None) for f in _FIELDS}
             else:
                 reasons[key] = "forecast_unavailable"
