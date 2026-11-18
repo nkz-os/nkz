@@ -72,6 +72,14 @@ def _calculate_centroid(geometry):
         return None, None
 
 
+def _rel_object(props, key):
+    """Target id of a Relationship attribute ('' when absent)."""
+    rel = props.get(key)
+    if isinstance(rel, dict):
+        return str(rel.get('object') or rel.get('value') or '')
+    return str(rel or '')
+
+
 def _sync_str_prop(props, key, default=''):
     """Extract string from NGSI-LD entity properties dict."""
     v = props.get(key)
@@ -260,7 +268,8 @@ def _equipment_record_for_watermelon(ent, fallback_ts):
         'id': rid,
         'remote_id': rid,
         'name': str(name),
-        'equipment_type': _str_prop('equipmentType', 'tractor'),
+        'equipment_type': (_machine_role(_str_prop('category', ''))
+                           or _str_prop('equipmentType', 'tractor')),
         'implement_width': _num_prop('implementWidth', 3.0),
         'status': _str_prop('status', 'available'),
         'steering_type': _str_prop('steeringType', 'ackermann'),
@@ -274,6 +283,7 @@ def _equipment_record_for_watermelon(ent, fallback_ts):
         'hitch_offset_x': _num_prop('hitchOffsetX'),
         'implement_length': _num_prop('implementLength'),
         'implement_offset_x': _num_prop('implementOffsetX'),
+        'geometry_json': _machine_geometry_json(props),
         'created_at': created_ms,
         'updated_at': updated_ms,
     }
@@ -319,12 +329,16 @@ def _operation_record_for_watermelon(ent, fallback_ts):
     return {
         'id': rid,
         'remote_id': rid,
-        'parcel_id': _str_prop('locatedAt', '') or _str_prop('refParcel', ''),
+        'parcel_id': (_str_prop('locatedAt', '') or _str_prop('refParcel', '')
+                      or _rel_object(props, 'hasAgriParcel')),
         'equipment_id': _str_prop('usesEquipment', '') or _str_prop('refEquipment', ''),
         'tractor_id': _str_prop('usesTractor', '') or _str_prop('refTractor', ''),
         'implement_id': _str_prop('usesImplement', '') or _str_prop('refImplement', ''),
         'operation_type': _str_prop('operationType', 'spraying'),
         'ab_line_geojson': _json_prop('abLine'),
+        # The plan's passes (gis-routing `swaths`, in travel order) the app guides along.
+        'swaths_geojson': json.dumps(props['swaths'].get('value') if isinstance(props.get('swaths'), dict)
+                                     else props['swaths']) if props.get('swaths') else '',
         'implement_width': _num_prop('implementWidth', 24.0),
         'status': _str_prop('status', 'planned'),
         'vra_enabled': _bool_prop('vraEnabled'),
@@ -388,8 +402,47 @@ def _get_redis():
         return None
 
 
-def _sync_cache_key(tenant, collections_str, last_pulled_at):
-    return f"sync:pull:tenant:{tenant}:collections:{collections_str}:since:{last_pulled_at}"
+# Platform machines are ManufacturingMachine (tractor / implement by `category`);
+# AgriEquipment stays for entities created before that.
+EQUIPMENT_SYNC_TYPES = 'AgriEquipment,ManufacturingMachine'
+
+# Machine geometry the app needs to guide the implement (ISO 11783-10 frame: X forward,
+# Y right, metres, from the tractor's turning point). Only present values travel: in the
+# app an absent measure is a gap, a 0 is a value.
+MACHINE_GEOMETRY_KEYS = (
+    'gpsOffsetX', 'gpsOffsetY', 'gpsOffsetZ', 'guidanceDeviceOffsetX', 'guidanceDeviceOffsetY',
+    'hitchOffsetX', 'frontHitchOffsetX', 'mountPosition', 'implementOffsetX', 'implementOffsetY',
+    'implementWidth', 'trackWidth', 'minTurningRadius',
+)
+
+
+def _machine_role(category: str) -> str:
+    """tractor | implement from `category`, with the aliases older entities carry ('' if unknown)."""
+    value = str(category or '').strip().lower()
+    if value in {'tractor', 'tractors', 'vehicle', 'power_unit'}:
+        return 'tractor'
+    if value in {'implement', 'apero', 'tool', 'attachment'}:
+        return 'implement'
+    return ''
+
+
+def _machine_geometry_json(props) -> str:
+    out = {}
+    for key in MACHINE_GEOMETRY_KEYS:
+        v = props.get(key)
+        if isinstance(v, dict):
+            v = v.get('value')
+        if v is None or v == '':
+            continue
+        out[key] = v
+    return json.dumps(out)
+
+
+def _sync_cache_key(tenant, collections_str, last_pulled_at, schema_version=0):
+    # The app's schema version is part of the key: a newer app must never get a cached
+    # response built for an older schema (it would miss the newer columns).
+    return (f"sync:pull:tenant:{tenant}:collections:{collections_str}:since:{last_pulled_at}"
+            f":schema:{schema_version}")
 
 
 _SYNC_CACHE_TTL = 30
@@ -405,7 +458,8 @@ def _core_vector_sync_pull():
 
         # Try Redis cache first
         r = _get_redis()
-        cache_key = _sync_cache_key(tenant, collections_key, last_pulled_at)
+        schema_version = request.args.get('schema_version', type=int, default=0) or 0
+        cache_key = _sync_cache_key(tenant, collections_key, last_pulled_at, schema_version)
         if r:
             try:
                 cached = r.get(cache_key)
@@ -461,7 +515,7 @@ def _core_vector_sync_pull():
 
         if 'equipment' in collections:
             params_eq = {
-                'type': 'AgriEquipment',
+                'type': EQUIPMENT_SYNC_TYPES,
                 'limit': 1000,
             }
             resp_eq = requests.get(orion_url, params=params_eq, headers=headers)
