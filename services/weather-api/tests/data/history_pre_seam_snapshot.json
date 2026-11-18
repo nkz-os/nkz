@@ -1,0 +1,653 @@
+{
+ "daily_default": {
+  "attribution": "Contains modified Copernicus Climate Change Service information 2026; Open-Meteo (CC BY 4.0)",
+  "days": [
+   {
+    "date": "2020-03-01",
+    "et0_mm": 3.36,
+    "precip_mm": 2.4,
+    "radiation_mj_m2": 17.28,
+    "rh_mean_pct": 60.0,
+    "tmax_c": 21.5,
+    "tmean_c": 15.75,
+    "tmin_c": 10.0,
+    "tmin_frost_risk_c": 10.0,
+    "tmin_hard_frost_risk_c": null,
+    "vapour_pressure_kpa": 0.813,
+    "wind2m_ms": 2.24
+   },
+   {
+    "date": "2020-03-02",
+    "et0_mm": 3.38,
+    "precip_mm": 2.4,
+    "radiation_mj_m2": 17.28,
+    "rh_mean_pct": 60.0,
+    "tmax_c": 21.5,
+    "tmean_c": 15.75,
+    "tmin_c": 10.0,
+    "tmin_frost_risk_c": 10.0,
+    "tmin_hard_frost_risk_c": null,
+    "vapour_pressure_kpa": 0.813,
+    "wind2m_ms": 2.24
+   },
+   {
+    "date": "2020-03-03",
+    "et0_mm": 3.41,
+    "precip_mm": 2.4,
+    "radiation_mj_m2": 17.28,
+    "rh_mean_pct": 60.0,
+    "tmax_c": 21.5,
+    "tmean_c": 15.75,
+    "tmin_c": 10.0,
+    "tmin_frost_risk_c": 10.0,
+    "tmin_hard_frost_risk_c": null,
+    "vapour_pressure_kpa": 0.813,
+    "wind2m_ms": 2.24
+   },
+   {
+    "date": "2020-03-04",
+    "et0_mm": 3.43,
+    "precip_mm": 2.4,
+    "radiation_mj_m2": 17.28,
+    "rh_mean_pct": 60.0,
+    "tmax_c": 21.5,
+    "tmean_c": 15.75,
+    "tmin_c": 10.0,
+    "tmin_frost_risk_c": 10.0,
+    "tmin_hard_frost_risk_c": null,
+    "vapour_pressure_kpa": 0.813,
+    "wind2m_ms": 2.24
+   },
+   {
+    "date": "2020-03-05",
+    "et0_mm": 3.45,
+    "precip_mm": 2.4,
+    "radiation_mj_m2": 17.28,
+    "rh_mean_pct": 60.0,
+    "tmax_c": 21.5,
+    "tmean_c": 15.75,
+    "tmin_c": 10.0,
+    "tmin_frost_risk_c": 10.0,
+    "tmin_hard_frost_risk_c": null,
+    "vapour_pressure_kpa": 0.813,
+    "wind2m_ms": 2.24
+   }
+  ],
+  "end": "2020-03-05",
+  "latest_available": "2026-11-07",
+  "parcel_id": "urn:ngsi-ld:AgriParcel:da36ccd2-85d2-4c76-b552-c5c835a987c1",
+  "provenance": {
+   "et0_mm": {
+    "altitude_method": "fao56_penman_monteith_from_blend",
+    "day_definition": "parcel local civil day; hourly precipitation and radiation stamped at local 00:00 belong to the previous day",
+    "source": "era5"
+   },
+   "precip_mm": {
+    "altitude_method": "none",
+    "day_definition": "parcel local civil day; hourly precipitation and radiation stamped at local 00:00 belong to the previous day",
+    "source": "era5"
+   },
+   "radiation_mj_m2": {
+    "altitude_method": "none",
+    "day_definition": "parcel local civil day; hourly precipitation and radiation stamped at local 00:00 belong to the previous day",
+    "source": "era5"
+   },
+   "rh_mean_pct": {
+    "altitude_method": "derived_from_t_and_td",
+    "day_definition": "parcel local civil day; hourly precipitation and radiation stamped at local 00:00 belong to the previous day",
+    "source": "era5"
+   },
+   "tmax_c": {
+    "altitude_method": "blend",
+    "day_definition": "parcel local civil day; hourly precipitation and radiation stamped at local 00:00 belong to the previous day",
+    "source": "era5"
+   },
+   "tmean_c": {
+    "altitude_method": "blend",
+    "day_definition": "parcel local civil day; hourly precipitation and radiation stamped at local 00:00 belong to the previous day",
+    "source": "era5"
+   },
+   "tmin_c": {
+    "altitude_method": "blend",
+    "day_definition": "parcel local civil day; hourly precipitation and radiation stamped at local 00:00 belong to the previous day",
+    "source": "era5"
+   },
+   "tmin_frost_risk_c": {
+    "T_c": 3.0,
+    "far": 0.3919,
+    "field": "tmin_frost_risk_c",
+    "form": "constant",
+    "label": "validado con estaciones AEMET",
+    "m": 2.3,
+    "method_version": "nkz@8c7050a: ERA5 grid hourly (elevation=nan) aggregated to the local civil day by weather-api daily_from_hourly",
+    "n_clusters": 63,
+    "n_frost": 45199,
+    "n_stations": 214,
+    "networks": [
+     "AEMET"
+    ],
+    "period": {
+     "end": "2025-12-31",
+     "season": "Oct-Apr",
+     "start": "2021-01-01"
+    },
+    "pod": 0.9036,
+    "pod_ci": [
+     0.8764,
+     0.9255
+    ],
+    "region": "ebro_upper",
+    "source": "history",
+    "status": "validado",
+    "threshold_c": 0.0
+   },
+   "tmin_hard_frost_risk_c": {
+    "field": "tmin_hard_frost_risk_c",
+    "networks": [
+     "AEMET"
+    ],
+    "period": {
+     "end": "2025-12-31",
+     "season": "Oct-Apr",
+     "start": "2021-01-01"
+    },
+    "reason": "sin validar (FAR fuera de muestra 0.54 > 0.50)",
+    "region": "ebro_upper",
+    "source": "history",
+    "status": "sin_validar",
+    "threshold_c": -2.0
+   },
+   "vapour_pressure_kpa": {
+    "altitude_method": "elevation_corrected",
+    "day_definition": "parcel local civil day; hourly precipitation and radiation stamped at local 00:00 belong to the previous day",
+    "source": "era5"
+   },
+   "wind2m_ms": {
+    "altitude_method": "none",
+    "day_definition": "parcel local civil day; hourly precipitation and radiation stamped at local 00:00 belong to the previous day",
+    "source": "era5"
+   }
+  },
+  "resolution": "daily",
+  "start": "2020-03-01",
+  "units": {
+   "et0_mm": "mm",
+   "precip_mm": "mm",
+   "radiation_mj_m2": "MJ m-2",
+   "rh_mean_pct": "%",
+   "tmax_c": "degC",
+   "tmean_c": "degC",
+   "tmin_c": "degC",
+   "tmin_frost_risk_c": "degC",
+   "tmin_hard_frost_risk_c": "degC",
+   "vapour_pressure_kpa": "kPa",
+   "wind2m_ms": "m s-1"
+  },
+  "validation": {
+   "et0_mm": [
+    {
+     "altitude_method": "none",
+     "bias": 0.11867654050403263,
+     "mae": 0.366085462095842,
+     "n": 1154,
+     "network": "SIAR",
+     "period": "SIAR window",
+     "region": "siar_ebro_upper",
+     "source": "era5",
+     "stations": 3,
+     "t_method_differs": true,
+     "variable": "et0_mm"
+    }
+   ],
+   "precip_mm": [
+    {
+     "altitude_method": "none",
+     "bias": 0.014632536150094144,
+     "mae": 1.126262325105954,
+     "n": 46957,
+     "network": "AEMET",
+     "period": "1991-2020",
+     "region": "ebro_upper",
+     "source": "era5",
+     "stations": 5,
+     "variable": "precip_mm"
+    },
+    {
+     "altitude_method": "none",
+     "bias": 0.19676712328767115,
+     "mae": 1.3264109589041104,
+     "n": 3650,
+     "network": "AEMET",
+     "period": "2024-2025",
+     "region": "ebro_upper",
+     "source": "era5",
+     "stations": 5,
+     "variable": "precip_mm"
+    },
+    {
+     "altitude_method": "none",
+     "bias": 0.16011398963730583,
+     "mae": 1.0267012089810017,
+     "n": 1158,
+     "network": "SIAR",
+     "period": "SIAR window",
+     "region": "siar_ebro_upper",
+     "source": "era5",
+     "stations": 3,
+     "variable": "precip_mm"
+    }
+   ],
+   "radiation_mj_m2": [
+    {
+     "altitude_method": "none",
+     "bias": -0.1793305699481872,
+     "mae": 1.748769257340242,
+     "n": 1158,
+     "network": "SIAR",
+     "period": "SIAR window",
+     "region": "siar_ebro_upper",
+     "source": "era5",
+     "stations": 3,
+     "variable": "radiation_mj_m2"
+    }
+   ],
+   "rh_mean_pct": [
+    {
+     "altitude_method": "om_elevation",
+     "bias": -1.7059014064141051,
+     "mae": 4.75501267512229,
+     "n": 1154,
+     "network": "SIAR",
+     "period": "SIAR window",
+     "region": "siar_ebro_upper",
+     "source": "era5",
+     "stations": 3,
+     "t_method_differs": true,
+     "variable": "rh_mean_pct"
+    }
+   ],
+   "tmax_c": [
+    {
+     "altitude_method": "blend",
+     "bias": -0.09545260915867948,
+     "mae": 1.1871331203407953,
+     "n": 46950,
+     "network": "AEMET",
+     "period": "1991-2020",
+     "region": "ebro_upper",
+     "source": "era5",
+     "stations": 5,
+     "variable": "tmax_c"
+    },
+    {
+     "altitude_method": "blend",
+     "bias": -0.1370380509170545,
+     "mae": 1.0627977005201203,
+     "n": 3653,
+     "network": "AEMET",
+     "period": "2024-2025",
+     "region": "ebro_upper",
+     "source": "era5",
+     "stations": 5,
+     "variable": "tmax_c"
+    },
+    {
+     "altitude_method": "blend",
+     "bias": 0.20405541125541132,
+     "mae": 1.0158978354978354,
+     "n": 1155,
+     "network": "SIAR",
+     "period": "SIAR window",
+     "region": "siar_ebro_upper",
+     "source": "era5",
+     "stations": 3,
+     "variable": "tmax_c"
+    }
+   ],
+   "tmean_c": [
+    {
+     "altitude_method": "blend",
+     "bias": 0.6871149094896936,
+     "mae": 0.9361950754073078,
+     "n": 1155,
+     "network": "SIAR",
+     "period": "SIAR window",
+     "region": "siar_ebro_upper",
+     "source": "era5",
+     "stations": 3,
+     "variable": "tmean_c"
+    }
+   ],
+   "tmin_c": [
+    {
+     "altitude_method": "blend",
+     "bias": 0.12701695348440886,
+     "mae": 1.2351316237860037,
+     "n": 46952,
+     "network": "AEMET",
+     "period": "1991-2020",
+     "region": "ebro_upper",
+     "source": "era5",
+     "stations": 5,
+     "variable": "tmin_c"
+    },
+    {
+     "altitude_method": "blend",
+     "bias": 0.15953424657534201,
+     "mae": 1.2171232876712335,
+     "n": 3650,
+     "network": "AEMET",
+     "period": "2024-2025",
+     "region": "ebro_upper",
+     "source": "era5",
+     "stations": 5,
+     "variable": "tmin_c"
+    },
+    {
+     "altitude_method": "blend",
+     "bias": 1.3998813852813856,
+     "mae": 1.7073463203463202,
+     "n": 1155,
+     "network": "SIAR",
+     "period": "SIAR window",
+     "region": "siar_ebro_upper",
+     "source": "era5",
+     "stations": 3,
+     "variable": "tmin_c"
+    }
+   ],
+   "vapour_pressure_kpa": "unvalidated_region",
+   "wind2m_ms": [
+    {
+     "altitude_method": "none",
+     "bias": 0.301373684541383,
+     "mae": 0.49874925349466304,
+     "n": 1155,
+     "network": "SIAR",
+     "period": "SIAR window",
+     "region": "siar_ebro_upper",
+     "source": "era5",
+     "stations": 3,
+     "variable": "wind2m_ms"
+    }
+   ]
+  }
+ },
+ "daily_tmax_precip": {
+  "attribution": "Contains modified Copernicus Climate Change Service information 2026; Open-Meteo (CC BY 4.0)",
+  "days": [
+   {
+    "date": "2020-03-01",
+    "precip_mm": 2.4,
+    "tmax_c": 21.5
+   },
+   {
+    "date": "2020-03-02",
+    "precip_mm": 2.4,
+    "tmax_c": 21.5
+   },
+   {
+    "date": "2020-03-03",
+    "precip_mm": 2.4,
+    "tmax_c": 21.5
+   },
+   {
+    "date": "2020-03-04",
+    "precip_mm": 2.4,
+    "tmax_c": 21.5
+   },
+   {
+    "date": "2020-03-05",
+    "precip_mm": 2.4,
+    "tmax_c": 21.5
+   }
+  ],
+  "end": "2020-03-05",
+  "latest_available": "2026-11-07",
+  "parcel_id": "urn:ngsi-ld:AgriParcel:da36ccd2-85d2-4c76-b552-c5c835a987c1",
+  "provenance": {
+   "precip_mm": {
+    "altitude_method": "none",
+    "day_definition": "parcel local civil day; hourly precipitation and radiation stamped at local 00:00 belong to the previous day",
+    "source": "era5"
+   },
+   "tmax_c": {
+    "altitude_method": "blend",
+    "day_definition": "parcel local civil day; hourly precipitation and radiation stamped at local 00:00 belong to the previous day",
+    "source": "era5"
+   }
+  },
+  "resolution": "daily",
+  "start": "2020-03-01",
+  "units": {
+   "precip_mm": "mm",
+   "tmax_c": "degC"
+  },
+  "validation": {
+   "precip_mm": [
+    {
+     "altitude_method": "none",
+     "bias": 0.014632536150094144,
+     "mae": 1.126262325105954,
+     "n": 46957,
+     "network": "AEMET",
+     "period": "1991-2020",
+     "region": "ebro_upper",
+     "source": "era5",
+     "stations": 5,
+     "variable": "precip_mm"
+    },
+    {
+     "altitude_method": "none",
+     "bias": 0.19676712328767115,
+     "mae": 1.3264109589041104,
+     "n": 3650,
+     "network": "AEMET",
+     "period": "2024-2025",
+     "region": "ebro_upper",
+     "source": "era5",
+     "stations": 5,
+     "variable": "precip_mm"
+    },
+    {
+     "altitude_method": "none",
+     "bias": 0.16011398963730583,
+     "mae": 1.0267012089810017,
+     "n": 1158,
+     "network": "SIAR",
+     "period": "SIAR window",
+     "region": "siar_ebro_upper",
+     "source": "era5",
+     "stations": 3,
+     "variable": "precip_mm"
+    }
+   ],
+   "tmax_c": [
+    {
+     "altitude_method": "blend",
+     "bias": -0.09545260915867948,
+     "mae": 1.1871331203407953,
+     "n": 46950,
+     "network": "AEMET",
+     "period": "1991-2020",
+     "region": "ebro_upper",
+     "source": "era5",
+     "stations": 5,
+     "variable": "tmax_c"
+    },
+    {
+     "altitude_method": "blend",
+     "bias": -0.1370380509170545,
+     "mae": 1.0627977005201203,
+     "n": 3653,
+     "network": "AEMET",
+     "period": "2024-2025",
+     "region": "ebro_upper",
+     "source": "era5",
+     "stations": 5,
+     "variable": "tmax_c"
+    },
+    {
+     "altitude_method": "blend",
+     "bias": 0.20405541125541132,
+     "mae": 1.0158978354978354,
+     "n": 1155,
+     "network": "SIAR",
+     "period": "SIAR window",
+     "region": "siar_ebro_upper",
+     "source": "era5",
+     "stations": 3,
+     "variable": "tmax_c"
+    }
+   ]
+  }
+ },
+ "hourly": {
+  "attribution": "Contains modified Copernicus Climate Change Service information 2026; Open-Meteo (CC BY 4.0)",
+  "end": "2020-03-01",
+  "hours": [
+   {
+    "precip_mm": 0.1,
+    "t_c": 10.0,
+    "time": "2020-03-01T00:00:00Z"
+   },
+   {
+    "precip_mm": 0.1,
+    "t_c": 10.5,
+    "time": "2020-03-01T01:00:00Z"
+   },
+   {
+    "precip_mm": 0.1,
+    "t_c": 11.0,
+    "time": "2020-03-01T02:00:00Z"
+   },
+   {
+    "precip_mm": 0.1,
+    "t_c": 11.5,
+    "time": "2020-03-01T03:00:00Z"
+   },
+   {
+    "precip_mm": 0.1,
+    "t_c": 12.0,
+    "time": "2020-03-01T04:00:00Z"
+   },
+   {
+    "precip_mm": 0.1,
+    "t_c": 12.5,
+    "time": "2020-03-01T05:00:00Z"
+   },
+   {
+    "precip_mm": 0.1,
+    "t_c": 13.0,
+    "time": "2020-03-01T06:00:00Z"
+   },
+   {
+    "precip_mm": 0.1,
+    "t_c": 13.5,
+    "time": "2020-03-01T07:00:00Z"
+   },
+   {
+    "precip_mm": 0.1,
+    "t_c": 14.0,
+    "time": "2020-03-01T08:00:00Z"
+   },
+   {
+    "precip_mm": 0.1,
+    "t_c": 14.5,
+    "time": "2020-03-01T09:00:00Z"
+   },
+   {
+    "precip_mm": 0.1,
+    "t_c": 15.0,
+    "time": "2020-03-01T10:00:00Z"
+   },
+   {
+    "precip_mm": 0.1,
+    "t_c": 15.5,
+    "time": "2020-03-01T11:00:00Z"
+   },
+   {
+    "precip_mm": 0.1,
+    "t_c": 16.0,
+    "time": "2020-03-01T12:00:00Z"
+   },
+   {
+    "precip_mm": 0.1,
+    "t_c": 16.5,
+    "time": "2020-03-01T13:00:00Z"
+   },
+   {
+    "precip_mm": 0.1,
+    "t_c": 17.0,
+    "time": "2020-03-01T14:00:00Z"
+   },
+   {
+    "precip_mm": 0.1,
+    "t_c": 17.5,
+    "time": "2020-03-01T15:00:00Z"
+   },
+   {
+    "precip_mm": 0.1,
+    "t_c": 18.0,
+    "time": "2020-03-01T16:00:00Z"
+   },
+   {
+    "precip_mm": 0.1,
+    "t_c": 18.5,
+    "time": "2020-03-01T17:00:00Z"
+   },
+   {
+    "precip_mm": 0.1,
+    "t_c": 19.0,
+    "time": "2020-03-01T18:00:00Z"
+   },
+   {
+    "precip_mm": 0.1,
+    "t_c": 19.5,
+    "time": "2020-03-01T19:00:00Z"
+   },
+   {
+    "precip_mm": 0.1,
+    "t_c": 20.0,
+    "time": "2020-03-01T20:00:00Z"
+   },
+   {
+    "precip_mm": 0.1,
+    "t_c": 20.5,
+    "time": "2020-03-01T21:00:00Z"
+   },
+   {
+    "precip_mm": 0.1,
+    "t_c": 21.0,
+    "time": "2020-03-01T22:00:00Z"
+   },
+   {
+    "precip_mm": 0.1,
+    "t_c": 21.5,
+    "time": "2020-03-01T23:00:00Z"
+   }
+  ],
+  "latest_available": "2026-11-07",
+  "parcel_id": "urn:ngsi-ld:AgriParcel:da36ccd2-85d2-4c76-b552-c5c835a987c1",
+  "provenance": {
+   "precip_mm": {
+    "altitude_method": "none",
+    "source": "era5"
+   },
+   "t_c": {
+    "altitude_method": "blend",
+    "source": "era5"
+   }
+  },
+  "resolution": "hourly",
+  "start": "2020-03-01",
+  "units": {
+   "precip_mm": "mm",
+   "t_c": "degC"
+  },
+  "validation": {
+   "precip_mm": "unvalidated_region",
+   "t_c": "unvalidated_region"
+  }
+ }
+}

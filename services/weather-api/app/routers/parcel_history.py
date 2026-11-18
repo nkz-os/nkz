@@ -38,6 +38,7 @@ from app.services.history import archive, cache as cache_mod
 from app.services.history.aggregate import daily_from_hourly, hourly_rows, local_date
 from app.services.history.deadline import Deadline, DeadlineExceeded
 from app.services.history.method_version import TMIN_METHOD_VERSION
+from app.services.history.seam import seam_for
 from app.services.history.validation import validation_for
 from app.services.history.year import history_year, peek_cell
 
@@ -319,6 +320,7 @@ def _serve(parcel_id: str, start: str, end: str, resolution: str, vars: Optional
         "validation": {v: validation_for(lat, lon, v, resolution, coastal=coastal) for v in wanted if v not in frost_prov},
         "attribution": _attribution(today.year),
     }
+    body["seam"] = {v: seam_for(lat, lon, v, resolution) for v in wanted if v not in frost_prov}
     headers = {}
     if incomplete:
         body["incomplete_years"] = incomplete
