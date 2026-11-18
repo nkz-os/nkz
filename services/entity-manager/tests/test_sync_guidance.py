@@ -66,3 +66,11 @@ def test_operation_without_passes_has_empty_swaths():
 
 def test_cache_key_depends_on_the_app_schema_version():
     assert sync._sync_cache_key("t", "equipment", 0, 5) != sync._sync_cache_key("t", "equipment", 0, 6)
+
+
+def test_plan_operation_names_its_tractor_and_implement():
+    ent = {"id": "urn:op", "type": "AgriParcelOperation",
+           "usesTractor": {"type": "Relationship", "object": "urn:t1"},
+           "usesImplement": {"type": "Relationship", "object": "urn:i1"}}
+    rec = sync._operation_record_for_watermelon(ent, 1)
+    assert (rec["tractor_id"], rec["implement_id"]) == ("urn:t1", "urn:i1")

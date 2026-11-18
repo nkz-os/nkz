@@ -331,9 +331,10 @@ def _operation_record_for_watermelon(ent, fallback_ts):
         'remote_id': rid,
         'parcel_id': (_str_prop('locatedAt', '') or _str_prop('refParcel', '')
                       or _rel_object(props, 'hasAgriParcel')),
-        'equipment_id': _str_prop('usesEquipment', '') or _str_prop('refEquipment', ''),
-        'tractor_id': _str_prop('usesTractor', '') or _str_prop('refTractor', ''),
-        'implement_id': _str_prop('usesImplement', '') or _str_prop('refImplement', ''),
+        # Relationships carry their target in `object` (_rel_object also accepts `value`).
+        'equipment_id': _rel_object(props, 'usesEquipment') or _str_prop('refEquipment', ''),
+        'tractor_id': _rel_object(props, 'usesTractor') or _str_prop('refTractor', ''),
+        'implement_id': _rel_object(props, 'usesImplement') or _str_prop('refImplement', ''),
         'operation_type': _str_prop('operationType', 'spraying'),
         'ab_line_geojson': _json_prop('abLine'),
         # The plan's passes (gis-routing `swaths`, in travel order) the app guides along.
