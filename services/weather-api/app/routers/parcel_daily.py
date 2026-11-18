@@ -418,6 +418,13 @@ def get_parcel_daily(
 
     # Sensors only describe finished days: forecast days are appended after this.
     sensors = _apply_sensors(tenant_id, parcel_urn, d0, d1, days, entity)
+    # A sensor Tmin replaced the filled (null) one: its reason no longer describes the day.
+    for rec in days:
+        fr_day = field_reasons.get(rec["date"])
+        if fr_day and (rec.get("sources") or {}).get("tmin_c") == "iot_sensor":
+            fr_day.pop("tmin_c", None)
+            if not fr_day:
+                del field_reasons[rec["date"]]
 
     if forecast_days > 0:
         # A day without data from the parcel's today on is the forecast's. A day
@@ -439,7 +446,6 @@ def get_parcel_daily(
             if model_day is not None:
                 rec.update(model_day)
                 rec.pop("kind", None)
-
                 rec["sources"] = {f: ("model_forecast" if rec[f] is not None else None) for f in _FIELDS}
             else:
                 reasons[key] = "forecast_unavailable"

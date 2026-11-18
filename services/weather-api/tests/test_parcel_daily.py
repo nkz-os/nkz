@@ -694,3 +694,14 @@ def test_forecast_days_do_not_touch_field_reasons(client):
     h["install"]([])
     r, _ = _get(tc, "start=2026-11-05&end=2026-11-06&forecast_days=1", _fake_forecast())
     assert r.json()["field_reasons"] == {}
+
+
+def test_sensor_tmin_clears_the_field_reason_of_a_failed_fill(client, monkeypatch):
+    tc, h = client
+    h["install"]([])
+    monkeypatch.setattr(pd, "_parcel_devices", lambda urn, tid: ["dev1"])
+    monkeypatch.setattr(pd, "_sensor_readings", lambda tid, devices, lo, hi: _sensor_day("2026-10-01", 10.0, 22.0))
+    j = _get_fill(tc, _filled_rec(tmin_c=None, tmin_reason="tmin_raw_unavailable"))
+    d = j["days"][0]
+    assert d["tmin_c"] == 10.0 and d["sources"]["tmin_c"] == "iot_sensor"
+    assert j["field_reasons"] == {}
