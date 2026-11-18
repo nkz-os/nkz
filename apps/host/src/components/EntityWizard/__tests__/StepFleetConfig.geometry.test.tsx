@@ -52,4 +52,11 @@ describe('StepFleetConfig machine geometry', () => {
     render(<Harness type="AutonomousMobileRobot" />);
     expect(screen.queryByText('editor.field.category')).toBeNull();
   });
+
+  it('the role select has no empty option', () => {
+    render(<Harness />);
+    const options = Array.from((input('editor.field.category') as unknown as HTMLSelectElement).options).map((o) => o.value);
+    expect(options).toEqual(['tractor', 'implement']);
+  });
 });
+
