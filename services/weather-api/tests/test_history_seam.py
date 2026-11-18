@@ -18,7 +18,7 @@ from app.services.history.validation import validation_for
 from test_parcel_history import env, _get, _entity  # noqa: F401  (env is a fixture)
 
 # sha256 of the harness export (validation/seam/seam_public.json, local); regenerate both together.
-SEAM_PUBLIC_SHA256 = "ddf13449da54fc9fd78008c0b0075ad85ba7e217ecfc125b61d7a043c7728faa"
+SEAM_PUBLIC_SHA256 = "e54459b195b0bdd794da2f9fa2f7239c070ff1b5de50dca502ed8deb419950b9"
 
 
 def test_data_file_sha256_is_pinned():
@@ -48,12 +48,23 @@ def test_ebro_overlap_serves_every_matching_region_like_validation():
         assert set(cells) == {"DJF", "MAM", "JJA", "SON", "annual"}
 
 
-def test_tmin_is_served_exactly_as_the_file_says():
+def test_tmin_is_served_measured_with_valid_from_and_method_note():
     out = seam.seam_for(42.0, -1.5, "tmin_c", "daily")
     doc = json.load(open(seam.SEAM_PATH, encoding="utf-8"))
+    assert out["status"] == "medido"
+    assert out["method"] == doc["method"] and out["method"]["tmin_c"]
+    assert out["window"] == doc["window"]
     for region, cells in out["season_cells"].items():
-        assert cells["annual"] == doc["regions"][region]["tmin_c"]["all"]
-        assert cells["annual"]["bias"] is None and cells["annual"]["reason"] == "metodo_tmin_en_cambio"
+        for season, key in (("DJF", "DJF"), ("MAM", "MAM"), ("JJA", "JJA"), ("SON", "SON"), ("annual", "all")):
+            cell = cells[season]
+            assert cell == doc["regions"][region]["tmin_c"][key]       # passed through unchanged
+            assert cell["valid_from"] == "2026-11-17"
+            assert cell["reason"] != "metodo_tmin_en_cambio"
+        assert cells["annual"]["bias"] is not None and cells["annual"]["ci"] is not None
+
+
+def test_no_cell_carries_the_retired_tmin_reason():
+    assert "metodo_tmin_en_cambio" not in open(seam.SEAM_PATH, encoding="utf-8").read()
 
 
 def _null(status, reason):

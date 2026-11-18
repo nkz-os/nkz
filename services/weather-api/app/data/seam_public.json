@@ -14,12 +14,12 @@
    "no_material",
    "sin_juzgar_mae",
    "sin_juzgar_region",
-   "insuficiente",
-   "metodo_tmin_en_cambio"
+   "insuficiente"
   ],
   "scope": "stored closed days only; not fill=open_meteo days",
   "seam": "daily closed day minus ERA5 history, per local day, days with both values",
-  "seed": 20261117
+  "seed": 20261117,
+  "tmin_c": "Tmin de celda cruda (elevation=nan); costa: valor corregido"
  },
  "not_judged_regions": {
   "germany_east": "sin_juzgar_region",
@@ -277,54 +277,69 @@
    },
    "tmin_c": {
     "DJF": {
-     "bias": null,
-     "ci": null,
+     "bias": -0.3278041074249604,
+     "ci": [
+      -0.6057549085985103,
+      -0.03744075829383896
+     ],
      "material": null,
-     "n_clusters": null,
-     "n_days": null,
-     "reason": "metodo_tmin_en_cambio",
-     "sd": null,
-     "valid_from": null
+     "n_clusters": 5,
+     "n_days": 1266,
+     "reason": "sin_juzgar_mae",
+     "sd": 1.178979694018526,
+     "valid_from": "2026-11-17"
     },
     "JJA": {
-     "bias": null,
-     "ci": null,
+     "bias": -0.23913043478260848,
+     "ci": [
+      -0.6779388083735907,
+      0.36123188405797096
+     ],
      "material": null,
-     "n_clusters": null,
-     "n_days": null,
-     "reason": "metodo_tmin_en_cambio",
-     "sd": null,
-     "valid_from": null
+     "n_clusters": 5,
+     "n_days": 1656,
+     "reason": "sin_juzgar_mae",
+     "sd": 1.0366295454001044,
+     "valid_from": "2026-11-17"
     },
     "MAM": {
-     "bias": null,
-     "ci": null,
+     "bias": -0.34873188405797073,
+     "ci": [
+      -0.6712862318840576,
+      0.0618478260869566
+     ],
      "material": null,
-     "n_clusters": null,
-     "n_days": null,
-     "reason": "metodo_tmin_en_cambio",
-     "sd": null,
-     "valid_from": null
+     "n_clusters": 5,
+     "n_days": 1104,
+     "reason": "sin_juzgar_mae",
+     "sd": 1.024574840350529,
+     "valid_from": "2026-11-17"
     },
     "SON": {
-     "bias": null,
-     "ci": null,
+     "bias": -0.12087912087912094,
+     "ci": [
+      -0.37760334903192055,
+      0.23853479853479848
+     ],
      "material": null,
-     "n_clusters": null,
-     "n_days": null,
-     "reason": "metodo_tmin_en_cambio",
-     "sd": null,
-     "valid_from": null
+     "n_clusters": 5,
+     "n_days": 1638,
+     "reason": "sin_juzgar_mae",
+     "sd": 1.0435671209944903,
+     "valid_from": "2026-11-17"
     },
     "all": {
-     "bias": null,
-     "ci": null,
+     "bias": -0.24611581920903947,
+     "ci": [
+      -0.5488170903954801,
+      0.1661652542372881
+     ],
      "material": null,
-     "n_clusters": null,
-     "n_days": null,
-     "reason": "metodo_tmin_en_cambio",
-     "sd": null,
-     "valid_from": null
+     "n_clusters": 5,
+     "n_days": 5664,
+     "reason": "sin_juzgar_mae",
+     "sd": 1.0732713781603793,
+     "valid_from": "2026-11-17"
     }
    },
    "vapour_pressure_kpa": {
@@ -703,54 +718,69 @@
    },
    "tmin_c": {
     "DJF": {
-     "bias": null,
-     "ci": null,
-     "material": null,
-     "n_clusters": null,
-     "n_days": null,
-     "reason": "metodo_tmin_en_cambio",
-     "sd": null,
-     "valid_from": null
+     "bias": -0.1111848341232227,
+     "ci": [
+      -0.526729857819905,
+      0.31744075829383894
+     ],
+     "material": false,
+     "n_clusters": 5,
+     "n_days": 1055,
+     "reason": "no_material",
+     "sd": 1.4612022352998575,
+     "valid_from": "2026-11-17"
     },
     "JJA": {
-     "bias": null,
-     "ci": null,
-     "material": null,
-     "n_clusters": null,
-     "n_days": null,
-     "reason": "metodo_tmin_en_cambio",
-     "sd": null,
-     "valid_from": null
+     "bias": 0.22869565217391286,
+     "ci": [
+      -0.46217391304347855,
+      0.9175362318840579
+     ],
+     "material": false,
+     "n_clusters": 5,
+     "n_days": 1380,
+     "reason": "no_material",
+     "sd": 1.2836630791522994,
+     "valid_from": "2026-11-17"
     },
     "MAM": {
-     "bias": null,
-     "ci": null,
-     "material": null,
-     "n_clusters": null,
-     "n_days": null,
-     "reason": "metodo_tmin_en_cambio",
-     "sd": null,
-     "valid_from": null
+     "bias": -0.002500000000000136,
+     "ci": [
+      -0.5694565217391305,
+      0.563369565217391
+     ],
+     "material": false,
+     "n_clusters": 5,
+     "n_days": 920,
+     "reason": "no_material",
+     "sd": 1.2277638094146521,
+     "valid_from": "2026-11-17"
     },
     "SON": {
-     "bias": null,
-     "ci": null,
-     "material": null,
-     "n_clusters": null,
-     "n_days": null,
-     "reason": "metodo_tmin_en_cambio",
-     "sd": null,
-     "valid_from": null
+     "bias": 0.07780219780219767,
+     "ci": [
+      -0.4226373626373627,
+      0.5939926739926737
+     ],
+     "material": false,
+     "n_clusters": 5,
+     "n_days": 1365,
+     "reason": "no_material",
+     "sd": 1.3287364752537099,
+     "valid_from": "2026-11-17"
     },
     "all": {
-     "bias": null,
-     "ci": null,
-     "material": null,
-     "n_clusters": null,
-     "n_days": null,
-     "reason": "metodo_tmin_en_cambio",
-     "sd": null,
-     "valid_from": null
+     "bias": 0.06402542372881347,
+     "ci": [
+      -0.439978813559322,
+      0.5537499999999997
+     ],
+     "material": false,
+     "n_clusters": 5,
+     "n_days": 4720,
+     "reason": "no_material",
+     "sd": 1.3334142418460766,
+     "valid_from": "2026-11-17"
     }
    },
    "vapour_pressure_kpa": {
@@ -1129,54 +1159,69 @@
    },
    "tmin_c": {
     "DJF": {
-     "bias": null,
-     "ci": null,
-     "material": null,
-     "n_clusters": null,
-     "n_days": null,
-     "reason": "metodo_tmin_en_cambio",
-     "sd": null,
-     "valid_from": null
+     "bias": 0.14530805687203804,
+     "ci": [
+      -0.41571879936808825,
+      0.7206003159557663
+     ],
+     "material": false,
+     "n_clusters": 6,
+     "n_days": 1266,
+     "reason": "no_material",
+     "sd": 1.3473084660367882,
+     "valid_from": "2026-11-17"
     },
     "JJA": {
-     "bias": null,
-     "ci": null,
-     "material": null,
-     "n_clusters": null,
-     "n_days": null,
-     "reason": "metodo_tmin_en_cambio",
-     "sd": null,
-     "valid_from": null
+     "bias": 0.1887439613526573,
+     "ci": [
+      -0.401135869565217,
+      0.7196376811594206
+     ],
+     "material": false,
+     "n_clusters": 6,
+     "n_days": 1656,
+     "reason": "no_material",
+     "sd": 1.2269953937721751,
+     "valid_from": "2026-11-17"
     },
     "MAM": {
-     "bias": null,
-     "ci": null,
-     "material": null,
-     "n_clusters": null,
-     "n_days": null,
-     "reason": "metodo_tmin_en_cambio",
-     "sd": null,
-     "valid_from": null
+     "bias": 0.0034782608695654972,
+     "ci": [
+      -0.4168478260869565,
+      0.519891304347827
+     ],
+     "material": false,
+     "n_clusters": 6,
+     "n_days": 1104,
+     "reason": "no_material",
+     "sd": 1.2299455808665907,
+     "valid_from": "2026-11-17"
     },
     "SON": {
-     "bias": null,
-     "ci": null,
-     "material": null,
-     "n_clusters": null,
-     "n_days": null,
-     "reason": "metodo_tmin_en_cambio",
-     "sd": null,
-     "valid_from": null
+     "bias": 0.11665445665445663,
+     "ci": [
+      -0.23125763125763132,
+      0.48465201465201474
+     ],
+     "material": false,
+     "n_clusters": 6,
+     "n_days": 1638,
+     "reason": "no_material",
+     "sd": 1.1188948826195193,
+     "valid_from": "2026-11-17"
     },
     "all": {
-     "bias": null,
-     "ci": null,
-     "material": null,
-     "n_clusters": null,
-     "n_days": null,
-     "reason": "metodo_tmin_en_cambio",
-     "sd": null,
-     "valid_from": null
+     "bias": 0.12207627118644031,
+     "ci": [
+      -0.28954802259886986,
+      0.5699540960451963
+     ],
+     "material": false,
+     "n_clusters": 6,
+     "n_days": 5664,
+     "reason": "no_material",
+     "sd": 1.2272664498431551,
+     "valid_from": "2026-11-17"
     }
    },
    "vapour_pressure_kpa": {
@@ -1555,54 +1600,69 @@
    },
    "tmin_c": {
     "DJF": {
-     "bias": null,
-     "ci": null,
-     "material": null,
-     "n_clusters": null,
-     "n_days": null,
-     "reason": "metodo_tmin_en_cambio",
-     "sd": null,
-     "valid_from": null
+     "bias": -0.17077409162717214,
+     "ci": [
+      -0.5343601895734595,
+      0.17109597156398101
+     ],
+     "material": false,
+     "n_clusters": 6,
+     "n_days": 1266,
+     "reason": "no_material",
+     "sd": 1.2791791591708643,
+     "valid_from": "2026-11-17"
     },
     "JJA": {
-     "bias": null,
-     "ci": null,
-     "material": null,
-     "n_clusters": null,
-     "n_days": null,
-     "reason": "metodo_tmin_en_cambio",
-     "sd": null,
-     "valid_from": null
+     "bias": 0.32717391304347815,
+     "ci": [
+      0.002531702898550599,
+      0.6221014492753623
+     ],
+     "material": false,
+     "n_clusters": 6,
+     "n_days": 1656,
+     "reason": "no_material",
+     "sd": 1.1308946740053567,
+     "valid_from": "2026-11-17"
     },
     "MAM": {
-     "bias": null,
-     "ci": null,
-     "material": null,
-     "n_clusters": null,
-     "n_days": null,
-     "reason": "metodo_tmin_en_cambio",
-     "sd": null,
-     "valid_from": null
+     "bias": 0.017844202898550637,
+     "ci": [
+      -0.2967391304347828,
+      0.2884963768115941
+     ],
+     "material": false,
+     "n_clusters": 6,
+     "n_days": 1104,
+     "reason": "no_material",
+     "sd": 1.0615160770663163,
+     "valid_from": "2026-11-17"
     },
     "SON": {
-     "bias": null,
-     "ci": null,
-     "material": null,
-     "n_clusters": null,
-     "n_days": null,
-     "reason": "metodo_tmin_en_cambio",
-     "sd": null,
-     "valid_from": null
+     "bias": 0.00604395604395603,
+     "ci": [
+      -0.3123321123321124,
+      0.2761294261294261
+     ],
+     "material": false,
+     "n_clusters": 6,
+     "n_days": 1638,
+     "reason": "no_material",
+     "sd": 1.2081302073636397,
+     "valid_from": "2026-11-17"
     },
     "all": {
-     "bias": null,
-     "ci": null,
-     "material": null,
-     "n_clusters": null,
-     "n_days": null,
-     "reason": "metodo_tmin_en_cambio",
-     "sd": null,
-     "valid_from": null
+     "bias": 0.06271186440677959,
+     "ci": [
+      -0.2591454802259889,
+      0.3342161016949153
+     ],
+     "material": false,
+     "n_clusters": 6,
+     "n_days": 5664,
+     "reason": "no_material",
+     "sd": 1.1893833102156703,
+     "valid_from": "2026-11-17"
     }
    },
    "vapour_pressure_kpa": {
@@ -1981,54 +2041,69 @@
    },
    "tmin_c": {
     "DJF": {
-     "bias": null,
-     "ci": null,
+     "bias": 0.7527646129541864,
+     "ci": [
+      -0.09336492890995259,
+      2.337914691943128
+     ],
      "material": null,
-     "n_clusters": null,
-     "n_days": null,
-     "reason": "metodo_tmin_en_cambio",
-     "sd": null,
-     "valid_from": null
+     "n_clusters": 3,
+     "n_days": 633,
+     "reason": "insuficiente",
+     "sd": 1.5988314868374145,
+     "valid_from": "2026-11-17"
     },
     "JJA": {
-     "bias": null,
-     "ci": null,
+     "bias": 0.4335748792270533,
+     "ci": [
+      -0.29384057971014493,
+      1.6525362318840582
+     ],
      "material": null,
-     "n_clusters": null,
-     "n_days": null,
-     "reason": "metodo_tmin_en_cambio",
-     "sd": null,
-     "valid_from": null
+     "n_clusters": 3,
+     "n_days": 828,
+     "reason": "insuficiente",
+     "sd": 1.2641396739701296,
+     "valid_from": "2026-11-17"
     },
     "MAM": {
-     "bias": null,
-     "ci": null,
+     "bias": 0.49547101449275344,
+     "ci": [
+      -0.07771739130434782,
+      1.6010869565217387
+     ],
      "material": null,
-     "n_clusters": null,
-     "n_days": null,
-     "reason": "metodo_tmin_en_cambio",
-     "sd": null,
-     "valid_from": null
+     "n_clusters": 3,
+     "n_days": 552,
+     "reason": "insuficiente",
+     "sd": 1.1764311881092484,
+     "valid_from": "2026-11-17"
     },
     "SON": {
-     "bias": null,
-     "ci": null,
+     "bias": 0.6239316239316244,
+     "ci": [
+      -0.035897435897435874,
+      1.9102564102564115
+     ],
      "material": null,
-     "n_clusters": null,
-     "n_days": null,
-     "reason": "metodo_tmin_en_cambio",
-     "sd": null,
-     "valid_from": null
+     "n_clusters": 3,
+     "n_days": 819,
+     "reason": "insuficiente",
+     "sd": 1.3600710736547363,
+     "valid_from": "2026-11-17"
     },
     "all": {
-     "bias": null,
-     "ci": null,
+     "bias": 0.5720338983050843,
+     "ci": [
+      -0.12266949152542327,
+      1.870233050847456
+     ],
      "material": null,
-     "n_clusters": null,
-     "n_days": null,
-     "reason": "metodo_tmin_en_cambio",
-     "sd": null,
-     "valid_from": null
+     "n_clusters": 3,
+     "n_days": 2832,
+     "reason": "insuficiente",
+     "sd": 1.3624169057451976,
+     "valid_from": "2026-11-17"
     }
    },
    "vapour_pressure_kpa": {
@@ -2407,54 +2482,69 @@
    },
    "tmin_c": {
     "DJF": {
-     "bias": null,
-     "ci": null,
+     "bias": -0.5906793048973139,
+     "ci": [
+      -0.6973933649289091,
+      -0.3772511848341233
+     ],
      "material": null,
-     "n_clusters": null,
-     "n_days": null,
-     "reason": "metodo_tmin_en_cambio",
-     "sd": null,
-     "valid_from": null
+     "n_clusters": 2,
+     "n_days": 633,
+     "reason": "insuficiente",
+     "sd": 1.5335566173357278,
+     "valid_from": "2026-11-17"
     },
     "JJA": {
-     "bias": null,
-     "ci": null,
+     "bias": 0.4380434782608692,
+     "ci": [
+      0.17952898550724636,
+      0.9550724637681148
+     ],
      "material": null,
-     "n_clusters": null,
-     "n_days": null,
-     "reason": "metodo_tmin_en_cambio",
-     "sd": null,
-     "valid_from": null
+     "n_clusters": 2,
+     "n_days": 828,
+     "reason": "insuficiente",
+     "sd": 1.2141306424642764,
+     "valid_from": "2026-11-17"
     },
     "MAM": {
-     "bias": null,
-     "ci": null,
+     "bias": -0.11811594202898566,
+     "ci": [
+      -0.33994565217391326,
+      0.32554347826086955
+     ],
      "material": null,
-     "n_clusters": null,
-     "n_days": null,
-     "reason": "metodo_tmin_en_cambio",
-     "sd": null,
-     "valid_from": null
+     "n_clusters": 2,
+     "n_days": 552,
+     "reason": "insuficiente",
+     "sd": 1.3159766825446753,
+     "valid_from": "2026-11-17"
     },
     "SON": {
-     "bias": null,
-     "ci": null,
+     "bias": -0.203052503052503,
+     "ci": [
+      -0.3646520146520146,
+      0.12014652014652016
+     ],
      "material": null,
-     "n_clusters": null,
-     "n_days": null,
-     "reason": "metodo_tmin_en_cambio",
-     "sd": null,
-     "valid_from": null
+     "n_clusters": 2,
+     "n_days": 819,
+     "reason": "insuficiente",
+     "sd": 1.4231505257703594,
+     "valid_from": "2026-11-17"
     },
     "all": {
-     "bias": null,
-     "ci": null,
+     "bias": -0.08569915254237288,
+     "ci": [
+      -0.27510593220338964,
+      0.29311440677966066
+     ],
      "material": null,
-     "n_clusters": null,
-     "n_days": null,
-     "reason": "metodo_tmin_en_cambio",
-     "sd": null,
-     "valid_from": null
+     "n_clusters": 2,
+     "n_days": 2832,
+     "reason": "insuficiente",
+     "sd": 1.421039715641039,
+     "valid_from": "2026-11-17"
     }
    },
    "vapour_pressure_kpa": {
@@ -2833,54 +2923,69 @@
    },
    "tmin_c": {
     "DJF": {
-     "bias": null,
-     "ci": null,
+     "bias": 0.09826224328593977,
+     "ci": [
+      -0.7625592417061612,
+      1.1990521327014212
+     ],
      "material": null,
-     "n_clusters": null,
-     "n_days": null,
-     "reason": "metodo_tmin_en_cambio",
-     "sd": null,
-     "valid_from": null
+     "n_clusters": 3,
+     "n_days": 633,
+     "reason": "insuficiente",
+     "sd": 1.6469900088790739,
+     "valid_from": "2026-11-17"
     },
     "JJA": {
-     "bias": null,
-     "ci": null,
+     "bias": 0.40519323671497615,
+     "ci": [
+      -0.21268115942028976,
+      1.4467391304347832
+     ],
      "material": null,
-     "n_clusters": null,
-     "n_days": null,
-     "reason": "metodo_tmin_en_cambio",
-     "sd": null,
-     "valid_from": null
+     "n_clusters": 3,
+     "n_days": 828,
+     "reason": "insuficiente",
+     "sd": 1.4401849224110688,
+     "valid_from": "2026-11-17"
     },
     "MAM": {
-     "bias": null,
-     "ci": null,
+     "bias": 0.5277173913043478,
+     "ci": [
+      -0.433695652173913,
+      1.852173913043478
+     ],
      "material": null,
-     "n_clusters": null,
-     "n_days": null,
-     "reason": "metodo_tmin_en_cambio",
-     "sd": null,
-     "valid_from": null
+     "n_clusters": 3,
+     "n_days": 552,
+     "reason": "insuficiente",
+     "sd": 1.6605740615817963,
+     "valid_from": "2026-11-17"
     },
     "SON": {
-     "bias": null,
-     "ci": null,
+     "bias": 0.3102564102564101,
+     "ci": [
+      -0.5589743589743588,
+      1.4886446886446878
+     ],
      "material": null,
-     "n_clusters": null,
-     "n_days": null,
-     "reason": "metodo_tmin_en_cambio",
-     "sd": null,
-     "valid_from": null
+     "n_clusters": 3,
+     "n_days": 819,
+     "reason": "insuficiente",
+     "sd": 1.5557110836328827,
+     "valid_from": "2026-11-17"
     },
     "all": {
-     "bias": null,
-     "ci": null,
+     "bias": 0.33301553672316403,
+     "ci": [
+      -0.42203389830508514,
+      1.4825211864406789
+     ],
      "material": null,
-     "n_clusters": null,
-     "n_days": null,
-     "reason": "metodo_tmin_en_cambio",
-     "sd": null,
-     "valid_from": null
+     "n_clusters": 3,
+     "n_days": 2832,
+     "reason": "insuficiente",
+     "sd": 1.5712606839135794,
+     "valid_from": "2026-11-17"
     }
    },
    "vapour_pressure_kpa": {
@@ -3259,54 +3364,69 @@
    },
    "tmin_c": {
     "DJF": {
-     "bias": null,
-     "ci": null,
+     "bias": -1.2714060031595575,
+     "ci": [
+      -1.345497630331754,
+      -1.2343601895734595
+     ],
      "material": null,
-     "n_clusters": null,
-     "n_days": null,
-     "reason": "metodo_tmin_en_cambio",
-     "sd": null,
-     "valid_from": null
+     "n_clusters": 2,
+     "n_days": 633,
+     "reason": "insuficiente",
+     "sd": 1.460033188811905,
+     "valid_from": "2026-11-17"
     },
     "JJA": {
-     "bias": null,
-     "ci": null,
+     "bias": -1.2112318840579706,
+     "ci": [
+      -1.2454710144927528,
+      -1.142753623188406
+     ],
      "material": null,
-     "n_clusters": null,
-     "n_days": null,
-     "reason": "metodo_tmin_en_cambio",
-     "sd": null,
-     "valid_from": null
+     "n_clusters": 2,
+     "n_days": 828,
+     "reason": "insuficiente",
+     "sd": 1.1132409321475651,
+     "valid_from": "2026-11-17"
     },
     "MAM": {
-     "bias": null,
-     "ci": null,
+     "bias": -1.0570652173913047,
+     "ci": [
+      -1.121739130434783,
+      -1.0247282608695656
+     ],
      "material": null,
-     "n_clusters": null,
-     "n_days": null,
-     "reason": "metodo_tmin_en_cambio",
-     "sd": null,
-     "valid_from": null
+     "n_clusters": 2,
+     "n_days": 552,
+     "reason": "insuficiente",
+     "sd": 1.2440292578099066,
+     "valid_from": "2026-11-17"
     },
     "SON": {
-     "bias": null,
-     "ci": null,
+     "bias": -1.2827838827838822,
+     "ci": [
+      -1.2952380952380944,
+      -1.257875457875457
+     ],
      "material": null,
-     "n_clusters": null,
-     "n_days": null,
-     "reason": "metodo_tmin_en_cambio",
-     "sd": null,
-     "valid_from": null
+     "n_clusters": 2,
+     "n_days": 819,
+     "reason": "insuficiente",
+     "sd": 1.3972586034179544,
+     "valid_from": "2026-11-17"
     },
     "all": {
-     "bias": null,
-     "ci": null,
+     "bias": -1.2153248587570626,
+     "ci": [
+      -1.2172669491525423,
+      -1.2143538135593226
+     ],
      "material": null,
-     "n_clusters": null,
-     "n_days": null,
-     "reason": "metodo_tmin_en_cambio",
-     "sd": null,
-     "valid_from": null
+     "n_clusters": 2,
+     "n_days": 2832,
+     "reason": "insuficiente",
+     "sd": 1.307727069654502,
+     "valid_from": "2026-11-17"
     }
    },
    "vapour_pressure_kpa": {
