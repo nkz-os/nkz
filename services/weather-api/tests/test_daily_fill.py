@@ -36,14 +36,14 @@ DAILY = {"time": ["2026-06-01", "2026-06-02"],
 def test_fetch_maps_fields_and_drops_empty_days():
     with patch.object(df.settings, "openmeteo_archive_url", "http://om/v1"), \
          patch.object(df.settings, "openmeteo_archive_models", "era5_seamless"):
-        get = MagicMock(return_value=_resp({"daily": DAILY}))
+        get = MagicMock(return_value=_resp({**_cell(), "daily": DAILY}))
         out = df.fetch_open_meteo_daily("reanalysis", 42.6, -2.1, 580.0,
                                         date(2026, 6, 1), date(2026, 6, 2), http_get=get)
     assert list(out) == ["2026-06-01"]
     d = out["2026-06-01"]
     assert d["tmin_c"] == 10.9 and d["precip_mm"] == 0.0 and d["radiation_mj_m2"] == 26.76
     assert d["wind2m_ms"] == round(2.52 * 0.748, 3) and d["vapour_pressure_kpa"] is None
-    url, kw = get.call_args.args[0], get.call_args.kwargs
+    url, kw = get.call_args_list[0].args[0], get.call_args_list[0].kwargs
     assert url == "http://om/v1/archive" and kw["timeout"] == 120
     assert kw["params"]["models"] == "era5_seamless" and kw["params"]["elevation"] == 580.0
 
@@ -111,6 +111,7 @@ def _forecast_payload(ecmwf_tmin=None, hourly=None):
         hourly = [5.0] * 72
     hours = [f"{d}T{h:02d}:00" for d in days for h in range(24)]
     return {
+        "latitude": 42.6, "longitude": -2.1, "elevation": 450.0,
         "utc_offset_seconds": 3600,
         "daily": {
             "time": days,
@@ -136,8 +137,8 @@ def _forecast(payload, status=200):
 
 def test_fetch_forecast_uses_automatic_selection_and_marks_today():
     out, get = _forecast(_forecast_payload())
-    kw = get.call_args.kwargs
-    assert get.call_args.args[0] == "http://om/v1/forecast"
+    kw = get.call_args_list[0].kwargs
+    assert get.call_args_list[0].args[0] == "http://om/v1/forecast"
     assert kw["params"]["models"] == "best_match,ecmwf_ifs025"
     assert kw["params"]["timezone"] == "auto" and kw["params"]["past_days"] == 0
     assert kw["params"]["forecast_days"] == 3 and kw["params"]["elevation"] == 300.0
@@ -188,15 +189,15 @@ def test_coldest_is_null_if_one_model_missing():
 def test_forecast_days_request_is_capped_at_open_meteo_limit():
     get = MagicMock(return_value=_resp({"daily": {"time": []}, "utc_offset_seconds": 0}))
     df.fetch_open_meteo_forecast(1, 1, None, 16, now=NOW, http_get=get)
-    assert get.call_args.kwargs["params"]["forecast_days"] == 16
-    assert "elevation" not in get.call_args.kwargs["params"]
+    assert get.call_args_list[0].kwargs["params"]["forecast_days"] == 16
+    assert "elevation" not in get.call_args_list[0].kwargs["params"]
 
 
 def test_forecast_zero_elevation_is_not_sent():
     get = MagicMock(return_value=_resp(_forecast_payload()))
     with patch.object(df.settings, "openmeteo_api_url", "http://om/v1"):
         df.fetch_open_meteo_forecast(10.0, 10.0, 0.0, 2, now=NOW, http_get=get)
-    assert "elevation" not in get.call_args.kwargs["params"]
+    assert "elevation" not in get.call_args_list[0].kwargs["params"]
 
 
 def test_daily_fill_zero_elevation_is_not_sent():
@@ -231,14 +232,14 @@ def test_dew_point_10c_gives_1_228_kpa():
 
 def test_filled_day_has_vapour_pressure():
     daily = {**DAILY, "dew_point_2m_mean": [10.0, None]}
-    get = MagicMock(return_value=_resp({"daily": daily}))
+    get = MagicMock(return_value=_resp({**_cell(), "daily": daily}))
     out = df.fetch_open_meteo_daily("model_analysis", 1, 1, None, date(2026, 6, 1), date(2026, 6, 2), http_get=get)
     assert out["2026-06-01"]["vapour_pressure_kpa"] == 1.228
-    assert "dew_point_2m_mean" in get.call_args.kwargs["params"]["daily"]
+    assert "dew_point_2m_mean" in get.call_args_list[0].kwargs["params"]["daily"]
 
 
 def test_missing_dew_point_gives_null_vapour_pressure():
-    get = MagicMock(return_value=_resp({"daily": DAILY}))
+    get = MagicMock(return_value=_resp({**_cell(), "daily": DAILY}))
     out = df.fetch_open_meteo_daily("model_analysis", 1, 1, None, date(2026, 6, 1), date(2026, 6, 2), http_get=get)
     assert out["2026-06-01"]["vapour_pressure_kpa"] is None
 
@@ -253,10 +254,163 @@ def test_forecast_day_has_vapour_pressure_from_dew_point():
         daily[f"{name}_ecmwf_ifs025"] = [v, v]
     daily["dew_point_2m_mean_best_match"] = [10.0, None]
     daily["dew_point_2m_mean_ecmwf_ifs025"] = [3.0, 3.0]
-    body = {"daily": daily, "hourly": {}, "utc_offset_seconds": 0}
+    body = {**_cell(), "daily": daily, "hourly": {}, "utc_offset_seconds": 0}
     get = MagicMock(return_value=_resp(body))
     with patch.object(df.settings, "openmeteo_api_url", "http://om/v1"):
         out = df.fetch_open_meteo_forecast(42.6, -2.1, 580.0, 1, now=now, http_get=get)
     assert out["days"]["2026-10-09"]["vapour_pressure_kpa"] == 1.228
     assert out["days"]["2026-10-10"]["vapour_pressure_kpa"] is None
-    assert "dew_point_2m_mean" in get.call_args.kwargs["params"]["daily"]
+    assert "dew_point_2m_mean" in get.call_args_list[0].kwargs["params"]["daily"]
+
+
+# ---- Tmin from the raw model cell (elevation=nan), same rule as the worker ---
+
+RAW_TMIN, CORR_TMIN = -4.0, -1.0
+
+
+def _cell(lat=42.6, lon=-2.1, elev=450.0):
+    return {"latitude": lat, "longitude": lon, "elevation": elev}
+
+
+def _routed(corrected, raw, fail_raw=False):
+    """http_get answering the elevated call with `corrected` and the elevation=nan call with `raw`."""
+    def get(url, params=None, timeout=None):
+        if params.get("elevation") == "nan":
+            if fail_raw:
+                raise TimeoutError("slow")
+            return _resp(raw)
+        return _resp(corrected)
+    return MagicMock(side_effect=get)
+
+
+def _daily_bodies(corr_cell=None, raw_cell=None, raw_tmin=RAW_TMIN):
+    corr = {**(corr_cell or _cell()), "daily": {
+        "time": ["2026-06-01"], "temperature_2m_min": [CORR_TMIN], "temperature_2m_max": [27.0],
+        "precipitation_sum": [0.0], "et0_fao_evapotranspiration": [5.0],
+        "shortwave_radiation_sum": [20.0], "wind_speed_10m_mean": [2.0]}}
+    raw = {**(raw_cell or _cell()), "daily": {"time": ["2026-06-01"], "temperature_2m_min": [raw_tmin]}}
+    return corr, raw
+
+
+def _fill(get, kind="model_analysis"):
+    with patch.object(df.settings, "openmeteo_api_url", "http://om/v1"), \
+         patch.object(df.settings, "openmeteo_archive_url", "http://om/v1"):
+        return df.fetch_open_meteo_daily(kind, 42.6, -2.1, 580.0, date(2026, 6, 1), date(2026, 6, 1), http_get=get)
+
+
+def test_inland_fill_tmin_comes_from_the_raw_cell_and_tmax_is_unchanged():
+    get = _routed(*_daily_bodies())
+    out = _fill(get)["2026-06-01"]
+    assert out["tmin_c"] == RAW_TMIN
+    assert out["tmax_c"] == 27.0 and out["et0_mm"] == 5.0
+    assert "tmin_reason" not in out
+    nan_call = [c for c in get.call_args_list if c.kwargs["params"].get("elevation") == "nan"]
+    assert len(nan_call) == 1 and get.call_count == 2
+    p = nan_call[0].kwargs["params"]
+    assert p["timezone"] == "auto" and p["start_date"] == "2026-06-01" and p["daily"] == "temperature_2m_min"
+
+
+def test_inland_fill_raw_call_uses_same_endpoint_and_models_archive():
+    with patch.object(df.settings, "openmeteo_archive_models", "era5_seamless"):
+        get = _routed(*_daily_bodies())
+        _fill(get, "reanalysis")
+    for c in get.call_args_list:
+        assert c.args[0] == "http://om/v1/archive" and c.kwargs["params"]["models"] == "era5_seamless"
+
+
+def test_coastal_by_cell_mismatch_keeps_the_corrected_tmin():
+    get = _routed(*_daily_bodies(raw_cell=_cell(lat=42.8)))
+    assert _fill(get)["2026-06-01"]["tmin_c"] == CORR_TMIN
+
+
+def test_coastal_by_sea_grid_cell_keeps_the_corrected_tmin():
+    get = _routed(*_daily_bodies(raw_cell=_cell(elev=0.0)))
+    assert _fill(get)["2026-06-01"]["tmin_c"] == CORR_TMIN
+
+
+def test_raw_call_failure_gives_null_tmin_and_reason_not_the_corrected_value():
+    get = _routed(*_daily_bodies(), fail_raw=True)
+    out = _fill(get)["2026-06-01"]
+    assert out["tmin_c"] is None and out["tmin_reason"] == df.TMIN_RAW_UNAVAILABLE == "tmin_raw_unavailable"
+    assert out["tmax_c"] == 27.0
+
+
+def test_undeterminable_cell_gives_null_tmin_and_reason():
+    corr, raw = _daily_bodies()
+    del raw["latitude"]
+    out = _fill(_routed(corr, raw))["2026-06-01"]
+    assert out["tmin_c"] is None and out["tmin_reason"] == "tmin_raw_unavailable"
+
+
+def test_raw_cell_without_that_day_gives_null_tmin_and_reason():
+    corr, raw = _daily_bodies(raw_tmin=None)
+    out = _fill(_routed(corr, raw))["2026-06-01"]
+    assert out["tmin_c"] is None and out["tmin_reason"] == "tmin_raw_unavailable"
+
+
+def test_no_raw_request_when_the_main_call_gives_nothing():
+    get = MagicMock(return_value=_resp({"daily": {"time": []}}))
+    assert _fill(get) == {}
+    assert get.call_count == 1
+
+
+# Forecast and running days are NOT part of this change: risk's frost warning is calibrated on their
+# current Tmin. Output frozen from origin/main's fetch_open_meteo_forecast (one call, elevated, no nan).
+_FORECAST_SNAPSHOT_DAY = {"et0_mm": 1.1, "precip_mm": 0.4, "radiation_mj_m2": 7.0, "source": "model_forecast",
+                          "tmax_c": 12.0, "tmin_c": -1.5, "tmin_coldest_c": -3.0, "vapour_pressure_kpa": None,
+                          "wind2m_ms": 1.496}
+
+
+def test_forecast_days_are_unchanged_and_use_a_single_elevated_call():
+    hourly = [5.0] * 72
+    hourly[28] = -1.0
+    get = MagicMock(return_value=_resp(_forecast_payload(hourly=hourly)))
+    with patch.object(df.settings, "openmeteo_api_url", "http://om/v1"):
+        out = df.fetch_open_meteo_forecast(10.0, 10.0, 300.0, 2, now=NOW, http_get=get)
+    assert get.call_count == 1 and get.call_args.kwargs["params"]["elevation"] == 300.0
+    assert out == {
+        "days": {
+            "2026-11-05": {**_FORECAST_SNAPSHOT_DAY, "hours_below_zero": 0.0, "kind": "running"},
+            "2026-11-06": {**_FORECAST_SNAPSHOT_DAY, "hours_below_zero": 1.0, "kind": "forecast"},
+            "2026-11-07": {**_FORECAST_SNAPSHOT_DAY, "hours_below_zero": 0.0, "kind": "forecast"},
+        },
+        "issued_at": "2026-11-04T23:30:00+00:00", "local_now": "2026-11-05T00:30", "local_today": "2026-11-05",
+    }
+
+
+# ---- the raw call lives inside the caller's budget ---
+
+def test_raw_call_uses_only_the_time_left_of_the_budget():
+    clock = iter([100.0, 110.0])           # start, then after the main call: 10 s spent of 25
+    get = _routed(*_daily_bodies())
+    with patch.object(df, "_monotonic", lambda: next(clock)):
+        with patch.object(df.settings, "openmeteo_api_url", "http://om/v1"):
+            out = df.fetch_open_meteo_daily("model_analysis", 42.6, -2.1, 580.0,
+                                            date(2026, 6, 1), date(2026, 6, 1), http_get=get, timeout=25.0)
+    assert out["2026-06-01"]["tmin_c"] == RAW_TMIN
+    raw_call = [c for c in get.call_args_list if c.kwargs["params"].get("elevation") == "nan"][0]
+    assert raw_call.kwargs["timeout"] == 15.0
+
+
+def test_budget_exhausted_gives_null_tmin_with_timeout_reason_and_no_raw_call():
+    clock = iter([100.0, 124.5])           # 0.5 s left: does not fit
+    get = _routed(*_daily_bodies())
+    with patch.object(df, "_monotonic", lambda: next(clock)):
+        with patch.object(df.settings, "openmeteo_api_url", "http://om/v1"):
+            out = df.fetch_open_meteo_daily("model_analysis", 42.6, -2.1, 580.0,
+                                            date(2026, 6, 1), date(2026, 6, 1), http_get=get, timeout=25.0)
+    d = out["2026-06-01"]
+    assert d["tmin_c"] is None and d["tmin_reason"] == "tmin_raw_timeout" and d["tmax_c"] == 27.0
+    assert get.call_count == 1
+
+
+def test_raw_call_timeout_gives_timeout_reason():
+    import requests
+    corr, raw = _daily_bodies()
+
+    def get(url, params=None, timeout=None):
+        if params.get("elevation") == "nan":
+            raise requests.exceptions.ReadTimeout("slow")
+        return _resp(corr)
+    out = _fill(MagicMock(side_effect=get))["2026-06-01"]
+    assert out["tmin_c"] is None and out["tmin_reason"] == "tmin_raw_timeout"

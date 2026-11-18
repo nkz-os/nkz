@@ -1,4 +1,5 @@
 """GET /api/weather/parcel/{id}/daily — one record per calendar day, gaps flagged."""
+import json
 import os
 import sys
 from datetime import datetime, timezone
@@ -644,3 +645,63 @@ def test_gdd_method_errors_are_400(client, qs):
     h["install"]([])
     r = c.get(f"/api/weather/parcel/{PID}/daily?start=2026-10-01&end=2026-10-01&{qs}")
     assert r.status_code == 400
+
+
+# ---- per-field reasons: additive `field_reasons`, missing_* untouched ---
+
+# the /daily keys before this change (origin/main) plus those the sensor merge adds
+LEGACY_KEYS = {"days", "end", "missing_days", "missing_reasons", "parcel_id", "provenance", "sensor_devices",
+               "sensors_unavailable", "source", "start", "totals", "units"}
+
+
+def _filled_rec(**extra):
+    return {"tmin_c": 5.0, "tmax_c": 15.0, "precip_mm": 0.5, "et0_mm": 1.0, "radiation_mj_m2": 10.0,
+            "vapour_pressure_kpa": None, "wind2m_ms": 1.0, **extra}
+
+
+def _get_fill(tc, rec):
+    ps = _fill_env()
+    with ps[0], ps[1], ps[2], _patch.object(pd, "fetch_open_meteo_daily", return_value={"2026-10-01": rec}):
+        return tc.get(f"/api/weather/parcel/{PID}/daily?start=2026-10-01&end=2026-10-01&fill=open_meteo").json()
+
+
+def test_field_reasons_holds_the_tmin_reason_and_missing_maps_are_untouched(client):
+    tc, h = client
+    h["install"]([])
+    j = _get_fill(tc, _filled_rec(tmin_c=None, tmin_reason="tmin_raw_timeout"))
+    d = j["days"][0]
+    assert d["tmin_c"] is None and d["tmax_c"] == 15.0 and d["source"] == "model_analysis"
+    assert "tmin_reason" not in d
+    assert j["field_reasons"] == {"2026-10-01": {"tmin_c": "tmin_raw_timeout"}}
+    assert j["missing_reasons"] == {} and j["missing_days"] == []
+
+
+def test_response_unchanged_without_nan_failures_except_the_new_empty_map(client):
+    tc, h = client
+    h["install"]([])
+    ok = _get_fill(tc, _filled_rec())
+    assert ok["field_reasons"] == {}
+    assert ok["missing_reasons"] == {} and ok["missing_days"] == []
+    assert ok["days"][0]["tmin_c"] == 5.0 and ok["days"][0]["source"] == "model_analysis"
+    # the same response as before this change plus field_reasons only
+    assert set(ok) == LEGACY_KEYS | {"field_reasons"}
+    legacy = {k: v for k, v in ok.items() if k != "field_reasons"}
+    assert "tmin_reason" not in json.dumps(legacy)
+
+
+def test_forecast_days_do_not_touch_field_reasons(client):
+    tc, h = client
+    h["install"]([])
+    r, _ = _get(tc, "start=2026-11-05&end=2026-11-06&forecast_days=1", _fake_forecast())
+    assert r.json()["field_reasons"] == {}
+
+
+def test_sensor_tmin_clears_the_field_reason_of_a_failed_fill(client, monkeypatch):
+    tc, h = client
+    h["install"]([])
+    monkeypatch.setattr(pd, "_parcel_devices", lambda urn, tid: ["dev1"])
+    monkeypatch.setattr(pd, "_sensor_readings", lambda tid, devices, lo, hi: _sensor_day("2026-10-01", 10.0, 22.0))
+    j = _get_fill(tc, _filled_rec(tmin_c=None, tmin_reason="tmin_raw_unavailable"))
+    d = j["days"][0]
+    assert d["tmin_c"] == 10.0 and d["sources"]["tmin_c"] == "iot_sensor"
+    assert j["field_reasons"] == {}

@@ -352,6 +352,7 @@ def get_parcel_daily(
         days.append(rec)
 
     reasons: Dict[str, str] = {}
+    field_reasons: Dict[str, Dict[str, str]] = {}  # per-field null causes of filled days
     today = _today()
     deadline = _monotonic() + FILL_DEADLINE_S
     unfilled = [date.fromisoformat(d["date"]) for d in days if d["source"] is None]
@@ -389,6 +390,9 @@ def get_parcel_daily(
                 for k, v in got.items():
                     if k in wanted:
                         filled[k] = {**v, "source": kind}
+                        reason = filled[k].pop("tmin_reason", None)
+                        if reason:
+                            field_reasons[k] = {"tmin_c": reason}
         by_key = {d["date"]: d for d in days}
         for d in plan["model_analysis"] + plan["reanalysis"]:
             k = d.isoformat()
@@ -414,6 +418,13 @@ def get_parcel_daily(
 
     # Sensors only describe finished days: forecast days are appended after this.
     sensors = _apply_sensors(tenant_id, parcel_urn, d0, d1, days, entity)
+    # A sensor Tmin replaced the filled (null) one: its reason no longer describes the day.
+    for rec in days:
+        fr_day = field_reasons.get(rec["date"])
+        if fr_day and (rec.get("sources") or {}).get("tmin_c") == "iot_sensor":
+            fr_day.pop("tmin_c", None)
+            if not fr_day:
+                del field_reasons[rec["date"]]
 
     if forecast_days > 0:
         # A day without data from the parcel's today on is the forecast's. A day
@@ -475,6 +486,7 @@ def get_parcel_daily(
         "days": days,
         "missing_days": missing,
         "missing_reasons": reasons,
+        "field_reasons": field_reasons,
         "totals": compute_totals(closed, base_temp, upper_cutoff, method),
         "units": _UNITS,
         "provenance": frost_prov,

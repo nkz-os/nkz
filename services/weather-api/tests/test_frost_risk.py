@@ -25,7 +25,10 @@ from app.services import frost_risk as fr
 from app.services.history.method_version import TMIN_METHOD_VERSION
 import test_parcel_history as th
 
-H, D = TMIN_METHOD_VERSION["history"], TMIN_METHOD_VERSION["daily_closed"]
+# D: the daily_closed method the margins file was fitted to. weather-api's own pinned daily_closed method
+# moved on (raw model cell, 2026-11-17) and no longer matches it until a refit: the gating rules below are
+# exercised as if refitted (the router tests patch the pin to D); the mismatch itself has its own test.
+H, D = TMIN_METHOD_VERSION["history"], fr.load_margins()["method_version"]["daily_closed"]
 EBRO = (42.25, -1.5)             # ebro_upper: history 0 degC field validated, -2 degC field failed (FAR)
 DE_SOUTH = (49.0, 11.0)          # germany_south: both fields validated
 EAST_COAST = (38.7, -0.65)       # east_coast: both failed
@@ -126,7 +129,8 @@ def test_pinned_method_versions_match_the_margins_file():
     margins = fr.load_margins()
     assert margins["schema_version"] == fr.SCHEMA_VERSION == 2
     assert set(TMIN_METHOD_VERSION) == set(fr.SOURCES)
-    assert TMIN_METHOD_VERSION == margins["method_version"]
+    assert TMIN_METHOD_VERSION["history"] == margins["method_version"]["history"]
+    # daily_closed deliberately differs until the margins are refitted (test below)
 
 
 def test_every_margin_region_has_a_centroid():
@@ -136,11 +140,10 @@ def test_every_margin_region_has_a_centroid():
 
 
 def test_method_version_pins_the_calibration_commit():
-    for v in TMIN_METHOD_VERSION.values():
-        assert "8c7050a" in v
+    assert "8c7050a" in TMIN_METHOD_VERSION["history"]
     for v in fr.load_margins()["method_version"].values():
         assert v.startswith("nkz@8c7050a")
-    assert TMIN_METHOD_VERSION == fr.load_margins()["method_version"]
+    assert TMIN_METHOD_VERSION["history"] == fr.load_margins()["method_version"]["history"]
 
 
 @pytest.mark.parametrize("pt,region", [
@@ -359,6 +362,7 @@ def dclient(monkeypatch):
         return SimpleNamespace(coastal=h["coastal"])
 
     monkeypatch.setattr(pd, "_fetch_parcel_entity", fetch)
+    monkeypatch.setattr(pd, "TMIN_METHOD_VERSION", {**TMIN_METHOD_VERSION, "daily_closed": D})   # as if refitted
     monkeypatch.setattr(pd, "resolve_cell", probe)
     monkeypatch.setattr(pd, "_today", lambda: datetime(2026, 11, 20, tzinfo=timezone.utc).date())
     monkeypatch.setattr(pd, "get_db_connection",
@@ -560,3 +564,13 @@ def test_daily_sources_and_totals_are_unchanged_by_the_new_fields(dclient, monke
         for k in a:
             if k not in fr.FIELDS:
                 assert b2[k] == a[k]
+
+
+def test_daily_closed_method_no_longer_matches_the_margins_until_a_refit():
+    """The /daily Tmin is now the raw model cell; the margins were fitted to the lapse-corrected one."""
+    margins = fr.load_margins()["method_version"]
+    assert TMIN_METHOD_VERSION["daily_closed"] != margins["daily_closed"]
+    assert "elevation=nan" in TMIN_METHOD_VERSION["daily_closed"]
+    assert TMIN_METHOD_VERSION["history"] == margins["history"]
+    v, p = fr.frost_risk_tmin(-1.0, "ebro_upper", "daily_closed", TMIN_METHOD_VERSION["daily_closed"])
+    assert v is None and p["reason"] == fr.REASON_METHOD
