@@ -4,20 +4,21 @@ Nothing is stored: recent days come from the forecast model's own analysis
 (the same model the live series uses), older days from the reanalysis
 archive. A day the source cannot provide stays unfilled.
 
-Tmin is not corrected for altitude (owner decision). For an inland parcel it
-(and the frost-hours count) is read from a second call with ``elevation=nan``,
+Tmin of the past-day fill is not corrected for altitude (owner decision). Forecast and
+running days are NOT changed (risk's frost warning is calibrated on them). For an inland parcel it is read from a second call with ``elevation=nan``,
 the raw model cell, over the same local days; every other variable keeps the
 elevated call. A coastal parcel (``CellInfo.coastal``, the /history rule) keeps
 the elevated call's Tmin. If the raw call fails or its cell cannot be
-determined, Tmin is null with reason ``tmin_raw_unavailable``: never the
-lapse-corrected value. Method date: stored closed days switched on 2026-11-17;
+determined, Tmin is null with reason ``tmin_raw_unavailable`` (``tmin_raw_timeout`` when
+the caller's budget has no room for the call or it timed out): never the lapse-corrected value. Method date: stored closed days switched on 2026-11-17;
 filled days are computed on the fly, so this definition applies to every
 filled day, past ones included.
 """
 import logging
 import math
+import time
 from datetime import date, datetime, timedelta, timezone
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 import requests
 
@@ -41,6 +42,9 @@ FORECAST_MODELS = ("best_match", "ecmwf_ifs025")
 _AUTO, _ECMWF = FORECAST_MODELS
 _OPEN_METEO_MAX_FORECAST_DAYS = 16
 TMIN_RAW_UNAVAILABLE = "tmin_raw_unavailable"
+TMIN_RAW_TIMEOUT = "tmin_raw_timeout"
+_MIN_RAW_BUDGET_S = 1.0  # less than this left of the caller's budget: the raw call is not attempted
+_monotonic = time.monotonic
 _HOURS_MIN_FOR_DAY = 23  # a 23 h day exists (DST); fewer hours is an incomplete day
 
 
@@ -78,8 +82,12 @@ def _at(daily: Dict[str, list], key: str, i: int) -> Optional[float]:
 def _raw_cell_body(
     url: str, params: Dict[str, Any], daily: str, hourly: Optional[str],
     http_get: Callable, timeout: float,
-) -> Optional[Dict[str, Any]]:
-    """Same request with ``elevation=nan`` (raw model cell) asking only Tmin (+ hourly T); None on failure."""
+) -> Tuple[Optional[Dict[str, Any]], str]:
+    """Same request with ``elevation=nan`` (raw model cell) asking only Tmin (+ hourly T).
+
+    Returns (body, reason): body None on failure, with reason `tmin_raw_timeout` when the call
+    timed out and `tmin_raw_unavailable` otherwise.
+    """
     raw_params = {**params, "elevation": "nan", "daily": daily}
     raw_params.pop("hourly", None)
     if hourly:
@@ -88,12 +96,15 @@ def _raw_cell_body(
         resp = http_get(url, params=raw_params, timeout=timeout)
         if resp.status_code != 200:
             logger.warning("open-meteo raw-cell HTTP %s", resp.status_code)
-            return None
+            return None, TMIN_RAW_UNAVAILABLE
         body = resp.json()
-        return body if isinstance(body, dict) else None
+        return (body, TMIN_RAW_UNAVAILABLE) if isinstance(body, dict) else (None, TMIN_RAW_UNAVAILABLE)
+    except requests.exceptions.Timeout as exc:
+        logger.warning("open-meteo raw-cell call timed out: %s", exc)
+        return None, TMIN_RAW_TIMEOUT
     except Exception as exc:  # noqa: BLE001 — no raw cell means no Tmin, never a corrected one
         logger.warning("open-meteo raw-cell call failed: %s", exc)
-        return None
+        return None, TMIN_RAW_UNAVAILABLE
 
 
 def _raw_tmin_applies(main: Dict[str, Any], raw: Optional[Dict[str, Any]]) -> Optional[bool]:
@@ -126,6 +137,7 @@ def fetch_open_meteo_daily(
         base, models, path = settings.openmeteo_api_url, settings.openmeteo_daily_models, "forecast"
     if not base:
         return {}
+    started = _monotonic()
     params: Dict[str, Any] = {
         "latitude": lat,
         "longitude": lon,
@@ -173,15 +185,18 @@ def fetch_open_meteo_daily(
     if not out:
         return out
 
-    # Tmin from the raw cell unless coastal; one extra call, only when days are filled.
-    raw = _raw_cell_body(
-        f"{base}/{path}", params, "temperature_2m_min", None, http_get,
-        timeout if timeout is not None else _TIMEOUTS[kind],
-    )
+    # Tmin from the raw cell unless coastal; one extra call, only when days are filled, and
+    # only within what is left of the caller's budget (never past FILL_DEADLINE_S).
+    budget = timeout if timeout is not None else _TIMEOUTS[kind]
+    left = budget - (_monotonic() - started)
+    if left < _MIN_RAW_BUDGET_S:
+        raw, fail_reason = None, TMIN_RAW_TIMEOUT
+    else:
+        raw, fail_reason = _raw_cell_body(f"{base}/{path}", params, "temperature_2m_min", None, http_get, left)
     inland = _raw_tmin_applies(body, raw)
+    raw_by_day: Dict[str, Optional[float]] = {}
     if inland:
         raw_daily = raw.get("daily") if isinstance(raw.get("daily"), dict) else {}
-        raw_by_day = {}
         for i, day in enumerate(raw_daily.get("time") or []):
             if isinstance(day, str):
                 raw_by_day[day] = _at(raw_daily, "temperature_2m_min", i)
@@ -191,8 +206,9 @@ def fetch_open_meteo_daily(
         tmin = raw_by_day.get(day) if inland else None
         rec["tmin_c"] = tmin
         if tmin is None:
-            rec["tmin_reason"] = TMIN_RAW_UNAVAILABLE
+            rec["tmin_reason"] = fail_reason if raw is None else TMIN_RAW_UNAVAILABLE
     return out
+
 
 
 def _hours_below_zero(hourly: Dict[str, list], key: str) -> Dict[str, Optional[float]]:
@@ -264,20 +280,6 @@ def fetch_open_meteo_forecast(
         local_today = local_dt.date().isoformat()
         local_now = local_dt.strftime("%Y-%m-%dT%H:%M")
         frost_hours = _hours_below_zero(hourly, f"temperature_2m_{_AUTO}")
-        # Tmin, its coldest-of-two-models and the frost hours come from the raw cell
-        # (elevation=nan) unless coastal; the extra call is made only for a usable forecast.
-        raw = _raw_cell_body(
-            f"{base}/forecast", params, "temperature_2m_min", "temperature_2m", http_get,
-            timeout if timeout is not None else 30,
-        )
-        inland = _raw_tmin_applies(body, raw)
-        raw_daily: Dict[str, Any] = {}
-        raw_by_day: Dict[str, int] = {}
-        if inland:
-            raw_daily = raw.get("daily") if isinstance(raw.get("daily"), dict) else {}
-            raw_by_day = {d: j for j, d in enumerate(raw_daily.get("time") or []) if isinstance(d, str)}
-            raw_hourly = raw.get("hourly") if isinstance(raw.get("hourly"), dict) else {}
-            frost_hours = _hours_below_zero(raw_hourly, f"temperature_2m_{_AUTO}")
         out: Dict[str, Dict[str, Any]] = {}
         for i, day in enumerate(daily["time"]):
             col = lambda name, model=_AUTO: _at(daily, f"{name}_{model}", i)  # noqa: E731
@@ -294,16 +296,6 @@ def fetch_open_meteo_forecast(
                 "hours_below_zero": frost_hours.get(day),
                 "tmin_coldest_c": min(tmin, tmin_ecmwf) if tmin is not None and tmin_ecmwf is not None else None,
             }
-            if inland is not False:
-                j = raw_by_day.get(day)
-                r_auto = _at(raw_daily, f"temperature_2m_min_{_AUTO}", j) if inland and j is not None else None
-                r_ecmwf = _at(raw_daily, f"temperature_2m_min_{_ECMWF}", j) if inland and j is not None else None
-                rec["tmin_c"] = r_auto
-                rec["tmin_coldest_c"] = min(r_auto, r_ecmwf) if r_auto is not None and r_ecmwf is not None else None
-                if not inland:
-                    rec["hours_below_zero"] = None
-                if r_auto is None:
-                    rec["tmin_reason"] = TMIN_RAW_UNAVAILABLE
             if any(v is not None for v in rec.values()):
                 rec["kind"] = "running" if day == local_today else "forecast"
                 rec["source"] = "model_forecast"
