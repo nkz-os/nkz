@@ -74,3 +74,35 @@ def test_plan_operation_names_its_tractor_and_implement():
            "usesImplement": {"type": "Relationship", "object": "urn:i1"}}
     rec = sync._operation_record_for_watermelon(ent, 1)
     assert (rec["tractor_id"], rec["implement_id"]) == ("urn:t1", "urn:i1")
+
+
+def _rel(obj):
+    return {"type": "Relationship", "object": obj}
+
+
+def test_links_are_read_under_the_name_the_broker_returns():
+    # Orion-LD returns the alias that maps to the same IRI (refX), not always the written name.
+    ent = {"id": "urn:op", "type": "AgriParcelOperation", "refAgriParcel": _rel("urn:p1"),
+           "refTractor": _rel("urn:t1"), "refImplement": _rel("urn:i1"), "refEquipment": _rel("urn:e1")}
+    rec = sync._operation_record_for_watermelon(ent, 1)
+    assert (rec["parcel_id"], rec["tractor_id"], rec["implement_id"], rec["equipment_id"]) == \
+        ("urn:p1", "urn:t1", "urn:i1", "urn:e1")
+
+
+def test_pull_queries_ask_for_modification_times():
+    # Without sysAttrs Orion returns no modifiedAt and every pull re-sends everything.
+    for entity_type in ("AgriParcel", sync.EQUIPMENT_SYNC_TYPES, "AgriParcelOperation"):
+        params = sync._pull_query(entity_type)
+        assert params["options"] == "sysAttrs" and params["type"] == entity_type
+
+
+def test_plan_operation_carries_its_planned_start_and_template_flag():
+    ent = {"id": "urn:op", "type": "AgriParcelOperation",
+           "plannedStartAt": _p({"@type": "DateTime", "@value": "2026-11-20T08:00:00Z"}),
+           "isTemplate": _p(False)}
+    rec = sync._operation_record_for_watermelon(ent, 1)
+    assert rec["planned_start_at"] == 1795161600000
+    assert rec["is_template"] is False
+    tmpl = sync._operation_record_for_watermelon({"id": "urn:t", "type": "AgriParcelOperation",
+                                                  "isTemplate": _p(True)}, 1)
+    assert tmpl["is_template"] is True and tmpl["planned_start_at"] is None

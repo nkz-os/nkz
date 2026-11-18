@@ -72,6 +72,25 @@ def _calculate_centroid(geometry):
         return None, None
 
 
+def _datetime_ms(attr):
+    """Epoch ms of an NGSI-LD DateTime Property ({"@type": "DateTime", "@value": ...}); None if absent."""
+    v = attr.get('value') if isinstance(attr, dict) else attr
+    if isinstance(v, dict):
+        v = v.get('@value')
+    if not v or not isinstance(v, str):
+        return None
+    try:
+        return int(datetime.fromisoformat(v.replace('Z', '+00:00')).timestamp() * 1000)
+    except ValueError:
+        return None
+
+
+def _pull_query(entity_type):
+    """Orion query for one pull collection. sysAttrs brings modifiedAt, without which the
+    last_pulled_at filter would let every entity through on every pull."""
+    return {'type': entity_type, 'limit': SYNC_PULL_LIMIT, 'options': 'sysAttrs'}
+
+
 def _rel_object(props, key):
     """Target id of a Relationship attribute ('' when absent)."""
     rel = props.get(key)
@@ -329,14 +348,19 @@ def _operation_record_for_watermelon(ent, fallback_ts):
     return {
         'id': rid,
         'remote_id': rid,
-        'parcel_id': (_str_prop('locatedAt', '') or _str_prop('refParcel', '')
-                      or _rel_object(props, 'hasAgriParcel')),
+        # Orion-LD may answer with the alias that shares the IRI (refX): read both names.
+        'parcel_id': (_rel_object(props, 'hasAgriParcel') or _rel_object(props, 'refAgriParcel')
+                      or _rel_object(props, 'locatedAt') or _rel_object(props, 'refParcel')),
         # Relationships carry their target in `object` (_rel_object also accepts `value`).
-        'equipment_id': _rel_object(props, 'usesEquipment') or _str_prop('refEquipment', ''),
-        'tractor_id': _rel_object(props, 'usesTractor') or _str_prop('refTractor', ''),
-        'implement_id': _rel_object(props, 'usesImplement') or _str_prop('refImplement', ''),
+        'equipment_id': _rel_object(props, 'usesEquipment') or _rel_object(props, 'refEquipment'),
+        'tractor_id': _rel_object(props, 'usesTractor') or _rel_object(props, 'refTractor'),
+        'implement_id': _rel_object(props, 'usesImplement') or _rel_object(props, 'refImplement'),
         'operation_type': _str_prop('operationType', 'spraying'),
         'ab_line_geojson': _json_prop('abLine'),
+        # When the plan is meant to run, and whether it is a reusable template (not a plan to guide).
+        'planned_start_at': _datetime_ms(props.get('plannedStartAt')) or _datetime_ms(props.get('dateCreated')),
+        'is_template': bool((props.get('isTemplate') or {}).get('value')) if isinstance(props.get('isTemplate'), dict)
+                       else bool(props.get('isTemplate')),
         # The plan's passes (gis-routing `swaths`, in travel order) the app guides along.
         'swaths_geojson': json.dumps(props['swaths'].get('value') if isinstance(props.get('swaths'), dict)
                                      else props['swaths']) if props.get('swaths') else '',
@@ -407,6 +431,9 @@ def _get_redis():
 # AgriEquipment stays for entities created before that.
 EQUIPMENT_SYNC_TYPES = 'AgriEquipment,ManufacturingMachine'
 
+# Orion page per collection; reaching it is logged (paging is a pending task).
+SYNC_PULL_LIMIT = 1000
+
 # Machine geometry the app needs to guide the implement (ISO 11783-10 frame: X forward,
 # Y right, metres, from the tractor's turning point). Only present values travel: in the
 # app an absent measure is a gap, a 0 is a value.
@@ -476,10 +503,7 @@ def _core_vector_sync_pull():
         changes = {}
 
         if 'parcels' in collections:
-            params_parcels = {
-                'type': 'AgriParcel,Parcel,OliveGrove,Vineyard',
-                'limit': 1000,
-            }
+            params_parcels = _pull_query('AgriParcel,Parcel,OliveGrove,Vineyard')
             resp_parcels = requests.get(orion_url, params=params_parcels, headers=headers)
             updated_parcels = []
             if resp_parcels.status_code == 200:
@@ -515,10 +539,7 @@ def _core_vector_sync_pull():
             }
 
         if 'equipment' in collections:
-            params_eq = {
-                'type': EQUIPMENT_SYNC_TYPES,
-                'limit': 1000,
-            }
+            params_eq = _pull_query(EQUIPMENT_SYNC_TYPES)
             resp_eq = requests.get(orion_url, params=params_eq, headers=headers)
             updated_eq = []
             if resp_eq.status_code == 200:
@@ -536,14 +557,16 @@ def _core_vector_sync_pull():
             }
 
         if 'operations' in collections:
-            params_ops = {
-                'type': 'AgriParcelOperation',
-                'limit': 1000,
-            }
+            params_ops = _pull_query('AgriParcelOperation')
             resp_ops = requests.get(orion_url, params=params_ops, headers=headers)
             updated_ops = []
             if resp_ops.status_code == 200:
-                for ent in resp_ops.json():
+                ops_page = resp_ops.json()
+                if len(ops_page) >= SYNC_PULL_LIMIT:
+                    logger.warning("sync_pull operations reached the page limit: tenant=%s limit=%d "
+                                   "(older or newer operations may be missing on the device)",
+                                   tenant, SYNC_PULL_LIMIT)
+                for ent in ops_page:
                     try:
                         op_rec = _operation_record_for_watermelon(ent, current_ts)
                         if op_rec['updated_at'] >= last_pulled_at:
