@@ -187,3 +187,33 @@ describe('EntityEditorModal parcel save', () => {
     expect(await screen.findByText('A parcel keeps its geometry; location cannot be removed')).toBeTruthy();
   });
 });
+
+describe('EntityEditorModal machine geometry', () => {
+  const MACHINE = 'urn:ngsi-ld:ManufacturingMachine:tenant-a:m1';
+
+  it('shows the geometry of the machine category with its help, and keeps an unknown category visible', async () => {
+    openEditor({ id: MACHINE, type: 'ManufacturingMachine', name: { type: 'Property', value: 'Drill' },
+      category: { type: 'Property', value: 'implement' } });
+    await waitFor(() => expect(screen.getByText('editor.field.mountPosition')).toBeTruthy());
+    expect(screen.queryByText('editor.field.minTurningRadius')).toBeNull();
+    expect(screen.getByText('editor.help.mountPosition')).toBeTruthy();
+  });
+
+  it('switches the geometry fields when the category changes', async () => {
+    openEditor({ id: MACHINE, type: 'ManufacturingMachine', name: { type: 'Property', value: 'T' },
+      category: { type: 'Property', value: 'implement' } });
+    await waitFor(() => expect(screen.getByText('editor.field.mountPosition')).toBeTruthy());
+    const select = screen.getByText('editor.field.category').parentElement!.querySelector('select') as HTMLSelectElement;
+    fireEvent.change(select, { target: { value: 'tractor' } });
+    await waitFor(() => expect(screen.getByText('editor.field.minTurningRadius')).toBeTruthy());
+    expect(screen.queryByText('editor.field.mountPosition')).toBeNull();
+  });
+
+  it('keeps a category value outside the list visible instead of showing it empty', async () => {
+    openEditor({ id: MACHINE, type: 'ManufacturingMachine', name: { type: 'Property', value: 'H' },
+      category: { type: 'Property', value: 'harvester' } });
+    await waitFor(() => expect(screen.getByText('editor.field.category')).toBeTruthy());
+    const select = screen.getByText('editor.field.category').parentElement!.querySelector('select') as HTMLSelectElement;
+    expect(select.value).toBe('harvester');
+  });
+});

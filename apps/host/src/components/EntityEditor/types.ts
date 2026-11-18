@@ -20,6 +20,10 @@ export interface AttributeSchema {
   step?: number;
   targetType?: string;
   entityTypes: string[];
+  /** ManufacturingMachine `category` values the field applies to; absent = every category. */
+  categories?: string[];
+  /** i18n key of a one-line help shown under the field. */
+  helpKey?: string;
 }
 
 export interface EditorFormState {

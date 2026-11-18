@@ -3,11 +3,14 @@ import { useI18n } from '@/context/I18nContext';
 import { useEntityEditor } from '../EntityEditorContext';
 import { AttributeField } from '../AttributeField';
 import { getSchemasForType } from '../attributeSchemas';
+import { getNGSIValue } from '@/types/ngsi-ld';
 
 export const KinematicSection: React.FC = () => {
   const { t } = useI18n();
   const { formState, setField, entityType } = useEntityEditor();
-  const schemas = getSchemasForType(entityType).filter(s => s.section === 'kinematic');
+  const categoryAttr = formState.attributes.category;
+  const category = categoryAttr ? String(getNGSIValue(categoryAttr) ?? '') : undefined;
+  const schemas = getSchemasForType(entityType, category || undefined).filter(s => s.section === 'kinematic');
   if (schemas.length === 0) return null;
 
   return (

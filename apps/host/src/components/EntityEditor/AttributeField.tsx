@@ -15,6 +15,7 @@ interface Props {
 export const AttributeField: React.FC<Props> = ({ schema, value, onChange }) => {
   const { t } = useI18n();
   const currentValue = value ? getNGSIValue(value) : undefined;
+  const help = schema.helpKey ? <p className="text-xs text-nkz-muted">{t(schema.helpKey)}</p> : null;
 
   const emit = (newValue: string | number | boolean) => {
     onChange({
@@ -51,7 +52,12 @@ export const AttributeField: React.FC<Props> = ({ schema, value, onChange }) => 
           {schema.options?.map(opt => (
             <option key={opt.value} value={opt.value}>{t(opt.labelKey)}</option>
           ))}
+          {/* A stored value outside the list stays visible instead of reading as empty. */}
+          {currentValue != null && currentValue !== '' && !schema.options?.some(o => o.value === String(currentValue)) && (
+            <option value={String(currentValue)}>{String(currentValue)}</option>
+          )}
         </select>
+        {help}
       </div>
     );
   }
@@ -74,6 +80,7 @@ export const AttributeField: React.FC<Props> = ({ schema, value, onChange }) => 
             <span className="text-xs text-nkz-muted w-10">{schema.unitCode}</span>
           )}
         </div>
+        {help}
       </div>
     );
   }

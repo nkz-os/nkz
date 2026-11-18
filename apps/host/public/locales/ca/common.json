@@ -1832,7 +1832,13 @@
       "icon2d": "Icona 2D",
       "ref3DModel": "Model 3D",
       "modelScale": "Escala del model",
-      "modelRotation": "Rotació del model"
+      "modelRotation": "Rotació del model",
+      "frontHitchOffsetX": "Enganx davanter X",
+      "guidanceDeviceOffsetX": "Tauleta de guiatge X",
+      "guidanceDeviceOffsetY": "Tauleta de guiatge Y",
+      "mountPosition": "Posició de l'apero",
+      "implementOffsetY": "Offset apero Y",
+      "transportWidth": "Amplada de transport"
     },
     "hitch": {
       "none": "Cap",
@@ -1852,6 +1858,32 @@
       "rear": "Del darrere",
       "both": "Tots dos",
       "none": "Cap"
+    },
+    "category": {
+      "tractor": "Tractor o màquina autopropulsada",
+      "implement": "Apero"
+    },
+    "mount": {
+      "rear": "Posterior",
+      "front": "Frontal"
+    },
+    "help": {
+      "minTurningRadius": "Radi que descriu el centre de l'eix posterior amb la direcció a fons. Si el manual dona el radi exterior, resta-li la meitat de l'amplada de via.",
+      "trackWidth": "Distància entre els centres de les rodes d'un mateix eix.",
+      "wheelbase": "Distància entre l'eix davanter i el posterior.",
+      "gpsOffsetX": "Antena GNSS: metres cap endavant des del centre de l'eix posterior (negatiu = darrere).",
+      "gpsOffsetY": "Antena GNSS: metres a la dreta de l'eix del tractor (negatiu = esquerra).",
+      "gpsOffsetZ": "Antena GNSS: alçada sobre el terra.",
+      "hitchOffsetX": "Enganx posterior: metres des del centre de l'eix posterior; normalment negatiu (darrere).",
+      "frontHitchOffsetX": "Enganx davanter: metres cap endavant des del centre de l'eix posterior.",
+      "guidanceDeviceOffsetX": "Tauleta o mòbil de guiatge a la cabina: metres cap endavant des del centre de l'eix posterior.",
+      "guidanceDeviceOffsetY": "Tauleta o mòbil de guiatge: metres a la dreta de l'eix del tractor.",
+      "mountPosition": "Si l'apero va darrere del tractor o davant (frontal).",
+      "implementWidth": "Amplada que treballa a cada passada. En adobadores, l'amplada d'escampat.",
+      "transportWidth": "Amplada de l'apero plegat per circular.",
+      "implementOffsetX": "Centre de treball: metres des del punt d'enganx (negatiu = darrere). En una màquina autopropulsada, des del seu eix posterior.",
+      "implementOffsetY": "Centre de treball desplaçat a la dreta (positiu) o a l'esquerra (negatiu), p. ex. dalladores laterals.",
+      "implementLength": "Llargada total de l'apero."
     }
   },
   "common": {
