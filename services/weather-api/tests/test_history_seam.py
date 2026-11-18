@@ -33,39 +33,44 @@ def test_data_file_is_public_safe():
     assert "tenant" not in raw.lower() and "parcel" not in raw.lower()
 
 
-def test_ebro_overlap_serves_a_list_of_regions_like_validation():
-    entries, reason = seam.seam_for(42.0, -1.5, "tmax_c", "daily")
-    assert reason is None
-    val_regions = {e["region"] for e in validation_for(42.0, -1.5, "tmax_c", "daily")}
-    assert {e["region"] for e in entries} == {"ebro_upper", "siar_ebro_upper", "meseta_north", "siar_meseta_north"} & {
-        r["id"] for r in seam.load_summary()["regions"]
-        if r["bbox"][0] <= 42.0 <= r["bbox"][1] and r["bbox"][2] <= -1.5 <= r["bbox"][3]}
-    assert {e["region"] for e in entries} == val_regions
-    for e in entries:
-        assert set(e["season_cells"]) == {"DJF", "MAM", "JJA", "SON", "annual"}
-        assert set(e) == {"region", "season_cells", "method", "window"}
+def _matching(lat, lon):
+    return {r["id"] for r in seam.load_summary()["regions"]
+            if r["bbox"][0] <= lat <= r["bbox"][1] and r["bbox"][2] <= lon <= r["bbox"][3]}
+
+
+def test_ebro_overlap_serves_every_matching_region_like_validation():
+    out = seam.seam_for(42.0, -1.5, "tmax_c", "daily")
+    assert set(out) == {"status", "reason", "region", "season_cells", "method", "window"}
+    assert out["status"] == "medido" and out["reason"] is None
+    assert set(out["region"]) == _matching(42.0, -1.5) == {e["region"] for e in validation_for(42.0, -1.5, "tmax_c", "daily")}
+    assert set(out["season_cells"]) == set(out["region"])
+    for cells in out["season_cells"].values():
+        assert set(cells) == {"DJF", "MAM", "JJA", "SON", "annual"}
 
 
 def test_tmin_is_served_exactly_as_the_file_says():
-    entries, _ = seam.seam_for(42.0, -1.5, "tmin_c", "daily")
+    out = seam.seam_for(42.0, -1.5, "tmin_c", "daily")
     doc = json.load(open(seam.SEAM_PATH, encoding="utf-8"))
-    for e in entries:
-        cell = e["season_cells"]["annual"]
-        assert cell == doc["regions"][e["region"]]["tmin_c"]["all"]
-        assert cell["bias"] is None and cell["ci"] is None and cell["reason"] == "metodo_tmin_en_cambio"
+    for region, cells in out["season_cells"].items():
+        assert cells["annual"] == doc["regions"][region]["tmin_c"]["all"]
+        assert cells["annual"]["bias"] is None and cells["annual"]["reason"] == "metodo_tmin_en_cambio"
 
 
-def test_germany_is_null_with_sin_juzgar_region():
-    assert seam.seam_for(52.0, 12.5, "tmax_c", "daily") == (None, "sin_juzgar_region")
+def _null(status, reason):
+    return {"status": status, "reason": reason, "region": None, "season_cells": None, "method": None, "window": None}
 
 
-def test_outside_every_region_is_null():
-    assert seam.seam_for(48.8, 2.3, "tmax_c", "daily") == (None, "unvalidated_region")
+def test_germany_is_sin_juzgar_region():
+    assert seam.seam_for(52.0, 12.5, "tmax_c", "daily") == _null("sin_juzgar", "sin_juzgar_region")
 
 
-def test_hourly_and_non_seam_variables_are_null():
-    assert seam.seam_for(42.0, -1.5, "t_c", "hourly")[0] is None
-    assert seam.seam_for(42.0, -1.5, "rh_mean_pct", "daily") == (None, "variable_without_seam")
+def test_outside_every_region_is_not_available():
+    assert seam.seam_for(48.8, 2.3, "tmax_c", "daily") == _null("no_disponible", "region_no_validada")
+
+
+def test_hourly_and_non_seam_variables_are_not_available():
+    assert seam.seam_for(42.0, -1.5, "t_c", "hourly") == _null("no_disponible", "solo_diario")
+    assert seam.seam_for(42.0, -1.5, "rh_mean_pct", "daily") == _null("no_disponible", "variable_sin_medida")
 
 
 def test_missing_file_gives_null_and_no_crash(monkeypatch, tmp_path):
@@ -73,7 +78,7 @@ def test_missing_file_gives_null_and_no_crash(monkeypatch, tmp_path):
     seam.load_seam.cache_clear()
     try:
         assert seam.load_seam() is None
-        assert seam.seam_for(42.0, -1.5, "tmax_c", "daily") == (None, "seam_data_unavailable")
+        assert seam.seam_for(42.0, -1.5, "tmax_c", "daily") == _null("no_disponible", "datos_no_disponibles")
     finally:
         seam.load_seam.cache_clear()
 
@@ -86,8 +91,8 @@ def test_history_missing_file_keeps_endpoint_working(env, monkeypatch, tmp_path)
         r = _get(c, vars="tmax_c,precip_mm")
         assert r.status_code == 200
         b = r.json()
-        assert b["seam"] == {"tmax_c": None, "precip_mm": None}
-        assert b["seam_reasons"] == {"tmax_c": "seam_data_unavailable", "precip_mm": "seam_data_unavailable"}
+        assert b["seam"] == {"tmax_c": _null("no_disponible", "datos_no_disponibles"),
+                             "precip_mm": _null("no_disponible", "datos_no_disponibles")}
     finally:
         seam.load_seam.cache_clear()
 
@@ -96,14 +101,12 @@ def test_history_block_present_and_null_for_unvalidated(env):
     c, h = env
     b = _get(c, vars="tmax_c,et0_mm").json()
     assert set(b["seam"]) == {"tmax_c", "et0_mm"}
-    assert isinstance(b["seam"]["tmax_c"], list) and b["seam"]["tmax_c"]
-    assert b["seam_reasons"] == {}
+    assert b["seam"]["tmax_c"]["status"] == "medido" and b["seam"]["tmax_c"]["season_cells"]
+    assert "seam_reasons" not in b
     h["entity"] = _entity(lon=100.0, lat=10.0)
-    b = _get(c, vars="tmax_c").json()
-    assert b["seam"] == {"tmax_c": None} and b["seam_reasons"] == {"tmax_c": "unvalidated_region"}
+    assert _get(c, vars="tmax_c").json()["seam"] == {"tmax_c": _null("no_disponible", "region_no_validada")}
     h["entity"] = _entity(lon=12.5, lat=52.0)
-    b = _get(c, vars="tmax_c").json()
-    assert b["seam"] == {"tmax_c": None} and b["seam_reasons"] == {"tmax_c": "sin_juzgar_region"}
+    assert _get(c, vars="tmax_c").json()["seam"] == {"tmax_c": _null("sin_juzgar", "sin_juzgar_region")}
 
 
 def test_frost_fields_have_no_seam_entry(env):
@@ -122,5 +125,5 @@ def test_existing_fields_are_byte_identical_to_pre_seam_snapshot(env):
     }
     for name, r in cases.items():
         body = r.json()
-        body.pop("seam"), body.pop("seam_reasons")
+        body.pop("seam")
         assert json.dumps(body, sort_keys=True) == json.dumps(snap[name], sort_keys=True), name

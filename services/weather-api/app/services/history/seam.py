@@ -17,9 +17,10 @@ logger = logging.getLogger(__name__)
 SEAM_PATH = os.path.join(os.path.dirname(__file__), "..", "..", "data", "seam_public.json")
 SEASONS = ("DJF", "MAM", "JJA", "SON")
 NOT_JUDGED = "sin_juzgar_region"
-UNVALIDATED = "unvalidated_region"
-NO_SEAM_VARIABLE = "variable_without_seam"
-DAILY_ONLY = "seam_is_daily"
+UNVALIDATED = "region_no_validada"
+NO_SEAM_VARIABLE = "variable_sin_medida"
+DAILY_ONLY = "solo_diario"
+DATA_UNAVAILABLE = "datos_no_disponibles"
 
 
 @lru_cache(maxsize=1)
@@ -32,39 +33,43 @@ def load_seam() -> Optional[dict]:
         return None
 
 
-def _entry(doc: dict, region: str, var: str) -> Optional[dict]:
+def _cells(doc: dict, region: str, var: str) -> Optional[dict]:
     cells = (doc.get("regions", {}).get(region) or {}).get(var)
     if cells is None:
         return None
-    season_cells = {s: cells[s] for s in SEASONS}
-    season_cells["annual"] = cells["all"]
-    return {"region": region, "season_cells": season_cells, "method": doc["method"], "window": doc["window"]}
+    out = {s: cells[s] for s in SEASONS}
+    out["annual"] = cells["all"]
+    return out
 
 
-def seam_for(lat: float, lon: float, var: str, resolution: str) -> Tuple[Optional[List[dict]], Optional[str]]:
-    """(entries, None) or (None, reason). One entry per matching region; same bbox rule as validation_for."""
+def _none(status: str, reason: str) -> dict:
+    return {"status": status, "reason": reason, "region": None, "season_cells": None, "method": None, "window": None}
+
+
+def seam_for(lat: float, lon: float, var: str, resolution: str) -> dict:
+    """Always an object {status, reason, region, season_cells, method, window}.
+
+    status: medido | sin_juzgar | no_disponible. Regions use the same bbox rule as validation_for; where
+    several regions match (AEMET + SIAR), `region` is the list of their ids and `season_cells` is keyed by
+    region id. Nothing measured -> region/season_cells/method/window are null.
+    """
     doc = load_seam()
     if doc is None:
-        return None, "seam_data_unavailable"
+        return _none("no_disponible", DATA_UNAVAILABLE)
     if resolution != "daily":
-        return None, DAILY_ONLY
+        return _none("no_disponible", DAILY_ONLY)
     inside = [
         r["id"]
         for r in load_summary()["regions"]
         if r["bbox"][0] <= lat <= r["bbox"][1] and r["bbox"][2] <= lon <= r["bbox"][3]
     ]
     if not inside:
-        return None, UNVALIDATED
-    found: List[dict] = []
-    for region in inside:
-        if region in doc.get("not_judged_regions", {}):
-            found.append({"region": region, "season_cells": None, "reason": doc["not_judged_regions"][region]})
-            continue
-        e = _entry(doc, region, var)
-        if e is not None:
-            found.append(e)
+        return _none("no_disponible", UNVALIDATED)
+    judged = [r for r in inside if r not in doc.get("not_judged_regions", {})]
+    if not judged:
+        return _none("sin_juzgar", NOT_JUDGED)
+    found = {r: c for r in judged if (c := _cells(doc, r, var)) is not None}
     if not found:
-        return None, NO_SEAM_VARIABLE
-    if all(e["season_cells"] is None for e in found):
-        return None, NOT_JUDGED
-    return found, None
+        return _none("no_disponible", NO_SEAM_VARIABLE)
+    return {"status": "medido", "reason": None, "region": list(found), "season_cells": found,
+            "method": doc["method"], "window": doc["window"]}
