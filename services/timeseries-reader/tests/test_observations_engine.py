@@ -125,11 +125,132 @@ def test_cumulative_sums_deltas_per_source_and_fuses():
 def test_cumulative_increment_outside_valid_range_excluded_with_warning():
     bl = buckets(d(2026, 11, 3, 10), d(2026, 11, 3, 11), "PT1H", "UTC")
     rs = [rd("a", d(2026, 11, 3, 9, 50), 1.0), rd("a", d(2026, 11, 3, 10, 10), 2.0),
-          rd("a", d(2026, 11, 3, 10, 40), 500.0)]
+          rd("b", d(2026, 11, 3, 9, 50), 1.0), rd("b", d(2026, 11, 3, 10, 40), 500.0)]
     w = []
     (p,) = aggregate_tier(rs, bl, "cumulative", "median", 0, 100, "PT1H", warnings=w)
-    assert p.value == 1.0
+    assert p.value == 1.0 and p.n_sources == 1
     assert any("increment_out_of_range" in x for x in w)
+
+
+def test_r1_cumulative_range_check_is_per_bucket_sum():
+    (bk,) = day_buckets()
+    rs = [rd("a", bk[0] + timedelta(hours=h), 100.0 * h) for h in range(11)]  # ten deltas of 100
+    w = []
+    (p,) = aggregate_tier(rs, [bk], "cumulative", "median", 0, 500, "P1D", warnings=w)
+    assert p.value is None and p.n_sources == 0
+    assert any("increment_out_of_range" in x for x in w)
+    (p2,) = aggregate_tier(rs, [bk], "cumulative", "median", 0, 5000, "P1D")
+    assert p2.value == 1000.0
+
+
+def test_r2_any_other_sub_context_key_never_fused():
+    a = rd("a", d(2026, 11, 3), 1, {"structureRef": "x"})
+    b = rd("b", d(2026, 11, 3), 1, {"structureRef": "y"})
+    c = rd("c", d(2026, 11, 3), 1, {"structureRef": "x", "heightAboveGround": 1.0})
+    g = group_by_sub_context([a, b, c], {"heightAboveGround": 0.5})
+    assert len(g) == 3
+
+
+def test_r2_mixed_value_types_do_not_crash_sorting():
+    a = rd("a", d(2026, 11, 3), 1, {"organ": 5})
+    b = rd("b", d(2026, 11, 3), 1, {"organ": "leaf"})
+    assert len(group_by_sub_context([a, b], {})) == 2
+
+
+def test_r3_near_full_value_after_decrease_is_not_a_wrap():
+    rs = [rd("a", d(2026, 11, 3, 10), 6553.0), rd("a", d(2026, 11, 3, 11), 6552.9)]
+    out, warns = counter_deltas(rs, 6553.5, 200.0)
+    assert out == [] and warns and "counter_reset_discarded" in warns[0]
+
+
+def test_r3_wrap_without_max_rate_requires_small_current():
+    rs = [rd("a", d(2026, 11, 3, 10), 6553.0), rd("a", d(2026, 11, 3, 11), 6000.0)]
+    out, warns = counter_deltas(rs, 6553.5, None)
+    assert [r.value for r in out] == [6000.0] and "counter_reset" in warns[0]
+
+
+def test_r3_wrap_with_max_rate_accepted_when_wrapped_increment_plausible():
+    rs = [rd("a", d(2026, 11, 3, 10), 6553.0), rd("a", d(2026, 11, 3, 11), 0.5)]
+    out, warns = counter_deltas(rs, 6553.5, 200.0)
+    assert [r.value for r in out] == [1.0] and warns == []
+
+
+def test_r4_duplicates_keep_max_and_zero_elapsed_skipped():
+    t0, t1 = d(2026, 11, 3, 10), d(2026, 11, 3, 11)
+    rs = [rd("a", t0, 5.0), rd("a", t0, 7.0), rd("a", t1, 9.0), rd("a", t1, 8.0)]
+    out, warns = counter_deltas(rs, None, None)
+    assert [r.value for r in out] == [2.0] and warns == []
+
+
+def test_r5_per_source_counter_max_wins_over_fallback():
+    t0, t1 = d(2026, 11, 3, 10), d(2026, 11, 3, 11)
+    a = [replace_cm(rd("a", t0, 99.0), 100.0), replace_cm(rd("a", t1, 1.0), 100.0)]
+    out, warns = counter_deltas(a, 6553.5, None)
+    assert [r.value for r in out] == [2.0] and warns == []
+    # fallback used when the reading has none
+    out2, _ = counter_deltas([rd("b", t0, 99.0), rd("b", t1, 1.0)], 100.0, None)
+    assert [r.value for r in out2] == [2.0]
+
+
+def replace_cm(r, cm):
+    from dataclasses import replace
+    return replace(r, counter_max=cm)
+
+
+def test_r6_cumulative_short_gap_covers_overlapped_hours_and_long_gap_warns():
+    (bk,) = day_buckets()
+    rs = [rd("a", bk[0] + timedelta(hours=0, minutes=30), 0.0),
+          rd("a", bk[0] + timedelta(hours=4, minutes=30), 1.0)]  # 4 h gap -> hours 0..4 = 5
+    (p,) = aggregate_tier(rs, [bk], "cumulative", "median", None, None, "P1D")
+    assert p.coverage == pytest.approx(5 / 24)
+    rs2 = [rd("a", bk[0] + timedelta(hours=1), 0.0), rd("a", bk[0] + timedelta(hours=10), 1.0)]
+    w = []
+    (p2,) = aggregate_tier(rs2, [bk], "cumulative", "median", None, None, "P1D", warnings=w)
+    assert p2.coverage == pytest.approx(1 / 24)
+    assert any("long_gap" in x for x in w)
+
+
+def test_r7_partial_day_expected_hours_use_now():
+    (bk,) = day_buckets()
+    rs = [rd("a", bk[0] + timedelta(hours=h, minutes=5), 1.0) for h in range(6)]
+    now = bk[0] + timedelta(hours=6, minutes=10)  # ceil -> 7 expected hours
+    (p,) = aggregate_tier(rs, [bk], "instant", "median", None, None, "P1D", now=now)
+    assert p.coverage == pytest.approx(6 / 7)
+    (q,) = aggregate_tier(rs, [bk], "instant", "median", None, None, "P1D")
+    assert q.coverage == pytest.approx(6 / 24)
+
+
+def test_r8_raw_fall_through_picks_one_tier_for_whole_window():
+    t1, t2 = d(2026, 11, 3, 1), d(2026, 11, 3, 2)
+    tier1 = [bp(t1, 1.0, 1.0)]
+    tier2 = [bp(t1, 9.0, 1.0), bp(t2, 2.0, 1.0)]
+    out = fall_through([(2, tier2), (1, tier1)], None, "raw")
+    assert out == [(1, tier1[0])]
+    assert fall_through([(1, []), (2, tier2)], None, "raw")[0][0] == 2
+    assert fall_through([(1, [])], None, "raw") == []
+
+
+def test_r9_amount_sums_readings_without_counter_rule_and_checks_bucket_sum():
+    (bk,) = day_buckets()
+    rs = [rd("a", bk[0] + timedelta(hours=h), 2.0) for h in range(3)]
+    (p,) = aggregate_tier(rs, [bk], "amount", "median", 0, 100, "P1D")
+    assert p.value == 6.0 and p.sources[0]["n_readings"] == 3
+    w = []
+    (q,) = aggregate_tier(rs, [bk], "amount", "median", 0, 5, "P1D", warnings=w)
+    assert q.value is None and any("increment_out_of_range" in x for x in w)
+    # decreasing values are plain amounts, never a counter reset
+    rs2 = [rd("a", bk[0], 5.0), rd("a", bk[0] + timedelta(hours=1), 1.0)]
+    (r,) = aggregate_tier(rs2, [bk], "amount", "median", None, None, "P1D")
+    assert r.value == 6.0
+
+
+def test_repeated_identical_warnings_are_merged_with_count():
+    bl = buckets(d(2026, 11, 3, 10), d(2026, 11, 3, 13), "PT1H", "UTC")
+    rs = [rd("a", d(2026, 11, 3, 10, 5), 1.0), rd("a", d(2026, 11, 3, 11, 5), 1.0),
+          rd("a", d(2026, 11, 3, 12, 5), 1.0)]
+    w = []
+    aggregate_tier(rs, bl, "instant", "nope", None, None, "PT1H", warnings=w)
+    assert w == ["unknown_fusion:nope x3"]
 
 
 def test_heights_within_tolerance_form_one_group():
