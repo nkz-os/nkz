@@ -238,17 +238,28 @@ def _property_attrs(cur, tenant_id: str, prop_name: str) -> List[str]:
 
 # --------------------------------------------------------- tier planning
 
-def _candidate_deployments(cur, tenant_id: str, req: BestRequest, prop: dict, medium: str,
-                           attrs: List[str], area_geom: Optional[dict], lo, hi) -> Dict[str, str]:
-    """{deployment id: device URN} of deployments that could contribute to some tier (bounds the values query only).
+def _covered_features(cur, tenant_id: str, features: List[str], area_json: str) -> Set[str]:
+    """Subset of `features` whose cached geometry is covered by the area."""
+    if not features:
+        return set()
+    cur.execute(_COVERED_SQL, (tenant_id, features, area_json))
+    return {r["entity_urn"] for r in cur.fetchall()}
 
-    Final tier membership is decided per stored row, never per deployment: a datalogger with
-    several channels can observe several features.
+
+def _candidate_deployments(cur, tenant_id: str, req: BestRequest, prop: dict, medium: str,
+                           attrs: List[str], area_geom: Optional[dict], lo, hi
+                           ) -> Tuple[Dict[str, str], Set[str], Set[str]]:
+    """({deployment id: device URN}, probed features, covered features).
+
+    Preselection only (bounds the device ids of the values query). A deployment is kept when it
+    observes the request feature, any of its channel features is covered by the area, its
+    location is inside the area or within the radius, or it is mobile. Final tier membership is
+    decided per stored row, never per deployment (a datalogger can observe several features).
     """
     area_json = json.dumps(area_geom) if area_geom else None
     cur.execute(_DEPLOYMENTS_SQL, (area_json, tenant_id, lo, hi))
     radius = _num(prop.get("nearby_radius_m")) or 0.0
-    keep: Dict[str, str] = {}
+    cands: List[Tuple[dict, Set[str]]] = []
     for r in cur.fetchall():
         dep = dict(r)
         dep["observation_context"] = dep.get("observation_context") or {}
@@ -261,16 +272,28 @@ def _candidate_deployments(cur, tenant_id: str, req: BestRequest, prop: dict, me
                 matched = True
                 if f:
                     feats.add(f)
-        if not matched:
-            continue
+        if matched:
+            cands.append((dep, feats))
+
+    probed: Set[str] = set()
+    covered: Set[str] = set()
+    if area_geom is not None:
+        probed = {f for _, feats in cands for f in feats if f != req.feature}
+        covered = _covered_features(cur, tenant_id, sorted(probed), area_json)
+
+    keep: Dict[str, str] = {}
+    for dep, feats in cands:
         if req.feature is not None and req.feature in feats:
-            keep[dep["id"]] = dep["device_urn"]
+            ok = True
         elif area_geom is None:
-            continue
-        elif (dep["mobility"] == "mobile" or feats or dep.get("in_area")
-              or (radius > 0 and dep.get("dist_m") is not None and float(dep["dist_m"]) <= radius)):
+            ok = False
+        else:
+            ok = bool(dep["mobility"] == "mobile" or (feats & covered) or dep.get("in_area")
+                      or (radius > 0 and dep.get("dist_m") is not None
+                          and float(dep["dist_m"]) <= radius))
+        if ok:
             keep[dep["id"]] = dep["device_urn"]
-    return keep
+    return keep, probed, covered
 
 
 def _row_tier(req: BestRequest, row: dict, area_geom: Optional[dict], covered: Set[str],
@@ -305,8 +328,6 @@ def _counter_maxes(cur, tenant_id: str, prop_name: str, device_ids: List[str],
     return {k: v[1] for k, v in best.items()}
 
 
-
-
 # --------------------------------------------------------- public: 1-3
 
 def observed_tiers(cur, tenant_id: str, req: BestRequest, prop: dict, medium: str,
@@ -329,8 +350,8 @@ def observed_tiers(cur, tenant_id: str, req: BestRequest, prop: dict, medium: st
     if not attrs:
         return out
     prior_lo = w0 - PRIOR_LOOKBACK
-    urns = _candidate_deployments(cur, tenant_id, req, prop, medium, attrs, area_geom,
-                                  prior_lo if cumulative else w0, w1)
+    urns, probed, covered = _candidate_deployments(
+        cur, tenant_id, req, prop, medium, attrs, area_geom, prior_lo if cumulative else w0, w1)
     if not urns:
         return out
     area_json = json.dumps(area_geom) if area_geom else None
@@ -348,13 +369,12 @@ def observed_tiers(cur, tenant_id: str, req: BestRequest, prop: dict, medium: st
         rows = fetch(_PRIOR_SQL, prior_lo, w0) + rows
         cmax = _counter_maxes(cur, tenant_id, req.property, device_ids, w0, w1)
 
-    covered: Set[str] = set()
-    if area_geom is not None:
-        probe = sorted({r["feature_of_interest"] for r in rows
-                        if r.get("feature_of_interest") and r["feature_of_interest"] != req.feature})
-        if probe:
-            cur.execute(_COVERED_SQL, (tenant_id, probe, area_json))
-            covered = {r["entity_urn"] for r in cur.fetchall()}
+    if area_geom is not None:  # row features the deployment preselection did not probe
+        extra = sorted({r["feature_of_interest"] for r in rows
+                        if r.get("feature_of_interest")
+                        and r["feature_of_interest"] not in probed
+                        and r["feature_of_interest"] != req.feature})
+        covered = covered | _covered_features(cur, tenant_id, extra, area_json)
 
     radius = _num(prop.get("nearby_radius_m")) or 0.0
     for row in rows:
@@ -407,13 +427,16 @@ WITH st AS (
     WHERE x.tenant_id = %s AND x.entity_type = ANY(%s)
       AND x.observed_at >= %s AND x.observed_at < %s
       AND x.entity_id NOT LIKE '%%:parcel-%%' AND x.entity_id NOT LIKE '%%-daily'
-      AND x.payload#>>'{{raw,location,value,coordinates,1}}' IS NOT NULL
+      AND x.payload#>>'{{raw,location,value,type}}' = 'Point'
+      AND jsonb_typeof(x.payload#>'{{raw,location,value,coordinates,0}}') = 'number'
+      AND jsonb_typeof(x.payload#>'{{raw,location,value,coordinates,1}}') = 'number'
+      AND {xref} ~ '{pat}'
     ORDER BY x.entity_id, x.observed_at DESC
 ), near AS (
     SELECT s.entity_id, ST_Distance(s.g, ST_SetSRID(ST_MakePoint(%s, %s), 4326)::geography) AS d
     FROM st s
     WHERE ST_DWithin(s.g, ST_SetSRID(ST_MakePoint(%s, %s), 4326)::geography, %s)
-    ORDER BY d
+    ORDER BY d, s.entity_id
     LIMIT 1
 )
 SELECT e.observed_at, near.d AS distance_m,
@@ -484,7 +507,8 @@ def model_tiers(cur, tenant_id: str, req: BestRequest, prop: dict,
     radius = min((_num(prop.get("nearby_radius_m")) or 0.0) * 10, MAX_REGIONAL_RADIUS_M)
     if point is not None and radius > 0:
         lon, lat = float(point[0]), float(point[1])
-        cur.execute(_REGIONAL_SQL.format(ref=ref, pat=_NUMERIC_TEXT_PATTERN),
+        cur.execute(_REGIONAL_SQL.format(ref=ref, xref=ref.replace('e.payload', 'x.payload'),
+                                         pat=_NUMERIC_TEXT_PATTERN),
                     (tenant_id, types, w0, w1, lon, lat, lon, lat, radius,
                      tenant_id, types, w0, w1))
         for r in cur.fetchall():

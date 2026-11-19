@@ -236,3 +236,29 @@ def test_regional_tier5_real_query(pg_dsn, su):
     out = _run(pg_dsn, tenant, p, p, model_point=centre)
     assert [(r.source_id, r.value, r.kind) for r in out[5]] == [("regional_proxy", 7.5, "model")]
     assert out[5][0].distance_m == pytest.approx(3000, abs=100)
+
+
+def test_regional_skips_malformed_and_keyless_stations(pg_dsn, su):
+    tenant = f"t_{uuid.uuid4().hex[:8]}"
+    p, z, _, _ = _seed(su, tenant)
+    centre = ((LON0 + LON1) / 2, (LAT0 + LAT1) / 2)
+    ent = f"urn:ngsi-ld:WeatherObserved:{tenant}"
+    with su.cursor() as cur:
+        # malformed coordinates (strings): must not abort the query
+        cur.execute(
+            "INSERT INTO telemetry_events (tenant_id, observed_at, entity_id, entity_type, payload)"
+            " VALUES (%s, %s, %s, 'WeatherObserved', %s::jsonb)",
+            (tenant, READ_AT, f"{ent}:bad", json.dumps({
+                "measurements": {"airTemperature": 1.0},
+                "raw": {"location": {"value": {"type": "Point", "coordinates": ["x", "y"]}}}})))
+        # nearest station, but without the requested key
+        cur.execute(
+            "INSERT INTO telemetry_events (tenant_id, observed_at, entity_id, entity_type, payload)"
+            " VALUES (%s, %s, %s, 'WeatherObserved', %s::jsonb)",
+            (tenant, READ_AT, f"{ent}:near-nokey", json.dumps({
+                "measurements": {"windSpeed": 3.0},
+                "raw": {"location": {"value": {"type": "Point",
+                                               "coordinates": [centre[0], centre[1] + 0.005]}}}})))
+        _weather_event(cur, tenant, f"{ent}:good", centre[0], centre[1] + 0.03, 6.5, 1)
+    out = _run(pg_dsn, tenant, p, p, model_point=centre)
+    assert [(r.source_id, r.value) for r in out[5]] == [("regional_proxy", 6.5)]

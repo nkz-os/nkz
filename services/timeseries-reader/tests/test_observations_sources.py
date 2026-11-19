@@ -325,3 +325,14 @@ def test_regional_radius_capped_and_skipped_without_point_or_radius():
     model_tiers(cur, T, req(), prop(), None, None)
     model_tiers(cur, T, req(), prop(nearby_radius_m=0), None, (0.0, 0.0))
     assert not cur.calls
+
+
+def test_preselection_drops_far_deployment_with_uncovered_feature():
+    far = "urn:ngsi-ld:AgriParcelZone:tenantA:far"
+    near = "urn:ngsi-ld:AgriParcelZone:tenantA:near"
+    deps = [dep("f", "urn:x:Device:t:far", feature=far),
+            dep("n", "urn:x:Device:t:near", feature=near)]
+    cur = FakeCursor(answers(deployments=deps, values=[], covered=[{"entity_urn": near}]))
+    observed_tiers(cur, T, req(feature=None, geometry=AREA), prop(), "ambientAir", AREA)
+    assert cur.sql("values")[0][2][7] == ["near"]
+    assert cur.sql("covered")[0][2][1] == [far, near]
