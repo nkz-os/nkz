@@ -81,6 +81,8 @@ export function DeviceDeployments({ deviceUrn, parcelIds = [], profileCode = nul
   const [validFrom, setValidFrom] = useState<string | undefined>();
   const [validTo, setValidTo] = useState<string | null | undefined>();
   const [reason, setReason] = useState('');
+  const [lat, setLat] = useState('');
+  const [lon, setLon] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -126,7 +128,10 @@ export function DeviceDeployments({ deviceUrn, parcelIds = [], profileCode = nul
       setValidFrom(next.deployment.valid_from);
       setValidTo(next.deployment.valid_to);
     } else {
-      setValue(toValue(current ?? items?.[0]));
+      const base = current ?? items?.[0];
+      setValue(toValue(base));
+      setLat(base?.location ? String(base.location.lat) : '');
+      setLon(base?.location ? String(base.location.lon) : '');
     }
   };
 
@@ -149,6 +154,26 @@ export function DeviceDeployments({ deviceUrn, parcelIds = [], profileCode = nul
         return;
       }
     }
+    let location: { lat: number; lon: number } | undefined;
+    if (editor.kind === 'move') {
+      const base = current ?? items?.[0];
+      const fixed = (value.mobility ?? base?.mobility ?? 'fixed') === 'fixed';
+      if (lat.trim() === '' && lon.trim() === '') {
+        if (fixed) {
+          setError(t('entities.assets.deployments.location_required'));
+          return;
+        }
+      } else {
+        const la = Number(lat);
+        const lo = Number(lon);
+        if (lat.trim() === '' || lon.trim() === '' || !Number.isFinite(la) || !Number.isFinite(lo)
+            || la < -90 || la > 90 || lo < -180 || lo > 180) {
+          setError(t('entities.assets.deployments.location_invalid'));
+          return;
+        }
+        location = { lat: la, lon: lo };
+      }
+    }
     setBusy(true);
     setError(null);
     try {
@@ -163,6 +188,7 @@ export function DeviceDeployments({ deviceUrn, parcelIds = [], profileCode = nul
           body.channelOverrides = value.channelOverrides as any;
         }
         if (value.mobility) body.mobility = value.mobility;
+        if (location) body.location = location;
         await moveDeviceDeployment(deviceUrn, body);
       } else {
         const before = editor.deployment;
@@ -270,6 +296,40 @@ export function DeviceDeployments({ deviceUrn, parcelIds = [], profileCode = nul
                 className={INPUT_CLASS}
               />
               <p className="text-xs text-nkz-muted mt-1">{t('entities.assets.deployments.valid_to_hint')}</p>
+            </div>
+          )}
+
+          {editor.kind === 'move' && (
+            <div>
+              <label className="block text-sm font-medium text-nkz-text-primary mb-1">
+                {t('entities.assets.deployments.location')}
+              </label>
+              <div className="grid grid-cols-2 gap-2">
+                <Input
+                  type="number"
+                  step="any"
+                  min={-90}
+                  max={90}
+                  aria-label={t('entities.assets.deployments.latitude')}
+                  placeholder={t('entities.assets.deployments.latitude')}
+                  data-testid="move-lat"
+                  value={lat}
+                  onChange={(e: any) => setLat(e.target.value)}
+                  className={INPUT_CLASS}
+                />
+                <Input
+                  type="number"
+                  step="any"
+                  min={-180}
+                  max={180}
+                  aria-label={t('entities.assets.deployments.longitude')}
+                  placeholder={t('entities.assets.deployments.longitude')}
+                  data-testid="move-lon"
+                  value={lon}
+                  onChange={(e: any) => setLon(e.target.value)}
+                  className={INPUT_CLASS}
+                />
+              </div>
             </div>
           )}
 

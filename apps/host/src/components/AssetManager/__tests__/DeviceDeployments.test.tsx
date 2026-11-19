@@ -102,6 +102,34 @@ describe('DeviceDeployments', () => {
     await waitFor(() => expect(get).toHaveBeenCalledTimes(2));
   });
 
+  it('move prefills location from the current deployment and sends it', async () => {
+    render(<DeviceDeployments deviceUrn={DEVICE} />);
+    fireEvent.click(await screen.findByTestId('deployment-move'));
+    expect((screen.getByTestId('move-lat') as HTMLInputElement).value).toBe('42');
+    expect((screen.getByTestId('move-lon') as HTMLInputElement).value).toBe('-1');
+    fireEvent.change(screen.getByTestId('move-lat'), { target: { value: '43.5' } });
+    fireEvent.change(screen.getByTestId('move-lon'), { target: { value: '-2.25' } });
+    fireEvent.change(screen.getByTestId('move-reason'), { target: { value: 'moved' } });
+    fireEvent.click(screen.getByTestId('move-submit'));
+    await waitFor(() => expect(post).toHaveBeenCalledTimes(1));
+    expect(post.mock.calls[0][1].location).toEqual({ lat: 43.5, lon: -2.25 });
+  });
+
+  it('move requires a location for a fixed device and rejects out-of-range values', async () => {
+    render(<DeviceDeployments deviceUrn={DEVICE} />);
+    fireEvent.click(await screen.findByTestId('deployment-move'));
+    fireEvent.change(screen.getByTestId('move-reason'), { target: { value: 'r' } });
+    fireEvent.change(screen.getByTestId('move-lat'), { target: { value: '' } });
+    fireEvent.change(screen.getByTestId('move-lon'), { target: { value: '' } });
+    fireEvent.click(screen.getByTestId('move-submit'));
+    expect(await screen.findByText('entities.assets.deployments.location_required')).toBeTruthy();
+    fireEvent.change(screen.getByTestId('move-lat'), { target: { value: '91' } });
+    fireEvent.change(screen.getByTestId('move-lon'), { target: { value: '0' } });
+    fireEvent.click(screen.getByTestId('move-submit'));
+    expect(await screen.findByText('entities.assets.deployments.location_invalid')).toBeTruthy();
+    expect(post).not.toHaveBeenCalled();
+  });
+
   it('move sends observesFeature null when the user cleared it', async () => {
     const FEATURE = 'urn:ngsi-ld:AgriParcel:a';
     get.mockImplementation(async () => ({ data: { deployments: [{ ...NEWEST, observesFeature: FEATURE }, OLDEST] } }));
