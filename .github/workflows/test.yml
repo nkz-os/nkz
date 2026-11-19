@@ -195,3 +195,44 @@ jobs:
             exit 1
           fi
           echo "OK: No new production domain references."
+
+      - name: Check entity types in the diff
+        run: |
+          set +e
+          BASE="${GITHUB_BASE_REF:-main}"
+          if ! git fetch origin "$BASE" --depth=1 2>/dev/null; then
+            if ! git fetch origin main --depth=1 2>/dev/null; then
+              echo "Could not fetch base branch; skipping check."
+              exit 0
+            fi
+            BASE="main"
+          fi
+          # The script filters paths itself, so the diff is passed whole.
+          git diff "origin/$BASE...HEAD" 2>/dev/null \
+            | python3 .github/scripts/check_entity_types.py diff --lists config/entity-types
+          exit "${PIPESTATUS[1]}"
+
+      - name: Entity type list ratchet
+        run: |
+          set +e
+          BASE="${GITHUB_BASE_REF:-main}"
+          if ! git fetch origin "$BASE" --depth=1 2>/dev/null; then
+            if ! git fetch origin main --depth=1 2>/dev/null; then
+              echo "Could not fetch base branch; skipping check."
+              exit 0
+            fi
+            BASE="main"
+          fi
+          # The script exits 2 on an unresolved ref: resolve it here so that
+          # case is a visible skip, not a failure that looks like an offence.
+          if ! git rev-parse --verify --quiet "origin/$BASE^{commit}" >/dev/null; then
+            echo "Base ref origin/$BASE does not resolve; skipping check."
+            exit 0
+          fi
+          python3 .github/scripts/check_entity_types.py ratchet \
+            --base "origin/$BASE" --lists config/entity-types
+
+      - name: Entity type checker tests
+        run: |
+          python3 -m pip install --quiet pytest
+          python3 -m pytest .github/scripts/tests/test_check_entity_types.py -q
