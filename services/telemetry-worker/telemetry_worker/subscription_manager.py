@@ -30,6 +30,7 @@ ORION_URL = os.getenv("ORION_URL", "http://orion-ld-service:1026")
 SERVICE_HOST = os.getenv("SERVICE_HOST", "telemetry-worker-service")
 SERVICE_PORT = os.getenv("SERVICE_PORT", "80")
 NOTIFICATION_URL = f"http://{SERVICE_HOST}:{SERVICE_PORT}/notify"
+GEOMETRY_NOTIFICATION_URL = f"http://{SERVICE_HOST}:{SERVICE_PORT}/notify/geometry"
 POSTGRES_URL = os.getenv("POSTGRES_URL", "")
 DEFAULT_TENANT = os.getenv("DEFAULT_TENANT", "platform")
 
@@ -283,6 +284,29 @@ SUBSCRIPTIONS = [
                 "zoneVersion",
                 "zoneType",
             ],
+        },
+        "isActive": True,
+    },
+    {
+        # Keeps observation_geometry_cache current (contract 1.4). No "throttling": a
+        # bulk parcel import must not drop zones. Greenhouse and AgriSolarPark are not
+        # terms of the platform @context, so they are left out until they are defined
+        # (an undefined type expands to the default vocabulary and never matches).
+        "description": "Telemetry Worker - Geometry cache (location)",
+        "type": "Subscription",
+        "entities": [
+            {"type": "AgriParcel"},
+            {"type": "AgriParcelZone"},
+            {"type": "AgriPlant"},
+            {"type": "AgriGreenhouse"},
+        ],
+        "watchedAttributes": ["location"],
+        "notification": {
+            "endpoint": {
+                "uri": GEOMETRY_NOTIFICATION_URL,
+                "accept": "application/json",
+            },
+            "format": "normalized",
         },
         "isActive": True,
     },

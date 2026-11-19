@@ -75,6 +75,7 @@ async def lifespan(app: FastAPI):
     init_handler(
         settings, profile_service, sink, health_checker, calibration_service, dedup,
         observation_lookup=observation_lookup,
+        geometry_pool=sink._pool,
     )
 
     # Audited recompute of stored observation context (contract 8.6); only with

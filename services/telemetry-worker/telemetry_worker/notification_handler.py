@@ -20,6 +20,7 @@ from .profiles import ProfileService
 from .calibration import CalibrationService
 from .dedup import NotificationDedup
 from .observations import reading_point, resolve_observation
+from .geometry_cache import upsert_geometry
 
 logger = logging.getLogger(__name__)
 
@@ -55,6 +56,7 @@ _health_checker: Optional[HealthChecker] = None
 _calibration_service: Optional[CalibrationService] = None
 _dedup: Optional[NotificationDedup] = None
 _observation_lookup: Optional[Any] = None  # ObservationLookup; None = feature off
+_geometry_pool: Optional[Any] = None  # asyncpg pool for observation_geometry_cache; None = off
 
 
 def init_handler(
@@ -65,9 +67,10 @@ def init_handler(
     calibration_service: Optional[CalibrationService] = None,
     dedup: Optional[NotificationDedup] = None,
     observation_lookup: Optional[Any] = None,
+    geometry_pool: Optional[Any] = None,
 ) -> None:
     """Wire dependencies from app lifespan."""
-    global _settings, _profile_service, _event_sink, _health_checker, _calibration_service, _dedup, _observation_lookup
+    global _settings, _profile_service, _event_sink, _health_checker, _calibration_service, _dedup, _observation_lookup, _geometry_pool
     _settings = settings
     _profile_service = profile_service
     _event_sink = event_sink
@@ -75,6 +78,7 @@ def init_handler(
     _calibration_service = calibration_service
     _dedup = dedup
     _observation_lookup = observation_lookup
+    _geometry_pool = geometry_pool
 
 
 async def process_notification_task(
@@ -537,6 +541,49 @@ async def receive_notification(
     except Exception as e:
         logger.error(f"Failed to accept notification: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="notification processing error")
+
+
+async def process_geometry_notification_task(data: Dict[str, Any], tenant_id: Optional[str]):
+    """Upsert the location of every notified entity into observation_geometry_cache.
+
+    One bad entity never blocks the others; nothing is raised out of the task.
+    """
+    if _geometry_pool is None:
+        logger.warning("geometry notification dropped, no pool wired: tenant_id=%s", tenant_id)
+        return
+    for entity in data.get("data", []) or []:
+        try:
+            await upsert_geometry(_geometry_pool, tenant_id, entity)
+        except Exception as e:
+            logger.error(
+                "geometry upsert failed: tenant_id=%s entity_urn=%s error=%s",
+                tenant_id, entity.get("id") if isinstance(entity, dict) else None, e,
+                exc_info=True,
+            )
+
+
+@router.post("/notify/geometry", status_code=204)
+async def receive_geometry_notification(
+    request: Request,
+    background_tasks: BackgroundTasks,
+    ngsild_tenant: Optional[str] = Header(None, alias="NGSILD-Tenant"),
+    fiware_service: Optional[str] = Header(None, alias="Fiware-Service"),
+):
+    """Orion-LD `location` notifications for the geometry cache (same auth and
+    tenant headers as /notify; 204 for the reason documented there)."""
+    reject = _reject_unauthenticated_notify(request.headers)
+    if reject:
+        raise reject
+    try:
+        body = await request.json()
+    except ValueError as e:
+        logger.error(f"Malformed geometry notification body: {e}")
+        raise HTTPException(status_code=400, detail="malformed notification payload")
+    if not isinstance(body, dict):
+        raise HTTPException(status_code=400, detail="malformed notification payload")
+    tenant_id = ngsild_tenant or fiware_service
+    background_tasks.add_task(process_geometry_notification_task, body, tenant_id)
+    return None
 
 
 @router.post("/v2/notify", status_code=204)
