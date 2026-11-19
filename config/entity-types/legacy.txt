@@ -63,6 +63,7 @@ FruitTree
 HarvestData
 Irrigation
 IrrigationOperation
+IrrigationOutlet
 IrrigationSystem
 Koppen
 LivestockAnimal
@@ -85,6 +86,7 @@ SoilObservation
 SoilProbe
 SoilSamplingPoint
 SoilSurvey
+Spring
 Tenant
 TrialSite
 VarietyTrial

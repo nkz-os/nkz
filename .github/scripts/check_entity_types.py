@@ -6,8 +6,9 @@ Every entity type the platform uses must be on `config/entity-types/allowed.txt`
 shrink: a `## broker` block (types already persisted in the broker) and a
 `## code` block (types named in code only).
 
-This module holds the list parsing and loading, and the `diff` subcommand, which
-reads a unified diff on stdin and reports unknown type names on added lines.
+This module holds the list parsing and loading, the `diff` subcommand, which
+reads a unified diff on stdin and reports unknown type names on added lines, and
+the `ratchet` subcommand, which compares the lists with their state on a base ref.
 
 Exit codes: 0 clean, 1 findings.
 """
@@ -16,10 +17,14 @@ from __future__ import annotations
 
 import argparse
 import fnmatch
+import json
 import re
+import subprocess
 import sys
+import urllib.request
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Callable
 
 ALLOWED_FILE = "allowed.txt"
 LEGACY_FILE = "legacy.txt"
@@ -214,14 +219,131 @@ def run_diff(lists_dir: Path, diff: str) -> int:
     return 0
 
 
+OFFICIAL_LIST_URL = (
+    "https://raw.githubusercontent.com/smart-data-models/data-models/master/specs/AllSubjects/"
+    "official_list_data_models.json"
+)
+
+
+def fetch_official_names(url: str = OFFICIAL_LIST_URL, timeout: int = 30) -> set[str]:
+    """Every data model name in the official Smart Data Models list."""
+    try:
+        with urllib.request.urlopen(url, timeout=timeout) as response:  # noqa: S310 - fixed https URL
+            payload = json.loads(response.read().decode("utf-8"))
+        return {name for entry in payload["officialList"] for name in entry["dataModels"]}
+    except Exception as exc:  # network, HTTP, JSON or shape errors all mean the same thing here
+        raise RuntimeError(f"could not download the official list: {exc}") from exc
+
+
+def context_iri(context: dict, name: str) -> str | None:
+    """The IRI a short name expands to in the platform context, or None if it has no term."""
+    terms: dict = {}
+    for part in context.get("@context", []):
+        if isinstance(part, dict):
+            terms.update(part)
+
+    def resolve(term: str, depth: int = 0) -> str | None:
+        value = terms.get(term)
+        if isinstance(value, dict):
+            value = value.get("@id")
+        if not isinstance(value, str):
+            return None
+        prefix, sep, rest = value.partition(":")
+        if sep and not rest.startswith("//") and prefix in terms and depth < 5:
+            base = resolve(prefix, depth + 1)
+            if base:
+                return base + rest
+        return value
+
+    return resolve(name)
+
+
+def _duplicates(names: list[str]) -> list[str]:
+    seen: set[str] = set()
+    repeated: list[str] = []
+    for name in names:
+        if name in seen and name not in repeated:
+            repeated.append(name)
+        seen.add(name)
+    return repeated
+
+
+def check_ratchet(
+    base_allowed: str | None,
+    base_legacy: str | None,
+    head_allowed: str,
+    head_legacy: str,
+    official_names: Callable[[], set[str]],
+) -> list[str]:
+    """One message per offence; a base of None means the file is new (no growth check)."""
+    problems: list[str] = []
+    allowed = parse_allowed(head_allowed)
+    broker, code = parse_legacy(head_legacy)
+
+    if base_legacy is not None:
+        base_broker, base_code = parse_legacy(base_legacy)
+        old = set(base_broker) | set(base_code)
+        for name in dict.fromkeys(broker + code):
+            if name not in old:
+                problems.append(f"legacy.txt may only lose names: '{name}' was added")
+
+    base_names = set(parse_allowed(base_allowed)) if base_allowed is not None else set()
+    added = [name for name in dict.fromkeys(allowed) if name not in base_names]
+    if added:
+        try:
+            official = official_names()
+        except RuntimeError as exc:
+            problems.append(str(exc))
+        else:
+            problems.extend(f"'{n}' is not in the official list of Smart Data Models" for n in added if n not in official)
+
+    legacy = broker + code
+    for name in sorted(set(allowed) & set(legacy)):
+        problems.append(f"'{name}' is in both allowed.txt and legacy.txt")
+    for name in sorted(set(broker) & set(code)):
+        problems.append(f"'{name}' is in both the broker and the code block of legacy.txt")
+    for label, names in (("allowed.txt", allowed), ("legacy.txt broker block", broker), ("legacy.txt code block", code)):
+        problems.extend(f"{label}: duplicate '{name}'" for name in _duplicates(names))
+        if names != sorted(names):
+            problems.append(f"{label}: names are not sorted")
+    return problems
+
+
+def _git_show(ref: str, path: str) -> str | None:
+    result = subprocess.run(["git", "show", f"{ref}:{path}"], capture_output=True, text=True, check=False)
+    return result.stdout if result.returncode == 0 else None
+
+
+def run_ratchet(base: str, lists_dir: Path) -> int:
+    top = subprocess.run(
+        ["git", "rev-parse", "--show-toplevel"], capture_output=True, text=True, check=True
+    ).stdout.strip()
+    relative = lists_dir.resolve().relative_to(Path(top).resolve()).as_posix()
+    problems = check_ratchet(
+        _git_show(base, f"{relative}/{ALLOWED_FILE}"),
+        _git_show(base, f"{relative}/{LEGACY_FILE}"),
+        (lists_dir / ALLOWED_FILE).read_text(encoding="utf-8"),
+        (lists_dir / LEGACY_FILE).read_text(encoding="utf-8"),
+        fetch_official_names,
+    )
+    for problem in problems:
+        print(problem)
+    return 1 if problems else 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     commands = parser.add_subparsers(dest="command", required=True)
     diff_cmd = commands.add_parser("diff", help="check the added lines of a unified diff read on stdin")
     diff_cmd.add_argument("--lists", type=Path, required=True, help="directory with allowed.txt and legacy.txt")
+    ratchet_cmd = commands.add_parser("ratchet", help="check the lists against their state on a base ref")
+    ratchet_cmd.add_argument("--base", required=True, help="git ref to compare against")
+    ratchet_cmd.add_argument("--lists", type=Path, required=True, help="directory with allowed.txt and legacy.txt")
     args = parser.parse_args(argv)
     if args.command == "diff":
         return run_diff(args.lists, sys.stdin.read())
+    if args.command == "ratchet":
+        return run_ratchet(args.base, args.lists)
     return 2
 
 
