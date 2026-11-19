@@ -129,9 +129,12 @@ jobs:
           if [ "$EVENT_NAME" = "push" ]; then
             # A new branch has an all-zero "before"; a shallow or rewritten
             # history may not contain it. Neither can be compared.
-            if [ -z "$PUSH_BEFORE" ] || [ "$PUSH_BEFORE" = "0000000000000000000000000000000000000000" ] \
-               || ! git cat-file -e "$PUSH_BEFORE^{commit}" 2>/dev/null; then
-              echo "No previous commit to compare against; nothing to check."
+            if [ -z "$PUSH_BEFORE" ] || [ "$PUSH_BEFORE" = "0000000000000000000000000000000000000000" ]; then
+              echo "::notice title=Entity types not checked::New branch: nothing to compare against."
+              exit 0
+            fi
+            if ! git cat-file -e "$PUSH_BEFORE^{commit}" 2>/dev/null; then
+              echo "::warning title=Entity types not checked::The previous commit of this push is not available."
               exit 0
             fi
             RANGE="$PUSH_BEFORE..HEAD"
@@ -139,7 +142,7 @@ jobs:
             BASE="${GITHUB_BASE_REF:-main}"
             if ! git fetch origin "$BASE" --depth=1 2>/dev/null; then
               if ! git fetch origin main --depth=1 2>/dev/null; then
-                echo "Could not fetch the base branch; nothing to compare."
+                echo "::warning title=Entity types not checked::Could not fetch the base branch."
                 exit 0
               fi
               BASE="main"

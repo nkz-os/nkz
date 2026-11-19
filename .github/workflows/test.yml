@@ -200,12 +200,14 @@ jobs:
         run: |
           set +e
           BASE="${GITHUB_BASE_REF:-main}"
-          if ! git fetch origin "$BASE" --depth=1 2>/dev/null; then
-            if ! git fetch origin main --depth=1 2>/dev/null; then
-              echo "Could not fetch base branch; skipping check."
+          # The checkout has full history: if the fetch fails, use the ref that is already there.
+          git fetch origin "$BASE" --depth=1 2>/dev/null
+          if ! git rev-parse --verify --quiet "origin/$BASE^{commit}" >/dev/null; then
+            BASE="main"
+            if ! git rev-parse --verify --quiet "origin/$BASE^{commit}" >/dev/null; then
+              echo "::warning title=Entity types not checked::Base ref does not resolve."
               exit 0
             fi
-            BASE="main"
           fi
           # The script filters paths itself, so the diff is passed whole.
           DIFF=$(git diff "origin/$BASE...HEAD" 2>/dev/null)
@@ -220,18 +222,14 @@ jobs:
         run: |
           set +e
           BASE="${GITHUB_BASE_REF:-main}"
-          if ! git fetch origin "$BASE" --depth=1 2>/dev/null; then
-            if ! git fetch origin main --depth=1 2>/dev/null; then
-              echo "Could not fetch base branch; skipping check."
+          # The checkout has full history: if the fetch fails, use the ref that is already there.
+          git fetch origin "$BASE" --depth=1 2>/dev/null
+          if ! git rev-parse --verify --quiet "origin/$BASE^{commit}" >/dev/null; then
+            BASE="main"
+            if ! git rev-parse --verify --quiet "origin/$BASE^{commit}" >/dev/null; then
+              echo "::warning title=Entity type ratchet not run::Base ref does not resolve."
               exit 0
             fi
-            BASE="main"
-          fi
-          # The script exits 2 on an unresolved ref: resolve it here so that
-          # case is a visible skip, not a failure that looks like an offence.
-          if ! git rev-parse --verify --quiet "origin/$BASE^{commit}" >/dev/null; then
-            echo "Base ref origin/$BASE does not resolve; skipping check."
-            exit 0
           fi
           python3 .github/scripts/check_entity_types.py ratchet \
             --base "origin/$BASE" --lists config/entity-types
