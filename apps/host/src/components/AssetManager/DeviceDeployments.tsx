@@ -1,0 +1,275 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
+// Deployment history of a device: where / what it observed over time, with two
+// actions (installer role; the server enforces it): open a new period ("move /
+// change context") or fix an existing one in place ("correct this period").
+import { useCallback, useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import { Button, Input } from '@nekazari/ui-kit';
+import {
+  apiErrorMessage,
+  correctDeployment,
+  listDeviceDeployments,
+  moveDeviceDeployment,
+  type CorrectDeploymentRequest,
+  type DeviceDeployment,
+  type MoveDeploymentRequest,
+} from '@/services/dataloggersApi';
+import {
+  ObservationFields,
+  fromLocalInput,
+  toLocalInput,
+  type ObservationValue,
+} from '../EntityWizard/steps/ObservationFields';
+import { contextErrors, type ObservationContext } from '@/utils/observationContext';
+
+interface DeviceDeploymentsProps {
+  deviceUrn: string;
+  /** Parcels the device measures; limits the choices of the observed feature. */
+  parcelIds?: string[];
+}
+
+type Editor = { kind: 'move' } | { kind: 'correct'; deployment: DeviceDeployment } | null;
+
+const INPUT_CLASS = 'w-full px-3 py-1.5 text-sm border border-nkz-border rounded-lg';
+
+function formatInstant(iso: string | null): string {
+  if (!iso) return '';
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime()) ? iso : d.toLocaleString();
+}
+
+function toValue(dep: DeviceDeployment | undefined): ObservationValue {
+  if (!dep) return {};
+  return {
+    observesFeature: dep.observesFeature ?? undefined,
+    observationContext: dep.observationContext?.medium
+      ? (dep.observationContext as unknown as ObservationContext)
+      : undefined,
+    channelOverrides: (dep.channelOverrides ?? {}) as ObservationValue['channelOverrides'],
+    mobility: dep.mobility,
+  };
+}
+
+const same = (a: unknown, b: unknown) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
+
+export function DeviceDeployments({ deviceUrn, parcelIds = [] }: DeviceDeploymentsProps) {
+  const { t } = useTranslation();
+  const [items, setItems] = useState<DeviceDeployment[] | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [editor, setEditor] = useState<Editor>(null);
+  const [value, setValue] = useState<ObservationValue>({});
+  const [validFrom, setValidFrom] = useState<string | undefined>();
+  const [validTo, setValidTo] = useState<string | null | undefined>();
+  const [reason, setReason] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  const load = useCallback(async () => {
+    try {
+      setItems(await listDeviceDeployments(deviceUrn));
+      setLoadError(null);
+    } catch (err) {
+      setLoadError(apiErrorMessage(err, ''));
+    }
+  }, [deviceUrn]);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  const current = items?.find((d) => d.valid_to === null);
+
+  const open = (next: Editor) => {
+    setEditor(next);
+    setError(null);
+    setReason('');
+    setValidFrom(undefined);
+    setValidTo(undefined);
+    if (next?.kind === 'correct') {
+      setValue(toValue(next.deployment));
+      setValidFrom(next.deployment.valid_from);
+      setValidTo(next.deployment.valid_to);
+    } else {
+      setValue(toValue(current ?? items?.[0]));
+    }
+  };
+
+  // The medium summary and the feature offered come from the deployment shown.
+  const profileAttributes = Object.keys(
+    (editor?.kind === 'correct' ? editor.deployment : current)?.channelOverrides ?? {},
+  );
+
+  const submit = async () => {
+    if (!editor) return;
+    const trimmed = reason.trim();
+    if (!trimmed) {
+      setError(t('entities.assets.deployments.reason_required'));
+      return;
+    }
+    if (value.observationContext) {
+      const errs = contextErrors(value.observationContext);
+      if (errs.length > 0) {
+        setError(t(`wizard.observation.error.${errs[0]}`));
+        return;
+      }
+    }
+    setBusy(true);
+    setError(null);
+    try {
+      if (editor.kind === 'move') {
+        const body: MoveDeploymentRequest = { reason: trimmed };
+        if (validFrom) body.validFrom = validFrom;
+        if (value.observesFeature) body.observesFeature = value.observesFeature;
+        if (value.observationContext) body.observationContext = value.observationContext as any;
+        if (value.channelOverrides && Object.keys(value.channelOverrides).length > 0) {
+          body.channelOverrides = value.channelOverrides as any;
+        }
+        if (value.mobility) body.mobility = value.mobility;
+        await moveDeviceDeployment(deviceUrn, body);
+      } else {
+        const before = editor.deployment;
+        const body: CorrectDeploymentRequest = { reason: trimmed };
+        if (validFrom && !same(validFrom, before.valid_from)) body.validFrom = validFrom;
+        if (validTo !== undefined && !same(validTo, before.valid_to)) body.validTo = validTo;
+        if (value.observesFeature && value.observesFeature !== (before.observesFeature ?? undefined)) {
+          body.observesFeature = value.observesFeature;
+        }
+        if (value.observationContext && !same(value.observationContext, before.observationContext)) {
+          body.observationContext = value.observationContext as any;
+        }
+        if (value.channelOverrides && !same(value.channelOverrides, before.channelOverrides ?? {})) {
+          body.channelOverrides = value.channelOverrides as any;
+        }
+        if (Object.keys(body).length === 1) {
+          setError(t('entities.assets.deployments.no_changes'));
+          setBusy(false);
+          return;
+        }
+        await correctDeployment(before.id, body);
+      }
+      setEditor(null);
+      await load();
+    } catch (err) {
+      setError(apiErrorMessage(err, t('entities.assets.deployments.save_error')));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const medium = (dep: DeviceDeployment) => {
+    const m = dep.observationContext?.medium;
+    return typeof m === 'string' ? t(`wizard.observation.medium_${m}`) : t('wizard.observation.medium_unset');
+  };
+
+  const prefix = editor?.kind === 'move' ? 'move' : 'correct';
+
+  return (
+    <div className="space-y-3" data-testid="device-deployments">
+      <div className="flex items-center justify-between">
+        <h3 className="text-sm font-semibold text-nkz-text-primary">{t('entities.assets.deployments.title')}</h3>
+        <Button variant="secondary" data-testid="deployment-move" onClick={() => open({ kind: 'move' })}>
+          {t('entities.assets.deployments.move')}
+        </Button>
+      </div>
+
+      {loadError !== null && (
+        <p className="text-sm text-nkz-danger-strong">
+          {loadError || t('entities.assets.deployments.load_error')}
+        </p>
+      )}
+      {items && items.length === 0 && (
+        <p className="text-sm text-nkz-muted">{t('entities.assets.deployments.empty')}</p>
+      )}
+
+      <ul className="divide-y divide-nkz-border">
+        {(items ?? []).map((dep) => (
+          <li key={dep.id} data-testid="deployment-row" className="py-2 flex items-start justify-between gap-2">
+            <div className="text-sm min-w-0">
+              <p className="font-medium text-nkz-text-primary">
+                {formatInstant(dep.valid_from)} - {dep.valid_to ? formatInstant(dep.valid_to) : t('entities.assets.deployments.open')}
+              </p>
+              <p className="text-xs text-nkz-muted truncate">
+                {medium(dep)}
+                {dep.observesFeature ? ` · ${dep.observesFeature}` : ''}
+              </p>
+            </div>
+            <Button variant="ghost" data-testid="deployment-correct" onClick={() => open({ kind: 'correct', deployment: dep })}>
+              {t('entities.assets.deployments.correct')}
+            </Button>
+          </li>
+        ))}
+      </ul>
+
+      {editor && (
+        <div className="border border-nkz-border rounded-lg p-3 space-y-3" data-testid="deployment-editor">
+          <h4 className="text-sm font-semibold text-nkz-text-primary">
+            {t(editor.kind === 'move' ? 'entities.assets.deployments.move' : 'entities.assets.deployments.correct')}
+          </h4>
+
+          <div>
+            <label className="block text-sm font-medium text-nkz-text-primary mb-1">
+              {t(editor.kind === 'move' ? 'entities.assets.deployments.valid_from_move' : 'entities.assets.deployments.valid_from')}
+            </label>
+            <Input
+              type="datetime-local"
+              data-testid={`${prefix}-validFrom`}
+              value={toLocalInput(validFrom)}
+              onChange={(e: any) => setValidFrom(fromLocalInput(e.target.value))}
+              className={INPUT_CLASS}
+            />
+          </div>
+
+          {editor.kind === 'correct' && (
+            <div>
+              <label className="block text-sm font-medium text-nkz-text-primary mb-1">
+                {t('entities.assets.deployments.valid_to')}
+              </label>
+              <Input
+                type="datetime-local"
+                data-testid="correct-validTo"
+                value={toLocalInput(validTo ?? undefined)}
+                onChange={(e: any) => setValidTo(fromLocalInput(e.target.value) ?? null)}
+                className={INPUT_CLASS}
+              />
+              <p className="text-xs text-nkz-muted mt-1">{t('entities.assets.deployments.valid_to_hint')}</p>
+            </div>
+          )}
+
+          <ObservationFields
+            value={value}
+            onChange={setValue}
+            profileAttributes={profileAttributes}
+            parcelIds={parcelIds}
+            hide={{ validFrom: true, mobility: editor.kind === 'correct' }}
+          />
+
+          <div>
+            <label className="block text-sm font-medium text-nkz-text-primary mb-1">
+              {t('entities.assets.deployments.reason')} *
+            </label>
+            <Input
+              type="text"
+              data-testid={`${prefix}-reason`}
+              value={reason}
+              onChange={(e: any) => setReason(e.target.value)}
+              className={INPUT_CLASS}
+            />
+          </div>
+
+          {error && <p className="text-sm text-nkz-danger-strong">{error}</p>}
+
+          <div className="flex justify-end gap-2">
+            <Button variant="ghost" onClick={() => setEditor(null)} disabled={busy}>
+              {t('entities.assets.assign.cancel')}
+            </Button>
+            <Button variant="primary" data-testid={`${prefix}-submit`} onClick={submit} disabled={busy}>
+              {t('entities.assets.assign.save')}
+            </Button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+export default DeviceDeployments;

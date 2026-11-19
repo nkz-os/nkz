@@ -141,6 +141,65 @@ export async function listSensorProfiles(): Promise<SensorProfile[]> {
   return Array.isArray(res.data?.profiles) ? res.data.profiles : [];
 }
 
+export interface DeviceDeployment {
+  id: string;
+  device_urn: string;
+  /** ISO-8601. */
+  valid_from: string;
+  /** null while the deployment is open. */
+  valid_to: string | null;
+  observesFeature: string | null;
+  observationContext: Record<string, unknown>;
+  channelOverrides: Record<string, { observesFeature?: string; observationContext?: Record<string, unknown> }>;
+  mobility: 'fixed' | 'mobile';
+  location: { lat: number; lon: number } | null;
+}
+
+export interface MoveDeploymentRequest {
+  validFrom?: string;
+  observesFeature?: string;
+  observationContext?: Record<string, unknown>;
+  channelOverrides?: DeviceDeployment['channelOverrides'];
+  mobility?: 'fixed' | 'mobile';
+  location?: { lat: number; lon: number };
+  reason: string;
+}
+
+/** `mobility` is not accepted on a correction (the server answers 400). */
+export interface CorrectDeploymentRequest {
+  validFrom?: string;
+  validTo?: string | null;
+  observesFeature?: string;
+  observationContext?: Record<string, unknown>;
+  channelOverrides?: DeviceDeployment['channelOverrides'];
+  location?: { lat: number; lon: number };
+  reason: string;
+}
+
+/** Deployments of a device, newest first. Installer role only. */
+export async function listDeviceDeployments(deviceUrn: string): Promise<DeviceDeployment[]> {
+  const res = await api.get(`${BASE}/devices/${enc(deviceUrn)}/deployments`);
+  return Array.isArray(res.data?.deployments) ? res.data.deployments : [];
+}
+
+/** Close the current deployment and open a new one (move / change context). */
+export async function moveDeviceDeployment(
+  deviceUrn: string,
+  body: MoveDeploymentRequest,
+): Promise<DeviceDeployment> {
+  const res = await api.post(`${BASE}/devices/${enc(deviceUrn)}/deployments`, body);
+  return res.data;
+}
+
+/** Fix a deployment in place. */
+export async function correctDeployment(
+  deploymentId: string,
+  body: CorrectDeploymentRequest,
+): Promise<DeviceDeployment> {
+  const res = await api.put(`${BASE}/deployments/${enc(deploymentId)}`, body);
+  return res.data;
+}
+
 /** Server error text of a failed call, or the fallback. */
 export function apiErrorMessage(err: unknown, fallback: string): string {
   const e = err as { response?: { data?: { error?: unknown } }; message?: unknown };

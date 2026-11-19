@@ -2182,6 +2182,22 @@
         "Animal": "Animal",
         "Tank": "Water tank or pond",
         "StorageBatteryDevice": "Battery"
+      },
+      "deployments": {
+        "title": "Deployment history",
+        "move": "Move / change context",
+        "correct": "Correct this period",
+        "open": "now",
+        "empty": "No deployments recorded.",
+        "valid_from": "From",
+        "valid_from_move": "Effective from",
+        "valid_to": "Until",
+        "valid_to_hint": "Leave empty to keep the period open.",
+        "reason": "Reason",
+        "reason_required": "Enter a reason",
+        "no_changes": "No changes to save",
+        "load_error": "Could not load the deployment history",
+        "save_error": "Could not save the deployment"
       }
     },
     "filters": {

@@ -38,6 +38,8 @@ interface ObservationFieldsProps {
   profileAttributes: string[];
   /** URNs of the parcels the sensor measures; features are limited to them. */
   parcelIds: string[];
+  /** Hide fields that do not apply (a correction cannot change mobility). */
+  hide?: { mobility?: boolean; validFrom?: boolean };
 }
 
 interface FeatureOption {
@@ -190,7 +192,7 @@ function FeatureSelect({ label, value, features, noneLabel, onChange }: FeatureS
 }
 
 /** Local datetime-local text <-> ISO-8601 with the browser offset. */
-function toLocalInput(iso: string | undefined): string {
+export function toLocalInput(iso: string | undefined): string {
   if (!iso) return '';
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return '';
@@ -198,7 +200,7 @@ function toLocalInput(iso: string | undefined): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
-function fromLocalInput(text: string): string | undefined {
+export function fromLocalInput(text: string): string | undefined {
   if (!text) return undefined;
   const d = new Date(text);
   if (Number.isNaN(d.getTime())) return undefined;
@@ -213,7 +215,7 @@ function fromLocalInput(text: string): string | undefined {
  * an installed-since date and optional per-channel overrides. Client-side checks are
  * hints; the server validates again.
  */
-export function ObservationFields({ value, onChange, profileAttributes, parcelIds }: ObservationFieldsProps) {
+export function ObservationFields({ value, onChange, profileAttributes, parcelIds, hide }: ObservationFieldsProps) {
   const { t } = useTranslation();
   const features = useFeatureOptions(parcelIds);
   const [showOverrides, setShowOverrides] = useState(false);
@@ -283,36 +285,40 @@ export function ObservationFields({ value, onChange, profileAttributes, parcelId
         </p>
       </div>
 
-      <div>
-        <label className="block text-sm font-medium text-nkz-text-primary mb-1">
-          {t('wizard.observation.mobility')}
-        </label>
-        <Select
-          aria-label={t('wizard.observation.mobility')}
-          value={value.mobility ?? NONE}
-          onValueChange={(v) => patch({ mobility: v === 'fixed' || v === 'mobile' ? v : undefined })}
-          options={[
-            { value: NONE, label: t('wizard.observation.mobility_unset') },
-            { value: 'fixed', label: t('wizard.observation.mobility_fixed') },
-            { value: 'mobile', label: t('wizard.observation.mobility_mobile') },
-          ]}
-        />
-      </div>
+      {!hide?.mobility && (
+        <div>
+          <label className="block text-sm font-medium text-nkz-text-primary mb-1">
+            {t('wizard.observation.mobility')}
+          </label>
+          <Select
+            aria-label={t('wizard.observation.mobility')}
+            value={value.mobility ?? NONE}
+            onValueChange={(v) => patch({ mobility: v === 'fixed' || v === 'mobile' ? v : undefined })}
+            options={[
+              { value: NONE, label: t('wizard.observation.mobility_unset') },
+              { value: 'fixed', label: t('wizard.observation.mobility_fixed') },
+              { value: 'mobile', label: t('wizard.observation.mobility_mobile') },
+            ]}
+          />
+        </div>
+      )}
 
-      <div>
-        <label className="block text-sm font-medium text-nkz-text-primary mb-1">
-          {t('wizard.observation.valid_from')}
-        </label>
-        <Input
-          type="datetime-local"
-          data-testid="obs-validFrom"
-          max={nowLocal}
-          value={toLocalInput(value.validFrom)}
-          onChange={(e: any) => patch({ validFrom: fromLocalInput(e.target.value) })}
-          className="w-full px-3 py-1.5 text-sm border border-nkz-border rounded-lg"
-        />
-        <p className="text-xs text-nkz-muted mt-1">{t('wizard.observation.valid_from_hint')}</p>
-      </div>
+      {!hide?.validFrom && (
+        <div>
+          <label className="block text-sm font-medium text-nkz-text-primary mb-1">
+            {t('wizard.observation.valid_from')}
+          </label>
+          <Input
+            type="datetime-local"
+            data-testid="obs-validFrom"
+            max={nowLocal}
+            value={toLocalInput(value.validFrom)}
+            onChange={(e: any) => patch({ validFrom: fromLocalInput(e.target.value) })}
+            className="w-full px-3 py-1.5 text-sm border border-nkz-border rounded-lg"
+          />
+          <p className="text-xs text-nkz-muted mt-1">{t('wizard.observation.valid_from_hint')}</p>
+        </div>
+      )}
 
       {profileAttributes.length > 0 && (
         <div className="border border-nkz-border rounded-lg">

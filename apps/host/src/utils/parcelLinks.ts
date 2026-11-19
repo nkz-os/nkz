@@ -31,10 +31,30 @@ export function readLinkOwner(entity: unknown): { urn: string; kind: 'park' | 'p
   return null;
 }
 
-/** `[park?, ...parcels]`, deduped; a sensor always keeps at least one parcel. */
-export function deviceLinks(ownerParkUrn: string | null, parcelUrns: string[]): string[] {
+const isManaged = (urn: string) => urn.startsWith(PARCEL_PREFIX) || urn.startsWith(PARK_PREFIX);
+
+/** `controlledAsset` URNs that are neither a park nor a parcel (set by other tools); never edited here. */
+export function readForeignLinks(entity: unknown): string[] {
+  return readControlledLinks(entity).filter((urn) => !isManaged(urn));
+}
+
+/**
+ * `[park?, ...parcels, ...preserved]`, deduped; a sensor always keeps at least one parcel.
+ * `preserved` carries the foreign URNs so a save never drops them; park/parcel URNs in it are ignored.
+ */
+export function deviceLinks(
+  ownerParkUrn: string | null,
+  parcelUrns: string[],
+  preserved: string[] = [],
+): string[] {
   if (parcelUrns.length === 0) throw new Error('A sensor requires at least one parcel');
-  return Array.from(new Set([...(ownerParkUrn ? [ownerParkUrn] : []), ...parcelUrns]));
+  return Array.from(
+    new Set([
+      ...(ownerParkUrn ? [ownerParkUrn] : []),
+      ...parcelUrns,
+      ...preserved.filter((urn) => !isManaged(urn)),
+    ]),
+  );
 }
 
 export interface ParkOption {

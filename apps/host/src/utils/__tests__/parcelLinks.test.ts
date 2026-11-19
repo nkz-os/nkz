@@ -4,6 +4,7 @@ import {
   parcelLinksFragment,
   parkOptionsFor,
   readControlledLinks,
+  readForeignLinks,
   readLinkOwner,
   readParcelLinks,
   toParkOption,
@@ -71,6 +72,15 @@ describe('park ownership helpers', () => {
     expect(deviceLinks(null, [A])).toEqual([A]);
     expect(deviceLinks(K, [A, A])).toEqual([K, A]);
     expect(() => deviceLinks(K, [])).toThrow();
+  });
+
+  it('deviceLinks_preserves_foreign_urns', () => {
+    const F = 'urn:ngsi-ld:AgriGreenhouse:g1';
+    expect(deviceLinks(K, [A], [F])).toEqual([K, A, F]);
+    expect(deviceLinks(null, [A, B], [F, A, K])).toEqual([A, B, F]);
+    expect(readForeignLinks({ controlledAsset: { type: 'Relationship', object: [K, A, F] } })).toEqual([F]);
+    expect(readForeignLinks({ controlledAsset: F })).toEqual([F]);
+    expect(readForeignLinks({})).toEqual([]);
   });
 
   it('parkOptionsFor keeps only parks on a selected parcel', () => {

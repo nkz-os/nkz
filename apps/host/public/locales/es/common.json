@@ -2182,6 +2182,22 @@
         "Animal": "Animal",
         "Tank": "Depósito o balsa",
         "StorageBatteryDevice": "Batería"
+      },
+      "deployments": {
+        "title": "Historial de despliegues",
+        "move": "Mover / cambiar contexto",
+        "correct": "Corregir este periodo",
+        "open": "actualidad",
+        "empty": "No hay despliegues registrados.",
+        "valid_from": "Desde",
+        "valid_from_move": "Efectivo desde",
+        "valid_to": "Hasta",
+        "valid_to_hint": "Déjalo vacío para mantener el periodo abierto.",
+        "reason": "Motivo",
+        "reason_required": "Indica un motivo",
+        "no_changes": "No hay cambios que guardar",
+        "load_error": "No se pudo cargar el historial de despliegues",
+        "save_error": "No se pudo guardar el despliegue"
       }
     },
     "filters": {
