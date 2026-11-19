@@ -262,3 +262,31 @@ def test_regional_skips_malformed_and_keyless_stations(pg_dsn, su):
         _weather_event(cur, tenant, f"{ent}:good", centre[0], centre[1] + 0.03, 6.5, 1)
     out = _run(pg_dsn, tenant, p, p, model_point=centre)
     assert [(r.source_id, r.value) for r in out[5]] == [("regional_proxy", 6.5)]
+
+
+def test_best_end_to_end_feature_zone_gives_tier1_point(pg_dsn, su):
+    """Task 14: `best()` against the seeded bench; zone feature -> tier 1 point from D1."""
+    import psycopg2
+
+    from observations.best import best
+    from observations.request import parse_best
+
+    tenant = f"t_{uuid.uuid4().hex[:8]}"
+    p, z, devs, dep_ids = _seed(su, tenant)
+    req = parse_best({"feature": z, "property": "airTemperature", "from": "2026-11-01T00:00:00Z",
+                      "to": "2026-11-01T12:00:00Z", "resolution": "PT1H"})
+    conn = psycopg2.connect(pg_dsn)
+    try:
+        with conn.cursor() as c:
+            c.execute('SET ROLE "nkz_rls_test"')
+        out = best(conn, tenant, req,
+                   fetch=lambda t, u: ("ok", {"id": u, "type": "AgriParcelZone"}))
+    finally:
+        conn.close()
+    assert out["medium"] == "ambientAir" and out["unitCode"] == "CEL"
+    (g,) = [g for g in out["groups"] if g["subContext"] == {"heightM": 2.0}]
+    pt = g["points"][6]  # READ_AT = 06:00
+    assert pt["t"] == "2026-11-01T06:00:00Z" and pt["value"] == 11.0 and pt["tier"] == 1
+    assert pt["fidelity"] == "iot_sensor" and pt["sources"][0]["id"] == devs["d1"]
+    assert pt["sources"][0]["deploymentId"] == dep_ids["d1"]
+    assert 1 in out["tiersUsed"]
