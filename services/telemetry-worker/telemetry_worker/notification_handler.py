@@ -19,7 +19,7 @@ from .health_checker import HealthChecker, _severity
 from .profiles import ProfileService
 from .calibration import CalibrationService
 from .dedup import NotificationDedup
-from .observations import reading_point, resolve_observation
+from .observations import reading_point, resolve_observation, units_compatible
 from .geometry_cache import upsert_geometry
 
 logger = logging.getLogger(__name__)
@@ -330,11 +330,18 @@ async def _resolve_observation_payload(
                     f"{observed_property!r} unknown or deprecated: {log_ctx}"
                 )
                 continue
-            measurement_def: Dict[str, Any] = {}
+            measurement_def: Optional[Dict[str, Any]] = None
             if isinstance(profile_code, str) and profile_code:
                 measurement_def = (
                     await _observation_lookup.measurement_def(tenant_id, profile_code, attr)
-                ) or {}
+                ) or None
+            profile_unit = measurement_def.get("unit") if measurement_def else None
+            if not units_compatible(profile_unit, prop.unit):
+                logger.warning(
+                    f"observation_unit_mismatch: no observation written: {log_ctx} "
+                    f"attribute={attr} profile_unit={profile_unit!r} catalogue_unit={prop.unit!r}"
+                )
+                continue
             observations[attr] = resolve_observation(
                 attr, value, device_urn, dep, measurement_def, prop, health_flags.get(attr)
             )

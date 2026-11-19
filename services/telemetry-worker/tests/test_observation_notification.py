@@ -24,7 +24,7 @@ from test_device_measurement_notification import FakeProfileService
 TENANT = "acmefarm"
 DEVICE_URN = "urn:ngsi-ld:Device:acmefarm:sensor-001"
 DEP_ID = "11111111-2222-3333-4444-555555555555"
-AIR_TEMP = PropertyDef("airTemperature", "instantaneous", -60.0, 60.0)
+AIR_TEMP = PropertyDef("airTemperature", "instantaneous", -60.0, 60.0, "°C")
 
 
 def _dep(mobility="fixed", location=(-3.7, 40.4)):
@@ -36,8 +36,9 @@ def _dep(mobility="fixed", location=(-3.7, 40.4)):
 
 
 class FakeLookup:
-    def __init__(self, dep=None, prop=AIR_TEMP, counter_max=None, raises=None):
+    def __init__(self, dep=None, prop=AIR_TEMP, counter_max=None, raises=None, unit="°C"):
         self.dep, self.prop, self.counter_max, self.raises = dep, prop, counter_max, raises
+        self.unit = unit
         self.calls = []
 
     async def deployment_at(self, tenant_id, device_urn, at):
@@ -48,7 +49,10 @@ class FakeLookup:
 
     async def measurement_def(self, tenant_id, profile_code, attr):
         self.calls.append(("def", tenant_id, profile_code, attr))
-        return {"counterMax": self.counter_max} if self.counter_max is not None else {}
+        d = {"unit": self.unit} if self.unit is not None else {}
+        if self.counter_max is not None:
+            d["counterMax"] = self.counter_max
+        return d
 
     async def property(self, tenant_id, name):
         self.calls.append(("prop", tenant_id, name))
@@ -64,6 +68,7 @@ def _entity(value=21.5, **extra):
         "numValue": {"type": "Property", "value": value},
         "dateObserved": {"type": "Property", "value": "2026-08-29T10:00:00Z"},
         "observedProperty": {"type": "Property", "value": "airTemperature"},
+        "profileCode": {"type": "Property", "value": "prof-x"},
         "timeSource": {"type": "Property", "value": "device"},
     }
     e.update(extra)
@@ -130,10 +135,10 @@ def test_unknown_property_skips_attr_and_warns(caplog):
 
 
 def test_counter_max_from_profile_code():
-    prop = PropertyDef("rainfallTotal", "cumulative", None, None)
+    prop = PropertyDef("rainfallTotal", "cumulative", None, None, "mm")
     e = _entity(value=500.0, profileCode={"type": "Property", "value": "prof-x"})
     e["observedProperty"]["value"] = "rainfallTotal"
-    ev = _run(e, FakeLookup(dep=_dep(), prop=prop, counter_max=100))
+    ev = _run(e, FakeLookup(dep=_dep(), prop=prop, counter_max=100, unit="mm"))
     assert ev.payload["observations"]["temperature"]["qualityFlag"] == "out_of_range"
 
 
@@ -202,3 +207,21 @@ def test_non_device_measurement_untouched():
          "temperature": {"type": "Property", "value": 20.0, "observedAt": "2026-08-29T10:00:00Z"}}
     ev = _run(e, lk)
     assert "observations" not in ev.payload and lk.calls == []
+
+
+def test_notification_unit_mismatch_writes_no_observation_and_warns(caplog):
+    with caplog.at_level(logging.WARNING):
+        ev = _run(_entity(), FakeLookup(dep=_dep(), unit="µm"))
+    assert "observations" not in ev.payload
+    assert ev.payload["measurements"] == {"temperature": 21.5}
+    recs = [r.getMessage() for r in caplog.records if "observation_unit_mismatch" in r.getMessage()]
+    assert len(recs) == 1
+    for needle in (TENANT, DEVICE_URN, "2026-08-29T10:00:00", "temperature", "µm", "°C"):
+        assert needle in recs[0]
+
+
+def test_notification_missing_profile_unit_writes_no_observation(caplog):
+    with caplog.at_level(logging.WARNING):
+        ev = _run(_entity(), FakeLookup(dep=_dep(), unit=None))
+    assert "observations" not in ev.payload
+    assert any("observation_unit_mismatch" in r.getMessage() for r in caplog.records)

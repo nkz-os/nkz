@@ -46,7 +46,7 @@ LIMIT 1
 """
 
 _PROPERTY_SQL = """
-SELECT name, temporal_semantics, valid_min, valid_max
+SELECT name, temporal_semantics, valid_min, valid_max, unit
 FROM public.observation_properties
 WHERE name = $2 AND deprecated_at IS NULL AND (tenant_id IS NULL OR tenant_id = $1)
 ORDER BY tenant_id NULLS LAST
@@ -190,6 +190,7 @@ class ObservationLookup:
                 temporal_semantics=r["temporal_semantics"],
                 valid_min=r["valid_min"],
                 valid_max=r["valid_max"],
+                unit=r["unit"],
             )
 
         return await self._cached(tenant_id, "property", name, load)

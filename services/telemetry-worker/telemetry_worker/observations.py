@@ -12,6 +12,7 @@ from dataclasses import dataclass
 from typing import Any, Dict, Optional, Tuple
 
 from common.context_aliases import canonical_attribute
+from common.unit_codes import DEGRADED_UNITS, to_unit_code
 
 
 @dataclass(frozen=True)
@@ -35,6 +36,28 @@ class PropertyDef:
     temporal_semantics: str
     valid_min: Optional[float]
     valid_max: Optional[float]
+    unit: Optional[str] = None
+
+
+def units_compatible(profile_unit: Optional[str], catalogue_unit: Optional[str]) -> bool:
+    """True only when both units are present and denote the same unit (fail-safe).
+
+    Same UN/CEFACT code (so aliases of one unit match). A missing/empty unit, a symbol
+    unknown to `to_unit_code`, or a symbol without a real code (code None or the C62
+    "degraded" placeholder, which would make e.g. kg/ha equal to umol/m2/s) is
+    compatible only with the identical symbol string.
+    """
+    if not profile_unit or not catalogue_unit:
+        return False
+    if not isinstance(profile_unit, str) or not isinstance(catalogue_unit, str):
+        return False
+    try:
+        a, b = to_unit_code(profile_unit), to_unit_code(catalogue_unit)
+    except ValueError:
+        return False
+    if a is None or b is None or profile_unit in DEGRADED_UNITS or catalogue_unit in DEGRADED_UNITS:
+        return profile_unit == catalogue_unit
+    return a == b
 
 
 def _override_for(dep: Deployment, attr: str) -> Dict[str, Any]:

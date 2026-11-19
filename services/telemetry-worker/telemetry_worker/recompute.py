@@ -56,6 +56,7 @@ from .observation_lookup import _DEPLOYMENTS_SQL, _in_range, _json, _to_deployme
 from .observations import (
     Deployment,
     PropertyDef,
+    units_compatible,
     counter_max_of,
     observation_context,
     quality_flag,
@@ -368,6 +369,23 @@ def plan_row(
         row.observed_property is not None
         or (effective_property is not None and prop is not None)
     )
+    # Unit guard (same as ingest): a property is only filled in from the raw event when
+    # the profile's unit matches the catalogue's; otherwise the row stays without one.
+    if (
+        has_context
+        and row.observed_property is None
+        and not units_compatible(
+            (measurement_def or {}).get("unit"), prop.unit if prop is not None else None
+        )
+    ):
+        has_context = False
+        logger.warning(
+            f"observation_unit_mismatch: observed_property left NULL: "
+            f"device_urn={device_urn} observed_at={row.observed_at.isoformat()} "
+            f"attribute={row.attribute_name} "
+            f"profile_unit={(measurement_def or {}).get('unit')!r} "
+            f"catalogue_unit={prop.unit if prop is not None else None!r}"
+        )
 
     if has_context:
         log_ctx = (
@@ -689,7 +707,11 @@ class RecomputeLoop:
                         props[name] = await self._lookup.property(tenant_id, name)
                     prop = props[name]
                 mdef = None
-                if prop is not None and row.quality_flag is None and row.raw_profile_code:
+                if (
+                    prop is not None
+                    and (row.quality_flag is None or row.observed_property is None)
+                    and row.raw_profile_code
+                ):
                     key = (row.raw_profile_code, row.attribute_name)
                     if key not in mdefs:
                         mdefs[key] = await self._lookup.measurement_def(tenant_id, *key)

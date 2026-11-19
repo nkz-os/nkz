@@ -15,6 +15,7 @@ from telemetry_worker.observations import (
     PropertyDef,
     quality_flag,
     resolve_observation,
+    units_compatible,
 )
 
 DEV = "urn:ngsi-ld:Device:t1:d1"
@@ -121,3 +122,32 @@ def test_quality_maps_health_flags():
 
 def test_quality_nan_value_is_suspect():
     assert quality_flag(float("nan"), AIR, None, None) == "suspect"
+
+
+def test_units_compatible_same_symbol():
+    assert units_compatible("°C", "°C") is True
+
+
+def test_units_compatible_alias():
+    # ASSUMPTION: unit_codes.py has no two real-coded symbols sharing one code (only the
+    # C62 placeholders do, which are deliberately NOT aliases), so no genuine alias pair
+    # exists to test. Instead pin that identical degraded symbols match and distinct
+    # degraded symbols (same C62) do not.
+    assert units_compatible("kg/ha", "kg/ha") is True
+    assert units_compatible("kg/ha", "umol/m2/s") is False
+
+
+def test_units_incompatible_mm_vs_um():
+    assert units_compatible("mm", "µm") is False
+
+
+def test_units_missing_profile_unit():
+    assert units_compatible(None, "°C") is False
+    assert units_compatible("°C", None) is False
+    assert units_compatible("", "") is False
+
+
+def test_unknown_unit_is_incompatible():
+    assert units_compatible("furlong", "°C") is False
+    assert units_compatible("°C", "furlong") is False
+    assert units_compatible("furlong", "furlong") is False

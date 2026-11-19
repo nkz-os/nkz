@@ -48,7 +48,8 @@ TENANT = "tenant_a"
 URN = "urn:ngsi-ld:Device:tenant_a:d1"
 DEP_ID = "11111111-1111-1111-1111-111111111111"
 T0 = datetime(2026, 1, 1, tzinfo=timezone.utc)
-PROP = PropertyDef("airTemperature", "instant", -50.0, 70.0)
+PROP = PropertyDef("airTemperature", "instant", -50.0, 70.0, "°C")
+MDEF = {"unit": "°C"}
 GPS = {"type": "Point", "coordinates": [1.25, 42.5]}
 
 
@@ -84,7 +85,7 @@ def _row(i=0, **kw):
         lon=None,
         lat=None,
         raw_observed_property="airTemperature",
-        raw_profile_code=None,
+        raw_profile_code="P",
         raw_location=None,
     )
     base.update(kw)
@@ -350,7 +351,7 @@ class FakePool:
 class FakeLookup:
     def __init__(self, props=None, mdefs=None):
         self.props = props if props is not None else {"airTemperature": PROP}
-        self.mdefs = mdefs or {}
+        self.mdefs = mdefs if mdefs is not None else {("P", "temperature"): MDEF}
         self.invalidated = []
 
     def invalidate(self, tenant_id):
@@ -694,7 +695,7 @@ def test_interval_from_env(monkeypatch):
 # ---------------------------------------------------------------------------
 
 
-def _plan(row, dep=_dep(), prop=PROP, mdef=None):
+def _plan(row, dep=_dep(), prop=PROP, mdef=MDEF):
     return plan_row(row, dep, prop, mdef, URN)
 
 
@@ -707,10 +708,10 @@ def test_plan_never_changes_set_quality_value_or_property():
 
 
 def test_plan_quality_uses_counter_max_for_cumulative():
-    rain = PropertyDef("precipitation", "cumulative", 0.0, 10.0)
+    rain = PropertyDef("precipitation", "cumulative", 0.0, 10.0, "mm")
     row = _row(value=50.0, raw_observed_property="precipitation", raw_profile_code="P")
-    assert _plan(row, prop=rain, mdef={"counterMax": 100}).quality_flag == "valid"
-    assert _plan(row, prop=rain, mdef={"counterMax": 40}).quality_flag == "out_of_range"
+    assert _plan(row, prop=rain, mdef={"unit": "mm", "counterMax": 100}).quality_flag == "valid"
+    assert _plan(row, prop=rain, mdef={"unit": "mm", "counterMax": 40}).quality_flag == "out_of_range"
 
 
 def test_plan_no_deployment_nulls_context_and_location_keeps_property_and_quality():
@@ -770,3 +771,27 @@ def test_plan_returns_none_when_nothing_differs():
         feature_of_interest="urn:ngsi-ld:AgriParcel:p1",
     )
     assert _plan(row) is None
+
+
+@_sync
+async def test_recompute_unit_mismatch_leaves_observed_property_null():
+    db = FakeDB()
+    _with_deployment(db)
+    db.add_row(_row(0))
+    db.add_run("r1")
+    lookup = FakeLookup(mdefs={("P", "temperature"): {"unit": "µm"}})
+
+    await _loop(db, lookup).run_once()
+
+    for row in db.rows.values():
+        assert row.observed_property is None
+        assert row.quality_flag is None
+        assert row.deployment_id is None
+
+
+def test_plan_unit_mismatch_or_missing_profile_leaves_property_null():
+    for mdef in ({"unit": "µm"}, {}, None):
+        assert _plan(_row(), mdef=mdef) is None  # nothing to change: row already bare
+    # A row already carrying observed_property is not re-checked.
+    u = _plan(_row(observed_property="airTemperature"), mdef={"unit": "µm"})
+    assert u.observed_property == "airTemperature"
