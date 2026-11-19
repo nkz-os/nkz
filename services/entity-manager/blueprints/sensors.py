@@ -398,22 +398,33 @@ def _observation_attrs(dep: dict) -> dict:
 
 
 @dataloggers.in_step('orion_mirror', _MIRROR_ERROR)
-def _mirror_deployment(tenant_id: str, device_urn: str, dep: dict) -> None:
+def _mirror_deployment(tenant_id: str, device_urn: str, dep: Optional[dict]) -> None:
     """Make the Device's observation attributes match `dep` (the current deployment).
 
     POST /attrs appends and overwrites (PATCH would 404 on a missing attribute and
     null is a 400); attributes the deployment lacks are deleted, a 404 there is fine.
+    `dep=None` (the device has no current deployment) deletes all of them, deploymentId
+    included. A deployment's location is mirrored to `location`; a deployment without
+    one leaves `location` alone (mobile devices keep their last reported position).
     """
-    attrs = _observation_attrs(dep)
     base = f"{ORION_URL}/ngsi-ld/v1/entities/{device_urn}"
-    resp = requests.post(
-        f"{base}/attrs", json=attrs,
-        headers=inject_fiware_headers({'Content-Type': 'application/json'}, tenant=tenant_id,
-                                      has_context_in_body=False),
-        timeout=10)
-    if resp.status_code not in (200, 204):
-        raise dataloggers.ApiError(502, _MIRROR_ERROR, 'orion_mirror')
-    for attr in _OPTIONAL_OBSERVATION_ATTRS:
+    if dep is None:
+        attrs, removable = {}, _OPTIONAL_OBSERVATION_ATTRS + ('deploymentId',)
+    else:
+        attrs, removable = _observation_attrs(dep), _OPTIONAL_OBSERVATION_ATTRS
+        loc = dep.get('location')
+        if loc:
+            attrs['location'] = {'type': 'GeoProperty', 'value': {
+                'type': 'Point', 'coordinates': [loc['lon'], loc['lat']]}}
+    if attrs:
+        resp = requests.post(
+            f"{base}/attrs", json=attrs,
+            headers=inject_fiware_headers({'Content-Type': 'application/json'}, tenant=tenant_id,
+                                          has_context_in_body=False),
+            timeout=10)
+        if resp.status_code not in (200, 204):
+            raise dataloggers.ApiError(502, _MIRROR_ERROR, 'orion_mirror')
+    for attr in removable:
         if attr in attrs:
             continue
         gone = requests.delete(
@@ -422,6 +433,21 @@ def _mirror_deployment(tenant_id: str, device_urn: str, dep: dict) -> None:
             timeout=10)
         if gone.status_code not in (200, 204, 404):
             raise dataloggers.ApiError(502, _MIRROR_ERROR, 'orion_mirror')
+
+
+def _remirror_current(tenant_id: str, device_urn: str, failed_id: str, restored_id: str) -> None:
+    """After a rollback, bring Orion back in line with the now-current deployment.
+
+    The failed mirror may have written part of the new state (POST ok, a later DELETE
+    failed). Best effort: if this fails too, log both ids and let the caller answer 502.
+    """
+    try:
+        _mirror_deployment(tenant_id, device_urn,
+                           deployments.current_deployment(tenant_id, device_urn))
+    except Exception as exc:
+        logger.error("orion mirror left diverged after rollback tenant=%s device=%s "
+                     "failed_deployment=%s restored_deployment=%s error=%s",
+                     tenant_id, device_urn, failed_id, restored_id, type(exc).__name__)
 
 
 def _deployment_json(dep: dict) -> dict:
@@ -793,6 +819,9 @@ def move_device_deployment(device_urn):
         except Exception as exc:
             logger.critical("deployment revert failed tenant=%s deployment=%s error=%s",
                             tenant_id, created['id'], type(exc).__name__)
+        else:
+            _remirror_current(tenant_id, device_urn, created['id'],
+                              current['id'] if current else 'none')
         raise
     return jsonify(_deployment_json(created)), 201
 
@@ -856,13 +885,11 @@ def correct_device_deployment(deployment_id):
     actor = _actor()
     after = deployments.correct_deployment(tenant_id, deployment_id, changes, actor, reason)
 
-    if _is_current(after):
-        target = after
-    elif _is_current(before):
-        target = deployments.current_deployment(tenant_id, device_urn)
-    else:
-        target = None
-    if target:
+    touched = _is_current(after) or _is_current(before)
+    if touched:
+        # No current deployment left ("sensor removed"): the mirror clears the attributes.
+        target = after if _is_current(after) else deployments.current_deployment(
+            tenant_id, device_urn)
         try:
             _mirror_deployment(tenant_id, device_urn, target)
         except Exception:
@@ -881,6 +908,8 @@ def correct_device_deployment(deployment_id):
             except Exception as exc:
                 logger.critical("deployment restore failed tenant=%s deployment=%s error=%s",
                                 tenant_id, deployment_id, type(exc).__name__)
+            else:
+                _remirror_current(tenant_id, device_urn, deployment_id, deployment_id)
             raise
     return jsonify(_deployment_json(after)), 200
 

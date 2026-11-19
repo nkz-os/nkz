@@ -33,6 +33,7 @@ class ObsOrion(FakeOrion):
         self.attr_posts = []
         self.attr_deletes = []
         self.attr_status = 204
+        self.delete_status = 404
 
     def get(self, url, **kw):
         m = re.search(r"/entities/([^?]+)$", url)
@@ -54,7 +55,7 @@ class ObsOrion(FakeOrion):
         if "/attrs/" in url:
             eid, attr = url.rsplit("/entities/", 1)[-1].split("/attrs/")
             self.attr_deletes.append((eid, attr))
-            return _resp(404)
+            return _resp(self.delete_status)
         return super().delete(url, **kw)
 
 
@@ -434,6 +435,91 @@ def test_correct_unknown_deployment_is_404():
         e.dep.get.return_value = None
         r = _send(client(), "put", "/api/sensors/deployments/nope", {"reason": "x", "observesFeature": None})
     assert r.status_code == 404
+
+
+def test_move_rollback_remirrors_the_restored_deployment_when_a_delete_fails():
+    previous = _dep(feature=FEATURE, ctx=CTX)
+    with env(current=previous) as e:
+        e.orion.delete_status = 500            # POST /attrs succeeds, the DELETE after it fails
+        r = _send(client(), "post", f"/api/sensors/devices/{URN}/deployments",
+                  {"observesFeature": None, "reason": "moved"})
+    assert r.status_code == 502
+    e.dep.revert.assert_called_once()
+    assert len(e.orion.attr_posts) == 2
+    restored = e.orion.attr_posts[-1][1]
+    assert restored["deploymentId"]["value"] == "dep-1"
+    assert restored["observesFeature"]["object"] == FEATURE
+
+
+def test_failed_remirror_after_rollback_is_logged_with_both_ids(caplog):
+    with env(current=_dep(feature=FEATURE)) as e:
+        e.orion.delete_status = 500
+        e.orion.attr_status = 204
+        with caplog.at_level("ERROR"):
+            r = _send(client(), "post", f"/api/sensors/devices/{URN}/deployments",
+                      {"observesFeature": None, "reason": "moved"})
+    assert r.status_code == 502
+    msg = " ".join(rec.getMessage() for rec in caplog.records)
+    assert "diverged" in msg and "dep-new" in msg and "dep-1" in msg and URN in msg
+
+
+def test_correct_restore_remirrors_the_restored_deployment():
+    before, after = _dep(feature=None), _dep(feature=FEATURE)
+    with env() as e:
+        e.dep.current.side_effect = [before]   # read once, after the restore
+        e.orion.delete_status = 500
+        e.dep.get.return_value = before
+        e.dep.correct.return_value = after
+        r = _send(client(), "put", "/api/sensors/deployments/dep-1",
+                  {"observesFeature": FEATURE, "reason": "r"})
+    assert r.status_code == 502
+    assert e.dep.correct.call_count == 2
+    assert e.orion.attr_posts[-1][1]["deploymentId"]["value"] == "dep-1"
+    assert "observesFeature" not in e.orion.attr_posts[-1][1]
+
+
+def test_correct_that_leaves_no_current_deployment_clears_the_device_attributes():
+    before = _dep(feature=FEATURE)
+    after = _dep(feature=FEATURE, valid_to=T0 + timedelta(days=1))   # sensor removed
+    with env(current=None) as e:
+        e.dep.get.return_value = before
+        e.dep.correct.return_value = after
+        r = _send(client(), "put", "/api/sensors/deployments/dep-1",
+                  {"validTo": "2026-03-02T08:00:00Z", "reason": "removed"})
+    assert r.status_code == 200, r.get_json()
+    assert e.orion.attr_posts == []
+    assert sorted(a for _, a in e.orion.attr_deletes) == [
+        "channelOverrides", "deploymentId", "observationContext", "observesFeature"]
+
+
+def test_move_mirrors_the_deployment_location_to_the_device():
+    with env(current=_dep()) as e:
+        r = _send(client(), "post", f"/api/sensors/devices/{URN}/deployments",
+                  {"location": {"lat": 43.0, "lon": -1.0}, "reason": "moved"})
+    assert r.status_code == 201, r.get_json()
+    assert e.orion.attr_posts[0][1]["location"] == {
+        "type": "GeoProperty", "value": {"type": "Point", "coordinates": [-1.0, 43.0]}}
+    assert ("location") not in [a for _, a in e.orion.attr_deletes]
+
+
+def test_mobile_move_without_location_leaves_device_location_alone():
+    with env(current=_dep(mobility="mobile", loc=None)) as e:
+        r = _send(client(), "post", f"/api/sensors/devices/{URN}/deployments",
+                  {"reason": "moved"})
+    assert r.status_code == 201, r.get_json()
+    assert "location" not in e.orion.attr_posts[0][1]
+    assert "location" not in [a for _, a in e.orion.attr_deletes]
+
+
+def test_correcting_the_current_location_mirrors_it():
+    before, after = _dep(loc=(42.0, -2.0)), _dep(loc=(41.0, -3.0))
+    with env(current=after) as e:
+        e.dep.get.return_value = before
+        e.dep.correct.return_value = after
+        r = _send(client(), "put", "/api/sensors/deployments/dep-1",
+                  {"location": {"lat": 41.0, "lon": -3.0}, "reason": "gps fix"})
+    assert r.status_code == 200, r.get_json()
+    assert e.orion.attr_posts[0][1]["location"]["value"]["coordinates"] == [-3.0, 41.0]
 
 
 # ---- @context ----------------------------------------------------------------
