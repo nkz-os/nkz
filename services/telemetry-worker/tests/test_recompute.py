@@ -104,6 +104,8 @@ class FakeDB:
         self.fail_rows_for = set()  # run ids whose row fetch raises
         self.set_configs = []
         self.tenant_queries = 0
+        self.block_rows = None  # asyncio.Event: row fetch waits on it (cancellation test)
+        self.rows_started = None  # asyncio.Event set when a row fetch starts
 
     def add_run(self, run_id, tenant=TENANT, range_from=T0, range_to=None, age_s=600):
         self.runs[run_id] = dict(
@@ -222,6 +224,9 @@ class FakeConn:
             tenant, device_id, lo, hi, after_at, after_id, after_attr, limit = args
             if self.current_run in db.fail_rows_for:
                 raise RuntimeError("boom while reading rows")
+            if db.block_rows is not None:
+                db.rows_started.set()
+                await db.block_rows.wait()
             assert device_id == URN.rsplit(":", 1)[-1]
             keys = sorted(k for (t, k) in db.rows if t == tenant)
             out = []
@@ -420,6 +425,23 @@ async def test_run_stops_cleanly_on_cancel():
     with pytest.raises(asyncio.CancelledError):
         await task
     assert db.tenant_queries >= 1
+
+
+@_sync
+async def test_cancel_mid_run_marks_failed_and_propagates():
+    db = FakeDB()
+    _with_deployment(db)
+    db.add_row(_row(0))
+    db.add_run("r1")
+    db.block_rows, db.rows_started = asyncio.Event(), asyncio.Event()
+    task = asyncio.create_task(_loop(db).run_once())
+    await asyncio.wait_for(db.rows_started.wait(), timeout=2)
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+    assert db.runs["r1"]["status"] == "failed"
+    assert "cancelled" in db.runs["r1"]["error"]
+    assert db.runs["r1"]["rows_changed"] == 0
 
 
 @_sync

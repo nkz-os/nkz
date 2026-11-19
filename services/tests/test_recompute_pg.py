@@ -324,3 +324,62 @@ def test_compressed_chunk_is_decompressed_then_updated(pg_schema_factory):
         assert after[1][1] is True  # the chunk outside the range stays compressed
     finally:
         su.close()
+
+
+def test_paged_batched_update_on_compressed_chunk_generic_plan(pg_schema_factory, monkeypatch):
+    """Keyset paging, several UPDATE batches and a generic plan, next to a compressed chunk.
+
+    As nkz_core. A generic plan cannot fold the $2/$3 window into constants, so this
+    proves the still-compressed chunk is not touched by the multi-row UPDATE anyway.
+    """
+    import asyncpg
+    import psycopg2
+    from telemetry_worker import recompute as rc
+
+    monkeypatch.setattr(rc, "PAGE_ROWS", 4)
+    monkeypatch.setattr(rc, "UPDATE_BATCH_ROWS", 2)
+
+    dsn = pg_schema_factory(None)
+    su = psycopg2.connect(dsn)
+    su.autocommit = True
+    try:
+        with su.cursor() as cur:
+            cur.execute("ALTER TABLE public.telemetry_measurements OWNER TO nkz_core")
+            cur.execute("GRANT USAGE ON SCHEMA public TO nkz_core")
+            cur.execute("GRANT SELECT ON public.telemetry_events, public.tenants, "
+                        "public.sensor_profiles TO nkz_core")
+        d = Device(su)
+        jan = datetime(2026, 1, 5, tzinfo=timezone.utc)
+        mar = datetime(2026, 3, 5, tzinfo=timezone.utc)
+        dep = d.deploy(jan - timedelta(days=1))
+        for i in range(7):
+            d.ingest(jan + timedelta(minutes=i), dep_id=dep, height=1.5)
+        d.ingest(mar, dep_id=dep, height=1.5)
+        with su.cursor() as cur:
+            cur.execute("SELECT compress_chunk(c) FROM show_chunks('telemetry_measurements') c")
+        d.correct_height(dep, 2.0)
+        run = d.enqueue(dep, jan - timedelta(days=1), jan + timedelta(days=1))
+
+        async def _init(conn):
+            await conn.execute('SET ROLE "nkz_core"')
+            await conn.execute("SET plan_cache_mode = force_generic_plan")
+
+        async def main():
+            pool = await asyncpg.create_pool(dsn, min_size=1, max_size=3, init=_init)
+            try:
+                return await _loop(pool).run_once()
+            finally:
+                await pool.close()
+
+        assert asyncio.run(main()) == 1
+        assert d.run_row(run)[:3] == ("done", 7, None)
+        rows = d.rows()
+        assert [r[1] for r in rows] == [2.0] * 7 + [1.5]
+        with su.cursor() as cur:
+            cur.execute(
+                "SELECT is_compressed FROM timescaledb_information.chunks "
+                "WHERE hypertable_name = 'telemetry_measurements' ORDER BY range_start"
+            )
+            assert [c for (c,) in cur.fetchall()] == [False, True]
+    finally:
+        su.close()
