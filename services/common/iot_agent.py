@@ -89,6 +89,9 @@ def get_or_create_service_group(tenant: str, iota_url: str, headers: dict,
         return None
 
 
+TIME_INSTANT_ATTRIBUTE = {"object_id": "TimeInstant", "name": "TimeInstant", "type": "DateTime"}
+
+
 def build_iota_attributes(measurements: list) -> list:
     """IoT Agent attribute mappings from profile `mapping.measurements[]`.
 
@@ -106,6 +109,11 @@ def build_iota_attributes(measurements: list) -> list:
         if m.get("expression"):
             attr["expression"] = m["expression"]
         attributes.append(attr)
+    # The agent runs with explicit attributes, so an undeclared TimeInstant key is
+    # dropped and observedAt becomes the arrival time. Declared, the device's own
+    # timestamp is kept as observedAt (buffered readings keep their real time).
+    if not any(a["object_id"] == TIME_INSTANT_ATTRIBUTE["object_id"] for a in attributes):
+        attributes.append(dict(TIME_INSTANT_ATTRIBUTE))
     return attributes
 
 
