@@ -2595,6 +2595,18 @@ def get_weather_gdd():
         return jsonify({"error": "Internal error computing GDD"}), 500
 
 
+# Observation read API (/api/observations/*): routes live in the observations package.
+from observations.routes import register as _register_observation_routes  # noqa: E402
+
+_register_observation_routes(
+    app,
+    require_auth=require_auth,
+    resolve_tenant=_resolve_tenant_context,
+    get_connection=lambda: get_db_connection(),
+    internal_error=lambda e, ctx: internal_error(e, ctx),
+)
+
+
 if __name__ == "__main__":
     port = int(os.getenv("PORT", 5000))
     debug = os.getenv("DEBUG", "false").lower() == "true"

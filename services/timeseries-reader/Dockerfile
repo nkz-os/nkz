@@ -21,6 +21,7 @@ ENV PYTHONPATH=/app:/app/common
 
 # Copy application code
 COPY services/timeseries-reader/app.py services/timeseries-reader/urn_resolution.py services/timeseries-reader/gdd_response.py services/timeseries-reader/module_auth.py ./
+COPY services/timeseries-reader/observations ./observations
 
 # Create non-root user
 RUN useradd -m -u 1000 appuser && chown -R appuser:appuser /app
