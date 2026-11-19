@@ -218,3 +218,40 @@ async def test_measurement_def_matches_alias_to_canonical():
     got = await lk.measurement_def(TENANT, "prof", canon)
     assert got == {"sdmAttribute": "temperature"}
     assert await lk.measurement_def(TENANT, "prof", "nonexistent") is None
+
+
+@_sync
+async def test_miss_revalidates_after_floor():
+    pool = FakePool([])
+    clock = Clock()
+    lk = ObservationLookup(pool, ttl_s=60, clock=clock)
+    at = T0 + timedelta(days=1)
+    assert await lk.deployment_at(TENANT, URN, at) is None
+    pool.rows = [_dep_row()]  # device registered after the empty list was cached
+    clock.t += 6
+    dep = await lk.deployment_at(TENANT, URN, at)
+    assert dep is not None
+    assert len(pool.selects) == 2
+    clock.t += 1  # now a hit inside the refreshed entry: no further DB call
+    assert await lk.deployment_at(TENANT, URN, at) is not None
+    assert len(pool.selects) == 2
+
+
+@_sync
+async def test_miss_within_floor_uses_cache():
+    pool = FakePool([])
+    clock = Clock()
+    lk = ObservationLookup(pool, ttl_s=60, clock=clock)
+    at = T0 + timedelta(days=1)
+    assert await lk.deployment_at(TENANT, URN, at) is None
+    pool.rows = [_dep_row()]
+    clock.t += 1
+    assert await lk.deployment_at(TENANT, URN, at) is None
+    assert len(pool.selects) == 1
+
+
+def test_miss_revalidate_bounds():
+    with pytest.raises(ValueError):
+        ObservationLookup(FakePool(), miss_revalidate_s=0)
+    with pytest.raises(ValueError):
+        ObservationLookup(FakePool(), ttl_s=10, miss_revalidate_s=11)

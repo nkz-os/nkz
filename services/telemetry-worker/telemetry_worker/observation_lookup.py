@@ -21,6 +21,7 @@ from common.context_aliases import canonical_attribute
 from .observations import Deployment, PropertyDef
 
 MAX_TTL_S = 60.0
+MISS_REVALIDATE_S = 5.0
 
 
 class TenantContextMissing(Exception):
@@ -91,9 +92,13 @@ class ObservationLookup:
         pool: "asyncpg.Pool",
         ttl_s: float = MAX_TTL_S,
         clock: Callable[[], float] = time.monotonic,
+        miss_revalidate_s: float = MISS_REVALIDATE_S,
     ):
         if not 0 < ttl_s <= MAX_TTL_S:
             raise ValueError(f"ttl_s must be in (0, {MAX_TTL_S}], got {ttl_s}")
+        if not 0 < miss_revalidate_s <= ttl_s:
+            raise ValueError(f"miss_revalidate_s must be in (0, ttl_s], got {miss_revalidate_s}")
+        self._miss_revalidate_s = miss_revalidate_s
         self._pool = pool
         self._ttl_s = ttl_s
         self._clock = clock
@@ -133,11 +138,26 @@ class ObservationLookup:
             rows = await self._fetch(tenant_id, _DEPLOYMENTS_SQL, device_urn)
             return [(r["valid"], _to_deployment(r)) for r in rows]
 
+        def select(intervals: List[Tuple[Any, Deployment]]) -> Optional[Deployment]:
+            for rng, dep in intervals:
+                if _in_range(rng, at):
+                    return dep
+            return None
+
+        key = ("deployments", device_urn)
         intervals = await self._cached(tenant_id, "deployments", device_urn, load)
-        for rng, dep in intervals:
-            if _in_range(rng, at):
-                return dep
-        return None
+        found = select(intervals)
+        if found is not None:
+            return found
+        # Miss: the device may have been registered after the entry was cached
+        # (e.g. an empty list). Refetch once if the entry is older than the floor.
+        expires_at = self._cache[tenant_id][key][0]
+        age = self._clock() - (expires_at - self._ttl_s)
+        if age < self._miss_revalidate_s:
+            return None
+        intervals = await load()
+        self._cache.setdefault(tenant_id, {})[key] = (self._clock() + self._ttl_s, intervals)
+        return select(intervals)
 
     async def measurement_def(
         self, tenant_id: str, profile_code: str, attr: str
