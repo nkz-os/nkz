@@ -7,12 +7,13 @@ from datetime import datetime
 from typing import Any, Callable, Dict
 
 import psycopg2.errors
-from flask import jsonify, request
+from flask import Response, jsonify, request
 
 from common.unit_codes import to_unit_code
 
 from .catalogue import visible_properties
 from .best import best
+from . import raw as raw_mod
 from .db import tenant_cursor, timeout_response
 from .request import RequestError, iso_z, parse_best
 
@@ -118,4 +119,38 @@ def register(app, *, require_auth, resolve_tenant: Callable, get_connection: Cal
             return internal_error(e, "observations")
         finally:
             if conn is not None:
+                conn.close()
+
+    @app.route("/api/observations", methods=["POST"])
+    @require_auth
+    def observations_raw():
+        cmd = resolve_tenant()
+        if isinstance(cmd, tuple):
+            return cmd
+        tenant_id = cmd
+        conn = None
+        stream = None
+        try:
+            rr = raw_mod.parse_raw(request.get_json(silent=True))
+            conn = get_connection()
+            plan = raw_mod.make_plan(conn, tenant_id, rr.base)
+            if "text/csv" in (request.headers.get("Accept") or "").lower():
+                # the stream owns the connection from here on (closed on end, error or abort)
+                stream = raw_mod.CsvStream(conn, tenant_id, plan, cursor=rr.cursor,
+                                           quality_flags=rr.quality_flags)
+                return Response(stream, status=200, mimetype="text/csv", direct_passthrough=True,
+                                headers={"Content-Disposition":
+                                         'attachment; filename="observations.csv"'})
+            items, nxt = raw_mod.raw_page(conn, tenant_id, plan, limit=rr.limit,
+                                          cursor=rr.cursor, quality_flags=rr.quality_flags)
+            return jsonify({"items": items, "nextCursor": nxt})
+        except RequestError as e:
+            return jsonify({"error": e.message}), e.status
+        except psycopg2.errors.QueryCanceled:
+            logger.warning("observation raw query timed out: tenant_id=%s", tenant_id)
+            return timeout_response()
+        except Exception as e:
+            return internal_error(e, "observations")
+        finally:
+            if conn is not None and stream is None:
                 conn.close()
