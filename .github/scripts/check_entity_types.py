@@ -314,7 +314,17 @@ def _git_show(ref: str, path: str) -> str | None:
     return result.stdout if result.returncode == 0 else None
 
 
+def _ref_exists(ref: str) -> bool:
+    result = subprocess.run(
+        ["git", "rev-parse", "--verify", "--quiet", f"{ref}^{{commit}}"], capture_output=True, text=True, check=False
+    )
+    return result.returncode == 0
+
+
 def run_ratchet(base: str, lists_dir: Path) -> int:
+    if not _ref_exists(base):
+        print(f"base ref '{base}' not found", file=sys.stderr)
+        return 2
     top = subprocess.run(
         ["git", "rev-parse", "--show-toplevel"], capture_output=True, text=True, check=True
     ).stdout.strip()

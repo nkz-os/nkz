@@ -3,6 +3,7 @@
 import ast
 import importlib.util
 import json
+import subprocess
 import sys
 from pathlib import Path
 
@@ -219,3 +220,21 @@ def test_in_code_type_catalogues_are_inside_the_lists():
         | returned_dict_keys(REPO_ROOT / "services/sdm-integration/sdm_api.py", "get_sdm_entities")
     )
     assert names and not (names - known), sorted(names - known)
+
+
+def _run_ratchet_cli(base):
+    return subprocess.run(
+        [sys.executable, str(SCRIPT), "ratchet", "--base", base, "--lists", "config/entity-types"],
+        cwd=REPO_ROOT, capture_output=True, text=True, check=False,
+    )
+
+
+def test_ratchet_cli_rejects_an_unknown_base_ref():
+    result = _run_ratchet_cli("no-such-ref-zzz")
+    assert result.returncode == 2
+    assert result.stderr.strip() == "base ref 'no-such-ref-zzz' not found"
+
+
+def test_ratchet_cli_clean_against_head():
+    result = _run_ratchet_cli("HEAD")
+    assert result.returncode == 0, result.stdout + result.stderr
