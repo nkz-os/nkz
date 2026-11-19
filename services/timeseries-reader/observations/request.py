@@ -1,6 +1,7 @@
 """Request parsing and validation for the observation read API (contract 2.1)."""
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any, Dict, Optional
@@ -60,12 +61,41 @@ def _parse_dt(body: Dict[str, Any], key: str) -> datetime:
     return dt.astimezone(timezone.utc)
 
 
+def _num(v: Any) -> bool:
+    return not isinstance(v, bool) and isinstance(v, (int, float)) and math.isfinite(v)
+
+
+def _position_ok(pos: Any) -> bool:
+    if not isinstance(pos, (list, tuple)) or len(pos) not in (2, 3):
+        return False
+    if not all(_num(c) for c in pos):
+        return False
+    return -180 <= pos[0] <= 180 and -90 <= pos[1] <= 90
+
+
+def _polygon_ok(rings: Any) -> bool:
+    if not isinstance(rings, list) or not rings:
+        return False
+    for ring in rings:
+        if not isinstance(ring, list) or len(ring) < 4:
+            return False
+        if not all(_position_ok(p) for p in ring):
+            return False
+        if list(ring[0]) != list(ring[-1]):
+            return False
+    return True
+
+
 def _geometry(geo: Any) -> dict:
     if not isinstance(geo, dict) or geo.get("type") not in ("Polygon", "MultiPolygon"):
         raise RequestError(400, "geometry must be a GeoJSON Polygon or MultiPolygon")
     coords = geo.get("coordinates")
-    if not isinstance(coords, list) or not coords:
-        raise RequestError(400, "geometry must have coordinates")
+    if geo["type"] == "Polygon":
+        ok = _polygon_ok(coords)
+    else:
+        ok = isinstance(coords, list) and bool(coords) and all(_polygon_ok(p) for p in coords)
+    if not ok:
+        raise RequestError(400, "invalid geometry")
     return geo
 
 
@@ -78,8 +108,8 @@ def _sub_context(raw: Any) -> dict:
         if k not in SUB_CONTEXT_KEYS:
             raise RequestError(400, f"unknown subContext key: {k}")
         if k in SUB_CONTEXT_NUMERIC:
-            if isinstance(v, bool) or not isinstance(v, (int, float)):
-                raise RequestError(400, f"subContext.{k} must be a number")
+            if not _num(v):
+                raise RequestError(400, f"subContext.{k} must be a finite number")
         elif not isinstance(v, str) or not v:
             raise RequestError(400, f"subContext.{k} must be a non-empty string")
     return dict(raw)

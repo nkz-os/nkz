@@ -11,6 +11,7 @@ from observations.db import tenant_cursor  # noqa: E402
 from observations.request import RequestError, iso_z, parse_best  # noqa: E402
 
 POLY = {"type": "Polygon", "coordinates": [[[0, 0], [1, 0], [1, 1], [0, 0]]]}
+MPOLY = {"type": "MultiPolygon", "coordinates": [POLY["coordinates"], POLY["coordinates"]]}
 
 
 def body(**over):
@@ -141,3 +142,30 @@ def test_tenant_cursor_closes_on_error_and_rejects_empty_tenant():
     with pytest.raises(ValueError):
         with tenant_cursor(_Conn(), ""):
             pass
+
+
+def test_valid_multipolygon():
+    assert parse_best(body(feature=None, geometry=MPOLY)).geometry == MPOLY
+
+
+@pytest.mark.parametrize("geo", [
+    {"type": "Polygon", "coordinates": [[]]},
+    {"type": "Polygon", "coordinates": [[[0, 0], [1, 0], [1, 1], [0, 1]]]},  # unclosed
+    {"type": "Polygon", "coordinates": [[[0, 0], [1, 0], [0, 0]]]},  # < 4 positions
+    {"type": "Polygon", "coordinates": [[["a", 0], [1, 0], [1, 1], ["a", 0]]]},
+    {"type": "Polygon", "coordinates": [[[True, 0], [1, 0], [1, 1], [True, 0]]]},
+    {"type": "Polygon", "coordinates": [[[200, 0], [1, 0], [1, 1], [200, 0]]]},
+    {"type": "Polygon", "coordinates": [[[0, 95], [1, 0], [1, 1], [0, 95]]]},
+    {"type": "Polygon", "coordinates": [[[float("nan"), 0], [1, 0], [1, 1], [float("nan"), 0]]]},
+    {"type": "Polygon", "coordinates": [[[0], [1, 0], [1, 1], [0]]]},
+    {"type": "MultiPolygon", "coordinates": []},
+    {"type": "MultiPolygon", "coordinates": [[[]]]},
+])
+def test_malformed_geometry_is_400(geo):
+    e = err(body(feature=None, geometry=geo))
+    assert (e.status, e.message) == (400, "invalid geometry")
+
+
+@pytest.mark.parametrize("v", [float("nan"), float("inf"), True])
+def test_subcontext_non_finite_rejected(v):
+    assert err(body(subContext={"depthFrom": v})).status == 400
