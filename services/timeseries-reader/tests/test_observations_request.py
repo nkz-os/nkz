@@ -169,3 +169,16 @@ def test_malformed_geometry_is_400(geo):
 @pytest.mark.parametrize("v", [float("nan"), float("inf"), True])
 def test_subcontext_non_finite_rejected(v):
     assert err(body(subContext={"depthFrom": v})).status == 400
+
+
+HUGE = 10 ** 400
+
+
+def test_huge_int_geometry_coordinate_is_400():
+    geo = {"type": "Polygon", "coordinates": [[[HUGE, 0], [1, 0], [1, 1], [HUGE, 0]]]}
+    e = err(body(feature=None, geometry=geo))
+    assert (e.status, e.message) == (400, "invalid geometry")
+
+
+def test_huge_int_subcontext_is_400():
+    assert err(body(subContext={"depthFrom": HUGE})).status == 400

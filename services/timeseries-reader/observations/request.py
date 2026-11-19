@@ -62,7 +62,12 @@ def _parse_dt(body: Dict[str, Any], key: str) -> datetime:
 
 
 def _num(v: Any) -> bool:
-    return not isinstance(v, bool) and isinstance(v, (int, float)) and math.isfinite(v)
+    if isinstance(v, bool) or not isinstance(v, (int, float)):
+        return False
+    try:
+        return math.isfinite(float(v))  # float() overflows on huge ints
+    except (OverflowError, ValueError, TypeError):
+        return False
 
 
 def _position_ok(pos: Any) -> bool:
