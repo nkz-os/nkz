@@ -370,7 +370,8 @@ def test_statement_timeout_per_batch_uses_tenant_cursor_each_time(monkeypatch):
 def test_csv_formula_injection_neutralised_strings_only():
     rows = [row(0, organ="=HYPERLINK(\"x\")", feature_of_interest="+1", value=-3.5,
                 context_ref="@a", r_in_area=True), row(1, organ="leaf", value=-1.0)]
-    with Env(rows, area={"type": "Polygon"}) as env:
+    with Env(rows, area={"type": "Polygon"}) as env, \
+            patch.object(raw_mod, "_covered_features", lambda *a: set()):
         text = csv_post(env).get_data(as_text=True)
     import csv as _csv, io as _io
     recs = list(_csv.DictReader(_io.StringIO(text)))
