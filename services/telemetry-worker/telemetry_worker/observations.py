@@ -110,6 +110,23 @@ def observation_context(attr: str, device_urn: str, dep: Deployment) -> Dict[str
     }
 
 
+def reading_point(value: Any) -> Optional[Dict[str, Any]]:
+    """A GeoJSON Point value (a reading's own `location`) if well-formed, else None.
+
+    Shared by ingest (payload.location of mobile readings) and the recompute job.
+    """
+    if not isinstance(value, dict) or value.get("type") != "Point":
+        return None
+    coords = value.get("coordinates")
+    if (
+        isinstance(coords, (list, tuple))
+        and len(coords) >= 2
+        and all(isinstance(c, (int, float)) and not isinstance(c, bool) for c in coords[:2])
+    ):
+        return {"type": "Point", "coordinates": [coords[0], coords[1]]}
+    return None
+
+
 def counter_max_of(measurement_def: Optional[Dict[str, Any]]) -> Optional[float]:
     """The profile measurement's `counterMax` as a number, else None."""
     return _num((measurement_def or {}).get("counterMax"))

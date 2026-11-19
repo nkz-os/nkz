@@ -2,6 +2,7 @@
 -- Migration 117: audit of observation recompute runs (contract 8.6)
 -- Idempotent, expand-only. One row per recompute of a deployment's time range:
 -- who asked, why, the range (range_to NULL = open), rows changed and the status.
+-- attempts counts failed or abandoned attempts; the worker retries a run up to 5.
 -- =============================================================================
 
 CREATE TABLE IF NOT EXISTS public.observation_recompute_runs (
@@ -16,6 +17,7 @@ CREATE TABLE IF NOT EXISTS public.observation_recompute_runs (
     status       TEXT NOT NULL DEFAULT 'pending'
         CHECK (status IN ('pending', 'running', 'done', 'failed')),
     rows_changed BIGINT,
+    attempts     INTEGER NOT NULL DEFAULT 0,
     error        TEXT,
     created_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
     started_at   TIMESTAMPTZ,

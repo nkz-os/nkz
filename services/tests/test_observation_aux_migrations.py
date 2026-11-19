@@ -64,6 +64,7 @@ def test_runs_columns():
         "requested_by TEXT NOT NULL",
         "reason TEXT NOT NULL CHECK (reason <> '')",
         "rows_changed BIGINT",
+        "attempts INTEGER NOT NULL DEFAULT 0",
         "error TEXT",
         "created_at TIMESTAMPTZ NOT NULL DEFAULT now()",
         "started_at TIMESTAMPTZ",

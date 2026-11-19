@@ -19,7 +19,7 @@ from .health_checker import HealthChecker, _severity
 from .profiles import ProfileService
 from .calibration import CalibrationService
 from .dedup import NotificationDedup
-from .observations import resolve_observation
+from .observations import reading_point, resolve_observation
 
 logger = logging.getLogger(__name__)
 
@@ -278,17 +278,7 @@ def _prop_value(entity: Dict[str, Any], key: str) -> Optional[Any]:
 
 def _reading_point(entity: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     """The DeviceMeasurement's own `location` GeoProperty Point, if well-formed."""
-    value = _prop_value(entity, "location")
-    if not isinstance(value, dict) or value.get("type") != "Point":
-        return None
-    coords = value.get("coordinates")
-    if (
-        isinstance(coords, (list, tuple))
-        and len(coords) >= 2
-        and all(isinstance(c, (int, float)) and not isinstance(c, bool) for c in coords[:2])
-    ):
-        return {"type": "Point", "coordinates": [coords[0], coords[1]]}
-    return None
+    return reading_point(_prop_value(entity, "location"))
 
 
 async def _resolve_observation_payload(

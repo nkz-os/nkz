@@ -90,21 +90,29 @@ class Device:
                 (json.dumps({"medium": "ambientAir", "heightAboveGround": height}), dep_id),
             )
 
-    def ingest(self, observed_at, value=21.5, dep_id=None, height=None):
-        """A DeviceMeasurement event as the worker writes it (observations iff dep_id)."""
+    def ingest(self, observed_at, value=21.5, dep_id=None, height=None, gps=None, mobile=False):
+        """A DeviceMeasurement event as the worker writes it (observations iff dep_id).
+
+        gps: the reading's own point (raw `location`); stored as the location when
+        mobile, else the fixed deployment's point is stored.
+        """
         raw = {
             "id": f"urn:ngsi-ld:DeviceMeasurement:{self.tenant}:{self.dev}:temperature",
             "type": "DeviceMeasurement",
             "refDevice": {"type": "Relationship", "object": self.urn},
             "observedProperty": {"type": "Property", "value": "airTemperature"},
         }
+        if gps is not None:
+            raw["location"] = {"type": "GeoProperty",
+                               "value": {"type": "Point", "coordinates": list(gps)}}
         payload = {"measurements": {"temperature": value}, "raw": raw}
         if dep_id is not None:
+            stored = list(gps) if mobile else [-3.7, 40.4]
             payload.update({
                 "deploymentId": dep_id,
                 "sourceKind": "device",
                 "timeSource": "device",
-                "location": {"type": "Point", "coordinates": [-3.7, 40.4]},
+                "location": {"type": "Point", "coordinates": stored},
                 "observations": {"temperature": {
                     "observedProperty": "airTemperature",
                     "featureOfInterest": "urn:ngsi-ld:AgriParcel:p1",
@@ -139,6 +147,17 @@ class Device:
                 (run_id,),
             )
             return cur.fetchone()
+
+    def attempts(self, run_id):
+        with self.su.cursor() as cur:
+            cur.execute("SELECT attempts FROM public.observation_recompute_runs WHERE id = %s",
+                        (run_id,))
+            return cur.fetchone()[0]
+
+    def set_mobility(self, dep_id, mobility):
+        with self.su.cursor() as cur:
+            cur.execute("UPDATE public.device_deployments SET mobility = %s WHERE id = %s",
+                        (mobility, dep_id))
 
     def rows(self):
         with self.su.cursor() as cur:
@@ -381,5 +400,203 @@ def test_paged_batched_update_on_compressed_chunk_generic_plan(pg_schema_factory
                 "WHERE hypertable_name = 'telemetry_measurements' ORDER BY range_start"
             )
             assert [c for (c,) in cur.fetchall()] == [False, True]
+    finally:
+        su.close()
+
+
+# ---------------------------------------------------------------------------
+# Fix round 1: location convergence, liveness, page pruning, decompress scope
+# ---------------------------------------------------------------------------
+
+GPS = (1.25, 42.5)
+
+
+def _one_tick(dsn, role="nkz_rls_test", patch=None):
+    async def body(pool):
+        loop = _loop(pool)
+        if patch is not None:
+            patch(loop)
+        try:
+            return await loop.run_once()
+        except asyncio.CancelledError:
+            return "cancelled"
+
+    return _run_as(dsn, role, body)
+
+
+def test_mobile_reading_outside_deployment_converges(pg_dsn, su):
+    d = Device(su)
+    t0 = datetime(2036, 3, 1, tzinfo=timezone.utc)
+    dep = d.deploy(t0, mobility="mobile")
+    d.ingest(t0 + timedelta(hours=1), dep_id=dep, height=1.5, gps=GPS, mobile=True)
+    d.ingest(t0 + timedelta(days=2), dep_id=dep, height=1.5, gps=GPS, mobile=True)
+    assert [(r[8], r[9]) for r in d.rows()] == [GPS, GPS]
+    with su.cursor() as cur:
+        cur.execute("UPDATE public.device_deployments SET valid = tstzrange(%s, %s, '[)') "
+                    "WHERE id = %s", (t0, t0 + timedelta(days=1), dep))
+    first = d.enqueue(dep, t0)
+    assert _one_tick(pg_dsn) == 1
+    inside, outside = d.rows()
+    assert (inside[2], inside[8], inside[9]) == (dep, *GPS)  # reading's own point kept
+    assert (outside[2], outside[8], outside[9]) == (None, None, None)
+    assert d.run_row(first)[:2] == ("done", 1)
+    second = d.enqueue(dep, t0)
+    assert _one_tick(pg_dsn) == 1
+    assert d.run_row(second)[:2] == ("done", 0)
+    assert d.rows() == [inside, outside]
+
+
+def test_fixed_to_mobile_takes_raw_point_and_converges(pg_dsn, su):
+    d = Device(su)
+    t0 = datetime(2037, 3, 1, tzinfo=timezone.utc)
+    dep = d.deploy(t0)
+    d.ingest(t0 + timedelta(hours=1), dep_id=dep, height=1.5, gps=GPS)
+    assert (d.rows()[0][8], d.rows()[0][9]) == pytest.approx((-3.7, 40.4))
+    d.set_mobility(dep, "mobile")
+    first = d.enqueue(dep, t0)
+    assert _one_tick(pg_dsn) == 1
+    (row,) = d.rows()
+    assert (row[8], row[9]) == GPS
+    assert d.run_row(first)[:2] == ("done", 1)
+    second = d.enqueue(dep, t0)
+    assert _one_tick(pg_dsn) == 1
+    assert d.run_row(second)[:2] == ("done", 0)
+
+
+def test_cancelled_run_returns_to_pending(pg_dsn, su):
+    d = Device(su)
+    t0 = datetime(2038, 3, 1, tzinfo=timezone.utc)
+    dep = d.deploy(t0)
+    run = d.enqueue(dep, t0)
+
+    def patch(loop):
+        async def cancelled(run_, progress):
+            progress.rows_changed += 3
+            raise asyncio.CancelledError()
+
+        loop._process_run = cancelled
+
+    assert _one_tick(pg_dsn, patch=patch) == "cancelled"
+    status, rows_changed, _err, started, finished = d.run_row(run)
+    assert (status, rows_changed, started, finished) == ("pending", 3, False, False)
+    assert d.attempts(run) == 0
+    with su.cursor() as cur:  # keep the shared database free of claimable leftovers
+        cur.execute("DELETE FROM public.observation_recompute_runs WHERE id = %s", (run,))
+
+
+def test_stale_running_run_is_reclaimed(pg_dsn, su):
+    d = Device(su)
+    t0 = datetime(2039, 3, 1, tzinfo=timezone.utc)
+    dep = d.deploy(t0)
+    d.ingest(t0 + timedelta(hours=1))
+    stale = d.enqueue(dep, t0)
+    live = d.enqueue(dep, t0, age="10 minutes")
+    with su.cursor() as cur:
+        cur.execute("UPDATE public.observation_recompute_runs SET status = 'running', "
+                    "started_at = now() - interval '20 minutes' WHERE id = %s", (stale,))
+        cur.execute("UPDATE public.observation_recompute_runs SET status = 'running', "
+                    "started_at = now() - interval '1 minute' WHERE id = %s", (live,))
+    assert _one_tick(pg_dsn) == 1
+    assert d.run_row(stale)[:2] == ("done", 1)
+    assert d.attempts(stale) == 1
+    assert d.run_row(live)[0] == "running"
+    with su.cursor() as cur:
+        cur.execute("DELETE FROM public.observation_recompute_runs WHERE id = %s", (live,))
+
+
+def test_failure_retried_then_failed_at_fifth_attempt(pg_dsn, su):
+    from telemetry_worker.recompute import MAX_ATTEMPTS
+
+    d = Device(su)
+    t0 = datetime(2040, 3, 1, tzinfo=timezone.utc)
+    dep = d.deploy(t0)
+    run = d.enqueue(dep, t0)
+
+    def patch(loop):
+        async def flaky(run_, progress):
+            progress.rows_changed += 1
+            raise RuntimeError("transient lock timeout")
+
+        loop._process_run = flaky
+
+    for attempt in range(1, MAX_ATTEMPTS):
+        assert _one_tick(pg_dsn, patch=patch) == 1  # one attempt per tick
+        status, rows_changed, error, started, finished = d.run_row(run)
+        assert (status, rows_changed, started, finished) == ("pending", attempt, False, False)
+        assert "transient lock timeout" in error and d.attempts(run) == attempt
+    assert _one_tick(pg_dsn, patch=patch) == 1
+    status, rows_changed, error, _started, finished = d.run_row(run)
+    assert (status, rows_changed, finished) == ("failed", MAX_ATTEMPTS, True)
+    assert d.attempts(run) == MAX_ATTEMPTS
+    assert _one_tick(pg_dsn, patch=patch) == 0  # failed runs are not claimed again
+
+
+def test_page_query_excludes_earlier_chunks(pg_dsn, su):
+    from telemetry_worker import recompute as rc
+
+    d = Device(su)
+    jan = datetime(2041, 1, 5, tzinfo=timezone.utc)
+    mar = datetime(2041, 3, 5, tzinfo=timezone.utc)
+    d.ingest(jan)
+    d.ingest(mar)
+    with su.cursor() as cur:
+        cur.execute(
+            "SELECT chunk_name FROM timescaledb_information.chunks "
+            "WHERE hypertable_name = 'telemetry_measurements' "
+            "AND range_start <= %s AND range_end > %s", (jan, jan))
+        (jan_chunk,) = cur.fetchone()
+        cur.execute("SELECT source_event_id FROM telemetry_measurements "
+                    "WHERE tenant_id = %s AND observed_at = %s", (d.tenant, jan))
+        (jan_event,) = cur.fetchone()
+
+    async def body(pool):
+        async with pool.acquire() as c:
+            # Second page after the Jan row: the bound is the last page's observed_at.
+            plan = await c.fetch("EXPLAIN " + rc.ROWS_SQL, d.tenant, d.dev, jan, None,
+                                 jan, jan_event, "temperature", 10)
+            later = await c.fetch("EXPLAIN " + rc.ROWS_SQL, d.tenant, d.dev, mar, None,
+                                  mar, jan_event, "temperature", 10)
+        return ("\n".join(r[0] for r in plan), "\n".join(r[0] for r in later))
+
+    first_page, later_page = _run_as(pg_dsn, "nkz_rls_test", body)
+    assert jan_chunk in first_page
+    assert jan_chunk not in later_page
+
+
+def test_only_chunks_with_changed_rows_are_decompressed(pg_schema_factory):
+    """As nkz_core. A compressed chunk between changed rows, with none of them, stays compressed."""
+    import psycopg2
+
+    dsn = pg_schema_factory(None)
+    su = psycopg2.connect(dsn)
+    su.autocommit = True
+    try:
+        with su.cursor() as cur:
+            cur.execute("ALTER TABLE public.telemetry_measurements OWNER TO nkz_core")
+            cur.execute("GRANT USAGE ON SCHEMA public TO nkz_core")
+            cur.execute("GRANT SELECT ON public.telemetry_events, public.tenants, "
+                        "public.sensor_profiles TO nkz_core")
+        d = Device(su)
+        other = Device(su)
+        jan = datetime(2026, 1, 5, tzinfo=timezone.utc)
+        feb = datetime(2026, 2, 5, tzinfo=timezone.utc)
+        mar = datetime(2026, 3, 5, tzinfo=timezone.utc)
+        dep = d.deploy(jan - timedelta(days=1))
+        d.ingest(jan, dep_id=dep, height=1.5)
+        other.ingest(feb)  # another tenant's chunk content, nothing to change
+        d.ingest(mar, dep_id=dep, height=1.5)
+        with su.cursor() as cur:
+            cur.execute("SELECT compress_chunk(c) FROM show_chunks('telemetry_measurements') c")
+        d.correct_height(dep, 2.0)
+        run = d.enqueue(dep, jan - timedelta(days=1))
+        assert _one_tick(dsn, role="nkz_core") == 1
+        assert d.run_row(run)[:3] == ("done", 2, None)
+        assert [r[1] for r in d.rows()] == [2.0, 2.0]
+        with su.cursor() as cur:
+            cur.execute(
+                "SELECT is_compressed FROM timescaledb_information.chunks "
+                "WHERE hypertable_name = 'telemetry_measurements' ORDER BY range_start"
+            )
+            assert [c for (c,) in cur.fetchall()] == [False, True, False]
     finally:
         su.close()
