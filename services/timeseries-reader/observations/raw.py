@@ -27,6 +27,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any, Dict, Iterator, List, Optional, Set, Tuple
 
+import psycopg2.errors
 from dateutil.parser import isoparse
 
 from .best import _resolve_feature
@@ -86,6 +87,8 @@ def decode_cursor(token: Any) -> Position:
         if not isinstance(t, str) or isinstance(e, bool) or not isinstance(e, int) \
                 or not isinstance(a, str) or not a:
             raise ValueError("bad types")
+        if "\x00" in t or "\x00" in a:
+            raise ValueError("NUL")
         dt = isoparse(t)
         if dt.tzinfo is None:
             raise ValueError("naive")
@@ -296,6 +299,16 @@ def raw_page(conn, tenant_id: str, plan: RawPlan, *, limit: int,
 
 # --------------------------------------------------------------------- CSV
 
+_FORMULA_PREFIXES = ("=", "+", "-", "@", "\t", "\r")
+
+
+def _safe_cell(v: Any) -> Any:
+    """Neutralise spreadsheet formulas in STRING cells only (numbers stay untouched)."""
+    if isinstance(v, str) and v.startswith(_FORMULA_PREFIXES):
+        return "'" + v
+    return v
+
+
 def _csv_row(item: dict) -> List[Any]:
     loc = item.get("location")
     lon = lat = None
@@ -309,7 +322,7 @@ def _csv_row(item: dict) -> List[Any]:
             out.append(lat)
         else:
             v = item.get(col)
-            out.append("" if v is None else (str(v).lower() if isinstance(v, bool) else v))
+            out.append("" if v is None else (str(v).lower() if isinstance(v, bool) else _safe_cell(v)))
     return out
 
 
@@ -358,6 +371,11 @@ class CsvStream:
         except StopIteration:
             self.close()
             raise
+        except psycopg2.errors.QueryCanceled:
+            logger.warning("raw CSV stream timed out: tenant_id=%s", self._tenant_id)
+            self._conn_close()
+            self._gen = iter(())
+            return "# error: timeout\n"
         except Exception:
             # headers are already sent: never end silently, mark the file and log
             logger.exception("raw CSV stream aborted: tenant_id=%s", self._tenant_id)

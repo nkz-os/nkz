@@ -365,3 +365,32 @@ def test_statement_timeout_per_batch_uses_tenant_cursor_each_time(monkeypatch):
     with Env(interleaved(30)) as env, patch.object(raw_mod, "tenant_cursor", spy):
         follow(env, 4)
     assert len(opened) == len(env.calls) and len(opened) > 5
+
+
+def test_csv_formula_injection_neutralised_strings_only():
+    rows = [row(0, organ="=HYPERLINK(\"x\")", feature_of_interest="+1", value=-3.5,
+                context_ref="@a"), row(1, organ="leaf", value=-1.0)]
+    with Env(rows) as env:
+        text = csv_post(env).get_data(as_text=True)
+    import csv as _csv, io as _io
+    recs = list(_csv.DictReader(_io.StringIO(text)))
+    assert recs[0]["organ"] == "'=HYPERLINK(\"x\")" and recs[0]["featureOfInterest"] == "'+1"
+    assert recs[0]["contextRef"] == "'@a" and recs[0]["value"] == "-3.5"
+    assert recs[1]["organ"] == "leaf" and recs[1]["value"] == "-1.0"
+    assert raw_mod._safe_cell("\tx") == "'\tx" and raw_mod._safe_cell(-2) == -2
+
+
+def test_cursor_with_nul_is_400():
+    for tok in (b'{"t":"2026-11-01T00:00:00Z","e":1,"a":"a\\u0000b"}',
+                b'{"t":"2026-11-01T00:00:00Z\\u0000","e":1,"a":"a"}'):
+        c = raw_mod.base64.urlsafe_b64encode(tok).decode()
+        with pytest.raises(RequestError) as ei:
+            raw_mod.decode_cursor(c)
+        assert ei.value.status == 400
+
+
+def test_csv_midstream_timeout_marked():
+    with Env([row(0)]) as env:
+        with patch.object(raw_mod, "raw_page", side_effect=psycopg2.errors.QueryCanceled()):
+            text = csv_post(env).get_data(as_text=True)
+    assert text.splitlines()[-1] == "# error: timeout" and env.conn.closed
