@@ -51,7 +51,11 @@ def _rollback(conn) -> None:
 
 
 def _point_of(geo: Optional[dict]) -> Optional[Tuple[float, float]]:
-    """(lon, lat) = centre of the bounding box of the geometry (input of tier 5)."""
+    """(lon, lat) = centre of the bounding box of the geometry (input of tier 5).
+
+    ASSUMPTION: the bbox centre represents the area for the regional-station search (the contract
+    gives no reference point; a parcel is far smaller than the 50 km search radius).
+    """
     if not geo:
         return None
     xs: List[float] = []
@@ -78,6 +82,8 @@ def _fidelity(key: int, sources: List[dict]) -> str:
     if tier == 5:
         return "regional_proxy"
     kinds = {s.get("kind") for s in sources}
+    # ASSUMPTION: a bucket fusing device and manual/import sources is reported as iot_sensor
+    # (contract 2.2 does not rank mixed buckets); only all-manual/import buckets are manual_observation.
     if kinds and kinds <= _MANUAL_KINDS:
         return "manual_observation"
     return "iot_sensor"
@@ -101,7 +107,7 @@ def _point_json(key: Optional[int], bp: BucketPoint, medium: str) -> dict:
         key >= _MODEL_OFFSET and medium != FALLBACK_MEDIUM)
     return {"t": iso_z(bp.t), "value": bp.value, "tier": tier, "fidelity": fid,
             "confidence": _CONFIDENCE[fid],
-            "calibrated": any(s.get("calibrated") for s in bp.sources),
+            "calibrated": bool(bp.sources) and all(s.get("calibrated") for s in bp.sources),
             "mediumFallback": fallback, "coverage": round(bp.coverage, 4),
             "sources": [_source_item(s, key) for s in bp.sources]}
 
@@ -117,12 +123,13 @@ def _resolve_feature(conn, tenant_id: str, req: BestRequest, fetch) -> Tuple[dic
     """Transaction 1 (committed): (property, feature entity, area geometry)."""
     entity: Optional[dict] = None
     area = req.geometry
+    status = "ok"
+    if req.feature:  # Orion first: transaction 1 stays short (no network inside it)
+        status, entity = fetch(tenant_id, req.feature)
     try:
         with tenant_cursor(conn, tenant_id) as cur:
             prop = get_property(cur, tenant_id, req.property)
-            status = "ok"
             if req.feature:
-                status, entity = fetch(tenant_id, req.feature)
                 # the same (single) Orion answer feeds the geometry cache, incl. its 404 delete
                 area = geometry_of(cur, tenant_id, req.feature,
                                    fetch=lambda _t, _u: (status, entity))
@@ -185,8 +192,15 @@ def best(conn, tenant_id: str, req: BestRequest, *, now: Optional[datetime] = No
     observed_keys = sorted(k for k in tier_readings if k < _MODEL_OFFSET)
     model_keys = sorted(k for k in tier_readings if k >= _MODEL_OFFSET)
     tolerance = prop.get("sub_context_tolerance") or {}
-    all_observed = [r for k in observed_keys for r in tier_readings[k]]
-    groups = group_by_sub_context(all_observed, tolerance)
+    # Groups come from the primary-medium readings only; fallback-medium and model tiers are merged
+    # into EACH group's fall-through, so the fallback fills only that group's empty buckets.
+    primary = [r for k in observed_keys if k < _FALLBACK_OFFSET for r in tier_readings[k]]
+    groups = group_by_sub_context(primary, tolerance)
+    fallback_grouped = False
+    if not groups:
+        fallback_grouped = True  # no primary data: the fallback readings define the groups
+        groups = group_by_sub_context(
+            [r for k in observed_keys for r in tier_readings[k]], tolerance)
     if not groups:
         groups = [({}, [])]
 
@@ -198,14 +212,16 @@ def best(conn, tenant_id: str, req: BestRequest, *, now: Optional[datetime] = No
         tier_points: List[Tuple[int, List[BucketPoint]]] = []
         for k in observed_keys + model_keys:
             rs = tier_readings[k]
-            if k < _MODEL_OFFSET:
+            if k < _FALLBACK_OFFSET or (k < _MODEL_OFFSET and fallback_grouped):
                 rs = [r for r in rs if id(r) in ids]
             if not rs:
                 continue
             tier_points.append((k, aggregate_tier(
                 rs, bks, sem if k < _MODEL_OFFSET else msem, prop.get("fusion") or "median",
                 prop.get("valid_min"), prop.get("valid_max"), q.resolution,
-                max_rate_per_hour=prop.get("max_rate_per_hour"), warnings=warnings, now=now)))
+                max_rate_per_hour=prop.get("max_rate_per_hour"), warnings=warnings, now=now,
+                # P1D tier 4 reads the one-row-per-day twin: a present row is a full day
+                pre_aggregated=(k == _MODEL_OFFSET + 4 and q.resolution == "P1D"))))
         chosen = fall_through(tier_points, prop.get("min_coverage"), q.resolution)
         if latest:
             real = [(k, p) for k, p in chosen if k is not None]

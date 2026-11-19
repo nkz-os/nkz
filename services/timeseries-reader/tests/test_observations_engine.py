@@ -384,3 +384,12 @@ def test_m1_cumulative_exact_hour_t_cur_does_not_add_its_own_hour():
     rs = [rd("a", bk[0] + timedelta(hours=1), 0.0), rd("a", bk[0] + timedelta(hours=3), 1.0)]
     (p,) = aggregate_tier(rs, [bk], "cumulative", "median", None, None, "P1D")
     assert p.coverage == pytest.approx(2 / 24)  # hours 1 and 2 of [01:00, 03:00)
+
+
+def test_pre_aggregated_gives_full_coverage_for_a_daily_row():
+    b = buckets(datetime(2026, 11, 1, tzinfo=timezone.utc), datetime(2026, 11, 2, tzinfo=timezone.utc), "P1D", "UTC")
+    r = Reading("m", None, datetime(2026, 11, 1, tzinfo=timezone.utc), 5.0, {}, None, "model", False)
+    low = aggregate_tier([r], b, "instant", "median", None, None, "P1D")[0]
+    assert low.coverage < 0.1
+    full = aggregate_tier([r], b, "instant", "median", None, None, "P1D", pre_aggregated=True)[0]
+    assert full.coverage == 1.0 and full.value == 5.0

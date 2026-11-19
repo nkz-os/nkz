@@ -259,7 +259,8 @@ def aggregate_tier(readings: List[Reading], bucket_list: List[Tuple[datetime, da
                    counter_max: Optional[float] = None,
                    max_rate_per_hour: Optional[float] = None,
                    warnings: Optional[List[str]] = None,
-                   now: Optional[datetime] = None) -> List[BucketPoint]:
+                   now: Optional[datetime] = None,
+                   pre_aggregated: bool = False) -> List[BucketPoint]:
     """One BucketPoint per bucket (per distinct reading timestamp for `raw`).
 
     semantics: instant | rate (mean per source), cumulative (counter rule, then sum of deltas),
@@ -270,7 +271,8 @@ def aggregate_tier(readings: List[Reading], bucket_list: List[Tuple[datetime, da
     Extra keyword args (not in the frozen positional signature): `counter_max` (fallback for
     readings without their own), `max_rate_per_hour`, `warnings` (list the engine appends to;
     repeated identical warnings are merged as "msg xN"), `now` (P1D: the bucket containing it
-    expects ceil((now - b0)/1h) hours instead of the full local day).
+    expects ceil((now - b0)/1h) hours instead of the full local day), `pre_aggregated` (readings
+    are already one row per bucket, e.g. daily model rows: any bucket with a point has coverage 1.0).
     """
     ws: List[tuple] = []
     summing = semantics in ("cumulative", "amount")
@@ -315,7 +317,8 @@ def aggregate_tier(readings: List[Reading], bucket_list: List[Tuple[datetime, da
             if not in_b:
                 out.append(_empty(b0))
                 continue
-            out.append(build(b0, in_b, _coverage_fn(b0, b1, resolution, now, ws)))
+            cov = (lambda kept: 1.0) if pre_aggregated else _coverage_fn(b0, b1, resolution, now, ws)
+            out.append(build(b0, in_b, cov))
     if warnings is not None:
         warnings.extend(_dedupe_warnings(ws))
     return out

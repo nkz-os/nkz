@@ -318,7 +318,7 @@ def test_422_unknown_property():
     env.prop = None
     r = http(env)
     assert r.status_code == 422 and "error" in r.get_json()
-    assert "orion" not in env.events
+    assert "observed_tiers" not in env.events
     assert env.conn.closed
 
 
@@ -530,3 +530,51 @@ def test_module_hmac_accepted(monkeypatch):
         r = c.post("/api/observations/best", json=BODY, headers=headers)
         assert r.status_code == 200 and r.get_json() == {"ok": True}
         assert c.post("/api/observations/best", json=BODY, headers={"X-Tenant-ID": "acme"}).status_code in (401, 403)
+
+
+def test_fallback_fills_only_primary_group_empty_buckets():
+    p = prop("soilTemperature", allowed_media=["soil", "ambientAir"], default_medium="soil")
+    primary = {1: [rd(0, 3.0, sub={"depthFrom": 0.0}), rd(2, 5.0, sub={"depthFrom": 0.0})], 2: [], 3: []}
+
+    def observed(medium):
+        if medium == "ambientAir":  # other sub-context must not create a group of its own
+            return {1: [rd(h, 7.0, src="A", sub={"heightAboveGround": 3.0}) for h in range(3)],
+                    2: [], 3: []}
+        return primary
+
+    with Env(p=p, observed=observed, orion=entity()) as env:
+        out = env.run(dict(BODY, allowMediumFallback=True))
+    assert [g["subContext"] for g in out["groups"]] == [{"depthFrom": 0.0}]
+    pts = out["groups"][0]["points"]
+    assert [(x["value"], x["mediumFallback"]) for x in pts] == [(3.0, False), (7.0, True), (5.0, False)]
+
+
+def test_fallback_defines_groups_when_no_primary_data():
+    p = prop("soilTemperature", allowed_media=["soil", "ambientAir"], default_medium="soil")
+
+    def observed(medium):
+        if medium == "ambientAir":
+            return {1: [rd(0, 7.0, sub={"heightAboveGround": 3.0})], 2: [], 3: []}
+        return {1: [], 2: [], 3: []}
+
+    with Env(p=p, observed=observed, orion=entity()) as env:
+        out = env.run(dict(BODY, allowMediumFallback=True))
+    assert [g["subContext"] for g in out["groups"]] == [{"heightM": 3.0}]
+    assert out["groups"][0]["points"][0]["mediumFallback"] is True
+
+
+def test_p1d_tier4_daily_rows_win():
+    for name, unit, sem in (("airTemperature", "°C", "instant"), ("precipitation", "mm", "cumulative")):
+        p = prop(name, unit=unit, temporal_semantics=sem, valid_max=500.0)
+        body = dict(BODY, property=name, resolution="P1D", to="2026-11-03T00:00:00Z")
+        model = {4: [Reading("parcel_weather", None, T0 + timedelta(days=d), 2.0 + d, {}, None,
+                             "model", False) for d in range(2)], 5: []}
+        with Env(p=p, model=model, orion=entity()) as env:
+            pts = env.run(body)["groups"][0]["points"]
+        assert [(x["tier"], x["value"], x["coverage"]) for x in pts] == [(4, 2.0, 1.0), (4, 3.0, 1.0)]
+
+
+def test_calibrated_requires_all_sources():
+    obs = {1: [rd(0, 1.0, cal=True), rd(0, 3.0, src="S2", cal=False)], 2: [], 3: []}
+    with Env(observed=obs, orion=entity()) as env:
+        assert env.run()["groups"][0]["points"][0]["calibrated"] is False
