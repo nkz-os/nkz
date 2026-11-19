@@ -8,7 +8,8 @@ shrink: a `## broker` block (types already persisted in the broker) and a
 
 This module holds the list parsing and loading, the `diff` subcommand, which
 reads a unified diff on stdin and reports unknown type names on added lines, and
-the `ratchet` subcommand, which compares the lists with their state on a base ref.
+the `ratchet` subcommand, which compares the lists with their state on a base ref, and the
+`inventory` subcommand, which lists every unknown type name in a git working tree.
 
 Exit codes: 0 clean, 1 findings.
 """
@@ -84,7 +85,7 @@ NOT_A_TYPE_MARKER = "sdm:not-a-type"
 SELF_PATH = ".github/scripts/check_entity_types.py"
 
 _URN = re.compile(rf"urn:ngsi-ld:({NAME}):")
-_TYPE_KEY = re.compile(rf"[Tt]ype[\"']?\]?\s*(?::|==|=)\s*[\"']({NAME})[\"']")
+_TYPE_KEY = re.compile(rf"[Tt]ype[\"']?\]?\s*(?:===|!==|==|!=|=|:)\s*[\"']({NAME})[\"']")
 _TYPE_QUERY = re.compile(r"[?&]type=([^&\s\"']+)")
 _NKZ = re.compile(rf"\bnkz:({NAME})(?![A-Za-z0-9])")
 _NKZ_IRI = re.compile(rf"https://nkz-os\.org/ns/({NAME})(?![A-Za-z0-9])")
@@ -124,18 +125,21 @@ VOCABULARY = frozenset({
     "ConfigMap", "Secret", "Ingress", "CronJob", "Job", "Opaque", "ClusterIP", "RollingUpdate", "Recreate",
     "Directory", "DirectoryOrCreate", "File", "Linear", "Module", "Program", "Literal", "Identifier", "ES256",
     "RS256", "List", "Query", "Unknown", "Type", "Tipo", "Tipus", "Mota",
+    "ActividadesType", "CabeceraType", "ExplotacionType", "FertilizacionType", "GeometriaType", "ParcelaType",
+    "ParcelasType", "RecintoType", "RecintosType", "TratamientoFitoType",
+    "Arenosol", "Calcisol", "Chernozem", "Fluvisol", "Luvisol", "Alta", "Modificacion", "Anulacion",
 })
 
 
 def is_vocabulary(name: str) -> bool:
-    return name.isupper() or name.endswith("Type") or name in VOCABULARY
+    return name.isupper() or name in VOCABULARY
 
 
 EXCLUDED_DIR_SEGMENTS = frozenset({
     "test", "tests", "__tests__", "e2e", "fixtures", "__mocks__", "node_modules", "locales", "i18n",
     "docs", "k8s",
 })
-EXCLUDED_FILE_PATTERNS = ("conftest.py", "test_*.py", "*_test.py", "*.test.*", "*.spec.*", "package-lock.json")
+EXCLUDED_FILE_PATTERNS = ("conftest.py", "test_*.py", "*_test.py", "*.test.*", "*.spec.*", "package-lock.json", "i18n.*")
 EXCLUDED_SUFFIXES = (".md", ".svg", ".lock", ".min.js", ".yaml", ".yml")
 EXCLUDED_PREFIXES = ("config/entity-types/", ".hygiene-tooling/")
 
@@ -216,6 +220,35 @@ def run_diff(lists_dir: Path, diff: str) -> int:
         print()
         print(CLOSING_PARAGRAPH)
         return 1
+    return 0
+
+
+def inventory(root: Path, lists: Lists) -> dict[str, list[str]]:
+    """Unknown type name -> sorted `path:line` locations, over the tracked files that are scanned."""
+    listing = subprocess.run(
+        ["git", "-C", str(root), "ls-files", "-z"], capture_output=True, text=True, check=True
+    ).stdout
+    known = lists.known
+    found: dict[str, list[str]] = {}
+    for path in filter(None, listing.split("\0")):
+        if not path_is_scanned(path):
+            continue
+        try:
+            text = (root / path).read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError):
+            continue  # binary, unreadable or a dangling symlink: no type names to find
+        for number, line in enumerate(text.splitlines(), start=1):
+            if NOT_A_TYPE_MARKER in line:
+                continue
+            for name in extract_type_names(line):
+                if not is_vocabulary(name) and name not in known:
+                    found.setdefault(name, []).append(f"{path}:{number}")
+    return {name: sorted(locations) for name, locations in found.items()}
+
+
+def run_inventory(root: Path, lists_dir: Path) -> int:
+    for name, locations in sorted(inventory(root, load_lists(lists_dir)).items()):
+        print(f"{name}\t{len(locations)}\t{locations[0]}")
     return 0
 
 
@@ -349,11 +382,16 @@ def main(argv: list[str] | None = None) -> int:
     ratchet_cmd = commands.add_parser("ratchet", help="check the lists against their state on a base ref")
     ratchet_cmd.add_argument("--base", required=True, help="git ref to compare against")
     ratchet_cmd.add_argument("--lists", type=Path, required=True, help="directory with allowed.txt and legacy.txt")
+    inventory_cmd = commands.add_parser("inventory", help="list unknown type names in a git checkout")
+    inventory_cmd.add_argument("--root", type=Path, required=True, help="git working tree to scan")
+    inventory_cmd.add_argument("--lists", type=Path, required=True, help="directory with allowed.txt and legacy.txt")
     args = parser.parse_args(argv)
     if args.command == "diff":
         return run_diff(args.lists, sys.stdin.read())
     if args.command == "ratchet":
         return run_ratchet(args.base, args.lists)
+    if args.command == "inventory":
+        return run_inventory(args.root, args.lists)
     return 2
 
 

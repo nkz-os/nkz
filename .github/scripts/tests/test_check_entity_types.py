@@ -50,6 +50,9 @@ def test_repo_lists_load_and_do_not_overlap():
     ("entity_type = 'FooAsset'", ["FooAsset"]),
     ('if entity["@type"] == "FooAsset":', ["FooAsset"]),
     ("target_sdm_type='FooAsset'", ["FooAsset"]),
+    ('if (e.type === "FooAsset") {', ["FooAsset"]),
+    ("if entity_type != 'FooAsset':", ["FooAsset"]),
+    ('x.type !== "FooAsset"', ["FooAsset"]),
     ('url = base + "?type=FooAsset,nkz:BarRecord&limit=10"', ["FooAsset", "BarRecord"]),
     ('"FooAsset": "nkz:FooAsset",', ["FooAsset"]),
     ('"FooAsset": "https://nkz-os.org/ns/FooAsset"', ["FooAsset"]),
@@ -62,7 +65,7 @@ def test_extract_type_names(line, expected):
 
 
 @pytest.mark.parametrize("name", ["Property", "Relationship", "GeoProperty", "Polygon", "FeatureCollection",
-                                  "Deployment", "SELECT", "CabeceraType", "Tipo", "Mota"])
+                                  "Deployment", "SELECT", "Calcisol", "Anulacion", "CabeceraType", "ParcelasType", "Tipo", "Mota"])
 def test_vocabulary_is_not_a_type(name):
     assert is_vocabulary(name)
 
@@ -72,6 +75,12 @@ def test_entity_names_are_not_vocabulary():
     assert not is_vocabulary("AgriParcel")
 
 
+def test_a_name_ending_in_type_is_not_vocabulary_by_itself():
+    assert is_vocabulary("ZoneType") is False
+    assert is_vocabulary("AgriProductType") is False
+    assert is_vocabulary("CabeceraType") is True
+
+
 @pytest.mark.parametrize("path,scanned", [
     ("services/foo/app.py", True), ("apps/host/src/x.tsx", True), ("config/ngsi-ld-context.json", True),
     ("services/foo/tests/test_app.py", False), ("README.md", False), ("k8s/deploy.yaml", False),
@@ -79,7 +88,8 @@ def test_entity_names_are_not_vocabulary():
     ("apps/host/src/latest.tsx", True), ("apps/host/src/x.test.tsx", False), ("apps/host/e2e/visual.spec.ts", False),
     ("backend/app/contest.py", True), ("backend/conftest.py", False),
     ("backend/docs/x.py", False), ("deploy/k8s/x.json", False), (".hygiene-tooling/x.py", False),
-    (".github/scripts/check_entity_types.py", False), ("package-lock.json", False),
+    (".github/scripts/check_entity_types.py", False),
+    ("src/i18n.ts", False), ("src/i18nHelper.ts", True), ("package-lock.json", False),
 ])
 def test_path_is_scanned(path, scanned):
     assert path_is_scanned(path) is scanned
@@ -113,6 +123,50 @@ def test_scan_diff_accepts_both_legacy_blocks():
     lists = Lists(frozenset({"AgriParcel"}), frozenset({"FooAsset"}), frozenset({"BarRecord"}))
     diff = DIFF.replace("tests/test_app.py", "more.py")
     assert scan_diff(diff, lists) == []
+
+
+def test_scan_diff_ignores_a_deleted_file():
+    diff = "diff --git a/x.py b/x.py\n--- a/x.py\n+++ /dev/null\n@@ -1,1 +0,0 @@\n-entity = {\"type\": \"FooAsset\"}\n"
+    assert scan_diff(diff, Lists(frozenset(), frozenset(), frozenset())) == []
+
+
+def test_scan_diff_parses_a_hunk_header_without_counts():
+    diff = "--- a/x.py\n+++ b/x.py\n@@ -1 +1 @@\n-old = 1\n+entity = {\"type\": \"FooAsset\"}\n"
+    findings = scan_diff(diff, Lists(frozenset(), frozenset(), frozenset()))
+    assert [(f.path, f.line_no, f.name) for f in findings] == [("x.py", 1, "FooAsset")]
+
+
+def _run_diff_cli(stdin):
+    return subprocess.run(
+        [sys.executable, str(SCRIPT), "diff", "--lists", str(REPO_ROOT / "config" / "entity-types")],
+        input=stdin, capture_output=True, text=True, check=False,
+    )
+
+
+def test_diff_cli_fails_on_an_unknown_type():
+    diff = "--- a/x.py\n+++ b/x.py\n@@ -1 +1 @@\n-old = 1\n+entity = {\"type\": \"FooAsset\"}\n"
+    result = _run_diff_cli(diff)
+    assert result.returncode == 1
+    assert "x.py:1: entity type 'FooAsset' is not in the lists" in result.stdout
+    assert cet.CLOSING_PARAGRAPH in result.stdout
+
+
+def test_diff_cli_passes_on_empty_input():
+    result = _run_diff_cli("")
+    assert result.returncode == 0 and result.stdout == ""
+
+
+def test_inventory_lists_unknown_names_with_locations(tmp_path):
+    def git(*args):
+        subprocess.run(["git", "-C", str(tmp_path), *args], check=True, capture_output=True)
+
+    git("init", "-q")
+    (tmp_path / "tests").mkdir()
+    (tmp_path / "a.py").write_text('{"type": "FooAsset"}\n{"type": "AgriParcel"}\n')
+    (tmp_path / "tests" / "test_a.py").write_text('{"type": "BarRecord"}\n')
+    git("add", "-A")
+    lists = Lists(frozenset({"AgriParcel"}), frozenset(), frozenset())
+    assert cet.inventory(tmp_path, lists) == {"FooAsset": ["a.py:1"]}
 
 
 def _never():
