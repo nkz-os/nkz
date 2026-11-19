@@ -86,11 +86,13 @@ SoilObservation
 SoilProbe
 SoilSamplingPoint
 SoilSurvey
+SolarPanel
 Spring
 Tenant
 TrialSite
 VarietyTrial
 VegetationIndex
+VegetationScene
 VermicompostBed
 Vine
 Vineyard
