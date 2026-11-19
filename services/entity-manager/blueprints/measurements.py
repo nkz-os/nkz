@@ -62,8 +62,11 @@ def _measurement_defs_by_attr(profile: Dict[str, Any]) -> Dict[str, Dict[str, An
     }
 
 
-def _resolve_observed_at(attr_value: Dict[str, Any], entity: Dict[str, Any]) -> str:
-    """Pick the DateTime value for `dateObserved`.
+def _resolve_observed_at(attr_value: Dict[str, Any], entity: Dict[str, Any]) -> Tuple[str, str]:
+    """Pick the DateTime value for `dateObserved` and say where it came from.
+
+    Returns `(iso_instant, time_source)`; `time_source` is `"device"` when the instant came
+    from the attribute or entity `observedAt`, `"server"` when it is the wall-clock fallback.
 
     Priority: the attribute's own `observedAt` (normalized NGSI-LD Property metadata — the most
     precise, per-reading timestamp) -> the entity-level `observedAt` attribute, if the whole
@@ -76,9 +79,9 @@ def _resolve_observed_at(attr_value: Dict[str, Any], entity: Dict[str, Any]) -> 
         entity_level = entity.get("observedAt")
         if isinstance(entity_level, dict):
             observed_at = entity_level.get("value")
-    if not observed_at:
-        observed_at = datetime.now(timezone.utc).isoformat()
-    return observed_at
+    if observed_at:
+        return observed_at, "device"
+    return datetime.now(timezone.utc).isoformat(), "server"
 
 
 def build_measurements(entity: Dict[str, Any], profile: Dict[str, Any]) -> List[Dict[str, Any]]:
@@ -104,6 +107,8 @@ def build_measurements(entity: Dict[str, Any], profile: Dict[str, Any]) -> List[
     entity_id = entity.get("id", "")
     tenant, external_id = _parse_device_id(entity_id)
     measurement_defs = _measurement_defs_by_attr(profile)
+    profile_code_attr = entity.get("profileCode")
+    profile_code = profile_code_attr.get("value") if isinstance(profile_code_attr, dict) else None
 
     results: List[Dict[str, Any]] = []
     # One reading per canonical name: when the entity carries both aliases, the canonical
@@ -139,6 +144,7 @@ def build_measurements(entity: Dict[str, Any], profile: Dict[str, Any]) -> List[
         else:
             value_key = "textValue"
 
+        observed_at, time_source = _resolve_observed_at(attr_value, entity)
         measurement: Dict[str, Any] = {
             "id": f"urn:ngsi-ld:DeviceMeasurement:{tenant}:{external_id}:{attr_name}",
             "type": "DeviceMeasurement",
@@ -148,9 +154,15 @@ def build_measurements(entity: Dict[str, Any], profile: Dict[str, Any]) -> List[
             value_key: value_prop,
             "dateObserved": {
                 "type": "Property",
-                "value": _resolve_observed_at(attr_value, entity),
+                "value": observed_at,
             },
+            "timeSource": {"type": "Property", "value": time_source},
         }
+        observed_property = measurement_def.get("observedProperty")
+        if observed_property:
+            measurement["observedProperty"] = {"type": "Property", "value": observed_property}
+        if profile_code is not None:
+            measurement["profileCode"] = {"type": "Property", "value": profile_code}
         results.append(measurement)
 
     return results

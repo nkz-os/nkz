@@ -255,3 +255,55 @@ class TestWindowStatistics:
     def test_without_statistics_the_derived_attribute_is_skipped(self):
         result = build_measurements(self._entity_min(), self._profile(None))
         assert all(m["controlledProperty"]["value"] != "airTemperatureMin" for m in result)
+
+
+class TestProvenance:
+    def test_time_source_device_from_attribute_observed_at(self):
+        result = build_measurements(_entity(), PROFILE)
+        m = _by_controlled_property(result, "leafTemperature")
+        assert m["timeSource"] == {"type": "Property", "value": "device"}
+        assert m["dateObserved"]["value"] == "2026-08-29T10:00:00Z"
+
+    def test_time_source_device_from_entity_observed_at(self):
+        entity = _entity(
+            observedAt={"type": "Property", "value": "2026-08-29T11:00:00Z"},
+            leafTemperature={"type": "Property", "value": 20.0},
+        )
+        m = _by_controlled_property(build_measurements(entity, PROFILE), "leafTemperature")
+        assert m["timeSource"]["value"] == "device"
+        assert m["dateObserved"]["value"] == "2026-08-29T11:00:00Z"
+
+    def test_time_source_server_on_fallback(self):
+        entity = _entity(leafTemperature={"type": "Property", "value": 20.0})
+        m = _by_controlled_property(build_measurements(entity, PROFILE), "leafTemperature")
+        assert m["timeSource"] == {"type": "Property", "value": "server"}
+
+    def test_observed_property_from_profile(self):
+        profile = {
+            "id": 2,
+            "sdm_entity_type": "Device",
+            "mapping": {
+                "measurements": [
+                    {"type": "airTemp", "unit": "°C", "sdmAttribute": "temperature",
+                     "observedProperty": "airTemperature"},
+                ]
+            },
+        }
+        entity = _entity(temperature={"type": "Property", "value": 18.0,
+                                      "observedAt": "2026-08-29T10:00:00Z"})
+        result = build_measurements(entity, profile)
+        m = _by_controlled_property(result, "airTemperature")  # alias canonicalised
+        assert m["observedProperty"] == {"type": "Property", "value": "airTemperature"}
+
+    def test_observed_property_absent_when_profile_lacks_it(self):
+        m = _by_controlled_property(build_measurements(_entity(), PROFILE), "leafTemperature")
+        assert "observedProperty" not in m
+
+    def test_profile_code_copied_from_entity(self):
+        entity = _entity(profileCode={"type": "Property", "value": "bench-x"})
+        for m in build_measurements(entity, PROFILE):
+            assert m["profileCode"] == {"type": "Property", "value": "bench-x"}
+
+    def test_profile_code_absent_when_entity_lacks_it(self):
+        for m in build_measurements(_entity(), PROFILE):
+            assert "profileCode" not in m

@@ -72,9 +72,12 @@ def test_registry_does_not_invent_terms(ctx, registry):
 
     Segunda excepción: `observesFeature` mapea al IRI plano de W3C SOSA
     (`sosa:hasFeatureOfInterest`), nunca a `nkz:`; SDM Device no tiene esa relación.
+
+    Tercera excepción: `observedProperty` mapea al IRI plano de W3C SOSA
+    (`sosa:observedProperty`) y la lleva DeviceMeasurement.
     """
     own = _own_terms(ctx)
-    allowed_non_own = {"category", "observesFeature"}
+    allowed_non_own = {"category", "observesFeature", "observedProperty"}
     unknown = sorted((set(registry) - own) - allowed_non_own)
     assert not unknown, (
         f"el registro lista términos que no son vocabulario propio (nkz:) y no están en la "

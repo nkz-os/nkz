@@ -111,6 +111,7 @@ fails on it.
 | `numberOfSubsamples` | atributo | propuesta-sdm | Attribute of AgriPlantSample, AgriSoilSample (smart-data-models/incubated#283) |
 | `observationContext` | atributo | extension-declarada | Medium a device measures (air, soil, plant, water) and where in it; SDM Device has no such property |
 | `observesFeature` | atributo | extension-declarada | SDM Device has no feature-of-interest relation; maps to W3C SOSA sosa:hasFeatureOfInterest |
+| `observedProperty` | atributo | extension-declarada | Catalogue name of the property a DeviceMeasurement observes; maps to W3C SOSA sosa:observedProperty |
 | `OpenChannelFlow` | entidad | sin-revisar | Not yet reviewed |
 | `organicCarbon` | atributo | propuesta-sdm | Attribute of AgriSoilSample (smart-data-models/incubated#283) |
 | `organicMatter` | atributo | propuesta-sdm | Attribute of AgriSoilSample (smart-data-models/incubated#283) |
@@ -132,6 +133,7 @@ fails on it.
 | `precipitationMax` | atributo | extension-declarada | Window statistic of precipitation (DaTaK) |
 | `precipitationMin` | atributo | extension-declarada | Window statistic of precipitation (DaTaK) |
 | `precipitationStdDev` | atributo | extension-declarada | Window statistic of precipitation (DaTaK) |
+| `profileCode` | atributo | extension-declarada | Code of the sensor profile that interprets a device's attributes (also carried on DeviceMeasurement); SDM Device has no such property |
 | `ProjectScenario` | entidad | sin-revisar | Not yet reviewed |
 | `relativeHumidityMax` | atributo | extension-declarada | Window statistic of relativeHumidity (DaTaK) |
 | `relativeHumidityMin` | atributo | extension-declarada | Window statistic of relativeHumidity (DaTaK) |
@@ -161,6 +163,7 @@ fails on it.
 | `sulphur` | atributo | propuesta-sdm | Attribute of AgriPlantSample (smart-data-models/incubated#283) |
 | `terminationDate` | atributo | extension-declarada | Declared end of a crop cycle when a plan segment is closed; not modelled in SDM |
 | `terminationMethod` | atributo | extension-declarada | How a crop cycle ends (harvest, roller crimper, mowing, incorporation, grazing); not modelled in SDM |
+| `timeSource` | atributo | extension-declarada | Provenance of DeviceMeasurement dateObserved: device or server |
 | `totalNitrogen` | atributo | propuesta-sdm | Attribute of AgriSoilSample (smart-data-models/incubated#283) |
 | `trunkPerimeter` | atributo | propuesta-sdm | Attribute of AgriPlant (smart-data-models/incubated#283) |
 | `trunkPerimeterHeight` | atributo | propuesta-sdm | Attribute of AgriPlant (smart-data-models/incubated#283) |
