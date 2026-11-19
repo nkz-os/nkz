@@ -82,16 +82,12 @@ def quality_flag(
     return "suspect"  # nan and any unknown flag: fail-safe, never valid
 
 
-def resolve_observation(
-    attr: str,
-    value: float,
-    device_urn: str,
-    dep: Deployment,
-    measurement_def: Dict[str, Any],
-    prop: PropertyDef,
-    health_flag: Optional[str],
-) -> Dict[str, Any]:
-    """Build the `payload.observations[attr]` object."""
+def observation_context(attr: str, device_urn: str, dep: Deployment) -> Dict[str, Any]:
+    """Deployment-derived context of one channel (no property, no quality).
+
+    Shared by ingest (resolve_observation) and the recompute job, so both store
+    the same values for the same deployment.
+    """
     override = _override_for(dep, attr)
 
     ctx = override.get("observationContext")
@@ -104,7 +100,6 @@ def resolve_observation(
         feature = device_urn
 
     return {
-        "observedProperty": prop.name,
         "featureOfInterest": feature,
         "medium": medium,
         "depthFromCm": _num(ctx.get("depthFrom")),
@@ -112,7 +107,28 @@ def resolve_observation(
         "heightM": _num(ctx.get("heightAboveGround")),
         "organ": ctx.get("organ"),
         "contextRef": ctx.get("structure") or ctx.get("enclosure") or None,
+    }
+
+
+def counter_max_of(measurement_def: Optional[Dict[str, Any]]) -> Optional[float]:
+    """The profile measurement's `counterMax` as a number, else None."""
+    return _num((measurement_def or {}).get("counterMax"))
+
+
+def resolve_observation(
+    attr: str,
+    value: float,
+    device_urn: str,
+    dep: Deployment,
+    measurement_def: Dict[str, Any],
+    prop: PropertyDef,
+    health_flag: Optional[str],
+) -> Dict[str, Any]:
+    """Build the `payload.observations[attr]` object."""
+    return {
+        "observedProperty": prop.name,
+        **observation_context(attr, device_urn, dep),
         "qualityFlag": quality_flag(
-            value, prop, _num((measurement_def or {}).get("counterMax")), health_flag
+            value, prop, counter_max_of(measurement_def), health_flag
         ),
     }

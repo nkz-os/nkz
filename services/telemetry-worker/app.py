@@ -15,6 +15,7 @@ from telemetry_worker.notification_handler import (
     router as notification_router,
 )
 from telemetry_worker.profiles import ProfileService
+from telemetry_worker.recompute import RecomputeLoop, recompute_interval_from_env
 from telemetry_worker.routers import health
 from telemetry_worker.subscription_manager import ensure_subscriptions_for_all_tenants
 
@@ -76,6 +77,15 @@ async def lifespan(app: FastAPI):
         observation_lookup=observation_lookup,
     )
 
+    # Audited recompute of stored observation context (contract 8.6); only with
+    # the observation lookup wired. A bad interval value fails startup loudly.
+    recompute_task = None
+    if observation_lookup is not None:
+        recompute = RecomputeLoop(
+            sink._pool, observation_lookup, interval_s=recompute_interval_from_env()
+        )
+        recompute_task = asyncio.create_task(recompute.run())
+
     # Check/create NGSI-LD subscriptions for all tenants (sync, run in executor)
     try:
         loop = asyncio.get_event_loop()
@@ -101,6 +111,12 @@ async def lifespan(app: FastAPI):
 
     # Shutdown: cancel periodic task and close pool
     periodic_task.cancel()
+    if recompute_task is not None:
+        recompute_task.cancel()
+        try:
+            await recompute_task
+        except asyncio.CancelledError:
+            pass
     await dedup.stop()
     await calibration_service.stop()
     await health_checker.stop()
