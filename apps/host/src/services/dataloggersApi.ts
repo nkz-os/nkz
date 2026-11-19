@@ -71,6 +71,13 @@ export interface RegisterSensorRequest {
   healthConfig?: Record<string, unknown>;
   calibrationConfig?: Record<string, unknown>;
   metadata?: Record<string, unknown>;
+  observesFeature?: string;
+  observationContext?: Record<string, unknown>;
+  /** Keyed by the profile measurement's `sdmAttribute`. */
+  channelOverrides?: Record<string, { observesFeature?: string; observationContext?: Record<string, unknown> }>;
+  mobility?: 'fixed' | 'mobile';
+  /** ISO-8601 with offset; not in the future. */
+  validFrom?: string;
 }
 
 export interface RegisteredSensor {
@@ -132,6 +139,67 @@ export async function registerSensor(body: RegisterSensorRequest): Promise<Regis
 export async function listSensorProfiles(): Promise<SensorProfile[]> {
   const res = await api.get(`${BASE}/profiles`);
   return Array.isArray(res.data?.profiles) ? res.data.profiles : [];
+}
+
+export interface DeviceDeployment {
+  id: string;
+  device_urn: string;
+  /** ISO-8601. */
+  valid_from: string;
+  /** null while the deployment is open. */
+  valid_to: string | null;
+  observesFeature: string | null;
+  observationContext: Record<string, unknown>;
+  channelOverrides: Record<string, { observesFeature?: string; observationContext?: Record<string, unknown> }>;
+  mobility: 'fixed' | 'mobile';
+  location: { lat: number; lon: number } | null;
+}
+
+export interface MoveDeploymentRequest {
+  validFrom?: string;
+  /** null = no feature. */
+  observesFeature?: string | null;
+  observationContext?: Record<string, unknown>;
+  channelOverrides?: DeviceDeployment['channelOverrides'];
+  mobility?: 'fixed' | 'mobile';
+  location?: { lat: number; lon: number };
+  reason: string;
+}
+
+/** `mobility` is not accepted on a correction (the server answers 400). */
+export interface CorrectDeploymentRequest {
+  validFrom?: string;
+  validTo?: string | null;
+  /** null = no feature. */
+  observesFeature?: string | null;
+  observationContext?: Record<string, unknown>;
+  channelOverrides?: DeviceDeployment['channelOverrides'];
+  location?: { lat: number; lon: number };
+  reason: string;
+}
+
+/** Deployments of a device, newest first. Installer role only. */
+export async function listDeviceDeployments(deviceUrn: string): Promise<DeviceDeployment[]> {
+  const res = await api.get(`${BASE}/devices/${enc(deviceUrn)}/deployments`);
+  return Array.isArray(res.data?.deployments) ? res.data.deployments : [];
+}
+
+/** Close the current deployment and open a new one (move / change context). */
+export async function moveDeviceDeployment(
+  deviceUrn: string,
+  body: MoveDeploymentRequest,
+): Promise<DeviceDeployment> {
+  const res = await api.post(`${BASE}/devices/${enc(deviceUrn)}/deployments`, body);
+  return res.data;
+}
+
+/** Fix a deployment in place. */
+export async function correctDeployment(
+  deploymentId: string,
+  body: CorrectDeploymentRequest,
+): Promise<DeviceDeployment> {
+  const res = await api.put(`${BASE}/deployments/${enc(deploymentId)}`, body);
+  return res.data;
 }
 
 /** Server error text of a failed call, or the fallback. */

@@ -821,6 +821,11 @@
       "controlledAsset": {
         "@id": "https://smartdatamodels.org/dataModel.Device/controlledAsset"
       },
+      "observesFeature": "http://www.w3.org/ns/sosa/hasFeatureOfInterest",
+      "observationContext": "nkz:observationContext",
+      "channelOverrides": "nkz:channelOverrides",
+      "mobility": "nkz:mobility",
+      "deploymentId": "nkz:deploymentId",
       "controlledProperty": "https://smartdatamodels.org/dataModel.Device/controlledProperty",
       "measurementType": "https://smartdatamodels.org/dataModel.Device/measurementType",
       "numValue": "https://smartdatamodels.org/dataModel.Device/numValue",

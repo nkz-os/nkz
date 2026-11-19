@@ -818,7 +818,8 @@
       "datalogger_kind_required": "Choose the datalogger type",
       "external_id_invalid": "The identifier accepts only letters, digits, dot, hyphen and underscore (1-64 characters)",
       "sdm_required": "Fill in the required fields (*).",
-      "location_required": "Mark the location on the map."
+      "location_required": "Mark the location on the map.",
+      "observation_invalid": "Review what the sensor observes"
     },
     "errors": {
       "incomplete_state": "Incomplete wizard state",
@@ -1341,6 +1342,63 @@
           "windTurbine": "Wind turbine",
           "other": "Other"
         }
+      }
+    },
+    "observation": {
+      "title": "What it observes",
+      "hint": "Optional. Says what the readings measure and where, so other modules can use them.",
+      "medium": "Medium",
+      "medium_unset": "Not specified",
+      "medium_ambientAir": "Open air",
+      "medium_ambientAirUnderStructure": "Air under a structure",
+      "medium_enclosedAir": "Air inside an enclosure",
+      "medium_soil": "Soil",
+      "medium_plant": "Plant",
+      "medium_water": "Water",
+      "medium_equipment": "Equipment",
+      "field": {
+        "heightAboveGround": "Height above ground (m)",
+        "structure": "Structure",
+        "enclosure": "Enclosure (greenhouse)",
+        "depthFrom": "Depth from (cm)",
+        "depthTo": "Depth to (cm)",
+        "organ": "Plant organ"
+      },
+      "organ": {
+        "stem": "Stem",
+        "leaf": "Leaf",
+        "fruit": "Fruit",
+        "canopy": "Canopy",
+        "root": "Root"
+      },
+      "feature": "Observed feature",
+      "feature_none": "None",
+      "feature_hint": "Parcel, zone, plant, greenhouse or solar park of the selected parcels.",
+      "feature_hint_equipment": "Leave empty if the sensor measures the device itself.",
+      "mobility": "Mobility",
+      "mobility_unset": "Not specified",
+      "mobility_fixed": "Fixed",
+      "mobility_mobile": "Mobile",
+      "valid_from": "Installed since",
+      "valid_from_hint": "Optional. Date and time the sensor started observing this; cannot be in the future.",
+      "overrides_title": "Per-channel overrides",
+      "overrides_hint": "Only for channels that observe something different from the rest.",
+      "override_same": "Same as the sensor",
+      "error": {
+        "medium_invalid": "Choose a valid medium",
+        "structure_required": "Choose the structure",
+        "enclosure_required": "Choose the enclosure",
+        "depthFrom_required": "Enter the start depth",
+        "depthTo_required": "Enter the end depth",
+        "organ_required": "Choose the plant organ",
+        "depth_range": "Depth from must be 0 or more and less than depth to",
+        "heightAboveGround_negative": "Height must be 0 or more",
+        "heightAboveGround_number": "Height must be a number",
+        "depthFrom_number": "Depth must be a number",
+        "depthTo_number": "Depth must be a number",
+        "structure_urn": "Invalid structure",
+        "enclosure_urn": "Invalid enclosure",
+        "organ_invalid": "Invalid plant organ"
       }
     }
   },
@@ -2124,6 +2182,27 @@
         "Animal": "Animal",
         "Tank": "Water tank or pond",
         "StorageBatteryDevice": "Battery"
+      },
+      "deployments": {
+        "title": "Deployment history",
+        "move": "Move / change context",
+        "correct": "Correct this period",
+        "open": "now",
+        "empty": "No deployments recorded.",
+        "valid_from": "From",
+        "valid_from_move": "Effective from",
+        "valid_to": "Until",
+        "valid_to_hint": "Leave empty to keep the period open.",
+        "location": "Location",
+        "latitude": "Latitude",
+        "longitude": "Longitude",
+        "location_required": "Enter latitude and longitude for a fixed device",
+        "location_invalid": "Latitude must be -90 to 90 and longitude -180 to 180",
+        "reason": "Reason",
+        "reason_required": "Enter a reason",
+        "no_changes": "No changes to save",
+        "load_error": "Could not load the deployment history",
+        "save_error": "Could not save the deployment"
       }
     },
     "filters": {

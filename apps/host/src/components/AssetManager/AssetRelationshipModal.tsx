@@ -21,10 +21,14 @@ import { UnifiedAsset, assetTypeLabel } from '@/types/assets';
 import { logger } from '@/utils/logger';
 import { Button, Checkbox, Input } from '@nekazari/ui-kit';
 import { useI18n } from '@/context/I18nContext';
+import { useAuth } from '@/context/KeycloakAuthContext';
+import { DATALOGGER_INSTALLER_ROLES } from '@/services/dataloggersApi';
+import { DeviceDeployments, readDeviceProfileCode } from './DeviceDeployments';
 import {
   deviceLinks,
   parkOptionsFor,
   readControlledLinks,
+  readForeignLinks,
   readLinkOwner,
   readParcelLinks,
   toParkOption,
@@ -84,6 +88,8 @@ export const AssetRelationshipModal: React.FC<AssetRelationshipModalProps> = ({
   onSuccess,
 }) => {
   const { t } = useI18n();
+  const canInstall = useAuth().hasAnyRole(DATALOGGER_INSTALLER_ROLES);
+  const [showDeployments, setShowDeployments] = useState(false);
 
   // State
   const [search, setSearch] = useState('');
@@ -94,6 +100,7 @@ export const AssetRelationshipModal: React.FC<AssetRelationshipModalProps> = ({
   const isDevice = isParcelLinkedDevice(asset);
   const initialLinks = useMemo(() => readParcelLinks(asset.rawEntity), [asset.rawEntity]);
   const initialControlled = useMemo(() => readControlledLinks(asset.rawEntity), [asset.rawEntity]);
+  const foreignLinks = useMemo(() => readForeignLinks(asset.rawEntity), [asset.rawEntity]);
   const initialOwner = useMemo(() => {
     const owner = readLinkOwner(asset.rawEntity);
     return owner?.kind === 'park' ? owner.urn : null;
@@ -112,9 +119,14 @@ export const AssetRelationshipModal: React.FC<AssetRelationshipModalProps> = ({
     }
     return options;
   }, [solarParks, selectedLinks, ownerParkId]);
+  // A foreign URN stored first is the owner; it stays first unless the user picks a park.
+  const foreignOwner = useMemo(
+    () => (initialControlled.length > 0 && foreignLinks.includes(initialControlled[0]) ? initialControlled[0] : null),
+    [initialControlled, foreignLinks],
+  );
   const nextLinks = useMemo(
-    () => (selectedLinks.length > 0 ? deviceLinks(ownerParkId, selectedLinks) : []),
-    [ownerParkId, selectedLinks],
+    () => (selectedLinks.length > 0 ? deviceLinks(ownerParkId, selectedLinks, foreignLinks, foreignOwner) : []),
+    [ownerParkId, selectedLinks, foreignLinks, foreignOwner],
   );
   const linksChanged =
     nextLinks.length !== initialControlled.length || nextLinks.some((urn, i) => urn !== initialControlled[i]);
@@ -256,6 +268,27 @@ export const AssetRelationshipModal: React.FC<AssetRelationshipModalProps> = ({
               parcelLabel={t('wizard.iot.owner_parcel')}
               parkLabel={t('wizard.iot.owner_park')}
             />
+          </div>
+        )}
+
+        {isDevice && canInstall && (
+          <div className="px-6 py-3 border-b border-slate-100">
+            <Button
+              variant="ghost"
+              data-testid="toggle-deployments"
+              onClick={() => setShowDeployments(v => !v)}
+            >
+              {t('entities.assets.deployments.title')}
+            </Button>
+            {showDeployments && (
+              <div className="mt-2 max-h-96 overflow-y-auto">
+                <DeviceDeployments
+                  deviceUrn={asset.id}
+                  parcelIds={selectedLinks}
+                  profileCode={readDeviceProfileCode(asset.rawEntity)}
+                />
+              </div>
+            )}
           </div>
         )}
 

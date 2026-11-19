@@ -214,3 +214,17 @@ class TestDeviceIdShape:
         entity["id"] = "urn:ngsi-ld:Device"
         with pytest.raises(DeviceIdShapeError):
             build_measurements(entity, PROFILE)
+
+
+class TestObservedAt:
+    def test_attribute_observed_at_wins_over_wall_clock(self):
+        entity = _entity(
+            leafTemperature={
+                "type": "Property",
+                "value": 21.5,
+                "observedAt": "2026-01-01T00:00:00Z",
+            }
+        )
+        result = build_measurements(entity, PROFILE)
+        leaf = _by_controlled_property(result, "leafTemperature")
+        assert leaf["dateObserved"]["value"] == "2026-01-01T00:00:00Z"

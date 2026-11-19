@@ -19,6 +19,7 @@ vi.mock('@/services/deviceProfilesApi', () => ({
 vi.mock('@/services/dataloggersApi', () => ({ listSensorProfiles: vi.fn().mockResolvedValue([]) }));
 vi.mock('react-i18next', () => ({ useTranslation: () => ({ t: (k: string) => k }) }));
 vi.mock('@/context/ToastContext', () => ({ useToastContext: () => ({ success: vi.fn(), error: vi.fn() }) }));
+vi.mock('../steps/ObservationFields', () => ({ ObservationFields: () => null }));
 vi.mock('../../DeviceProfileHelpModal', () => ({ DeviceProfileHelpModal: () => null }));
 vi.mock('../ParentEntitySelector', () => ({
   ParentEntitySelector: ({ onSelectMany }: any) => (

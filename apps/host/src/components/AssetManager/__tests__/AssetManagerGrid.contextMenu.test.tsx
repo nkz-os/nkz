@@ -59,6 +59,7 @@ vi.mock('@/hooks/useAssets', () => ({
     exportAssets: vi.fn(),
   }),
 }));
+vi.mock('@/context/KeycloakAuthContext', () => ({ useAuth: () => ({ hasAnyRole: () => true }) }));
 vi.mock('@/context/ViewerContext', () => ({ useViewer: () => ({ selectEntity: vi.fn() }) }));
 vi.mock('@/context/ToastContext', () => ({ useToastContext: () => ({ success: vi.fn(), error: vi.fn() }) }));
 vi.mock('@/hooks/useEntityDependencies', () => ({

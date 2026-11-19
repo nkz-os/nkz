@@ -30,6 +30,9 @@ vi.mock('@nekazari/ui-kit', async () => {
 vi.mock('@/context/I18nContext', () => ({
   useI18n: () => ({ t: (key: string) => key }),
 }));
+vi.mock('@/context/KeycloakAuthContext', () => ({
+  useAuth: () => ({ hasAnyRole: () => true }),
+}));
 vi.mock('@/utils/logger', () => ({
   logger: { warn: vi.fn(), error: vi.fn(), debug: vi.fn(), info: vi.fn(), log: vi.fn() },
 }));
@@ -206,6 +209,59 @@ describe('AssetRelationshipModal', () => {
         controlledAsset: { type: 'Relationship', object: [P1] },
       });
       expect(deleteSDMEntityAttribute).not.toHaveBeenCalled();
+    });
+
+    it('modal_save_keeps_foreign_controlled_assets', async () => {
+      const F = 'urn:ngsi-ld:AgriGreenhouse:g1';
+      render(
+        <AssetRelationshipModal
+          asset={device([P1, F])}
+          potentialParents={parents}
+          onClose={vi.fn()}
+          onSuccess={vi.fn()}
+        />,
+      );
+      fireEvent.click(screen.getAllByRole('checkbox')[1]);
+      fireEvent.click(screen.getByText('entities.assets.assign.save'));
+      await waitFor(() =>
+        expect(mergeSDMEntity).toHaveBeenCalledWith('urn:ngsi-ld:Device:d1', {
+          controlledAsset: { type: 'Relationship', object: [P1, P2, F] },
+        }),
+      );
+    });
+
+    it('keeps a foreign owner first when ownership is untouched', async () => {
+      const F = 'urn:ngsi-ld:AgriGreenhouse:g1';
+      render(
+        <AssetRelationshipModal
+          asset={device([F, P1])}
+          potentialParents={parents}
+          onClose={vi.fn()}
+          onSuccess={vi.fn()}
+        />,
+      );
+      // Untouched: no write at all (order must not count as a change).
+      fireEvent.click(screen.getByText('entities.assets.assign.save'));
+      expect(mergeSDMEntity).not.toHaveBeenCalled();
+    });
+
+    it('keeps a foreign owner first when a parcel is added', async () => {
+      const F = 'urn:ngsi-ld:AgriGreenhouse:g1';
+      render(
+        <AssetRelationshipModal
+          asset={device([F, P1])}
+          potentialParents={parents}
+          onClose={vi.fn()}
+          onSuccess={vi.fn()}
+        />,
+      );
+      fireEvent.click(screen.getAllByRole('checkbox')[1]);
+      fireEvent.click(screen.getByText('entities.assets.assign.save'));
+      await waitFor(() =>
+        expect(mergeSDMEntity).toHaveBeenCalledWith('urn:ngsi-ld:Device:d1', {
+          controlledAsset: { type: 'Relationship', object: [F, P1, P2] },
+        }),
+      );
     });
 
     it('blocks unchecking the last parcel', () => {

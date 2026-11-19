@@ -188,3 +188,36 @@ describe('validateDataloggerStep', () => {
     expect(validateDataloggerStep('WeatherObserved', form(), false)).toBeNull();
   });
 });
+
+describe('submitIoTSensor — observation fields', () => {
+  beforeEach(() => {
+    registerSensor.mockReset();
+    registerSensor.mockResolvedValue({ entity_id: 'urn:ngsi-ld:Device:tenant-a:probe_1', topic: '/k/probe_1/attrs', datalogger_id: 'dl-1' });
+  });
+
+  it('submitIoTSensor_sends_observation_fields', async () => {
+    await submitIoTSensor('Device', form({
+      observesFeature: P1,
+      observationContext: { medium: 'soil', depthFrom: 0, depthTo: 10 },
+      channelOverrides: { temperature: { observationContext: { medium: 'ambientAir', heightAboveGround: 2 } } },
+      mobility: 'fixed',
+      validFrom: '2026-11-01T08:00:00+01:00',
+    }));
+    expect(registerSensor.mock.calls[0][0]).toMatchObject({
+      observesFeature: P1,
+      observationContext: { medium: 'soil', depthFrom: 0, depthTo: 10 },
+      channelOverrides: { temperature: { observationContext: { medium: 'ambientAir', heightAboveGround: 2 } } },
+      mobility: 'fixed',
+      validFrom: '2026-11-01T08:00:00+01:00',
+    });
+  });
+
+  it('submitIoTSensor_omits_unset_fields', async () => {
+    await submitIoTSensor('Device', form({ observesFeature: '', channelOverrides: {} }));
+    const body = registerSensor.mock.calls[0][0];
+    for (const key of ['observesFeature', 'observationContext', 'channelOverrides', 'mobility', 'validFrom']) {
+      expect(body).not.toHaveProperty(key);
+    }
+  });
+});
+

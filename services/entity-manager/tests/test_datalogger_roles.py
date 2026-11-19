@@ -23,6 +23,9 @@ WRITES = [
     ("put", f"/api/sensors/devices/{URN}/datalogger", {"datalogger_id": DL}),
     ("put", f"/api/sensors/devices/{URN}/profile", {"profile": "p"}),
     ("delete", f"/api/sensors/devices/{URN}", None),
+    ("get", f"/api/sensors/devices/{URN}/deployments", None),
+    ("post", f"/api/sensors/devices/{URN}/deployments", {"reason": "moved"}),
+    ("put", "/api/sensors/deployments/dep-1", {"observesFeature": None, "reason": "fix"}),
 ]
 
 

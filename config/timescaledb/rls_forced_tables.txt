@@ -3,3 +3,6 @@
 # A table enters when every role with access sets app.current_tenant per transaction.
 public.iot_dataloggers
 public.iot_datalogger_devices
+public.observation_properties
+public.device_deployments
+public.device_deployment_changes

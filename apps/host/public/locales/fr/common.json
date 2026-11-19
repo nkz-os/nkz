@@ -842,7 +842,8 @@
       "datalogger_kind_required": "Choisissez le type de datalogger",
       "external_id_invalid": "L'identifiant n'accepte que des lettres, chiffres, point, tiret et tiret bas (1 à 64 caractères)",
       "sdm_required": "Remplissez les champs obligatoires (*).",
-      "location_required": "Indiquez l'emplacement sur la carte."
+      "location_required": "Indiquez l'emplacement sur la carte.",
+      "observation_invalid": "Vérifiez ce que le capteur observe"
     },
     "errors": {
       "incomplete_state": "État de l'assistant incomplet",
@@ -1365,6 +1366,63 @@
           "windTurbine": "Éolienne",
           "other": "Autre"
         }
+      }
+    },
+    "observation": {
+      "title": "Ce qu'il observe",
+      "hint": "Facultatif. Indique ce que mesurent les relevés et où, afin que d'autres modules puissent les utiliser.",
+      "medium": "Milieu",
+      "medium_unset": "Non précisé",
+      "medium_ambientAir": "Air libre",
+      "medium_ambientAirUnderStructure": "Air sous une structure",
+      "medium_enclosedAir": "Air dans un espace clos",
+      "medium_soil": "Sol",
+      "medium_plant": "Plante",
+      "medium_water": "Eau",
+      "medium_equipment": "Équipement",
+      "field": {
+        "heightAboveGround": "Hauteur au-dessus du sol (m)",
+        "structure": "Structure",
+        "enclosure": "Enceinte (serre)",
+        "depthFrom": "Profondeur de (cm)",
+        "depthTo": "Profondeur à (cm)",
+        "organ": "Organe de la plante"
+      },
+      "organ": {
+        "stem": "Tige",
+        "leaf": "Feuille",
+        "fruit": "Fruit",
+        "canopy": "Houppier",
+        "root": "Racine"
+      },
+      "feature": "Élément observé",
+      "feature_none": "Aucun",
+      "feature_hint": "Parcelle, zone, plante, serre ou parc solaire des parcelles sélectionnées.",
+      "feature_hint_equipment": "Laissez vide si le capteur mesure l'appareil lui-même.",
+      "mobility": "Mobilité",
+      "mobility_unset": "Non précisé",
+      "mobility_fixed": "Fixe",
+      "mobility_mobile": "Mobile",
+      "valid_from": "Installé depuis",
+      "valid_from_hint": "Facultatif. Date et heure depuis lesquelles le capteur observe cela ; ne peut pas être dans le futur.",
+      "overrides_title": "Exceptions par canal",
+      "overrides_hint": "Uniquement pour les canaux qui observent autre chose que les autres.",
+      "override_same": "Identique au capteur",
+      "error": {
+        "medium_invalid": "Choisissez un milieu valide",
+        "structure_required": "Choisissez la structure",
+        "enclosure_required": "Choisissez l'enceinte",
+        "depthFrom_required": "Indiquez la profondeur de départ",
+        "depthTo_required": "Indiquez la profondeur d'arrivée",
+        "organ_required": "Choisissez l'organe de la plante",
+        "depth_range": "La profondeur de départ doit être 0 ou plus et inférieure à celle d'arrivée",
+        "heightAboveGround_negative": "La hauteur doit être 0 ou plus",
+        "heightAboveGround_number": "La hauteur doit être un nombre",
+        "depthFrom_number": "La profondeur doit être un nombre",
+        "depthTo_number": "La profondeur doit être un nombre",
+        "structure_urn": "Structure non valide",
+        "enclosure_urn": "Enceinte non valide",
+        "organ_invalid": "Organe de plante non valide"
       }
     }
   },
@@ -2148,6 +2206,27 @@
         "Animal": "Animal",
         "Tank": "Réservoir ou bassin",
         "StorageBatteryDevice": "Batterie"
+      },
+      "deployments": {
+        "title": "Historique des déploiements",
+        "move": "Déplacer / changer de contexte",
+        "correct": "Corriger cette période",
+        "open": "actuel",
+        "empty": "Aucun déploiement enregistré.",
+        "valid_from": "Depuis",
+        "valid_from_move": "Effectif à partir du",
+        "valid_to": "Jusqu'au",
+        "valid_to_hint": "Laissez vide pour garder la période ouverte.",
+        "location": "Emplacement",
+        "latitude": "Latitude",
+        "longitude": "Longitude",
+        "location_required": "Indiquez la latitude et la longitude pour un appareil fixe",
+        "location_invalid": "La latitude doit être comprise entre -90 et 90 et la longitude entre -180 et 180",
+        "reason": "Motif",
+        "reason_required": "Indiquez un motif",
+        "no_changes": "Aucune modification à enregistrer",
+        "load_error": "Impossible de charger l'historique des déploiements",
+        "save_error": "Impossible d'enregistrer le déploiement"
       }
     },
     "filters": {

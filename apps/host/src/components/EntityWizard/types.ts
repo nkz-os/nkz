@@ -1,6 +1,7 @@
 import type { Geometry, Polygon, MultiPolygon } from 'geojson';
 import type { ParentEntity } from './ParentEntitySelector';
 import type { DataloggerKind } from '@/services/dataloggersApi';
+import type { ObservationContext } from '@/utils/observationContext';
 
 // Re-export from existing sub-components for central access
 export type { ParentEntity } from './ParentEntitySelector';
@@ -84,6 +85,16 @@ export interface IoTSensorFormData extends BaseFormData {
   // (stored in form state for submission to POST /api/sensors)
   healthConfig?: Record<string, unknown> & { communicationTimeoutHours?: number };
   calibrationConfig?: Record<string, unknown>;
+
+  // Device only: what the sensor observes (all optional; sent only when set).
+  /** URN of the observed feature; with medium `equipment` empty means the device itself. */
+  observesFeature?: string;
+  observationContext?: ObservationContext;
+  /** Per-channel overrides keyed by the profile measurement's `sdmAttribute`. */
+  channelOverrides?: Record<string, { observesFeature?: string; observationContext?: ObservationContext }>;
+  mobility?: 'fixed' | 'mobile';
+  /** ISO-8601 with offset: installed since. */
+  validFrom?: string;
 }
 
 export interface FleetFormData extends BaseFormData {

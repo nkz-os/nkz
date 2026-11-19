@@ -45,6 +45,11 @@
     "WaterQualityObserved": "Official SDM dataModel.WaterQuality. Nitrate content of irrigation water, credited in the nutrient plan.",
     "WeatherForecast": "SDM oficial dataModel.Weather. Lleva los agregados diarios (dayMinimum/dayMaximum) que WeatherObserved no define: el SDM modela WeatherObserved como observación instantánea.",
     "WeatherObserved": "Platform extension — SAREF4AGRI has no WeatherObserved. SDM WeatherObserved exists in dataModel.Weather. Legacy mapping: saref4agri:WeatherObserved.",
-    "controlledAsset": "Official SDM Device property. The asset a device monitors — sole canonical device-to-parcel link. Replaces the platform-specific parcelId property."
+    "controlledAsset": "Official SDM Device property. The asset a device monitors — sole canonical device-to-parcel link. Replaces the platform-specific parcelId property.",
+    "observesFeature": "SDM Device has no feature-of-interest relation; maps to W3C SOSA sosa:hasFeatureOfInterest",
+    "observationContext": "Medium a device measures (air, soil, plant, water) and where in it; SDM Device has no such property",
+    "channelOverrides": "Per-channel feature or context that differs from the device default; SDM Device has no per-channel model",
+    "mobility": "Whether a device stays in place (fixed) or moves (mobile); SDM Device has no such property",
+    "deploymentId": "Id of the device's current deployment, linking it to its versioned installation history; not modelled in SDM"
   }
 }

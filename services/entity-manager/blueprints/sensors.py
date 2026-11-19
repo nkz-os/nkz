@@ -10,7 +10,7 @@ import uuid
 import logging
 import math
 import secrets
-from datetime import datetime
+from datetime import datetime, timezone
 from functools import wraps
 from typing import Optional
 
@@ -28,7 +28,10 @@ from db_helper import get_db_connection_with_tenant, get_db_connection_simple, r
 # Import shared config
 from helpers import ORION_URL, CONTEXT_URL
 import dataloggers
+import deployments
+import observation_catalogue
 from common.context_aliases import canonical_attribute
+from common.observation_context import validate_channel_overrides, validate_observation_context
 from common.jexl_expressions import validate_jexl_expression
 from common.unit_codes import to_unit_code
 
@@ -255,6 +258,217 @@ def _ensure_bridge_subscription(tenant: str) -> None:
                                    'bridge_subscription')
 
 
+# ---- observation context and deployments ---------------------------------------
+
+_OPTIONAL_OBSERVATION_ATTRS = ('observesFeature', 'observationContext', 'channelOverrides')
+_URN_CONTEXT_FIELDS = ('structure', 'enclosure')
+_MIRROR_ERROR = 'Could not update the device in the context broker'
+
+
+def _parse_instant(value, name: str) -> datetime:
+    """ISO-8601 string with a UTC offset; anything else is a 400."""
+    if not isinstance(value, str):
+        raise dataloggers.ApiError(400, f'{name} must be an ISO-8601 timestamp with offset')
+    try:
+        parsed = datetime.fromisoformat(value.strip().replace('Z', '+00:00'))
+    except ValueError:
+        raise dataloggers.ApiError(400, f'{name} must be an ISO-8601 timestamp with offset')
+    if parsed.tzinfo is None or parsed.utcoffset() is None:
+        raise dataloggers.ApiError(400, f'{name} must be an ISO-8601 timestamp with offset')
+    return parsed
+
+
+def _past_instant(value, name: str) -> datetime:
+    """The given instant (never in the future), or now when absent."""
+    now = datetime.now(timezone.utc)
+    if value is None:
+        return now
+    parsed = _parse_instant(value, name)
+    if parsed > now:
+        raise dataloggers.ApiError(400, f'{name} must not be in the future')
+    return parsed
+
+
+def _zulu(moment: datetime) -> str:
+    return moment.astimezone(timezone.utc).isoformat().replace('+00:00', 'Z')
+
+
+def _reason(data: dict) -> str:
+    reason = data.get('reason')
+    if not isinstance(reason, str) or not reason.strip():
+        raise dataloggers.ApiError(400, 'reason is required')
+    return reason.strip()
+
+
+def _location_pair(raw) -> Optional[tuple]:
+    """{lat, lon} -> (lon, lat); None stays None."""
+    if raw is None:
+        return None
+    if not isinstance(raw, dict):
+        raise dataloggers.ApiError(400, 'location must be {lat, lon}')
+    return (_coordinate(raw.get('lon'), 'lon'), _coordinate(raw.get('lat'), 'lat'))
+
+
+def _validated_observation(data: dict, attributes: set) -> dict:
+    """Validate the observation keys present in `data`; absent keys stay absent.
+
+    `observesFeature: null` is meaningful (no feature); null for the other keys means
+    "not supplied". An empty `observationContext` means "none declared".
+    """
+    out = {}
+    if 'observesFeature' in data:
+        feature = data['observesFeature']
+        if feature is not None and (not isinstance(feature, str)
+                                    or not feature.startswith('urn:ngsi-ld:')):
+            raise dataloggers.ApiError(400, "observesFeature must be an NGSI-LD URN")
+        out['observesFeature'] = feature
+    try:
+        if data.get('observationContext') is not None:
+            ctx = data['observationContext']
+            out['observationContext'] = (
+                {} if ctx == {} else validate_observation_context(ctx))
+        if data.get('channelOverrides') is not None:
+            out['channelOverrides'] = validate_channel_overrides(data['channelOverrides'], attributes)
+    except ValueError as exc:
+        raise dataloggers.ApiError(400, str(exc))
+    if data.get('mobility') is not None:
+        if data['mobility'] not in deployments.MOBILITIES:
+            raise dataloggers.ApiError(400, "mobility must be 'fixed' or 'mobile'")
+        out['mobility'] = data['mobility']
+    return out
+
+
+def _named_urns(obs: dict) -> list:
+    """Every entity URN the request refers to, in order, without repeats."""
+    urns = []
+    if obs.get('observesFeature'):
+        urns.append(obs['observesFeature'])
+    contexts = [obs.get('observationContext') or {}]
+    for override in (obs.get('channelOverrides') or {}).values():
+        if override.get('observesFeature'):
+            urns.append(override['observesFeature'])
+        contexts.append(override.get('observationContext') or {})
+    for ctx in contexts:
+        urns.extend(ctx[f] for f in _URN_CONTEXT_FIELDS if ctx.get(f))
+    return list(dict.fromkeys(urns))
+
+
+@dataloggers.in_step('orion_read', 'Could not read the context broker')
+def _orion_get_entity(tenant_id: str, urn: str) -> Optional[dict]:
+    """Tenant-scoped read of the FULL entity (an `attrs` filter 404s on an existing one)."""
+    resp = requests.get(
+        f"{ORION_URL}/ngsi-ld/v1/entities/{urn}",
+        headers=inject_fiware_headers({}, tenant=tenant_id, has_context_in_body=False),
+        timeout=10)
+    if resp.status_code == 404:
+        return None
+    if resp.status_code != 200:
+        raise dataloggers.ApiError(502, 'Could not read the context broker', 'orion_read')
+    return resp.json()
+
+
+def _require_entities_exist(tenant_id: str, urns: list) -> None:
+    for urn in urns:
+        if _orion_get_entity(tenant_id, urn) is None:
+            raise dataloggers.ApiError(400, f'{urn} does not exist for this tenant')
+
+
+def _profile_attributes(tenant_id: str, device: dict) -> set:
+    """Canonical sdmAttribute names of the device's profile."""
+    code = _extract_prop_value(device, 'profileCode')
+    row = _read_profile(tenant_id, code) if isinstance(code, str) and code else None
+    if not row:
+        raise dataloggers.ApiError(400, 'The device has no known profile')
+    mapping = row.get('mapping')
+    measurements = (mapping.get('measurements') or []) if isinstance(mapping, dict) else []
+    return {m['sdmAttribute'] for m in measurements if m.get('sdmAttribute')}
+
+
+def _observation_attrs(dep: dict) -> dict:
+    """Orion attributes for a deployment: only those with a value, never null."""
+    attrs = {'mobility': {'type': 'Property', 'value': dep['mobility']},
+             'deploymentId': {'type': 'Property', 'value': dep['id']}}
+    if dep.get('observesFeature'):
+        attrs['observesFeature'] = {'type': 'Relationship', 'object': dep['observesFeature']}
+    if dep.get('observationContext'):
+        attrs['observationContext'] = {'type': 'Property', 'value': dep['observationContext']}
+    if dep.get('channelOverrides'):
+        attrs['channelOverrides'] = {'type': 'Property', 'value': dep['channelOverrides']}
+    return attrs
+
+
+@dataloggers.in_step('orion_mirror', _MIRROR_ERROR)
+def _mirror_deployment(tenant_id: str, device_urn: str, dep: Optional[dict]) -> None:
+    """Make the Device's observation attributes match `dep` (the current deployment).
+
+    POST /attrs appends and overwrites (PATCH would 404 on a missing attribute and
+    null is a 400); attributes the deployment lacks are deleted, a 404 there is fine.
+    `dep=None` (the device has no current deployment) deletes all of them, deploymentId
+    included. A deployment's location is mirrored to `location`; a deployment without
+    one leaves `location` alone (mobile devices keep their last reported position).
+    """
+    base = f"{ORION_URL}/ngsi-ld/v1/entities/{device_urn}"
+    if dep is None:
+        attrs, removable = {}, _OPTIONAL_OBSERVATION_ATTRS + ('deploymentId',)
+    else:
+        attrs, removable = _observation_attrs(dep), _OPTIONAL_OBSERVATION_ATTRS
+        loc = dep.get('location')
+        if loc:
+            attrs['location'] = {'type': 'GeoProperty', 'value': {
+                'type': 'Point', 'coordinates': [loc['lon'], loc['lat']]}}
+    if attrs:
+        resp = requests.post(
+            f"{base}/attrs", json=attrs,
+            headers=inject_fiware_headers({'Content-Type': 'application/json'}, tenant=tenant_id,
+                                          has_context_in_body=False),
+            timeout=10)
+        if resp.status_code not in (200, 204):
+            raise dataloggers.ApiError(502, _MIRROR_ERROR, 'orion_mirror')
+    for attr in removable:
+        if attr in attrs:
+            continue
+        gone = requests.delete(
+            f"{base}/attrs/{attr}",
+            headers=inject_fiware_headers({}, tenant=tenant_id, has_context_in_body=False),
+            timeout=10)
+        if gone.status_code not in (200, 204, 404):
+            raise dataloggers.ApiError(502, _MIRROR_ERROR, 'orion_mirror')
+
+
+def _remirror_current(tenant_id: str, device_urn: str, failed_id: str, restored_id: str) -> None:
+    """After a rollback, bring Orion back in line with the now-current deployment.
+
+    The failed mirror may have written part of the new state (POST ok, a later DELETE
+    failed). Best effort: if this fails too, log both ids and let the caller answer 502.
+    """
+    try:
+        _mirror_deployment(tenant_id, device_urn,
+                           deployments.current_deployment(tenant_id, device_urn))
+    except Exception as exc:
+        logger.error("orion mirror left diverged after rollback tenant=%s device=%s "
+                     "failed_deployment=%s restored_deployment=%s error=%s",
+                     tenant_id, device_urn, failed_id, restored_id, type(exc).__name__)
+
+
+def _deployment_json(dep: dict) -> dict:
+    out = dict(dep)
+    for key in ('valid_from', 'valid_to'):
+        if isinstance(out.get(key), datetime):
+            out[key] = out[key].isoformat()
+    return out
+
+
+def _actor() -> str:
+    return str(g.get('user_id') or g.get('user') or 'unknown')
+
+
+def _is_current(dep: Optional[dict]) -> bool:
+    if not dep:
+        return False
+    now = datetime.now(timezone.utc)
+    return dep['valid_from'] <= now and (dep['valid_to'] is None or dep['valid_to'] > now)
+
+
 @sensors_bp.route('/api/sensors/register', methods=['POST'])
 @require_auth
 @_guard
@@ -273,7 +487,11 @@ def register_sensor():
         "profile": "par_photon_flux",
         "location": {"lat": 42.57, "lon": -2.02},
         "controlledAsset": ["urn:ngsi-ld:AgriParcel:<id>", ...],   # owner first, >= 1 parcel
-        "datalogger_id": "<uuid>"
+        "datalogger_id": "<uuid>",
+        # optional observation fields (see deployments.py)
+        "observesFeature": "urn:ngsi-ld:...", "observationContext": {"medium": "ambientAir"},
+        "channelOverrides": {"<sdmAttribute>": {...}}, "mobility": "fixed|mobile",
+        "validFrom": "2026-03-01T08:00:00+00:00"   # start of the first deployment, not in the future
     }
     """
     _require_installer()
@@ -299,6 +517,8 @@ def register_sensor():
         raise dataloggers.ApiError(
             400, 'controlledAsset must hold NGSI-LD URNs and at least one AgriParcel.')
 
+    valid_from = _past_instant(data.get('validFrom'), 'validFrom')
+
     # Reads and validations first: nothing is written until all of them pass.
     datalogger = dataloggers.require_usable_datalogger(tenant_id, data['datalogger_id'])
 
@@ -317,6 +537,10 @@ def register_sensor():
     except (KeyError, TypeError, AttributeError):
         raise dataloggers.ApiError(400, 'Profile measurements need type and sdmAttribute')
 
+    obs = _validated_observation(
+        data, {m['sdmAttribute'] for m in measurements if m.get('sdmAttribute')})
+    _require_entities_exist(tenant_id, _named_urns(obs))
+
     orion_entity_id = f"urn:ngsi-ld:{sdm_entity_type}:{tenant_id}:{external_id}"
     if dataloggers.device_link(tenant_id, orion_entity_id):
         raise dataloggers.ApiError(409, 'Device is already on a datalogger')
@@ -330,6 +554,16 @@ def register_sensor():
                        'external_id': _extract_prop_value(existing, 'externalId'),
                        'name': _extract_prop_value(existing, 'name')},
         }), 409
+
+    history = deployments.list_deployments(tenant_id, orion_entity_id)
+    if any(d['valid_to'] is None for d in history):
+        # An open deployment belongs to a live or half-deleted device; a closed history
+        # (device deleted before) is kept and the new deployment starts after it.
+        raise dataloggers.ApiError(409, f'Sensor "{external_id}" already has an open deployment')
+    ended = [d['valid_to'] for d in history]
+    if ended and valid_from <= max(ended):
+        raise dataloggers.ApiError(
+            409, f'validFrom must be after the end of the previous deployment history of "{external_id}"')
 
     metadata = data.get('metadata', {})
     if data.get('station_id'):
@@ -346,7 +580,7 @@ def register_sensor():
         'externalId': {'type': 'Property', 'value': external_id},
         'sensorType': {'type': 'Property', 'value': profile_code},
         'profileCode': {'type': 'Property', 'value': profile_code},
-        'installedAt': {'type': 'Property', 'value': datetime.utcnow().isoformat()},
+        'installedAt': {'type': 'Property', 'value': _zulu(valid_from)},
         'status': {'type': 'Property', 'value': 'active'},
         # controlledAsset is the SDM device->asset relationship; first entry is the owner.
         'controlledAsset': {'type': 'Relationship', 'object': parcels},
@@ -366,9 +600,22 @@ def register_sensor():
             orion_entity[attr] = {'type': 'Property', 'value': data[attr]}
 
     apikey = dataloggers.get_apikey(tenant_id)
+    spec = deployments.DeploymentSpec(
+        observes_feature=obs.get('observesFeature'),
+        observation_context=obs.get('observationContext', {}),
+        channel_overrides=obs.get('channelOverrides', {}),
+        mobility=obs.get('mobility', 'fixed'),
+        location=(lon, lat))
 
     undo = dataloggers.UndoStack()
     try:
+        # Opened before the entity so the Orion body already carries deploymentId; its
+        # undo goes on the stack at once, so any later failure removes it (last).
+        first = deployments.open_deployment(tenant_id, orion_entity_id, spec, valid_from,
+                                            _actor(), 'registration', first=True)
+        undo.push('deployment', lambda: deployments.delete_deployment(tenant_id, first['id']))
+        orion_entity.update(_observation_attrs(first))
+
         orion_response = _orion_create(tenant_id, orion_entity)
         if orion_response.status_code == 409:
             # Not ours: never compensate (delete) an entity this request did not create.
@@ -508,8 +755,181 @@ def change_device_profile(device_urn):
 @_guard
 def delete_sensor_device(device_urn):
     _require_installer()
-    dataloggers.delete_device(_tenant(), device_urn)
+    tenant_id = _tenant()
+    dataloggers.delete_device(tenant_id, device_urn)
+    # After the entity is gone, so a half-deleted device keeps its deployment and a
+    # retry of this call finishes the job (every step is idempotent).
+    try:
+        deployments.close_open_deployment(tenant_id, device_urn, _actor(), 'device deleted')
+    except Exception as exc:
+        logger.error("device deleted but its open deployment was not closed tenant=%s device=%s "
+                     "error=%s", tenant_id, device_urn, type(exc).__name__)
+        raise
     return '', 204
+
+
+# =============================================================================
+# Device deployments
+# =============================================================================
+
+
+@sensors_bp.route('/api/sensors/devices/<path:device_urn>/deployments', methods=['GET'])
+@require_auth
+@_guard
+def list_device_deployments(device_urn):
+    _require_installer()
+    tenant_id = _tenant()
+    dataloggers.parse_device_urn(tenant_id, device_urn)
+    found = deployments.list_deployments(tenant_id, device_urn)
+    return jsonify({'deployments': [_deployment_json(d) for d in found]}), 200
+
+
+@sensors_bp.route('/api/sensors/devices/<path:device_urn>/deployments', methods=['POST'])
+@require_auth
+@_guard
+def move_device_deployment(device_urn):
+    """Close the current deployment and open a new one; absent fields are copied."""
+    _require_installer()
+    tenant_id = _tenant()
+    dataloggers.parse_device_urn(tenant_id, device_urn)
+    data = _body()
+    reason = _reason(data)
+    valid_from = _past_instant(data.get('validFrom'), 'validFrom')
+
+    device = _orion_get_entity(tenant_id, device_urn)
+    if device is None:
+        raise dataloggers.ApiError(404, 'Device not found')
+    attributes = _profile_attributes(tenant_id, device) if data.get('channelOverrides') else set()
+    supplied = _validated_observation(data, attributes)
+    _require_entities_exist(tenant_id, _named_urns(supplied))
+
+    current = deployments.current_deployment(tenant_id, device_urn)
+    if 'location' in data:
+        location = _location_pair(data['location'])
+    elif current and current.get('location'):
+        location = (current['location']['lon'], current['location']['lat'])
+    else:
+        location = None
+    mobility = supplied.get('mobility') or (current['mobility'] if current else 'fixed')
+    if mobility == 'fixed' and location is None:
+        raise dataloggers.ApiError(400, 'location is required for a fixed deployment')
+
+    def pick(key, default):
+        if key in supplied:
+            return supplied[key]
+        return current[key] if current else default
+
+    spec = deployments.DeploymentSpec(
+        observes_feature=pick('observesFeature', None),
+        observation_context=pick('observationContext', {}),
+        channel_overrides=pick('channelOverrides', {}),
+        mobility=mobility, location=location)
+    actor = _actor()
+    created = deployments.open_deployment(tenant_id, device_urn, spec, valid_from, actor, reason)
+    try:
+        _mirror_deployment(tenant_id, device_urn, created)
+    except Exception:
+        logger.error("deployment mirror failed, reverting tenant=%s device=%s deployment=%s",
+                     tenant_id, device_urn, created['id'])
+        try:
+            deployments.revert_open(tenant_id, created['id'], actor)
+        except Exception as exc:
+            logger.critical("deployment revert failed tenant=%s deployment=%s error=%s",
+                            tenant_id, created['id'], type(exc).__name__)
+        else:
+            _remirror_current(tenant_id, device_urn, created['id'],
+                              current['id'] if current else 'none')
+        raise
+    return jsonify(_deployment_json(created)), 201
+
+
+_CORRECTION_KEYS = {'validFrom': 'valid_from', 'validTo': 'valid_to',
+                    'observesFeature': 'observesFeature',
+                    'observationContext': 'observation_context',
+                    'channelOverrides': 'channel_overrides', 'location': 'location'}
+
+
+@sensors_bp.route('/api/sensors/deployments/<deployment_id>', methods=['PUT'])
+@require_auth
+@_guard
+def correct_device_deployment(deployment_id):
+    """Fix a deployment in place; only the current one is mirrored to the Device."""
+    _require_installer()
+    tenant_id = _tenant()
+    data = _body()
+    reason = _reason(data)
+    unknown = sorted(set(data) - set(_CORRECTION_KEYS) - {'reason'})
+    if unknown:
+        raise dataloggers.ApiError(
+            400, f"cannot correct: {', '.join(unknown)} (open a new deployment to change mobility)")
+    if not any(k in data for k in _CORRECTION_KEYS):
+        raise dataloggers.ApiError(400, 'No changes given')
+
+    before = deployments.get_deployment(tenant_id, deployment_id)
+    if before is None:
+        raise dataloggers.ApiError(404, 'Deployment not found')
+    device_urn = before['device_urn']
+    dataloggers.parse_device_urn(tenant_id, device_urn)
+
+    attributes = set()
+    if data.get('channelOverrides'):
+        device = _orion_get_entity(tenant_id, device_urn)
+        if device is None:
+            raise dataloggers.ApiError(404, 'Device not found')
+        attributes = _profile_attributes(tenant_id, device)
+    supplied = _validated_observation(data, attributes)
+    _require_entities_exist(tenant_id, _named_urns(supplied))
+
+    changes = {}
+    if 'validFrom' in data:
+        changes['valid_from'] = _past_instant(data['validFrom'], 'validFrom')
+    if 'validTo' in data:
+        changes['valid_to'] = (None if data['validTo'] is None
+                               else _past_instant(data['validTo'], 'validTo'))
+    if 'observesFeature' in supplied:
+        changes['observesFeature'] = supplied['observesFeature']
+    if 'observationContext' in supplied:
+        changes['observation_context'] = supplied['observationContext']
+    if 'channelOverrides' in supplied:
+        changes['channel_overrides'] = supplied['channelOverrides']
+    if 'location' in data:
+        location = _location_pair(data['location'])
+        if location is None and before['mobility'] == 'fixed':
+            raise dataloggers.ApiError(400, 'location is required for a fixed deployment')
+        changes['location'] = location
+    if not changes:
+        raise dataloggers.ApiError(400, 'No changes given')
+
+    actor = _actor()
+    after = deployments.correct_deployment(tenant_id, deployment_id, changes, actor, reason)
+
+    touched = _is_current(after) or _is_current(before)
+    if touched:
+        try:
+            # No current deployment left ("sensor removed"): the mirror clears the attributes.
+            target = after if _is_current(after) else deployments.current_deployment(
+                tenant_id, device_urn)
+            _mirror_deployment(tenant_id, device_urn, target)
+        except Exception:
+            logger.error("deployment mirror failed, restoring tenant=%s deployment=%s",
+                         tenant_id, deployment_id)
+            try:
+                deployments.correct_deployment(
+                    tenant_id, deployment_id,
+                    {'valid_from': before['valid_from'], 'valid_to': before['valid_to'],
+                     'observesFeature': before['observesFeature'],
+                     'observation_context': before['observationContext'],
+                     'channel_overrides': before['channelOverrides'],
+                     'location': (None if not before['location']
+                                  else (before['location']['lon'], before['location']['lat']))},
+                    actor, 'rollback: orion mirror failed')
+            except Exception as exc:
+                logger.critical("deployment restore failed tenant=%s deployment=%s error=%s",
+                                tenant_id, deployment_id, type(exc).__name__)
+            else:
+                _remirror_current(tenant_id, device_urn, deployment_id, deployment_id)
+            raise
+    return jsonify(_deployment_json(after)), 200
 
 
 # =============================================================================
@@ -521,7 +941,7 @@ _PROFILE_CODE = re.compile(r'[A-Za-z0-9_.-]{1,64}')
 _VALUE_TYPES = ('Number', 'Text')
 
 
-def _validated_profile(data: dict) -> tuple:
+def _validated_profile(data: dict, tenant_id: str) -> tuple:
     """(name, description, mapping) of a profile body, with `sdmAttribute` canonicalized."""
     name = data.get('name')
     if not isinstance(name, str) or not name.strip():
@@ -560,6 +980,24 @@ def _validated_profile(data: dict) -> tuple:
             ok, why = validate_jexl_expression(m['expression'], variables=keys)
             if not ok:
                 raise dataloggers.ApiError(400, f'Invalid expression: {why}')
+        observed = m.get('observedProperty')
+        counter_max = m.get('counterMax')
+        if observed is not None:
+            if not isinstance(observed, str) or not observed.strip():
+                raise dataloggers.ApiError(400, 'observedProperty must be text')
+            observed = observed.strip()
+            prop = observation_catalogue.get_property(tenant_id, observed)
+            if prop is None:
+                raise dataloggers.ApiError(400, f'Unknown observedProperty "{observed}"')
+        if 'counterMax' in m:
+            if observed is None:
+                raise dataloggers.ApiError(400, 'counterMax requires observedProperty')
+            if (isinstance(counter_max, bool) or not isinstance(counter_max, (int, float))
+                    or not math.isfinite(counter_max) or counter_max <= 0):
+                raise dataloggers.ApiError(400, 'counterMax must be a positive number')
+            if prop['temporal_semantics'] != 'cumulative':
+                raise dataloggers.ApiError(
+                    400, f'counterMax only applies to cumulative properties, "{observed}" is not')
         attribute = canonical_attribute(m['sdmAttribute'].strip())
         if attribute in seen:
             raise dataloggers.ApiError(400, f'Duplicate sdmAttribute "{attribute}"')
@@ -568,6 +1006,10 @@ def _validated_profile(data: dict) -> tuple:
         for field in ('incomingKey', 'valueType', 'expression'):
             if m.get(field):
                 clean[field] = m[field]
+        if observed is not None:
+            clean['observedProperty'] = observed
+        if 'counterMax' in m:
+            clean['counterMax'] = counter_max
         measurements.append(clean)
     return name.strip(), description, {**mapping, 'measurements': measurements}
 
@@ -596,7 +1038,7 @@ def create_sensor_profile():
     code = data.get('code')
     if not isinstance(code, str) or not _PROFILE_CODE.fullmatch(code):
         raise dataloggers.ApiError(400, 'Invalid code')
-    name, description, mapping = _validated_profile(data)
+    name, description, mapping = _validated_profile(data, tenant)
     if _profile_visible(tenant, code):
         raise dataloggers.ApiError(409, 'Profile code already exists')
     try:
@@ -625,7 +1067,7 @@ def update_sensor_profile(code):
     data = _body()
     if data.get('code', code) != code:
         raise dataloggers.ApiError(400, 'code in body does not match the URL')
-    name, description, mapping = _validated_profile(data)
+    name, description, mapping = _validated_profile(data, tenant)
     row = _profile_visible(tenant, code)
     if not row:
         raise dataloggers.ApiError(404, 'Profile not found')

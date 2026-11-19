@@ -400,6 +400,15 @@ def wired(state, monkeypatch=None, host="mqtt.example.org", port="8883"):
         return {"created": 1, "skipped": 0, "errors": []}
 
     import blueprints.notifications as notifications
+    import deployments
+
+    def open_deployment(tenant, urn, spec, valid_from, actor, reason, first=False):
+        # No database here: just the row the real function would return.
+        return {"id": "dep-1", "device_urn": urn, "valid_from": valid_from, "valid_to": None,
+                "observesFeature": spec.observes_feature,
+                "observationContext": spec.observation_context,
+                "channelOverrides": spec.channel_overrides, "mobility": spec.mobility,
+                "location": None}
 
     with patch.dict(os.environ, env), \
          patch.object(dataloggers, "get_db_connection_with_tenant", db), \
@@ -411,6 +420,10 @@ def wired(state, monkeypatch=None, host="mqtt.example.org", port="8883"):
          patch.object(sensors, "requests", orion), \
          patch.object(sensors, "mqtt", MagicMock()), \
          patch.object(sensors, "_tenant", lambda: TENANT), \
+         patch.object(deployments, "open_deployment", open_deployment), \
+         patch.object(deployments, "delete_deployment", lambda tenant, dep_id: None), \
+         patch.object(deployments, "close_open_deployment", lambda tenant, urn, actor, reason: None), \
+         patch.object(deployments, "list_deployments", lambda tenant, urn: []), \
          patch.object(notifications, "ensure_device_measurement_subscriptions", bridge):
         yield SimpleNamespace(orion=orion, dynsec=dyn, iota=iota, state=state)
 
