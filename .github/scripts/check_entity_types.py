@@ -11,7 +11,8 @@ reads a unified diff on stdin and reports unknown type names on added lines, and
 the `ratchet` subcommand, which compares the lists with their state on a base ref, and the
 `inventory` subcommand, which lists every unknown type name in a git working tree.
 
-Exit codes: 0 clean, 1 findings.
+Exit codes: 0 clean, 1 findings (or, for `ratchet`, offences), 2 unresolved base ref
+(`ratchet`) or bad arguments, 3 internal error (any unexpected exception).
 """
 
 from __future__ import annotations
@@ -386,13 +387,19 @@ def main(argv: list[str] | None = None) -> int:
     inventory_cmd.add_argument("--root", type=Path, required=True, help="git working tree to scan")
     inventory_cmd.add_argument("--lists", type=Path, required=True, help="directory with allowed.txt and legacy.txt")
     args = parser.parse_args(argv)
-    if args.command == "diff":
-        return run_diff(args.lists, sys.stdin.read())
-    if args.command == "ratchet":
-        return run_ratchet(args.base, args.lists)
-    if args.command == "inventory":
-        return run_inventory(args.root, args.lists)
-    return 2
+    # An unexpected exception must not look like a finding (exit 1): callers
+    # treat 3 as "the checker could not run".
+    try:
+        if args.command == "diff":
+            return run_diff(args.lists, sys.stdin.read())
+        if args.command == "ratchet":
+            return run_ratchet(args.base, args.lists)
+        if args.command == "inventory":
+            return run_inventory(args.root, args.lists)
+        return 2
+    except Exception as exc:  # SystemExit is not an Exception and passes through.
+        print(f"internal error: {type(exc).__name__}: {exc}", file=sys.stderr)
+        return 3
 
 
 if __name__ == "__main__":

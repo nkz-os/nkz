@@ -156,6 +156,16 @@ def test_diff_cli_passes_on_empty_input():
     assert result.returncode == 0 and result.stdout == ""
 
 
+def test_diff_cli_reports_an_internal_error_with_status_3():
+    diff = "--- a/x.py\n+++ b/x.py\n@@ -1 +1 @@\n-old = 1\n+entity = {\"type\": \"FooAsset\"}\n"
+    result = subprocess.run(
+        [sys.executable, str(SCRIPT), "diff", "--lists", "/nonexistent-entity-types-dir"],
+        input=diff, capture_output=True, text=True, check=False,
+    )
+    assert result.returncode == 3
+    assert result.stderr.startswith("internal error:")
+
+
 def test_inventory_lists_unknown_names_with_locations(tmp_path):
     def git(*args):
         subprocess.run(["git", "-C", str(tmp_path), *args], check=True, capture_output=True)

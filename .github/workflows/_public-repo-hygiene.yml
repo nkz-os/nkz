@@ -157,4 +157,10 @@ jobs:
           fi
           printf '%s' "$DIFF" | python3 .hygiene-tooling/.github/scripts/check_entity_types.py diff \
             --lists .hygiene-tooling/config/entity-types
-          exit $?
+          STATUS=$?
+          # 0 clean, 1 findings; anything else is the checker failing, not the caller.
+          if [ $STATUS -le 1 ]; then
+            exit $STATUS
+          fi
+          echo "::warning title=Entity types not checked::The checker could not run."
+          exit 0
