@@ -6,6 +6,7 @@ import json
 import re
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 import pytest
@@ -58,6 +59,7 @@ def test_repo_lists_load_and_do_not_overlap():
     ('PV_TYPE = "FooAsset"', ["FooAsset"]),
     ("PROFILE_ENTITY_TYPE = 'FooAsset'", ["FooAsset"]),
     ('type: str = "FooAsset"', ["FooAsset"]),
+    ('type: Optional[str] = "FooAsset"', ["FooAsset"]),
     ('entity_type: Literal["FooAsset"] = "FooAsset"', ["FooAsset"]),
     ('sdm_entity_type = "FooAsset"', ["FooAsset"]),
     ('{"soilType": "Cambisol"}', []),
@@ -75,6 +77,27 @@ def test_repo_lists_load_and_do_not_overlap():
 ])
 def test_extract_type_names(line, expected):
     assert extract_type_names(line) == expected
+
+
+def _elapsed(line):
+    start = time.perf_counter()
+    result = extract_type_names(line)
+    return result, time.perf_counter() - start
+
+
+def test_extract_type_names_is_linear_on_hostile_lines():
+    result, took = _elapsed("type:" + " " * 5000)
+    assert result == [] and took < 0.5
+    _, took = _elapsed("type: " + "a " * 5000)
+    assert took < 0.5
+    _, took = _elapsed("x" * 1_000_000)
+    assert took < 2
+    _, took = _elapsed("entities:[ " * 90000)
+    assert took < 2
+    line = '{"soilType": "Cambisol", "type": "Point"}, ' * (1_000_000 // 44)
+    result, took = _elapsed(line)
+    assert took < 5
+    assert [n for n in result if not is_vocabulary(n)] == []
 
 
 @pytest.mark.parametrize("name", ["Property", "Relationship", "GeoProperty", "Polygon", "FeatureCollection",

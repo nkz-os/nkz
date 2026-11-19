@@ -88,13 +88,13 @@ SELF_PATH = ".github/scripts/check_entity_types.py"
 _URN = re.compile(rf"urn:ngsi-ld:({NAME}):")
 _TYPE_KEY = re.compile(
     r"(?:(?<![A-Za-z0-9_])@?type|[Ee]ntity_?[Tt]ype|[Ss]dm_?[Tt]ype|\b[A-Z][A-Z0-9_]*_TYPE)[\"']?\]?\s*"
-    r"(?::\s*[\w\[\]\"'|., ]+?\s*=|===|!==|==|!=|=|:)"
+    r"(?::(?:\s*[\w\[\]\"'|.,]+(?: +[\w\[\]\"'|.,]+)*\s*|[^\S ]*[ ]\s*)=|===|!==|==|!=|=|:)"
     rf"\s*[\"']({NAME})[\"']"
 )
 _TYPE_QUERY = re.compile(r"[?&]type=([^&\s\"']+)")
 _NKZ = re.compile(rf"\bnkz:({NAME})(?![A-Za-z0-9])")
 _NKZ_IRI = re.compile(rf"https://nkz-os\.org/ns/({NAME})(?![A-Za-z0-9])")
-_ENTITIES = re.compile(r"\bentities\s*:\s*\[([^\]]*)\]")
+_ENTITIES = re.compile(r"\bentities\s*:\s*\[([^\]\[]*)\]")
 _QUOTED_NAME = re.compile(rf"[\"'](?:nkz:)?({NAME})[\"']")
 _FULL_NAME = re.compile(rf"(?:nkz:)?({NAME})")
 
