@@ -2,6 +2,7 @@ import type { Geometry, Point } from 'geojson';
 import type { IoTSensorFormData } from './types';
 import { DATALOGGER_KINDS } from '@/services/dataloggersApi';
 import { EXTERNAL_ID_RE } from '@/utils/deviceIds';
+import { contextErrors } from '@/utils/observationContext';
 
 /** i18n key of the first problem in the IoT step, or null. Parcels apply only to `Device`. */
 export function validateIoTConfig(
@@ -11,6 +12,15 @@ export function validateIoTConfig(
   if (!data.deviceProfileId) return 'wizard.validation.device_profile_required';
   if (entityType === 'Device' && data.parcels.length === 0) {
     return 'wizard.validation.parcel_required';
+  }
+  if (entityType === 'Device') {
+    const contexts = [
+      data.observationContext,
+      ...Object.values(data.channelOverrides ?? {}).map((o) => o.observationContext),
+    ];
+    if (contexts.some((ctx) => ctx && contextErrors(ctx).length > 0)) {
+      return 'wizard.validation.observation_invalid';
+    }
   }
   return null;
 }

@@ -54,6 +54,24 @@ function endpointToShow(mqtt: MqttEndpoint): MqttEndpoint {
   };
 }
 
+/** Observation fields of the registration, only the ones that are set. */
+function observationBody(formData: IoTSensorFormData): Partial<RegisterSensorRequest> {
+  const out: Partial<RegisterSensorRequest> = {};
+  if (formData.observesFeature) out.observesFeature = formData.observesFeature;
+  if (formData.observationContext) out.observationContext = { ...formData.observationContext };
+  const overrides: NonNullable<RegisterSensorRequest['channelOverrides']> = {};
+  for (const [attr, o] of Object.entries(formData.channelOverrides ?? {})) {
+    const entry: { observesFeature?: string; observationContext?: Record<string, unknown> } = {};
+    if (o.observesFeature) entry.observesFeature = o.observesFeature;
+    if (o.observationContext) entry.observationContext = { ...o.observationContext };
+    if (Object.keys(entry).length > 0) overrides[attr] = entry;
+  }
+  if (Object.keys(overrides).length > 0) out.channelOverrides = overrides;
+  if (formData.mobility) out.mobility = formData.mobility;
+  if (formData.validFrom) out.validFrom = formData.validFrom;
+  return out;
+}
+
 /**
  * Register a Device on a datalogger (existing, or created here) through the
  * sensors API. The API writes the entity, the IoT Agent device and the broker
@@ -85,6 +103,7 @@ async function submitDevice(formData: IoTSensorFormData): Promise<IoTSubmitResul
   if (formData.healthConfig) body.healthConfig = formData.healthConfig;
   if (formData.calibrationConfig) body.calibrationConfig = formData.calibrationConfig;
   if (formData.description) body.metadata = { description: formData.description };
+  Object.assign(body, observationBody(formData));
 
   let registered;
   try {

@@ -10,6 +10,7 @@ import { useToastContext } from '@/context/ToastContext';
 import { Button, Input } from '@nekazari/ui-kit';
 import { ParentEntitySelector, type ParentEntity } from '../ParentEntitySelector';
 import { SensorOwnerSelect } from '../SensorOwnerSelect';
+import { ObservationFields } from './ObservationFields';
 import api from '@/services/api';
 import { parkOptionsFor, toParkOption, type ParkOption } from '@/utils/parcelLinks';
 
@@ -352,6 +353,24 @@ export function StepIoTSensorConfig() {
           </p>
         </div>
       </div>
+
+      {/* ── What the sensor observes (Device only) ── */}
+      {isDevice && (
+        <div className="mt-6 p-4 border border-nkz-border rounded-xl">
+          <ObservationFields
+            value={{
+              observesFeature: data.observesFeature,
+              observationContext: data.observationContext,
+              channelOverrides: data.channelOverrides,
+              mobility: data.mobility,
+              validFrom: data.validFrom,
+            }}
+            onChange={(next) => updateFormData(next)}
+            profileAttributes={profileVariables}
+            parcelIds={(data.parcels ?? []).map(pa => pa.id)}
+          />
+        </div>
+      )}
 
       {/* ── Health Rules & Calibration Accordion ── */}
       <details className="group mt-6 border border-nkz-border rounded-xl overflow-hidden">

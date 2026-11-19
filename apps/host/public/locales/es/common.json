@@ -818,7 +818,8 @@
       "datalogger_kind_required": "Elige el tipo de datalogger",
       "external_id_invalid": "El identificador solo admite letras, números, punto, guion y guion bajo (1-64 caracteres)",
       "sdm_required": "Rellena los campos obligatorios (*).",
-      "location_required": "Marca la ubicación en el mapa."
+      "location_required": "Marca la ubicación en el mapa.",
+      "observation_invalid": "Revisa lo que observa el sensor"
     },
     "errors": {
       "incomplete_state": "Estado del wizard incompleto",
@@ -1341,6 +1342,63 @@
           "windTurbine": "Aerogenerador",
           "other": "Otra"
         }
+      }
+    },
+    "observation": {
+      "title": "Qué observa",
+      "hint": "Opcional. Indica qué miden las lecturas y dónde, para que otros módulos las usen.",
+      "medium": "Medio",
+      "medium_unset": "Sin especificar",
+      "medium_ambientAir": "Aire libre",
+      "medium_ambientAirUnderStructure": "Aire bajo una estructura",
+      "medium_enclosedAir": "Aire dentro de un recinto",
+      "medium_soil": "Suelo",
+      "medium_plant": "Planta",
+      "medium_water": "Agua",
+      "medium_equipment": "Equipo",
+      "field": {
+        "heightAboveGround": "Altura sobre el suelo (m)",
+        "structure": "Estructura",
+        "enclosure": "Recinto (invernadero)",
+        "depthFrom": "Profundidad desde (cm)",
+        "depthTo": "Profundidad hasta (cm)",
+        "organ": "Órgano de la planta"
+      },
+      "organ": {
+        "stem": "Tallo",
+        "leaf": "Hoja",
+        "fruit": "Fruto",
+        "canopy": "Copa",
+        "root": "Raíz"
+      },
+      "feature": "Elemento observado",
+      "feature_none": "Ninguno",
+      "feature_hint": "Parcela, zona, planta, invernadero o parque solar de las parcelas seleccionadas.",
+      "feature_hint_equipment": "Déjalo vacío si el sensor mide el propio dispositivo.",
+      "mobility": "Movilidad",
+      "mobility_unset": "Sin especificar",
+      "mobility_fixed": "Fijo",
+      "mobility_mobile": "Móvil",
+      "valid_from": "Instalado desde",
+      "valid_from_hint": "Opcional. Fecha y hora desde la que el sensor observa esto; no puede ser futura.",
+      "overrides_title": "Excepciones por canal",
+      "overrides_hint": "Solo para canales que observan algo distinto del resto.",
+      "override_same": "Igual que el sensor",
+      "error": {
+        "medium_invalid": "Elige un medio válido",
+        "structure_required": "Elige la estructura",
+        "enclosure_required": "Elige el recinto",
+        "depthFrom_required": "Indica la profundidad inicial",
+        "depthTo_required": "Indica la profundidad final",
+        "organ_required": "Elige el órgano de la planta",
+        "depth_range": "La profundidad inicial debe ser 0 o más y menor que la final",
+        "heightAboveGround_negative": "La altura debe ser 0 o más",
+        "heightAboveGround_number": "La altura debe ser un número",
+        "depthFrom_number": "La profundidad debe ser un número",
+        "depthTo_number": "La profundidad debe ser un número",
+        "structure_urn": "Estructura no válida",
+        "enclosure_urn": "Recinto no válido",
+        "organ_invalid": "Órgano de planta no válido"
       }
     }
   },

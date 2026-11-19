@@ -71,6 +71,13 @@ export interface RegisterSensorRequest {
   healthConfig?: Record<string, unknown>;
   calibrationConfig?: Record<string, unknown>;
   metadata?: Record<string, unknown>;
+  observesFeature?: string;
+  observationContext?: Record<string, unknown>;
+  /** Keyed by the profile measurement's `sdmAttribute`. */
+  channelOverrides?: Record<string, { observesFeature?: string; observationContext?: Record<string, unknown> }>;
+  mobility?: 'fixed' | 'mobile';
+  /** ISO-8601 with offset; not in the future. */
+  validFrom?: string;
 }
 
 export interface RegisteredSensor {
