@@ -366,3 +366,82 @@ def test_get_deployment_by_id(db):
     db.rows["d1"] = _row("d1", T0)
     assert deployments.get_deployment(TENANT, "d1")["device_urn"] == DEVICE
     assert deployments.get_deployment(TENANT, "missing") is None
+
+
+# ---- recompute enqueue (contract 8.6) -----------------------------------------
+
+def _runs(db):
+    """(tenant, device_urn, deployment_id, range_from, range_to, requested_by, reason)"""
+    return [p for _s, p in db.statements("INSERT INTO observation_recompute_runs")]
+
+
+def test_correct_enqueues_recompute_with_union_range(db):
+    db.rows["a"] = _row("a", T0, T1)
+    new_from, new_to = T0 + timedelta(days=2), T1 + timedelta(days=5)
+    deployments.correct_deployment(TENANT, "a", {"valid_from": new_from, "valid_to": new_to},
+                                   "alice", "typo")
+    assert _runs(db) == [(TENANT, DEVICE, "a", T0, new_to, "alice", "typo")]
+    assert db.commits == 1
+
+
+def test_correct_open_bound_makes_range_open(db):
+    db.rows["a"] = _row("a", T0, T1)
+    deployments.correct_deployment(TENANT, "a", {"valid_to": None}, "alice", "reopen")
+    assert _runs(db) == [(TENANT, DEVICE, "a", T0, None, "alice", "reopen")]
+
+
+def test_open_enqueues_from_valid_from(db):
+    deployments.open_deployment(TENANT, DEVICE, DeploymentSpec(None, {}, {}, "fixed", (0.0, 0.0)),
+                                T0, "alice", "installed")
+    assert _runs(db) == [(TENANT, DEVICE, "dep-1", T0, None, "alice", "installed")]
+    # same transaction: the run is inserted before the single commit
+    assert db.commits == 1
+
+
+def test_close_enqueues_recompute_from_close_instant(db):
+    db.rows["a"] = _row("a", T0)
+    deployments.close_open_deployment(TENANT, DEVICE, "alice", "device deleted")
+    (run,) = _runs(db)
+    assert run[:3] == (TENANT, DEVICE, "a") and run[3] == db.updated[1][0]
+    assert run[4] is None and run[5:] == ("alice", "device deleted")
+
+
+def test_close_without_open_row_enqueues_nothing(db):
+    db.rows["a"] = _row("a", T0, T1)
+    deployments.close_open_deployment(TENANT, DEVICE, "alice", "device deleted")
+    assert _runs(db) == []
+
+
+def test_delete_enqueues_whole_interval(db):
+    db.rows["a"] = _row("a", T0, T1)
+    deployments.delete_deployment(TENANT, "a")
+    assert _runs(db) == [(TENANT, DEVICE, "a", T0, T1, "system", "deployment deleted")]
+    assert db.commits == 1
+
+
+def test_delete_open_deployment_range_is_open(db):
+    db.rows["a"] = _row("a", T0)
+    deployments.delete_deployment(TENANT, "a", actor="alice")
+    assert _runs(db) == [(TENANT, DEVICE, "a", T0, None, "alice", "deployment deleted")]
+
+
+def test_delete_missing_deployment_enqueues_nothing(db):
+    deployments.delete_deployment(TENANT, "nope")
+    assert _runs(db) == []
+
+
+def test_failed_change_enqueues_nothing(db):
+    db.rows["a"] = _row("a", T0, T1)
+    db.fail_on = "UPDATE device_deployments"
+    db.fail_on_exc = psycopg2.errors.ExclusionViolation("overlap")
+    with pytest.raises(dataloggers.ApiError):
+        deployments.correct_deployment(TENANT, "a", {"valid_to": T1 + timedelta(days=5)},
+                                       "alice", "typo")
+    assert _runs(db) == [] and db.commits == 0
+
+
+def test_revert_open_enqueues_nothing(db):
+    db.rows["old"] = _row("old", T0, T1)
+    db.rows["new"] = _row("new", T1)
+    deployments.revert_open(TENANT, "new", "alice")
+    assert _runs(db) == []
