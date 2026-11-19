@@ -842,7 +842,8 @@
       "datalogger_kind_required": "Tria el tipus de datalogger",
       "external_id_invalid": "L'identificador només admet lletres, números, punt, guionet i guionet baix (1-64 caràcters)",
       "sdm_required": "Omple els camps obligatoris (*).",
-      "location_required": "Marca la ubicació al mapa."
+      "location_required": "Marca la ubicació al mapa.",
+      "observation_invalid": "Revisa què observa el sensor"
     },
     "errors": {
       "incomplete_state": "Estat de l'assistent incomplet",
@@ -1365,6 +1366,63 @@
           "windTurbine": "Aerogenerador",
           "other": "Altra"
         }
+      }
+    },
+    "observation": {
+      "title": "Què observa",
+      "hint": "Opcional. Indica què mesuren les lectures i on, perquè altres mòduls les puguin fer servir.",
+      "medium": "Medi",
+      "medium_unset": "Sense especificar",
+      "medium_ambientAir": "Aire lliure",
+      "medium_ambientAirUnderStructure": "Aire sota una estructura",
+      "medium_enclosedAir": "Aire dins d'un recinte",
+      "medium_soil": "Sòl",
+      "medium_plant": "Planta",
+      "medium_water": "Aigua",
+      "medium_equipment": "Equip",
+      "field": {
+        "heightAboveGround": "Alçada sobre el sòl (m)",
+        "structure": "Estructura",
+        "enclosure": "Recinte (hivernacle)",
+        "depthFrom": "Profunditat des de (cm)",
+        "depthTo": "Profunditat fins a (cm)",
+        "organ": "Òrgan de la planta"
+      },
+      "organ": {
+        "stem": "Tija",
+        "leaf": "Fulla",
+        "fruit": "Fruit",
+        "canopy": "Capçada",
+        "root": "Arrel"
+      },
+      "feature": "Element observat",
+      "feature_none": "Cap",
+      "feature_hint": "Parcel·la, zona, planta, hivernacle o parc solar de les parcel·les seleccionades.",
+      "feature_hint_equipment": "Deixa-ho buit si el sensor mesura el propi dispositiu.",
+      "mobility": "Mobilitat",
+      "mobility_unset": "Sense especificar",
+      "mobility_fixed": "Fix",
+      "mobility_mobile": "Mòbil",
+      "valid_from": "Instal·lat des de",
+      "valid_from_hint": "Opcional. Data i hora des de la qual el sensor observa això; no pot ser futura.",
+      "overrides_title": "Excepcions per canal",
+      "overrides_hint": "Només per a canals que observen una cosa diferent de la resta.",
+      "override_same": "Igual que el sensor",
+      "error": {
+        "medium_invalid": "Tria un medi vàlid",
+        "structure_required": "Tria l'estructura",
+        "enclosure_required": "Tria el recinte",
+        "depthFrom_required": "Indica la profunditat inicial",
+        "depthTo_required": "Indica la profunditat final",
+        "organ_required": "Tria l'òrgan de la planta",
+        "depth_range": "La profunditat inicial ha de ser 0 o més i menor que la final",
+        "heightAboveGround_negative": "L'alçada ha de ser 0 o més",
+        "heightAboveGround_number": "L'alçada ha de ser un número",
+        "depthFrom_number": "La profunditat ha de ser un número",
+        "depthTo_number": "La profunditat ha de ser un número",
+        "structure_urn": "Estructura no vàlida",
+        "enclosure_urn": "Recinte no vàlid",
+        "organ_invalid": "Òrgan de planta no vàlid"
       }
     }
   },
@@ -2148,6 +2206,27 @@
         "Animal": "Animal",
         "Tank": "Dipòsit o bassa",
         "StorageBatteryDevice": "Bateria"
+      },
+      "deployments": {
+        "title": "Historial de desplegaments",
+        "move": "Moure / canviar de context",
+        "correct": "Corregir aquest període",
+        "open": "actualitat",
+        "empty": "No hi ha desplegaments registrats.",
+        "valid_from": "Des de",
+        "valid_from_move": "Efectiu des de",
+        "valid_to": "Fins a",
+        "valid_to_hint": "Deixa-ho buit per mantenir el període obert.",
+        "location": "Ubicació",
+        "latitude": "Latitud",
+        "longitude": "Longitud",
+        "location_required": "Indica latitud i longitud per a un dispositiu fix",
+        "location_invalid": "La latitud ha d'estar entre -90 i 90 i la longitud entre -180 i 180",
+        "reason": "Motiu",
+        "reason_required": "Indica un motiu",
+        "no_changes": "No hi ha canvis per desar",
+        "load_error": "No s'ha pogut carregar l'historial de desplegaments",
+        "save_error": "No s'ha pogut desar el desplegament"
       }
     },
     "filters": {

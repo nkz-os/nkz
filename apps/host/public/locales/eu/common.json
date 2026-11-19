@@ -819,7 +819,8 @@
       "datalogger_kind_required": "Aukeratu datalogger mota",
       "external_id_invalid": "Identifikatzaileak letrak, zenbakiak, puntua, gidoia eta azpimarra onartzen ditu soilik (1-64 karaktere)",
       "sdm_required": "Bete derrigorrezko eremuak (*).",
-      "location_required": "Markatu kokapena mapan."
+      "location_required": "Markatu kokapena mapan.",
+      "observation_invalid": "Berrikusi sentsoreak zer behatzen duen"
     },
     "errors": {
       "incomplete_state": "Laguntzailearen egoera osatu gabe dago",
@@ -1342,6 +1343,63 @@
           "windTurbine": "Haize-sorgailua",
           "other": "Beste bat"
         }
+      }
+    },
+    "observation": {
+      "title": "Zer behatzen duen",
+      "hint": "Aukerakoa. Irakurketek zer neurtzen duten eta non adierazten du, beste modulu batzuek erabil ditzaten.",
+      "medium": "Ingurunea",
+      "medium_unset": "Zehaztu gabe",
+      "medium_ambientAir": "Aire librea",
+      "medium_ambientAirUnderStructure": "Egitura baten azpiko airea",
+      "medium_enclosedAir": "Esparru itxi barruko airea",
+      "medium_soil": "Lurzorua",
+      "medium_plant": "Landarea",
+      "medium_water": "Ura",
+      "medium_equipment": "Ekipoa",
+      "field": {
+        "heightAboveGround": "Lurraren gaineko altuera (m)",
+        "structure": "Egitura",
+        "enclosure": "Esparrua (berotegia)",
+        "depthFrom": "Sakonera hemendik (cm)",
+        "depthTo": "Sakonera honaino (cm)",
+        "organ": "Landarearen organoa"
+      },
+      "organ": {
+        "stem": "Zurtoina",
+        "leaf": "Hostoa",
+        "fruit": "Fruitua",
+        "canopy": "Kopa",
+        "root": "Sustraia"
+      },
+      "feature": "Behatutako elementua",
+      "feature_none": "Bat ere ez",
+      "feature_hint": "Hautatutako partzelen partzela, zona, landarea, berotegia edo eguzki-parkea.",
+      "feature_hint_equipment": "Utzi hutsik sentsoreak gailu bera neurtzen badu.",
+      "mobility": "Mugikortasuna",
+      "mobility_unset": "Zehaztu gabe",
+      "mobility_fixed": "Finkoa",
+      "mobility_mobile": "Mugikorra",
+      "valid_from": "Instalatuta hemendik",
+      "valid_from_hint": "Aukerakoa. Sentsoreak hau behatzen hasi zen data eta ordua; ezin da etorkizunekoa izan.",
+      "overrides_title": "Kanal bakoitzeko salbuespenak",
+      "overrides_hint": "Gainerakoak ez bezalako zerbait behatzen duten kanaletarako soilik.",
+      "override_same": "Sentsorearen berdina",
+      "error": {
+        "medium_invalid": "Aukeratu ingurune baliodun bat",
+        "structure_required": "Aukeratu egitura",
+        "enclosure_required": "Aukeratu esparrua",
+        "depthFrom_required": "Adierazi hasierako sakonera",
+        "depthTo_required": "Adierazi amaierako sakonera",
+        "organ_required": "Aukeratu landarearen organoa",
+        "depth_range": "Hasierako sakonera 0 edo gehiago izan behar da, eta amaierakoa baino txikiagoa",
+        "heightAboveGround_negative": "Altuera 0 edo gehiago izan behar da",
+        "heightAboveGround_number": "Altuerak zenbakia izan behar du",
+        "depthFrom_number": "Sakonerak zenbakia izan behar du",
+        "depthTo_number": "Sakonerak zenbakia izan behar du",
+        "structure_urn": "Egitura baliogabea",
+        "enclosure_urn": "Esparru baliogabea",
+        "organ_invalid": "Landare-organo baliogabea"
       }
     }
   },
@@ -2125,6 +2183,27 @@
         "Animal": "Animalia",
         "Tank": "Ur-biltegia edo urmaela",
         "StorageBatteryDevice": "Bateria"
+      },
+      "deployments": {
+        "title": "Hedapenen historia",
+        "move": "Mugitu / testuingurua aldatu",
+        "correct": "Zuzendu aldi hau",
+        "open": "orain",
+        "empty": "Ez dago hedapenik erregistratuta.",
+        "valid_from": "Noiztik",
+        "valid_from_move": "Noiztik aurrera eraginkorra",
+        "valid_to": "Noiz arte",
+        "valid_to_hint": "Utzi hutsik aldia irekita mantentzeko.",
+        "location": "Kokapena",
+        "latitude": "Latitudea",
+        "longitude": "Longitudea",
+        "location_required": "Adierazi latitudea eta longitudea gailu finko baterako",
+        "location_invalid": "Latitudeak -90 eta 90 artean egon behar du, eta longitudeak -180 eta 180 artean",
+        "reason": "Arrazoia",
+        "reason_required": "Adierazi arrazoi bat",
+        "no_changes": "Ez dago gordetzeko aldaketarik",
+        "load_error": "Ezin izan da hedapenen historia kargatu",
+        "save_error": "Ezin izan da hedapena gorde"
       }
     },
     "filters": {

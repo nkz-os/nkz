@@ -842,7 +842,8 @@
       "datalogger_kind_required": "Escolha o tipo de datalogger",
       "external_id_invalid": "O identificador só aceita letras, números, ponto, hífen e sublinhado (1 a 64 caracteres)",
       "sdm_required": "Preencha os campos obrigatórios (*).",
-      "location_required": "Marque a localização no mapa."
+      "location_required": "Marque a localização no mapa.",
+      "observation_invalid": "Reveja o que o sensor observa"
     },
     "errors": {
       "incomplete_state": "Estado do assistente incompleto",
@@ -1365,6 +1366,63 @@
           "windTurbine": "Aerogerador",
           "other": "Outra"
         }
+      }
+    },
+    "observation": {
+      "title": "O que observa",
+      "hint": "Opcional. Indica o que as leituras medem e onde, para que outros módulos as possam usar.",
+      "medium": "Meio",
+      "medium_unset": "Não especificado",
+      "medium_ambientAir": "Ar livre",
+      "medium_ambientAirUnderStructure": "Ar sob uma estrutura",
+      "medium_enclosedAir": "Ar dentro de um recinto",
+      "medium_soil": "Solo",
+      "medium_plant": "Planta",
+      "medium_water": "Água",
+      "medium_equipment": "Equipamento",
+      "field": {
+        "heightAboveGround": "Altura acima do solo (m)",
+        "structure": "Estrutura",
+        "enclosure": "Recinto (estufa)",
+        "depthFrom": "Profundidade desde (cm)",
+        "depthTo": "Profundidade até (cm)",
+        "organ": "Órgão da planta"
+      },
+      "organ": {
+        "stem": "Caule",
+        "leaf": "Folha",
+        "fruit": "Fruto",
+        "canopy": "Copa",
+        "root": "Raiz"
+      },
+      "feature": "Elemento observado",
+      "feature_none": "Nenhum",
+      "feature_hint": "Parcela, zona, planta, estufa ou parque solar das parcelas selecionadas.",
+      "feature_hint_equipment": "Deixe vazio se o sensor medir o próprio dispositivo.",
+      "mobility": "Mobilidade",
+      "mobility_unset": "Não especificado",
+      "mobility_fixed": "Fixo",
+      "mobility_mobile": "Móvel",
+      "valid_from": "Instalado desde",
+      "valid_from_hint": "Opcional. Data e hora a partir das quais o sensor observa isto; não pode ser futura.",
+      "overrides_title": "Exceções por canal",
+      "overrides_hint": "Apenas para canais que observam algo diferente dos restantes.",
+      "override_same": "Igual ao sensor",
+      "error": {
+        "medium_invalid": "Escolha um meio válido",
+        "structure_required": "Escolha a estrutura",
+        "enclosure_required": "Escolha o recinto",
+        "depthFrom_required": "Indique a profundidade inicial",
+        "depthTo_required": "Indique a profundidade final",
+        "organ_required": "Escolha o órgão da planta",
+        "depth_range": "A profundidade inicial deve ser 0 ou mais e menor que a final",
+        "heightAboveGround_negative": "A altura deve ser 0 ou mais",
+        "heightAboveGround_number": "A altura deve ser um número",
+        "depthFrom_number": "A profundidade deve ser um número",
+        "depthTo_number": "A profundidade deve ser um número",
+        "structure_urn": "Estrutura inválida",
+        "enclosure_urn": "Recinto inválido",
+        "organ_invalid": "Órgão de planta inválido"
       }
     }
   },
@@ -2148,6 +2206,27 @@
         "Animal": "Animal",
         "Tank": "Depósito ou charca",
         "StorageBatteryDevice": "Bateria"
+      },
+      "deployments": {
+        "title": "Histórico de implantações",
+        "move": "Mover / mudar de contexto",
+        "correct": "Corrigir este período",
+        "open": "atualidade",
+        "empty": "Não há implantações registadas.",
+        "valid_from": "Desde",
+        "valid_from_move": "Efetivo a partir de",
+        "valid_to": "Até",
+        "valid_to_hint": "Deixe vazio para manter o período em aberto.",
+        "location": "Localização",
+        "latitude": "Latitude",
+        "longitude": "Longitude",
+        "location_required": "Indique latitude e longitude para um dispositivo fixo",
+        "location_invalid": "A latitude deve estar entre -90 e 90 e a longitude entre -180 e 180",
+        "reason": "Motivo",
+        "reason_required": "Indique um motivo",
+        "no_changes": "Não há alterações para guardar",
+        "load_error": "Não foi possível carregar o histórico de implantações",
+        "save_error": "Não foi possível guardar a implantação"
       }
     },
     "filters": {
