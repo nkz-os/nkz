@@ -307,3 +307,9 @@ def test_delete_deployments(db):
     deployments.delete_deployments(TENANT, DEVICE)
     assert db.deleted == (TENANT, DEVICE)
     assert db.commits == 1
+
+
+def test_get_deployment_by_id(db):
+    db.rows["d1"] = _row("d1", T0)
+    assert deployments.get_deployment(TENANT, "d1")["device_urn"] == DEVICE
+    assert deployments.get_deployment(TENANT, "missing") is None

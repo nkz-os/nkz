@@ -60,6 +60,7 @@ fails on it.
 | `CarbonCalculationRun` | entidad | sin-revisar | Not yet reviewed |
 | `CarbonStock` | entidad | extension-declarada | Platform extension — no SDM equivalent |
 | `cec` | atributo | propuesta-sdm | Attribute of AgriSoilSample (smart-data-models/incubated#283) |
+| `channelOverrides` | atributo | extension-declarada | Per-channel feature or context that differs from the device default; SDM Device has no per-channel model |
 | `chloride` | atributo | propuesta-sdm | Attribute of AgriPlantSample (smart-data-models/incubated#283) |
 | `clay` | atributo | propuesta-sdm | Attribute of AgriSoilSample (smart-data-models/incubated#283) |
 | `coarseFragments` | atributo | propuesta-sdm | Attribute of AgriSoilSample (smart-data-models/incubated#283) |
@@ -77,6 +78,7 @@ fails on it.
 | `datePlanted` | atributo | propuesta-sdm | Attribute of AgriPlant (smart-data-models/incubated#283) |
 | `dateSampled` | atributo | propuesta-sdm | Attribute of AgriPlantSample, AgriSoilSample (smart-data-models/incubated#283) |
 | `dateZoned` | atributo | propuesta-sdm | Attribute of AgriManagementZone (smart-data-models/incubated#283) |
+| `deploymentId` | atributo | extension-declarada | Id of the device's current deployment, linking it to its versioned installation history; not modelled in SDM |
 | `DeviceCommand` | entidad | extension-declarada | Platform extension — MQTT device command tracking |
 | `DeviceProfile` | entidad | sin-revisar | Not yet reviewed |
 | `DigitalAsset` | entidad | extension-declarada | Platform extension — no SDM equivalent |
@@ -100,9 +102,12 @@ fails on it.
 | `magnesium` | atributo | propuesta-sdm | Attribute of AgriPlantSample (smart-data-models/incubated#283) |
 | `management` | atributo | extension-declarada | Organic or conventional production of one crop cycle; not modelled in SDM AgriCrop |
 | `manganese` | atributo | propuesta-sdm | Attribute of AgriPlantSample (smart-data-models/incubated#283) |
+| `mobility` | atributo | extension-declarada | Whether a device stays in place (fixed) or moves (mobile); SDM Device has no such property |
 | `nitrateN` | atributo | propuesta-sdm | Attribute of AgriSoilSample (smart-data-models/incubated#283) |
 | `nitrogen` | atributo | propuesta-sdm | Attribute of AgriPlantSample (smart-data-models/incubated#283) |
 | `numberOfSubsamples` | atributo | propuesta-sdm | Attribute of AgriPlantSample, AgriSoilSample (smart-data-models/incubated#283) |
+| `observationContext` | atributo | extension-declarada | Medium a device measures (air, soil, plant, water) and where in it; SDM Device has no such property |
+| `observesFeature` | atributo | extension-declarada | SDM Device has no feature-of-interest relation; maps to W3C SOSA sosa:hasFeatureOfInterest |
 | `OpenChannelFlow` | entidad | sin-revisar | Not yet reviewed |
 | `organicCarbon` | atributo | propuesta-sdm | Attribute of AgriSoilSample (smart-data-models/incubated#283) |
 | `organicMatter` | atributo | propuesta-sdm | Attribute of AgriSoilSample (smart-data-models/incubated#283) |

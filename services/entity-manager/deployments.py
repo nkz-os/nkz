@@ -295,3 +295,12 @@ def current_deployment(tenant_id: str, device_urn: str) -> Optional[dict]:
         row = cur.fetchone()
         cur.close()
     return _to_dict(row) if row else None
+
+
+@dataloggers.in_step('db', 'Database error')
+def get_deployment(tenant_id: str, deployment_id: str) -> Optional[dict]:
+    with get_db_connection_with_tenant(tenant_id) as conn:
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        found = _fetch(cur, tenant_id, deployment_id)
+        cur.close()
+    return found
