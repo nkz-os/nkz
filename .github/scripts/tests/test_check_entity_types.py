@@ -3,6 +3,7 @@
 import ast
 import importlib.util
 import json
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -331,6 +332,23 @@ def test_in_code_type_catalogues_are_inside_the_lists():
         | returned_dict_keys(REPO_ROOT / "services/sdm-integration/sdm_api.py", "get_sdm_entities")
     )
     assert names and not (names - known), sorted(names - known)
+
+
+def _object_literal(text, name):
+    start = text.index(f"export const {name}")
+    return text[text.index("{", text.index("=", start)):text.index("\n};", start)]
+
+
+def test_host_wizard_catalogue_is_inside_the_lists():
+    known = load_lists(REPO_ROOT / "config" / "entity-types").known
+    text = (REPO_ROOT / "apps/host/src/components/EntityWizard/entityTypes.ts").read_text(encoding="utf-8")
+    metadata = set(re.findall(r"^  ([A-Z][A-Za-z0-9]*)\s*:\s*\{", _object_literal(text, "ENTITY_TYPE_METADATA"), re.M))
+    categories = set()
+    for array in re.findall(r"\[([^\]]*)\]", _object_literal(text, "ENTITY_CATEGORIES")):
+        categories |= set(re.findall(r"[\"']([A-Z][A-Za-z0-9]*)[\"']", array))
+    assert metadata and categories
+    assert not (metadata - known), sorted(metadata - known)
+    assert not (categories - known), sorted(categories - known)
 
 
 def _run_ratchet_cli(base):
