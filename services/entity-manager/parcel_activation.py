@@ -21,6 +21,53 @@ INTERNAL_SERVICE_SECRET = os.getenv("INTERNAL_SERVICE_SECRET", "")
 DISPATCH_TIMEOUT_S = 5  # short: this runs inside a gunicorn worker
 
 
+KNOWN_ROLES = frozenset({"Farmer", "TechnicalConsultant", "TenantAdmin", "PlatformAdmin"})
+DEFAULT_ACTIVATION_ROLES = frozenset({"TenantAdmin", "PlatformAdmin"})
+
+
+def activation_roles(metadata) -> frozenset:
+    """Roles allowed to activate a module on a parcel.
+
+    metadata.activation_roles must be a non-empty list of known role names;
+    anything else (absent, malformed, unknown role) gives the default admin
+    pair. PlatformAdmin is always included.
+    """
+    declared = metadata.get("activation_roles") if isinstance(metadata, dict) else None
+    if (
+        isinstance(declared, list)
+        and declared
+        and all(isinstance(r, str) and r in KNOWN_ROLES for r in declared)
+    ):
+        return frozenset(declared) | {"PlatformAdmin"}
+    return DEFAULT_ACTIVATION_ROLES
+
+
+def get_module_metadata(module_id: str) -> dict:
+    """marketplace_modules.metadata as a dict; {} if absent or on DB error.
+
+    {} yields the admin-only default, so a read failure never widens access.
+    """
+    try:
+        conn = _get_db()
+        try:
+            cur = conn.cursor()
+            cur.execute(
+                "SELECT metadata FROM marketplace_modules WHERE id = %s",
+                (module_id,),
+            )
+            row = cur.fetchone()
+            cur.close()
+        finally:
+            conn.close()
+        metadata = row[0] if row else None
+        if isinstance(metadata, str):
+            metadata = json.loads(metadata)
+        return metadata if isinstance(metadata, dict) else {}
+    except Exception as e:
+        logger.error("Failed to read metadata for %s (admin-only default): %s", module_id, e)
+        return {}
+
+
 def _get_db():
     if not POSTGRES_URL:
         raise RuntimeError("POSTGRES_URL not configured")

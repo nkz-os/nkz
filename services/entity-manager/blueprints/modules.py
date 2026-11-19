@@ -34,9 +34,11 @@ from entity_management_api import (
 )
 
 from parcel_activation import (
+    activation_roles,
     check_parcel_limit,
     dispatch_to_module,
     get_activated_modules,
+    get_module_metadata,
     is_module_installed,
     persist_activation,
 )
@@ -1943,7 +1945,7 @@ def activate_module_for_parcel(parcel_id, module_id):
     """Activate a module for a parcel. Idempotent: re-POST = retry dispatch."""
     tenant_id = getattr(g, 'tenant_id', None) or getattr(g, 'tenant', None)
     user_roles = _get_user_roles()
-    if 'TenantAdmin' not in user_roles and 'PlatformAdmin' not in user_roles:
+    if not set(user_roles) & activation_roles(get_module_metadata(module_id)):
         return jsonify({'error': 'Insufficient permissions'}), 403
     if not is_module_installed(tenant_id, module_id):
         return jsonify({'error': f'Module {module_id} is not installed'}), 404
