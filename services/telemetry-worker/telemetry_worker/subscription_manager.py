@@ -37,38 +37,6 @@ DEFAULT_TENANT = os.getenv("DEFAULT_TENANT", "platform")
 # NGSI-LD subscriptions — no watchedAttributes = trigger on ANY attribute change
 SUBSCRIPTIONS = [
     {
-        "description": "Telemetry Worker - AgriSensor updates",
-        "type": "Subscription",
-        "entities": [{"type": "AgriSensor"}],
-        "notification": {
-            "endpoint": {
-                "uri": NOTIFICATION_URL,
-                "accept": "application/json",
-            },
-            "format": "normalized",
-        },
-        "throttling": 30,
-        "isActive": True,
-    },
-    {
-        # Hardware provisioned through DaTaK is created as "AgriDevice", not "Device" —
-        # this subscription exists for that provisioning path. "Device" itself IS a term
-        # of the platform @context (has been since an earlier plan) and is what
-        # DeviceMeasurement.refDevice points at; the subscription below covers it.
-        "description": "Telemetry Worker - AgriDevice updates",
-        "type": "Subscription",
-        "entities": [{"type": "AgriDevice"}],
-        "notification": {
-            "endpoint": {
-                "uri": NOTIFICATION_URL,
-                "accept": "application/json",
-            },
-            "format": "normalized",
-        },
-        "throttling": 30,
-        "isActive": True,
-    },
-    {
         # DeviceMeasurement is what entity-manager writes from Device/ManufacturingMachine
         # attribute updates (one entity per device+controlledProperty, overwritten in
         # place — see entity-manager/blueprints/measurements.py). This is the canonical

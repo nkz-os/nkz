@@ -3,7 +3,7 @@ Orion-LD subscription manager for entity-manager notifications.
 
 Ensures NGSI-LD subscriptions exist per tenant so that entity
 changes are forwarded to the notification handler (/notify).
-Handles: Device (and legacy AgriSensor) registration, DeviceCommand
+Handles: Device registration, DeviceCommand
 """
 
 import logging
@@ -35,25 +35,7 @@ DEFAULT_TENANT = "platform"
 
 SUBSCRIPTIONS = [
     {
-        "description": "Entity Manager - AgriSensor registration",
-        "type": "Subscription",
-        "entities": [{"type": "AgriSensor"}],
-        "notification": {
-            "endpoint": {
-                "uri": NOTIFICATION_URL,
-                "accept": "application/json",
-            },
-            "format": "normalized",
-        },
-        "throttling": 5,
-        "isActive": True,
-    },
-    {
-        # Registration creates Device entities; AgriSensor above stays until no
-        # producer writes it. A separate entry, not an edit of the one above: the
-        # reconciler keys on the id and never rewrites an existing subscription's
-        # entity list.
-        # Readings are written onto the Device too; watching only the fields the
+        # Registration creates Device entities. Readings are written onto the Device too; watching only the fields the
         # sensors table stores keeps them from notifying here, and without a
         # throttle a new device's creation cannot be swallowed by another's.
         "description": "Entity Manager - Device registration",

@@ -70,3 +70,9 @@ def test_every_subscribed_type_is_defined_in_the_platform_context():
 def test_there_is_at_least_one_subscribed_type():
     """Guards the assertion above from passing on an empty set."""
     assert _subscribed_types()
+
+
+def test_legacy_agrisensor_and_agridevice_are_not_subscribed():
+    """Retired (contract 1.5): no real data uses them; the bench registers Device."""
+    assert "AgriSensor" not in _subscribed_types()
+    assert "AgriDevice" not in _subscribed_types()

@@ -13,7 +13,7 @@ rather than an attribute key, and the value/instant live in `numValue`/`textValu
   - `measurementType`, `outlier` and `dateObserved` never appear as measurements
   - `AgriSensor` notifications are unaffected (regression guard — the generic path must
     stay byte-for-byte the same)
-  - `SUBSCRIPTIONS` gained `DeviceMeasurement` without losing `AgriSensor`/`AgriDevice`
+  - `SUBSCRIPTIONS` gained `DeviceMeasurement`; the legacy `AgriSensor`/`AgriDevice` subscriptions are retired
 
 Async coroutines are driven with `asyncio.run` in sync test functions (mirrors
 test_notification_dedup.py — no pytest-asyncio plugin in this suite).
@@ -182,7 +182,8 @@ class TestSubscriptionListGainedDeviceMeasurement:
     def test_device_measurement_is_subscribed(self):
         assert "DeviceMeasurement" in self._types()
 
-    def test_agrisensor_and_agridevice_are_still_subscribed(self):
+    def test_legacy_agrisensor_and_agridevice_are_no_longer_subscribed(self):
+        # Retired (contract 1.5): no real data uses them; the bench registers Device.
         types = self._types()
-        assert "AgriSensor" in types
-        assert "AgriDevice" in types
+        assert "AgriSensor" not in types
+        assert "AgriDevice" not in types
