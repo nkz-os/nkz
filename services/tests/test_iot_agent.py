@@ -71,7 +71,20 @@ def test_attributes_from_profile_measurements():
         {"object_id": "r3", "name": "moisture", "type": "Number", "expression": "r3 * 0.1"},
         {"object_id": "note", "name": "note", "type": "Text"},
         {"object_id": "flag", "name": "flag", "type": "Boolean"},
+        {"object_id": "TimeInstant", "name": "TimeInstant", "type": "DateTime"},
     ]
+
+
+def test_attributes_declare_timeinstant_once():
+    # With explicit attributes the agent drops undeclared keys, TimeInstant included,
+    # and observedAt falls back to the arrival time. Declared, it becomes observedAt.
+    attrs = iot_agent.build_iota_attributes([
+        {"type": "temperature", "sdmAttribute": "temperature", "unit": "CEL"},
+        {"type": "TimeInstant", "sdmAttribute": "TimeInstant", "valueType": "DateTime"},
+    ])
+    assert [a["object_id"] for a in attrs].count("TimeInstant") == 1
+    assert iot_agent.build_iota_attributes([])[-1] == {
+        "object_id": "TimeInstant", "name": "TimeInstant", "type": "DateTime"}
 
 
 def test_provision_posts_device_body():
