@@ -55,7 +55,7 @@ def client(monkeypatch):
         return conn
 
     # No IoT devices unless a test says otherwise (keeps the broker out of these tests).
-    monkeypatch.setattr(pd, "_parcel_devices", lambda urn, tid: [])
+    monkeypatch.setattr(pd, "_parcel_devices", lambda urn, tid: {})
 
     holder["install"] = install
     yield TestClient(app), holder
@@ -332,7 +332,7 @@ def _sensor_day(day, tmin, tmax):
 def test_sensor_values_take_precedence_and_say_so(client, monkeypatch):
     c, h = client
     h["install"]([_row("2026-10-01", **FULL)])
-    monkeypatch.setattr(pd, "_parcel_devices", lambda urn, tid: ["dev1"])
+    monkeypatch.setattr(pd, "_parcel_devices", lambda urn, tid: {"dev1": (True, {})})
     monkeypatch.setattr(pd, "_fetch_parcel_entity", lambda urn, tid: {"id": urn})  # no timeZone: UTC days
     monkeypatch.setattr(pd, "_sensor_readings", lambda tid, devices, lo, hi: _sensor_day("2026-10-01", 10.0, 22.0))
     body = c.get(f"/api/weather/parcel/{PID}/daily?start=2026-10-01&end=2026-10-01").json()
@@ -446,7 +446,7 @@ def test_local_day_boundary_labels_running_by_parcel_day_not_utc(client):
 def test_forecast_days_ignore_sensors(client, monkeypatch):
     tc, h = client
     h["install"]([_row("2026-11-04", tempMin=3.0, tempMax=13.0)])
-    monkeypatch.setattr(pd, "_parcel_devices", lambda urn, tid: ["dev1"])
+    monkeypatch.setattr(pd, "_parcel_devices", lambda urn, tid: {"dev1": (True, {})})
     monkeypatch.setattr(pd, "_fetch_parcel_entity", lambda urn, tid: {"id": urn})
 
     def readings(tid, devices, lo, hi):
@@ -699,9 +699,38 @@ def test_forecast_days_do_not_touch_field_reasons(client):
 def test_sensor_tmin_clears_the_field_reason_of_a_failed_fill(client, monkeypatch):
     tc, h = client
     h["install"]([])
-    monkeypatch.setattr(pd, "_parcel_devices", lambda urn, tid: ["dev1"])
+    monkeypatch.setattr(pd, "_parcel_devices", lambda urn, tid: {"dev1": (True, {})})
     monkeypatch.setattr(pd, "_sensor_readings", lambda tid, devices, lo, hi: _sensor_day("2026-10-01", 10.0, 22.0))
     j = _get_fill(tc, _filled_rec(tmin_c=None, tmin_reason="tmin_raw_unavailable"))
     d = j["days"][0]
     assert d["tmin_c"] == 10.0 and d["sources"]["tmin_c"] == "iot_sensor"
     assert j["field_reasons"] == {}
+
+
+
+def test_only_open_air_sensors_feed_the_daily_series(client, monkeypatch):
+    c, h = client
+    h["install"]([_row("2026-10-01", **FULL)])
+    monkeypatch.setattr(pd, "_parcel_devices", lambda urn, tid: {"dev1": (True, {"airTemperature": False})})
+    monkeypatch.setattr(pd, "_fetch_parcel_entity", lambda urn, tid: {"id": urn})
+    monkeypatch.setattr(pd, "_sensor_readings", lambda tid, devices, lo, hi: _sensor_day("2026-10-01", 10.0, 22.0))
+    d = c.get(f"/api/weather/parcel/{PID}/daily?start=2026-10-01&end=2026-10-01").json()["days"][0]
+    assert d["tmin_c"] == 11.2 and d["sources"]["tmin_c"] == "parcel_weather"
+
+
+def test_parcel_devices_keeps_only_devices_with_open_air_attributes(monkeypatch):
+    def ctx(medium):
+        return {"type": "Property", "value": {"medium": medium}}
+    entities = [
+        {"id": "urn:ngsi-ld:Device:t1:open", "observationContext": ctx("ambientAir")},
+        {"id": "urn:ngsi-ld:Device:t1:under", "observationContext": ctx("ambientAirUnderStructure")},
+        {"id": "urn:ngsi-ld:Device:t1:unset"},
+    ]
+
+    class _R:
+        status_code = 200
+
+        def json(self):
+            return entities
+    monkeypatch.setattr(pd.requests, "get", lambda *a, **k: _R())
+    assert pd._parcel_devices("urn:ngsi-ld:AgriParcel:p", "tenant-a") == {"open": (True, {})}

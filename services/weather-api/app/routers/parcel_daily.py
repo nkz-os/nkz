@@ -123,8 +123,13 @@ def _fetch_parcel_entity(parcel_urn: str, tenant_id: str) -> Optional[Dict[str, 
         return None
 
 
-def _parcel_devices(parcel_urn: str, tenant_id: str) -> List[str]:
-    """Short ids of the IoT devices whose controlledAsset is the parcel (raises when the broker fails)."""
+def _parcel_devices(parcel_urn: str, tenant_id: str) -> Dict[str, sensor_daily.MediumRule]:
+    """Open-air IoT devices whose controlledAsset is the parcel, by short id, with the
+    attributes that count (raises when the broker fails).
+
+    A device under a structure, in a greenhouse, in the soil or with no declared medium
+    does not describe the parcel's open-air weather and is left out.
+    """
     resp = requests.get(
         f"{settings.orion_url}/ngsi-ld/v1/entities",
         params={"type": "Device", "q": f'controlledAsset=="{parcel_urn}"', "limit": 100},
@@ -133,7 +138,12 @@ def _parcel_devices(parcel_urn: str, tenant_id: str) -> List[str]:
     )
     if resp.status_code != 200:
         raise RuntimeError(f"device lookup returned {resp.status_code}")
-    return sorted({e["id"].split(":")[-1] for e in resp.json() if e.get("id")})
+    devices: Dict[str, sensor_daily.MediumRule] = {}
+    for entity in resp.json():
+        rule = sensor_daily.medium_rule(entity) if entity.get("id") else None
+        if rule is not None:
+            devices[entity["id"].split(":")[-1]] = rule
+    return devices
 
 
 def _sensor_readings(tenant_id: str, devices: List[str], lo: datetime, hi: datetime) -> List[sensor_daily.Reading]:
@@ -178,7 +188,8 @@ def _apply_sensors(tenant_id: str, parcel_urn: str, d0: date, d1: date, days: Li
     A sensor failure never takes the series down: it is served without them and says so.
     """
     try:
-        devices = _parcel_devices(parcel_urn, tenant_id)
+        rules = _parcel_devices(parcel_urn, tenant_id)
+        devices = sorted(rules)
         if devices:
             entity = entity or _fetch_parcel_entity(parcel_urn, tenant_id) or {}
             tz_attr = entity.get("timeZone")
@@ -186,7 +197,8 @@ def _apply_sensors(tenant_id: str, parcel_urn: str, d0: date, d1: date, days: Li
             # Local days can start up to 14 h either side of UTC midnight.
             lo = datetime(d0.year, d0.month, d0.day, tzinfo=timezone.utc) - timedelta(hours=14)
             hi = datetime(d1.year, d1.month, d1.day, tzinfo=timezone.utc) + timedelta(days=1, hours=14)
-            sensor_daily.merge(days, sensor_daily.aggregate(_sensor_readings(tenant_id, devices, lo, hi), tz))
+            readings = sensor_daily.ambient_air_only(_sensor_readings(tenant_id, devices, lo, hi), rules)
+            sensor_daily.merge(days, sensor_daily.aggregate(readings, tz))
         else:
             sensor_daily.merge(days, {})
         return {"sensor_devices": devices, "sensors_unavailable": False}

@@ -349,7 +349,7 @@ class _Conn:
 def dclient(monkeypatch):
     app.dependency_overrides[require_auth] = lambda: "tenant-a"
     h = {"entity": th._entity(lat=EBRO[0], lon=EBRO[1]), "coastal": False, "fetches": 0, "probes": 0}
-    monkeypatch.setattr(pd, "_parcel_devices", lambda urn, tid: [])
+    monkeypatch.setattr(pd, "_parcel_devices", lambda urn, tid: {})
 
     def fetch(urn, tid):
         h["fetches"] += 1
@@ -536,7 +536,7 @@ def test_daily_iot_sensor_day_is_null_with_reason_and_sources_totals_unchanged(d
     the reason «dato de sensor». The model day beside it is served. sources and totals are untouched."""
     c, h = dclient
     _validate_daily(monkeypatch)
-    monkeypatch.setattr(pd, "_parcel_devices", lambda urn, tid: ["dev1"])
+    monkeypatch.setattr(pd, "_parcel_devices", lambda urn, tid: {"dev1": (True, {})})
     monkeypatch.setattr(pd, "_sensor_readings", lambda *a, **k: [
         pd.sensor_daily.Reading("dev1", datetime(2026, 11, 1, 3, tzinfo=timezone.utc), "tmin_c", -1.0)])
     monkeypatch.setattr(pd.sensor_daily, "aggregate",
