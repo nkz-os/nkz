@@ -157,7 +157,8 @@ export interface DeviceDeployment {
 
 export interface MoveDeploymentRequest {
   validFrom?: string;
-  observesFeature?: string;
+  /** null = no feature. */
+  observesFeature?: string | null;
   observationContext?: Record<string, unknown>;
   channelOverrides?: DeviceDeployment['channelOverrides'];
   mobility?: 'fixed' | 'mobile';
@@ -169,7 +170,8 @@ export interface MoveDeploymentRequest {
 export interface CorrectDeploymentRequest {
   validFrom?: string;
   validTo?: string | null;
-  observesFeature?: string;
+  /** null = no feature. */
+  observesFeature?: string | null;
   observationContext?: Record<string, unknown>;
   channelOverrides?: DeviceDeployment['channelOverrides'];
   location?: { lat: number; lon: number };

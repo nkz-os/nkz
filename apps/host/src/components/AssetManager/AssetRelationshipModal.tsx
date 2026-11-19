@@ -23,7 +23,7 @@ import { Button, Checkbox, Input } from '@nekazari/ui-kit';
 import { useI18n } from '@/context/I18nContext';
 import { useAuth } from '@/context/KeycloakAuthContext';
 import { DATALOGGER_INSTALLER_ROLES } from '@/services/dataloggersApi';
-import { DeviceDeployments } from './DeviceDeployments';
+import { DeviceDeployments, readDeviceProfileCode } from './DeviceDeployments';
 import {
   deviceLinks,
   parkOptionsFor,
@@ -119,9 +119,14 @@ export const AssetRelationshipModal: React.FC<AssetRelationshipModalProps> = ({
     }
     return options;
   }, [solarParks, selectedLinks, ownerParkId]);
+  // A foreign URN stored first is the owner; it stays first unless the user picks a park.
+  const foreignOwner = useMemo(
+    () => (initialControlled.length > 0 && foreignLinks.includes(initialControlled[0]) ? initialControlled[0] : null),
+    [initialControlled, foreignLinks],
+  );
   const nextLinks = useMemo(
-    () => (selectedLinks.length > 0 ? deviceLinks(ownerParkId, selectedLinks, foreignLinks) : []),
-    [ownerParkId, selectedLinks, foreignLinks],
+    () => (selectedLinks.length > 0 ? deviceLinks(ownerParkId, selectedLinks, foreignLinks, foreignOwner) : []),
+    [ownerParkId, selectedLinks, foreignLinks, foreignOwner],
   );
   const linksChanged =
     nextLinks.length !== initialControlled.length || nextLinks.some((urn, i) => urn !== initialControlled[i]);
@@ -277,7 +282,11 @@ export const AssetRelationshipModal: React.FC<AssetRelationshipModalProps> = ({
             </Button>
             {showDeployments && (
               <div className="mt-2 max-h-96 overflow-y-auto">
-                <DeviceDeployments deviceUrn={asset.id} parcelIds={selectedLinks} />
+                <DeviceDeployments
+                  deviceUrn={asset.id}
+                  parcelIds={selectedLinks}
+                  profileCode={readDeviceProfileCode(asset.rawEntity)}
+                />
               </div>
             )}
           </div>

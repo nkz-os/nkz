@@ -40,16 +40,21 @@ export function readForeignLinks(entity: unknown): string[] {
 
 /**
  * `[park?, ...parcels, ...preserved]`, deduped; a sensor always keeps at least one parcel.
+ * `foreignOwnerUrn` keeps a stored foreign owner first when no park is chosen.
  * `preserved` carries the foreign URNs so a save never drops them; park/parcel URNs in it are ignored.
  */
 export function deviceLinks(
   ownerParkUrn: string | null,
   parcelUrns: string[],
   preserved: string[] = [],
+  foreignOwnerUrn: string | null = null,
 ): string[] {
   if (parcelUrns.length === 0) throw new Error('A sensor requires at least one parcel');
+  // A foreign URN stored first is the owner; it keeps that place unless a park takes over.
+  const foreignOwner = !ownerParkUrn && foreignOwnerUrn && !isManaged(foreignOwnerUrn) ? foreignOwnerUrn : null;
   return Array.from(
     new Set([
+      ...(foreignOwner ? [foreignOwner] : []),
       ...(ownerParkUrn ? [ownerParkUrn] : []),
       ...parcelUrns,
       ...preserved.filter((urn) => !isManaged(urn)),

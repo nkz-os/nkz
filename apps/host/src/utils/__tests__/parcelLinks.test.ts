@@ -83,6 +83,12 @@ describe('park ownership helpers', () => {
     expect(readForeignLinks({})).toEqual([]);
   });
 
+  it('deviceLinks keeps a foreign owner first unless a park takes over', () => {
+    const F = 'urn:ngsi-ld:AgriGreenhouse:g1';
+    expect(deviceLinks(null, [A], [F], F)).toEqual([F, A]);
+    expect(deviceLinks(K, [A], [F], F)).toEqual([K, A, F]);
+  });
+
   it('parkOptionsFor keeps only parks on a selected parcel', () => {
     const parks = [
       toParkOption({ id: K, name: { value: 'Park K' }, hasAgriParcel: { object: A } }),

@@ -9,6 +9,7 @@ import {
   apiErrorMessage,
   correctDeployment,
   listDeviceDeployments,
+  listSensorProfiles,
   moveDeviceDeployment,
   type CorrectDeploymentRequest,
   type DeviceDeployment,
@@ -20,12 +21,24 @@ import {
   toLocalInput,
   type ObservationValue,
 } from '../EntityWizard/steps/ObservationFields';
+import { relationshipTargets } from '@/utils/entityRelations';
 import { contextErrors, type ObservationContext } from '@/utils/observationContext';
 
 interface DeviceDeploymentsProps {
   deviceUrn: string;
   /** Parcels the device measures; limits the choices of the observed feature. */
   parcelIds?: string[];
+  /** Profile code of the device (see readDeviceProfileCode); resolves the channels it measures. */
+  profileCode?: string | null;
+}
+
+/** Profile code from `hasDeviceProfile` / `refDeviceProfile` (`urn:ngsi-ld:DeviceProfile:<code>`). */
+export function readDeviceProfileCode(entity: unknown): string | null {
+  if (!entity || typeof entity !== 'object') return null;
+  const e = entity as Record<string, unknown>;
+  const [urn] = relationshipTargets(e.hasDeviceProfile ?? e.refDeviceProfile);
+  if (!urn) return null;
+  return urn.startsWith('urn:ngsi-ld:DeviceProfile:') ? urn.slice('urn:ngsi-ld:DeviceProfile:'.length) : urn;
 }
 
 type Editor = { kind: 'move' } | { kind: 'correct'; deployment: DeviceDeployment } | null;
@@ -52,7 +65,7 @@ function toValue(dep: DeviceDeployment | undefined): ObservationValue {
 
 const same = (a: unknown, b: unknown) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
 
-export function DeviceDeployments({ deviceUrn, parcelIds = [] }: DeviceDeploymentsProps) {
+export function DeviceDeployments({ deviceUrn, parcelIds = [], profileCode = null }: DeviceDeploymentsProps) {
   const { t } = useTranslation();
   const [items, setItems] = useState<DeviceDeployment[] | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -77,6 +90,22 @@ export function DeviceDeployments({ deviceUrn, parcelIds = [] }: DeviceDeploymen
     void load();
   }, [load]);
 
+  const [profileAttrs, setProfileAttrs] = useState<string[] | null>(null);
+  useEffect(() => {
+    let active = true;
+    setProfileAttrs(null);
+    if (!profileCode) return undefined;
+    listSensorProfiles()
+      .then((profiles) => {
+        const found = profiles.find((p) => p.code === profileCode);
+        if (active && found?.sdm_attributes?.length) setProfileAttrs(found.sdm_attributes);
+      })
+      .catch(() => undefined); // falls back to the override keys
+    return () => {
+      active = false;
+    };
+  }, [profileCode]);
+
   const current = items?.find((d) => d.valid_to === null);
 
   const open = (next: Editor) => {
@@ -94,10 +123,10 @@ export function DeviceDeployments({ deviceUrn, parcelIds = [] }: DeviceDeploymen
     }
   };
 
-  // The medium summary and the feature offered come from the deployment shown.
-  const profileAttributes = Object.keys(
-    (editor?.kind === 'correct' ? editor.deployment : current)?.channelOverrides ?? {},
-  );
+  // Channels come from the device profile; without it, the ones already overridden.
+  const profileAttributes =
+    profileAttrs ??
+    Object.keys((editor?.kind === 'correct' ? editor.deployment : current)?.channelOverrides ?? {});
 
   const submit = async () => {
     if (!editor) return;
@@ -119,7 +148,9 @@ export function DeviceDeployments({ deviceUrn, parcelIds = [] }: DeviceDeploymen
       if (editor.kind === 'move') {
         const body: MoveDeploymentRequest = { reason: trimmed };
         if (validFrom) body.validFrom = validFrom;
+        const base = current ?? items?.[0];
         if (value.observesFeature) body.observesFeature = value.observesFeature;
+        else if (base?.observesFeature) body.observesFeature = null;
         if (value.observationContext) body.observationContext = value.observationContext as any;
         if (value.channelOverrides && Object.keys(value.channelOverrides).length > 0) {
           body.channelOverrides = value.channelOverrides as any;
@@ -131,8 +162,8 @@ export function DeviceDeployments({ deviceUrn, parcelIds = [] }: DeviceDeploymen
         const body: CorrectDeploymentRequest = { reason: trimmed };
         if (validFrom && !same(validFrom, before.valid_from)) body.validFrom = validFrom;
         if (validTo !== undefined && !same(validTo, before.valid_to)) body.validTo = validTo;
-        if (value.observesFeature && value.observesFeature !== (before.observesFeature ?? undefined)) {
-          body.observesFeature = value.observesFeature;
+        if ((value.observesFeature ?? null) !== (before.observesFeature ?? null)) {
+          body.observesFeature = value.observesFeature ?? null;
         }
         if (value.observationContext && !same(value.observationContext, before.observationContext)) {
           body.observationContext = value.observationContext as any;
