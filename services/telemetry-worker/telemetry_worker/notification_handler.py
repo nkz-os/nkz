@@ -7,7 +7,7 @@ after applying Processing Profiles (throttle, filter, delta).
 
 import logging
 import os
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Request, BackgroundTasks, Header, HTTPException
@@ -19,6 +19,7 @@ from .health_checker import HealthChecker, _severity
 from .profiles import ProfileService
 from .calibration import CalibrationService
 from .dedup import NotificationDedup
+from .observations import resolve_observation
 
 logger = logging.getLogger(__name__)
 
@@ -53,6 +54,7 @@ _event_sink: Optional[EventSink] = None
 _health_checker: Optional[HealthChecker] = None
 _calibration_service: Optional[CalibrationService] = None
 _dedup: Optional[NotificationDedup] = None
+_observation_lookup: Optional[Any] = None  # ObservationLookup; None = feature off
 
 
 def init_handler(
@@ -62,15 +64,17 @@ def init_handler(
     health_checker: Optional[HealthChecker] = None,
     calibration_service: Optional[CalibrationService] = None,
     dedup: Optional[NotificationDedup] = None,
+    observation_lookup: Optional[Any] = None,
 ) -> None:
     """Wire dependencies from app lifespan."""
-    global _settings, _profile_service, _event_sink, _health_checker, _calibration_service, _dedup
+    global _settings, _profile_service, _event_sink, _health_checker, _calibration_service, _dedup, _observation_lookup
     _settings = settings
     _profile_service = profile_service
     _event_sink = event_sink
     _health_checker = health_checker
     _calibration_service = calibration_service
     _dedup = dedup
+    _observation_lookup = observation_lookup
 
 
 async def process_notification_task(
@@ -179,6 +183,7 @@ async def _process_entity(
 
     # --- Health check on extracted measurements ---
     quality_flag = "valid"
+    health_flags: Dict[str, str] = {}
     if _health_checker and tenant_id:
         health_config = await _health_checker.get_health_config(
             entity_id, tenant_id
@@ -187,6 +192,7 @@ async def _process_entity(
             worst_flag = "valid"
             for var, val in measurements.items():
                 flag = _health_checker.evaluate_measurement(var, val, health_config)
+                health_flags[var] = flag
                 if _severity(flag) > _severity(worst_flag):
                     worst_flag = flag
             quality_flag = worst_flag
@@ -240,6 +246,12 @@ async def _process_entity(
     # Update last values cache for future delta checks
     _profile_service.update_last_values(device_id, measurements)
 
+    observation_payload: Dict[str, Any] = {}
+    if entity_type == "DeviceMeasurement" and _observation_lookup is not None:
+        observation_payload = await _resolve_observation_payload(
+            entity, tenant_id, observed_at, filtered, health_flags
+        )
+
     return TelemetryEvent(
         tenant_id=tenant_id,
         observed_at=observed_at,
@@ -251,9 +263,114 @@ async def _process_entity(
             "raw": entity,
             **({"raw_measurements": raw_measurements} if raw_measurements else {}),
             **({"calibration_period_ids": calibration_period_ids} if calibration_period_ids else {}),
+            **observation_payload,
         },
         quality_flag=quality_flag,
     )
+
+
+def _prop_value(entity: Dict[str, Any], key: str) -> Optional[Any]:
+    attr = entity.get(key)
+    if isinstance(attr, dict):
+        return attr.get("value")
+    return None
+
+
+def _reading_point(entity: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    """The DeviceMeasurement's own `location` GeoProperty Point, if well-formed."""
+    value = _prop_value(entity, "location")
+    if not isinstance(value, dict) or value.get("type") != "Point":
+        return None
+    coords = value.get("coordinates")
+    if (
+        isinstance(coords, (list, tuple))
+        and len(coords) >= 2
+        and all(isinstance(c, (int, float)) and not isinstance(c, bool) for c in coords[:2])
+    ):
+        return {"type": "Point", "coordinates": [coords[0], coords[1]]}
+    return None
+
+
+async def _resolve_observation_payload(
+    entity: Dict[str, Any],
+    tenant_id: Optional[str],
+    observed_at: datetime,
+    filtered: Dict[str, Any],
+    health_flags: Dict[str, str],
+) -> Dict[str, Any]:
+    """Observation keys for the event payload (contract 1.2); {} when nothing resolves.
+
+    Never raises: any failure is logged and the event is written without observations.
+    """
+    ref = entity.get("refDevice")
+    device_urn = ref.get("object") if isinstance(ref, dict) else None
+    at_iso = observed_at.isoformat()
+    log_ctx = f"tenant_id={tenant_id} device_urn={device_urn} observed_at={at_iso}"
+
+    if not tenant_id:
+        logger.warning(f"Observation skipped, tenant missing: {log_ctx}")
+        return {}
+    if not isinstance(device_urn, str) or not device_urn:
+        logger.warning(f"Observation skipped, refDevice URN missing: {log_ctx}")
+        return {}
+
+    try:
+        dep = await _observation_lookup.deployment_at(tenant_id, device_urn, observed_at)
+        if dep is None:
+            logger.warning(f"Observation skipped, no deployment at observed_at: {log_ctx}")
+            return {}
+
+        observed_property = _prop_value(entity, "observedProperty")
+        profile_code = _prop_value(entity, "profileCode")
+        observations: Dict[str, Any] = {}
+        for attr, value in filtered.items():
+            if not isinstance(observed_property, str) or not observed_property:
+                logger.warning(f"Observation skipped for {attr}, no observedProperty: {log_ctx}")
+                continue
+            if isinstance(value, bool) or not isinstance(value, (int, float)):
+                continue
+            prop = await _observation_lookup.property(tenant_id, observed_property)
+            if prop is None:
+                logger.warning(
+                    f"Observation skipped for {attr}, observedProperty "
+                    f"{observed_property!r} unknown or deprecated: {log_ctx}"
+                )
+                continue
+            measurement_def: Dict[str, Any] = {}
+            if isinstance(profile_code, str) and profile_code:
+                measurement_def = (
+                    await _observation_lookup.measurement_def(tenant_id, profile_code, attr)
+                ) or {}
+            observations[attr] = resolve_observation(
+                attr, value, device_urn, dep, measurement_def, prop, health_flags.get(attr)
+            )
+        if not observations:
+            return {}
+
+        out: Dict[str, Any] = {
+            "observations": observations,
+            "deploymentId": dep.id,
+            "sourceKind": "device",
+        }
+        time_source = _prop_value(entity, "timeSource")
+        if time_source in ("device", "server"):
+            out["timeSource"] = time_source
+        if dep.mobility == "mobile":
+            point = _reading_point(entity)
+        elif dep.location is not None:
+            point = {"type": "Point", "coordinates": [dep.location[0], dep.location[1]]}
+        else:
+            point = None
+        if point is not None:
+            out["location"] = point
+        return out
+    except Exception as e:
+        logger.error(
+            f"Observation resolution failed, writing event without observations: "
+            f"{log_ctx}: {e}",
+            exc_info=True,
+        )
+        return {}
 
 
 _ENTITY_METADATA_KEYS = frozenset(
@@ -347,6 +464,11 @@ def _extract_device_measurement(entity: Dict[str, Any]) -> tuple[Optional[str], 
     return device_id, measurements
 
 
+def _as_aware_utc(dt: datetime) -> datetime:
+    """Naive timestamps are UTC by platform convention; the lookup rejects naive ones."""
+    return dt.replace(tzinfo=timezone.utc) if dt.tzinfo is None else dt
+
+
 def _extract_device_measurement_observed_at(entity: Dict[str, Any]) -> datetime:
     """`DeviceMeasurement` carries its instant in `dateObserved`, a plain Property value
     (see build_measurements), not in per-attribute `observedAt` metadata — the generic
@@ -358,10 +480,10 @@ def _extract_device_measurement_observed_at(entity: Dict[str, Any]) -> datetime:
         value = date_observed.get("value")
         if value:
             try:
-                return datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+                return _as_aware_utc(datetime.fromisoformat(str(value).replace("Z", "+00:00")))
             except (ValueError, TypeError):
                 pass
-    return datetime.utcnow()
+    return datetime.now(timezone.utc)
 
 
 def _extract_observed_at(entity: Dict[str, Any]) -> datetime:
@@ -369,10 +491,12 @@ def _extract_observed_at(entity: Dict[str, Any]) -> datetime:
     for attr in entity.values():
         if isinstance(attr, dict) and "observedAt" in attr:
             try:
-                return datetime.fromisoformat(attr["observedAt"].replace("Z", "+00:00"))
-            except ValueError:
+                return _as_aware_utc(
+                    datetime.fromisoformat(attr["observedAt"].replace("Z", "+00:00"))
+                )
+            except (ValueError, TypeError, AttributeError):
                 pass
-    return datetime.utcnow()
+    return datetime.now(timezone.utc)
 
 
 @router.post("/notify", status_code=204)

@@ -9,6 +9,7 @@ from telemetry_worker.config import Settings
 from telemetry_worker.dedup import NotificationDedup
 from telemetry_worker.event_sink import PostgreSQLSink
 from telemetry_worker.health_checker import HealthChecker
+from telemetry_worker.observation_lookup import ObservationLookup
 from telemetry_worker.notification_handler import (
     init_handler,
     router as notification_router,
@@ -69,7 +70,11 @@ async def lifespan(app: FastAPI):
     await dedup.start()
 
     # Wire dependencies into notification handler
-    init_handler(settings, profile_service, sink, health_checker, calibration_service, dedup)
+    observation_lookup = ObservationLookup(sink._pool)
+    init_handler(
+        settings, profile_service, sink, health_checker, calibration_service, dedup,
+        observation_lookup=observation_lookup,
+    )
 
     # Check/create NGSI-LD subscriptions for all tenants (sync, run in executor)
     try:

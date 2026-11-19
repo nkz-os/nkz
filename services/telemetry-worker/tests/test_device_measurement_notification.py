@@ -157,15 +157,15 @@ class TestAgriSensorRegression:
         assert event.payload["measurements"] == {"temperature": 21.5}
         assert event.observed_at == datetime(2026, 8, 29, 9, 0, 0, tzinfo=timezone.utc)
 
-    def test_agrisensor_observed_at_still_falls_back_to_utcnow_when_absent(self):
+    def test_agrisensor_observed_at_still_falls_back_to_aware_utc_now_when_absent(self):
         entity = {
             "id": "urn:ngsi-ld:AgriSensor:acmefarm:sensor-043",
             "type": "AgriSensor",
             "temperature": {"type": "Property", "value": 19.0},
         }
-        before = datetime.utcnow()
+        before = datetime.now(timezone.utc)
         event = asyncio.run(nh._process_entity(entity, "acmefarm"))
-        after = datetime.utcnow()
+        after = datetime.now(timezone.utc)
         assert event is not None
         assert before <= event.observed_at <= after
 
