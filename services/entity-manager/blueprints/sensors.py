@@ -28,6 +28,7 @@ from db_helper import get_db_connection_with_tenant, get_db_connection_simple, r
 # Import shared config
 from helpers import ORION_URL, CONTEXT_URL
 import dataloggers
+import observation_catalogue
 from common.context_aliases import canonical_attribute
 from common.jexl_expressions import validate_jexl_expression
 from common.unit_codes import to_unit_code
@@ -521,7 +522,7 @@ _PROFILE_CODE = re.compile(r'[A-Za-z0-9_.-]{1,64}')
 _VALUE_TYPES = ('Number', 'Text')
 
 
-def _validated_profile(data: dict) -> tuple:
+def _validated_profile(data: dict, tenant_id: str) -> tuple:
     """(name, description, mapping) of a profile body, with `sdmAttribute` canonicalized."""
     name = data.get('name')
     if not isinstance(name, str) or not name.strip():
@@ -560,6 +561,24 @@ def _validated_profile(data: dict) -> tuple:
             ok, why = validate_jexl_expression(m['expression'], variables=keys)
             if not ok:
                 raise dataloggers.ApiError(400, f'Invalid expression: {why}')
+        observed = m.get('observedProperty')
+        counter_max = m.get('counterMax')
+        if observed is not None:
+            if not isinstance(observed, str) or not observed.strip():
+                raise dataloggers.ApiError(400, 'observedProperty must be text')
+            observed = observed.strip()
+            prop = observation_catalogue.get_property(tenant_id, observed)
+            if prop is None:
+                raise dataloggers.ApiError(400, f'Unknown observedProperty "{observed}"')
+        if 'counterMax' in m:
+            if observed is None:
+                raise dataloggers.ApiError(400, 'counterMax requires observedProperty')
+            if (isinstance(counter_max, bool) or not isinstance(counter_max, (int, float))
+                    or not math.isfinite(counter_max) or counter_max <= 0):
+                raise dataloggers.ApiError(400, 'counterMax must be a positive number')
+            if prop['temporal_semantics'] != 'cumulative':
+                raise dataloggers.ApiError(
+                    400, f'counterMax only applies to cumulative properties, "{observed}" is not')
         attribute = canonical_attribute(m['sdmAttribute'].strip())
         if attribute in seen:
             raise dataloggers.ApiError(400, f'Duplicate sdmAttribute "{attribute}"')
@@ -568,6 +587,10 @@ def _validated_profile(data: dict) -> tuple:
         for field in ('incomingKey', 'valueType', 'expression'):
             if m.get(field):
                 clean[field] = m[field]
+        if observed is not None:
+            clean['observedProperty'] = observed
+        if 'counterMax' in m:
+            clean['counterMax'] = counter_max
         measurements.append(clean)
     return name.strip(), description, {**mapping, 'measurements': measurements}
 
@@ -596,7 +619,7 @@ def create_sensor_profile():
     code = data.get('code')
     if not isinstance(code, str) or not _PROFILE_CODE.fullmatch(code):
         raise dataloggers.ApiError(400, 'Invalid code')
-    name, description, mapping = _validated_profile(data)
+    name, description, mapping = _validated_profile(data, tenant)
     if _profile_visible(tenant, code):
         raise dataloggers.ApiError(409, 'Profile code already exists')
     try:
@@ -625,7 +648,7 @@ def update_sensor_profile(code):
     data = _body()
     if data.get('code', code) != code:
         raise dataloggers.ApiError(400, 'code in body does not match the URL')
-    name, description, mapping = _validated_profile(data)
+    name, description, mapping = _validated_profile(data, tenant)
     row = _profile_visible(tenant, code)
     if not row:
         raise dataloggers.ApiError(404, 'Profile not found')
