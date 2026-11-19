@@ -86,7 +86,11 @@ NOT_A_TYPE_MARKER = "sdm:not-a-type"
 SELF_PATH = ".github/scripts/check_entity_types.py"
 
 _URN = re.compile(rf"urn:ngsi-ld:({NAME}):")
-_TYPE_KEY = re.compile(rf"[Tt]ype[\"']?\]?\s*(?:===|!==|==|!=|=|:)\s*[\"']({NAME})[\"']")
+_TYPE_KEY = re.compile(
+    r"(?:(?<![A-Za-z0-9_])@?type|[Ee]ntity_?[Tt]ype|[Ss]dm_?[Tt]ype|\b[A-Z][A-Z0-9_]*_TYPE)[\"']?\]?\s*"
+    r"(?::\s*[\w\[\]\"'|., ]+?\s*=|===|!==|==|!=|=|:)"
+    rf"\s*[\"']({NAME})[\"']"
+)
 _TYPE_QUERY = re.compile(r"[?&]type=([^&\s\"']+)")
 _NKZ = re.compile(rf"\bnkz:({NAME})(?![A-Za-z0-9])")
 _NKZ_IRI = re.compile(rf"https://nkz-os\.org/ns/({NAME})(?![A-Za-z0-9])")
@@ -128,7 +132,6 @@ VOCABULARY = frozenset({
     "RS256", "List", "Query", "Unknown", "Type", "Tipo", "Tipus", "Mota",
     "ActividadesType", "CabeceraType", "ExplotacionType", "FertilizacionType", "GeometriaType", "ParcelaType",
     "ParcelasType", "RecintoType", "RecintosType", "TratamientoFitoType",
-    "Arenosol", "Calcisol", "Chernozem", "Fluvisol", "Luvisol", "Alta", "Modificacion", "Anulacion",
 })
 
 
@@ -172,10 +175,13 @@ def scan_diff(diff: str, lists: Lists) -> list[Finding]:
     path: str | None = None
     old_left = new_left = 0
     new_no = 0
-    for raw in diff.splitlines():
+    for raw in diff.split("\n"):
+        raw = raw.rstrip("\r")
         if old_left <= 0 and new_left <= 0:
             if raw.startswith("+++ "):
                 target = raw[4:].split("\t")[0]
+                if len(target) > 1 and target.startswith('"') and target.endswith('"'):
+                    target = target[1:-1]  # git quotes paths with non-ASCII characters
                 path = target[2:] if target.startswith("b/") else None
             elif raw.startswith("diff --git "):
                 path = None
@@ -238,7 +244,7 @@ def inventory(root: Path, lists: Lists) -> dict[str, list[str]]:
             text = (root / path).read_text(encoding="utf-8")
         except (OSError, UnicodeDecodeError):
             continue  # binary, unreadable or a dangling symlink: no type names to find
-        for number, line in enumerate(text.splitlines(), start=1):
+        for number, line in enumerate(text.split("\n"), start=1):
             if NOT_A_TYPE_MARKER in line:
                 continue
             for name in extract_type_names(line):
@@ -391,7 +397,7 @@ def main(argv: list[str] | None = None) -> int:
     # treat 3 as "the checker could not run".
     try:
         if args.command == "diff":
-            return run_diff(args.lists, sys.stdin.read())
+            return run_diff(args.lists, sys.stdin.buffer.read().decode("utf-8", errors="replace"))
         if args.command == "ratchet":
             return run_ratchet(args.base, args.lists)
         if args.command == "inventory":

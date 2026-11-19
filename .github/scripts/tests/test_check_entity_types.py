@@ -53,6 +53,18 @@ def test_repo_lists_load_and_do_not_overlap():
     ('if (e.type === "FooAsset") {', ["FooAsset"]),
     ("if entity_type != 'FooAsset':", ["FooAsset"]),
     ('x.type !== "FooAsset"', ["FooAsset"]),
+    ('ENTITY_TYPE = "FooAsset"', ["FooAsset"]),
+    ('PV_TYPE = "FooAsset"', ["FooAsset"]),
+    ("PROFILE_ENTITY_TYPE = 'FooAsset'", ["FooAsset"]),
+    ('type: str = "FooAsset"', ["FooAsset"]),
+    ('entity_type: Literal["FooAsset"] = "FooAsset"', ["FooAsset"]),
+    ('sdm_entity_type = "FooAsset"', ["FooAsset"]),
+    ('{"soilType": "Cambisol"}', []),
+    ('{"sampleType": "Leaf"}', []),
+    ('service_type = "Internal"', []),
+    ('data_type: "Number"', []),
+    ('mimeType: "Image"', []),
+    ('CONTENT_TYPE = "application/json"', []),
     ('url = base + "?type=FooAsset,nkz:BarRecord&limit=10"', ["FooAsset", "BarRecord"]),
     ('"FooAsset": "nkz:FooAsset",', ["FooAsset"]),
     ('"FooAsset": "https://nkz-os.org/ns/FooAsset"', ["FooAsset"]),
@@ -65,7 +77,7 @@ def test_extract_type_names(line, expected):
 
 
 @pytest.mark.parametrize("name", ["Property", "Relationship", "GeoProperty", "Polygon", "FeatureCollection",
-                                  "Deployment", "SELECT", "Calcisol", "Anulacion", "CabeceraType", "ParcelasType", "Tipo", "Mota"])
+                                  "Deployment", "SELECT", "CabeceraType", "ParcelasType", "Tipo", "Mota"])
 def test_vocabulary_is_not_a_type(name):
     assert is_vocabulary(name)
 
@@ -137,9 +149,10 @@ def test_scan_diff_parses_a_hunk_header_without_counts():
 
 
 def _run_diff_cli(stdin):
+    data = stdin if isinstance(stdin, bytes) else stdin.encode("utf-8")
     return subprocess.run(
         [sys.executable, str(SCRIPT), "diff", "--lists", str(REPO_ROOT / "config" / "entity-types")],
-        input=stdin, capture_output=True, text=True, check=False,
+        input=data, capture_output=True, check=False,
     )
 
 
@@ -147,13 +160,14 @@ def test_diff_cli_fails_on_an_unknown_type():
     diff = "--- a/x.py\n+++ b/x.py\n@@ -1 +1 @@\n-old = 1\n+entity = {\"type\": \"FooAsset\"}\n"
     result = _run_diff_cli(diff)
     assert result.returncode == 1
-    assert "x.py:1: entity type 'FooAsset' is not in the lists" in result.stdout
-    assert cet.CLOSING_PARAGRAPH in result.stdout
+    out = result.stdout.decode("utf-8")
+    assert "x.py:1: entity type 'FooAsset' is not in the lists" in out
+    assert cet.CLOSING_PARAGRAPH in out
 
 
 def test_diff_cli_passes_on_empty_input():
     result = _run_diff_cli("")
-    assert result.returncode == 0 and result.stdout == ""
+    assert result.returncode == 0 and result.stdout == b""
 
 
 def test_diff_cli_reports_an_internal_error_with_status_3():
@@ -164,6 +178,39 @@ def test_diff_cli_reports_an_internal_error_with_status_3():
     )
     assert result.returncode == 3
     assert result.stderr.startswith("internal error:")
+
+
+def test_diff_cli_survives_a_non_utf8_byte():
+    diff = b'--- a/x.py\n+++ b/x.py\n@@ -1 +1,2 @@\n-old = 1\n+caf\xe9 = 1\n+entity = {"type": "FooAsset"}\n'
+    result = _run_diff_cli(diff)
+    assert result.returncode == 1
+    assert "x.py:2: entity type 'FooAsset' is not in the lists" in result.stdout.decode("utf-8")
+
+
+def test_scan_diff_line_breaks_inside_a_line_do_not_shift_the_hunk():
+    diff = '--- a/x.py\n+++ b/x.py\n@@ -0,0 +1,2 @@\n+a = "x\x0cy\u2028z"\n+entity = {"type": "FooAsset"}\n'
+    findings = scan_diff(diff, Lists(frozenset(), frozenset(), frozenset()))
+    assert [(f.path, f.line_no, f.name) for f in findings] == [("x.py", 2, "FooAsset")]
+
+
+def test_scan_diff_tolerates_carriage_returns():
+    diff = '--- a/x.py\r\n+++ b/x.py\r\n@@ -0,0 +1,1 @@\r\n+entity = {"type": "FooAsset"}\r\n'
+    findings = scan_diff(diff, Lists(frozenset(), frozenset(), frozenset()))
+    assert [(f.path, f.line_no, f.name) for f in findings] == [("x.py", 1, "FooAsset")]
+
+
+def test_scan_diff_reads_a_quoted_non_ascii_path():
+    diff = '--- "a/src/a\\303\\261o.py"\n+++ "b/src/a\\303\\261o.py"\n@@ -0,0 +1,1 @@\n+entity = {"type": "FooAsset"}\n'
+    findings = scan_diff(diff, Lists(frozenset(), frozenset(), frozenset()))
+    assert [(f.line_no, f.name) for f in findings] == [(1, "FooAsset")]
+    assert findings[0].path.startswith("src/a")
+
+
+def test_inventory_line_numbers_ignore_form_feeds(tmp_path):
+    subprocess.run(["git", "-C", str(tmp_path), "init", "-q"], check=True)
+    (tmp_path / "a.py").write_text('x = "a\x0cb"\n{"type": "FooAsset"}\n', encoding="utf-8")
+    subprocess.run(["git", "-C", str(tmp_path), "add", "-A"], check=True)
+    assert cet.inventory(tmp_path, Lists(frozenset(), frozenset(), frozenset())) == {"FooAsset": ["a.py:2"]}
 
 
 def test_inventory_lists_unknown_names_with_locations(tmp_path):
