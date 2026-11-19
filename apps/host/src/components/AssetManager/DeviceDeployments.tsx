@@ -127,6 +127,8 @@ export function DeviceDeployments({ deviceUrn, parcelIds = [], profileCode = nul
       setValue(toValue(next.deployment));
       setValidFrom(next.deployment.valid_from);
       setValidTo(next.deployment.valid_to);
+      setLat(next.deployment.location ? String(next.deployment.location.lat) : '');
+      setLon(next.deployment.location ? String(next.deployment.location.lon) : '');
     } else {
       const base = current ?? items?.[0];
       setValue(toValue(base));
@@ -155,9 +157,11 @@ export function DeviceDeployments({ deviceUrn, parcelIds = [], profileCode = nul
       }
     }
     let location: { lat: number; lon: number } | undefined;
-    if (editor.kind === 'move') {
-      const base = current ?? items?.[0];
-      const fixed = (value.mobility ?? base?.mobility ?? 'fixed') === 'fixed';
+    {
+      const base = editor.kind === 'correct' ? editor.deployment : current ?? items?.[0];
+      const fixed = (editor.kind === 'correct'
+        ? base?.mobility ?? 'fixed'
+        : value.mobility ?? base?.mobility ?? 'fixed') === 'fixed';
       if (lat.trim() === '' && lon.trim() === '') {
         if (fixed) {
           setError(t('entities.assets.deployments.location_required'));
@@ -204,6 +208,7 @@ export function DeviceDeployments({ deviceUrn, parcelIds = [], profileCode = nul
         if (value.channelOverrides && !same(value.channelOverrides, before.channelOverrides ?? {})) {
           body.channelOverrides = value.channelOverrides as any;
         }
+        if (location && !same(location, before.location ?? null)) body.location = location;
         if (Object.keys(body).length === 1) {
           setError(t('entities.assets.deployments.no_changes'));
           setBusy(false);
@@ -299,8 +304,7 @@ export function DeviceDeployments({ deviceUrn, parcelIds = [], profileCode = nul
             </div>
           )}
 
-          {editor.kind === 'move' && (
-            <div>
+          <div>
               <label className="block text-sm font-medium text-nkz-text-primary mb-1">
                 {t('entities.assets.deployments.location')}
               </label>
@@ -312,7 +316,7 @@ export function DeviceDeployments({ deviceUrn, parcelIds = [], profileCode = nul
                   max={90}
                   aria-label={t('entities.assets.deployments.latitude')}
                   placeholder={t('entities.assets.deployments.latitude')}
-                  data-testid="move-lat"
+                  data-testid={`${prefix}-lat`}
                   value={lat}
                   onChange={(e: any) => setLat(e.target.value)}
                   className={INPUT_CLASS}
@@ -324,14 +328,13 @@ export function DeviceDeployments({ deviceUrn, parcelIds = [], profileCode = nul
                   max={180}
                   aria-label={t('entities.assets.deployments.longitude')}
                   placeholder={t('entities.assets.deployments.longitude')}
-                  data-testid="move-lon"
+                  data-testid={`${prefix}-lon`}
                   value={lon}
                   onChange={(e: any) => setLon(e.target.value)}
                   className={INPUT_CLASS}
                 />
               </div>
-            </div>
-          )}
+          </div>
 
           <ObservationFields
             value={value}

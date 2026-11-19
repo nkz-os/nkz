@@ -151,6 +151,41 @@ describe('DeviceDeployments', () => {
     expect(post.mock.calls[0][1]).not.toHaveProperty('observesFeature');
   });
 
+  it('correct prefills the period location and sends it only when changed', async () => {
+    render(<DeviceDeployments deviceUrn={DEVICE} />);
+    fireEvent.click((await screen.findAllByTestId('deployment-correct'))[0]);
+    expect((screen.getByTestId('correct-lat') as HTMLInputElement).value).toBe('42');
+    expect((screen.getByTestId('correct-lon') as HTMLInputElement).value).toBe('-1');
+    fireEvent.change(screen.getByTestId('correct-lat'), { target: { value: '42.1234' } });
+    fireEvent.change(screen.getByTestId('correct-lon'), { target: { value: '-1.5678' } });
+    fireEvent.change(screen.getByTestId('correct-reason'), { target: { value: 'exact position measured' } });
+    fireEvent.click(screen.getByTestId('correct-submit'));
+    await waitFor(() => expect(put).toHaveBeenCalledTimes(1));
+    const [url, body] = put.mock.calls[0];
+    expect(url).toBe('/api/sensors/deployments/dep-2');
+    expect(body.location).toEqual({ lat: 42.1234, lon: -1.5678 });
+    expect(body).not.toHaveProperty('validFrom');
+  });
+
+  it('correct leaves location out when untouched and validates it when edited', async () => {
+    render(<DeviceDeployments deviceUrn={DEVICE} />);
+    fireEvent.click((await screen.findAllByTestId('deployment-correct'))[0]);
+    fireEvent.change(screen.getByTestId('correct-reason'), { target: { value: 'r' } });
+    fireEvent.change(screen.getByTestId('correct-lat'), { target: { value: '' } });
+    fireEvent.change(screen.getByTestId('correct-lon'), { target: { value: '' } });
+    fireEvent.click(screen.getByTestId('correct-submit'));
+    expect(await screen.findByText('entities.assets.deployments.location_required')).toBeTruthy();
+    fireEvent.change(screen.getByTestId('correct-lat'), { target: { value: '42' } });
+    fireEvent.change(screen.getByTestId('correct-lon'), { target: { value: '200' } });
+    fireEvent.click(screen.getByTestId('correct-submit'));
+    expect(await screen.findByText('entities.assets.deployments.location_invalid')).toBeTruthy();
+    expect(put).not.toHaveBeenCalled();
+    fireEvent.change(screen.getByTestId('correct-lon'), { target: { value: '-1' } });
+    fireEvent.click(screen.getByTestId('correct-submit'));
+    expect(await screen.findByText('entities.assets.deployments.no_changes')).toBeTruthy();
+    expect(put).not.toHaveBeenCalled();
+  });
+
   it('correct sends observesFeature null when the user cleared it', async () => {
     const FEATURE = 'urn:ngsi-ld:AgriParcel:a';
     get.mockImplementation(async () => ({ data: { deployments: [{ ...NEWEST, observesFeature: FEATURE }] } }));
