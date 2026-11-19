@@ -14,7 +14,7 @@ def test_telemetry_measurements_readable_as_rls_role(pg_conn):
         assert cur.fetchone() == (False, False)
 
 
-def test_schema_factory_upto_114_has_no_later_tables(pg_schema_factory):
+def test_schema_factory_upto_114_stops_before_observation_columns(pg_schema_factory):
     import psycopg2
 
     dsn = pg_schema_factory(114)
@@ -25,6 +25,12 @@ def test_schema_factory_upto_114_has_no_later_tables(pg_schema_factory):
             assert cur.fetchone()[0] is not None
             cur.execute("SELECT count(*) FROM observation_properties")
             assert cur.fetchone()[0] > 0
+            cur.execute(
+                "SELECT count(*) FROM information_schema.columns "
+                "WHERE table_name = 'telemetry_measurements' "
+                "AND column_name = 'observed_property'"
+            )
+            assert cur.fetchone()[0] == 0
     finally:
         conn.close()
 
