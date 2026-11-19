@@ -7,7 +7,7 @@ constraint on the table is the final guard against overlapping periods.
 """
 import logging
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 import psycopg2.errors
@@ -117,8 +117,13 @@ def _log_change(cur, tenant_id, deployment_id, actor, reason, before, after) -> 
 
 @dataloggers.in_step('db', 'Database error')
 def open_deployment(tenant_id: str, device_urn: str, spec: DeploymentSpec,
-                    valid_from: datetime, actor: str, reason: str) -> dict:
-    """Close the device's open deployment at `valid_from` and open a new one, atomically."""
+                    valid_from: datetime, actor: str, reason: str, first: bool = False) -> dict:
+    """Close the device's open deployment at `valid_from` and open a new one, atomically.
+
+    A per-device advisory lock serialises every writer of one device's deployments.
+    With `first=True` (registration) the device must have no open deployment, and
+    `valid_from` must come after the end of any closed history.
+    """
     _require_aware(valid_from, 'valid_from')
     reason = _require_reason(reason)
     if spec.mobility not in MOBILITIES:
@@ -128,11 +133,25 @@ def open_deployment(tenant_id: str, device_urn: str, spec: DeploymentSpec,
     with get_db_connection_with_tenant(tenant_id) as conn:
         cur = conn.cursor(cursor_factory=RealDictCursor)
         try:
+            # Held until commit/rollback: the open-row check and the insert are atomic,
+            # also when there is no row yet to lock (concurrent first registrations).
+            cur.execute("SELECT pg_advisory_xact_lock(hashtext(%s))",
+                        (f"{tenant_id}|{device_urn}",))
             # Lock the open row so two concurrent moves serialise on it.
             cur.execute(f"{_SELECT} WHERE tenant_id = %s AND device_urn = %s "
                         "AND upper_inf(valid) FOR UPDATE", (tenant_id, device_urn))
             row = cur.fetchone()
             previous = _to_dict(row) if row else None
+            if first:
+                if previous is not None:
+                    raise ApiError(409, 'Device already has an open deployment')
+                cur.execute("SELECT max(upper(valid)) AS last_end FROM device_deployments "
+                            "WHERE tenant_id = %s AND device_urn = %s", (tenant_id, device_urn))
+                last = cur.fetchone()
+                last_end = last['last_end'] if last else None
+                if last_end is not None and valid_from <= last_end:
+                    raise ApiError(409, 'validFrom must be after the end of the previous '
+                                        'deployment history of this device')
             if previous is not None:
                 if valid_from <= previous['valid_from']:
                     raise ApiError(409, 'valid_from must be after the start of the current deployment')
@@ -258,19 +277,48 @@ def revert_open(tenant_id: str, new_deployment_id: str, actor: str) -> None:
 
 
 @dataloggers.in_step('db', 'Database error')
-def delete_deployments(tenant_id: str, device_urn: str) -> None:
-    """Remove every deployment (and its change rows) of a device; registration undo only."""
+def delete_deployment(tenant_id: str, deployment_id: str) -> None:
+    """Remove one deployment (and its change rows); registration undo only."""
     with get_db_connection_with_tenant(tenant_id) as conn:
         cur = conn.cursor()
         try:
-            cur.execute("DELETE FROM device_deployment_changes WHERE tenant_id = %s AND deployment_id IN "
-                        "(SELECT id FROM device_deployments WHERE tenant_id = %s AND device_urn = %s)",
-                        (tenant_id, tenant_id, device_urn))
-            cur.execute("DELETE FROM device_deployments WHERE tenant_id = %s AND device_urn = %s",
-                        (tenant_id, device_urn))
+            cur.execute("DELETE FROM device_deployment_changes WHERE tenant_id = %s "
+                        "AND deployment_id = %s", (tenant_id, deployment_id))
+            cur.execute("DELETE FROM device_deployments WHERE tenant_id = %s AND id = %s",
+                        (tenant_id, deployment_id))
             conn.commit()
         finally:
             cur.close()
+
+
+@dataloggers.in_step('db', 'Database error')
+def close_open_deployment(tenant_id: str, device_urn: str, actor: str, reason: str) -> Optional[dict]:
+    """End the device's open deployment now, keeping it as history; None if none is open."""
+    reason = _require_reason(reason)
+    now = datetime.now(timezone.utc)
+    with get_db_connection_with_tenant(tenant_id) as conn:
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        try:
+            cur.execute("SELECT pg_advisory_xact_lock(hashtext(%s))",
+                        (f"{tenant_id}|{device_urn}",))
+            cur.execute(f"{_SELECT} WHERE tenant_id = %s AND device_urn = %s "
+                        "AND upper_inf(valid) FOR UPDATE", (tenant_id, device_urn))
+            row = cur.fetchone()
+            if row is None:
+                conn.commit()
+                return None
+            before = _to_dict(row)
+            # The range needs upper > lower; the clock can equal the start in tests.
+            end = max(now, before['valid_from'] + timedelta(microseconds=1))
+            cur.execute("UPDATE device_deployments SET valid = tstzrange(lower(valid), %s, '[)') "
+                        "WHERE id = %s AND tenant_id = %s", (end, before['id'], tenant_id))
+            after = _fetch(cur, tenant_id, before['id'])
+            _log_change(cur, tenant_id, before['id'], actor, reason, before, after)
+            conn.commit()
+        finally:
+            cur.close()
+    logger.info("deployment closed tenant=%s device=%s id=%s", tenant_id, device_urn, before['id'])
+    return after
 
 
 # ---- reads -------------------------------------------------------------------

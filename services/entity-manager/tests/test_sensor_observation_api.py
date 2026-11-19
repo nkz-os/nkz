@@ -81,7 +81,8 @@ def env(current=None):
         orion.entities[URN] = {"id": URN, "profileCode": {"type": "Property", "value": "p"}}
         opened = []
 
-        def open_dep(tenant, urn, spec, valid_from, actor, reason):
+        def open_dep(tenant, urn, spec, valid_from, actor, reason, first=False):
+            st.log.append(("dep", "first", first))
             st.log.append(("dep", "open"))
             opened.append(SimpleNamespace(tenant=tenant, urn=urn, spec=spec,
                                           valid_from=valid_from, actor=actor, reason=reason))
@@ -89,17 +90,18 @@ def env(current=None):
                         spec.observation_context, spec.channel_overrides, spec.mobility,
                         (spec.location[1], spec.location[0]) if spec.location else None)
 
-        def delete_deps(tenant, urn):
-            st.log.append(("dep", "delete", urn))
+        def delete_deps(tenant, dep_id):
+            st.log.append(("dep", "delete", dep_id))
 
         d = SimpleNamespace(
             open=MagicMock(side_effect=open_dep), delete=MagicMock(side_effect=delete_deps),
-            revert=MagicMock(), correct=MagicMock(), opened=opened,
+            revert=MagicMock(), close=MagicMock(return_value=None), correct=MagicMock(), opened=opened,
             current=MagicMock(return_value=current), get=MagicMock(),
             listing=MagicMock(return_value=[]))
         with patch.object(sensors, "requests", orion), patch.object(dataloggers, "requests", orion), \
                 patch.object(sensors.deployments, "open_deployment", d.open), \
-                patch.object(sensors.deployments, "delete_deployments", d.delete), \
+                patch.object(sensors.deployments, "delete_deployment", d.delete), \
+                patch.object(sensors.deployments, "close_open_deployment", d.close), \
                 patch.object(sensors.deployments, "revert_open", d.revert), \
                 patch.object(sensors.deployments, "correct_deployment", d.correct), \
                 patch.object(sensors.deployments, "current_deployment", d.current), \
@@ -234,9 +236,9 @@ def test_registration_failure_after_deployment_removes_it():
         r = _register(client())
     assert r.status_code == 502
     log = e.state.log
-    assert ("dep", "delete", URN) in log
+    assert ("dep", "delete", "dep-new") in log
     # Undo runs in reverse: the entity goes before the deployment row.
-    assert log.index(("orion", "delete", URN)) < log.index(("dep", "delete", URN))
+    assert log.index(("orion", "delete", URN)) < log.index(("dep", "delete", "dep-new"))
     assert log.index(("dep", "open")) < log.index(("orion", "post"))
     assert ("orion", "delete", URN) in log
 
@@ -246,15 +248,106 @@ def test_orion_create_failure_removes_the_deployment():
         e.state.fail["orion_post"] = True
         r = _register(client())
     assert r.status_code == 502
-    assert ("dep", "delete", URN) in e.state.log
+    assert ("dep", "delete", "dep-new") in e.state.log
 
 
-def test_register_does_not_open_deployment_over_an_existing_device():
+def test_register_does_not_open_deployment_over_an_open_deployment():
     with env() as e:
         e.dep.listing.return_value = [_dep()]
         r = _register(client())
     assert r.status_code == 409
-    assert not e.dep.opened and ("dep", "delete", URN) not in e.state.log
+    assert not e.dep.opened and ("dep", "delete", "dep-new") not in e.state.log
+
+
+def test_register_after_closed_history_is_allowed_as_first_deployment():
+    closed = _dep("dep-0", T0 - timedelta(days=9), T0 - timedelta(days=1))
+    with env() as e:
+        e.dep.listing.return_value = [closed]
+        r = _register(client())
+    assert r.status_code == 201, r.get_json()
+    assert ("dep", "first", True) in e.state.log
+
+
+def test_register_before_the_end_of_closed_history_is_409():
+    closed = _dep("dep-0", T0 - timedelta(days=9), T0 + timedelta(days=1))
+    with env() as e:
+        e.dep.listing.return_value = [closed]
+        r = _register(client(), validFrom="2026-03-01T08:00:00Z")
+    assert r.status_code == 409 and "after the end" in r.get_json()["error"]
+    assert not e.dep.opened
+
+
+def test_registration_undo_deletes_only_the_deployment_it_created():
+    with env() as e:
+        e.state.fail["set_role_topics"] = True
+        _register(client())
+    assert e.dep.delete.call_args[0] == (TENANT, "dep-new")
+
+
+def test_delete_device_closes_its_open_deployment():
+    with env() as e:
+        r = _send(client(), "delete", f"/api/sensors/devices/{URN}")
+    assert r.status_code == 204
+    args = e.dep.close.call_args[0]
+    assert args[0] == TENANT and args[1] == URN and args[3] == "device deleted"
+
+
+def test_delete_device_close_failure_is_logged_and_502(caplog):
+    import dataloggers
+    with env() as e:
+        e.dep.close.side_effect = dataloggers.ApiError(502, "Database error", "db")
+        with caplog.at_level("ERROR"):
+            r = _send(client(), "delete", f"/api/sensors/devices/{URN}")
+    assert r.status_code == 502
+    assert any("open deployment was not closed" in m and URN in m for m in caplog.messages)
+
+
+@pytest.mark.parametrize("method,path,body", [
+    ("get", "/api/sensors/devices/urn:ngsi-ld:AgriParcel:p2/deployments", None),
+    ("post", "/api/sensors/devices/urn:ngsi-ld:AgriParcel:p2/deployments", {"reason": "x"}),
+    ("get", f"/api/sensors/devices/urn:ngsi-ld:Device:other-tenant:S1/deployments", None),
+])
+def test_deployment_routes_reject_non_device_urns(method, path, body):
+    with env() as e:
+        r = _send(client(), method, path, body)
+    assert r.status_code == 404
+    assert not e.dep.opened and e.orion.attr_posts == []
+    e.dep.listing.assert_not_called()
+
+
+def test_correct_deployment_of_a_non_device_urn_is_404():
+    with env() as e:
+        e.dep.get.return_value = dict(_dep(), device_urn="urn:ngsi-ld:AgriParcel:p2")
+        r = _send(client(), "put", "/api/sensors/deployments/dep-1",
+                  {"observesFeature": FEATURE, "reason": "x"})
+    assert r.status_code == 404
+    e.dep.correct.assert_not_called()
+
+
+@pytest.mark.parametrize("key", ["validFrom", "validTo"])
+def test_correct_rejects_future_instants(key):
+    future = (datetime.now(timezone.utc) + timedelta(days=2)).isoformat()
+    with env(current=_dep()) as e:
+        e.dep.get.return_value = _dep()
+        r = _send(client(), "put", "/api/sensors/deployments/dep-1", {key: future, "reason": "x"})
+    assert r.status_code == 400 and "future" in r.get_json()["error"]
+    e.dep.correct.assert_not_called()
+
+
+def test_correct_current_lookup_failure_after_commit_is_logged_502(caplog):
+    import dataloggers
+    before = _dep(feature=None)
+    gone = _dep(valid_to=T0 + timedelta(days=1))
+    with env() as e:
+        e.dep.get.return_value = before
+        e.dep.correct.return_value = gone
+        e.dep.current.side_effect = dataloggers.ApiError(502, "Database error", "db")
+        with caplog.at_level("ERROR"):
+            r = _send(client(), "put", "/api/sensors/deployments/dep-1",
+                      {"validTo": "2026-03-02T08:00:00Z", "reason": "removed"})
+    assert r.status_code == 502
+    assert e.dep.correct.call_count == 2          # restored
+    assert any("mirror failed, restoring" in m for m in caplog.messages)
 
 
 def test_register_without_new_fields_still_works():

@@ -35,6 +35,8 @@ class FakeDb:
         self.rollbacks = 0
         self.fail_on = None          # substring -> exception raised by execute
         self.next_id = 0
+        self.last_end = None
+        self.updated = None
 
     @contextmanager
     def connect(self, tenant_id):
@@ -78,7 +80,11 @@ class _Cur:
         if self.db.fail_on and self.db.fail_on in sql:
             raise self.db.fail_on_exc
         self._rows = []
-        if sql.startswith("SELECT") and "FROM device_deployments" in sql:
+        if sql.startswith("SELECT max(upper(valid))"):
+            self._rows = [{"last_end": self.db.last_end}]
+        elif sql.startswith("SELECT pg_advisory_xact_lock"):
+            pass
+        elif sql.startswith("SELECT") and "FROM device_deployments" in sql:
             if "upper_inf(valid)" in sql and "FOR UPDATE" in sql:
                 self._rows = [r for r in self.db.rows.values() if r["valid_to"] is None]
             elif "FOR UPDATE" in sql and "upper(valid) =" in sql:
@@ -302,11 +308,58 @@ def test_db_error_is_502(db):
     assert e.value.status == 502
 
 
-def test_delete_deployments(db):
+def test_delete_deployment_removes_only_that_id(db):
     db.rows["a"] = _row("a", T0)
-    deployments.delete_deployments(TENANT, DEVICE)
-    assert db.deleted == (TENANT, DEVICE)
+    deployments.delete_deployment(TENANT, "a")
+    assert db.deleted == (TENANT, "a")
     assert db.commits == 1
+    sql, params = db.statements("DELETE FROM device_deployment_changes")[0]
+    assert params == (TENANT, "a")
+
+
+def test_open_takes_the_device_advisory_lock_before_anything_else(db):
+    deployments.open_deployment(TENANT, DEVICE, DeploymentSpec(None, {}, {}, "fixed", (0.0, 0.0)),
+                                T0, "alice", "x")
+    assert "pg_advisory_xact_lock" in db.log[0][0]
+    assert db.log[0][1] == (f"{TENANT}|{DEVICE}",)
+
+
+def test_first_open_rejects_an_existing_open_deployment(db):
+    db.rows["old"] = _row("old", T0)
+    spec = DeploymentSpec(None, {}, {}, "fixed", (0.0, 0.0))
+    with pytest.raises(dataloggers.ApiError) as e:
+        deployments.open_deployment(TENANT, DEVICE, spec, T1, "alice", "registration", first=True)
+    assert e.value.status == 409 and "open deployment" in e.value.message
+    assert db.statements("INSERT INTO device_deployments") == [] and db.commits == 0
+
+
+def test_first_open_after_closed_history_requires_a_later_valid_from(db):
+    db.rows["old"] = _row("old", T0, T1)
+    db.last_end = T1
+    spec = DeploymentSpec(None, {}, {}, "fixed", (0.0, 0.0))
+    with pytest.raises(dataloggers.ApiError) as e:
+        deployments.open_deployment(TENANT, DEVICE, spec, T1, "alice", "registration", first=True)
+    assert e.value.status == 409 and "after the end" in e.value.message
+    res = deployments.open_deployment(TENANT, DEVICE, spec, T1 + timedelta(days=1),
+                                      "alice", "registration", first=True)
+    assert res["id"].startswith("dep-")
+
+
+def test_close_open_deployment_ends_it_and_logs_the_reason(db):
+    db.rows["a"] = _row("a", T0)
+    res = deployments.close_open_deployment(TENANT, DEVICE, "alice", "device deleted")
+    assert res is not None
+    sql, params = db.updated
+    assert params[0] > T0 and params[1] == "a"
+    assert _changes(db)[0][3] == "device deleted"
+    assert db.commits == 1
+
+
+def test_close_open_deployment_without_open_row_is_a_noop(db):
+    db.rows["a"] = _row("a", T0, T1)
+    assert deployments.close_open_deployment(TENANT, DEVICE, "alice", "device deleted") is None
+    assert db.updated is None
+    assert _changes(db) == []
 
 
 def test_get_deployment_by_id(db):

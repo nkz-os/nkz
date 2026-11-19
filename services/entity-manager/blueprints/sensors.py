@@ -555,10 +555,15 @@ def register_sensor():
                        'name': _extract_prop_value(existing, 'name')},
         }), 409
 
-    if deployments.list_deployments(tenant_id, orion_entity_id):
-        # A leftover or foreign history: opening a deployment would close it, and the
-        # undo would delete it.
-        raise dataloggers.ApiError(409, f'Sensor "{external_id}" already has a deployment history')
+    history = deployments.list_deployments(tenant_id, orion_entity_id)
+    if any(d['valid_to'] is None for d in history):
+        # An open deployment belongs to a live or half-deleted device; a closed history
+        # (device deleted before) is kept and the new deployment starts after it.
+        raise dataloggers.ApiError(409, f'Sensor "{external_id}" already has an open deployment')
+    ended = [d['valid_to'] for d in history]
+    if ended and valid_from <= max(ended):
+        raise dataloggers.ApiError(
+            409, f'validFrom must be after the end of the previous deployment history of "{external_id}"')
 
     metadata = data.get('metadata', {})
     if data.get('station_id'):
@@ -607,8 +612,8 @@ def register_sensor():
         # Opened before the entity so the Orion body already carries deploymentId; its
         # undo goes on the stack at once, so any later failure removes it (last).
         first = deployments.open_deployment(tenant_id, orion_entity_id, spec, valid_from,
-                                            _actor(), 'registration')
-        undo.push('deployment', lambda: deployments.delete_deployments(tenant_id, orion_entity_id))
+                                            _actor(), 'registration', first=True)
+        undo.push('deployment', lambda: deployments.delete_deployment(tenant_id, first['id']))
         orion_entity.update(_observation_attrs(first))
 
         orion_response = _orion_create(tenant_id, orion_entity)
@@ -750,7 +755,16 @@ def change_device_profile(device_urn):
 @_guard
 def delete_sensor_device(device_urn):
     _require_installer()
-    dataloggers.delete_device(_tenant(), device_urn)
+    tenant_id = _tenant()
+    dataloggers.delete_device(tenant_id, device_urn)
+    # After the entity is gone, so a half-deleted device keeps its deployment and a
+    # retry of this call finishes the job (every step is idempotent).
+    try:
+        deployments.close_open_deployment(tenant_id, device_urn, _actor(), 'device deleted')
+    except Exception as exc:
+        logger.error("device deleted but its open deployment was not closed tenant=%s device=%s "
+                     "error=%s", tenant_id, device_urn, type(exc).__name__)
+        raise
     return '', 204
 
 
@@ -764,7 +778,9 @@ def delete_sensor_device(device_urn):
 @_guard
 def list_device_deployments(device_urn):
     _require_installer()
-    found = deployments.list_deployments(_tenant(), device_urn)
+    tenant_id = _tenant()
+    dataloggers.parse_device_urn(tenant_id, device_urn)
+    found = deployments.list_deployments(tenant_id, device_urn)
     return jsonify({'deployments': [_deployment_json(d) for d in found]}), 200
 
 
@@ -775,6 +791,7 @@ def move_device_deployment(device_urn):
     """Close the current deployment and open a new one; absent fields are copied."""
     _require_installer()
     tenant_id = _tenant()
+    dataloggers.parse_device_urn(tenant_id, device_urn)
     data = _body()
     reason = _reason(data)
     valid_from = _past_instant(data.get('validFrom'), 'validFrom')
@@ -852,6 +869,7 @@ def correct_device_deployment(deployment_id):
     if before is None:
         raise dataloggers.ApiError(404, 'Deployment not found')
     device_urn = before['device_urn']
+    dataloggers.parse_device_urn(tenant_id, device_urn)
 
     attributes = set()
     if data.get('channelOverrides'):
@@ -864,10 +882,10 @@ def correct_device_deployment(deployment_id):
 
     changes = {}
     if 'validFrom' in data:
-        changes['valid_from'] = _parse_instant(data['validFrom'], 'validFrom')
+        changes['valid_from'] = _past_instant(data['validFrom'], 'validFrom')
     if 'validTo' in data:
         changes['valid_to'] = (None if data['validTo'] is None
-                               else _parse_instant(data['validTo'], 'validTo'))
+                               else _past_instant(data['validTo'], 'validTo'))
     if 'observesFeature' in supplied:
         changes['observesFeature'] = supplied['observesFeature']
     if 'observationContext' in supplied:
@@ -887,10 +905,10 @@ def correct_device_deployment(deployment_id):
 
     touched = _is_current(after) or _is_current(before)
     if touched:
-        # No current deployment left ("sensor removed"): the mirror clears the attributes.
-        target = after if _is_current(after) else deployments.current_deployment(
-            tenant_id, device_urn)
         try:
+            # No current deployment left ("sensor removed"): the mirror clears the attributes.
+            target = after if _is_current(after) else deployments.current_deployment(
+                tenant_id, device_urn)
             _mirror_deployment(tenant_id, device_urn, target)
         except Exception:
             logger.error("deployment mirror failed, restoring tenant=%s deployment=%s",
