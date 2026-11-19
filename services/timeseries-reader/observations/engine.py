@@ -11,7 +11,6 @@ from __future__ import annotations
 
 import math
 import statistics
-from collections import Counter
 from dataclasses import dataclass, replace
 from datetime import date, datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional, Tuple
@@ -124,14 +123,14 @@ def group_by_sub_context(readings: List[Reading], tolerance: Dict[str, float]) -
     for r in readings:
         sub = r.sub_context or {}
         items = sorted((k, v) for k, v in sub.items() if k not in _HEIGHT_KEYS and v is not None)
-        key = tuple((k, _val_key(v)) for k, v in items)
+        key = tuple((k,) + _val_key(v) for k, v in items)
         parts.setdefault(key, (dict(items), []))[1].append(r)
-    groups: List[Tuple[tuple, dict, List[Reading]]] = []
+    groups: List[Tuple[tuple, tuple, dict, List[Reading]]] = []
     for key, (base, members) in parts.items():
         with_h = [(m, _height_key(m.sub_context or {})) for m in members]
         no_h = [m for m, hk in with_h if hk is None]
         if no_h:
-            groups.append((key + ((0,),), dict(base), no_h))
+            groups.append((key, (0, 0.0), dict(base), no_h))
         hs = sorted(((m.sub_context[hk], hk, m) for m, hk in with_h if hk is not None),
                     key=lambda x: (x[0], x[1], x[2].source_id, x[2].t))
         i = 0
@@ -145,16 +144,16 @@ def group_by_sub_context(readings: List[Reading], tolerance: Dict[str, float]) -
                 j += 1
             sc = dict(base)
             sc[hk] = anchor
-            groups.append((key + ((1, anchor),), sc, cluster))
+            groups.append((key, (1, float(anchor)), sc, cluster))
             i = j
-    groups.sort(key=lambda g: g[0])
-    return [(sc, ms) for _, sc, ms in groups]
+    groups.sort(key=lambda g: (g[0], g[1]))  # uniform shapes: 5-tuples, then (0|1, float)
+    return [(sc, ms) for _, _, sc, ms in groups]
 
 
 # ------------------------------------------------------------ counters
 
 def _deltas(readings: List[Reading], counter_max: Optional[float],
-            max_rate_per_hour: Optional[float]) -> Tuple[List[Tuple[Reading, datetime]], List[str]]:
+            max_rate_per_hour: Optional[float]) -> Tuple[List[Tuple[Reading, datetime]], List[tuple]]:
     """Counter rule; returns (delta reading attributed to the later t, previous t) pairs."""
     by_src: Dict[str, Dict[datetime, Reading]] = {}
     for r in readings:
@@ -163,7 +162,7 @@ def _deltas(readings: List[Reading], counter_max: Optional[float],
         if old is None or r.value > old.value:  # duplicate (source, t): keep the max value
             slot[r.t] = r
     out: List[Tuple[Reading, datetime]] = []
-    warns: List[str] = []
+    warns: List[tuple] = []
     for src in sorted(by_src):
         seq = [by_src[src][t] for t in sorted(by_src[src])]
         for prev, cur in zip(seq, seq[1:]):
@@ -180,19 +179,19 @@ def _deltas(readings: List[Reading], counter_max: Optional[float],
             wrap = False
             if cmax is not None:
                 wrapped = cmax - prev.value + cur.value
-                if max_rate_per_hour is not None:
-                    wrap = wrapped <= max_rate_per_hour * hours
-                else:
-                    wrap = prev.value >= 0.9 * cmax and cur.value < 0.1 * cmax
+                if prev.value <= cmax and wrapped >= 0:
+                    if max_rate_per_hour is not None:
+                        wrap = wrapped <= max_rate_per_hour * hours
+                    else:
+                        wrap = prev.value >= 0.9 * cmax and cur.value < 0.1 * cmax
                 if wrap:
                     out.append((replace(cur, value=wrapped), prev.t))
                     continue
-            stamp = f"{src}@{cur.t.astimezone(UTC).isoformat()}"
             if max_rate_per_hour is None or cur.value <= max_rate_per_hour * hours:
-                warns.append(f"counter_reset:{stamp}")
+                warns.append(("counter_reset", src, cur.t))
                 out.append((replace(cur, value=cur.value), prev.t))
             else:
-                warns.append(f"counter_reset_discarded:{stamp}")
+                warns.append(("counter_reset_discarded", src, cur.t))
     return out, warns
 
 
@@ -208,14 +207,14 @@ def counter_deltas(readings: List[Reading], counter_max: Optional[float],
     discarded. A Reading.counter_max wins over the `counter_max` argument (fallback).
     """
     pairs, warns = _deltas(readings, counter_max, max_rate_per_hour)
-    return [d for d, _ in pairs], warns
+    return [d for d, _ in pairs], [_fmt_one(w) for w in warns]
 
 
 # ----------------------------------------------------------- aggregate
 
-def _fuse(values: List[float], fusion: str, warnings: List[str]) -> float:
+def _fuse(values: List[float], fusion: str, warnings: List[tuple]) -> float:
     if fusion not in KNOWN_FUSIONS:
-        warnings.append(f"unknown_fusion:{fusion}")
+        warnings.append((f"unknown_fusion:{fusion}", None, None))
     # median; with fewer than 3 values the median is the mean
     return statistics.median(values)
 
@@ -227,8 +226,31 @@ def _empty(t: datetime) -> BucketPoint:
 Pair = Tuple[Reading, Optional[datetime]]
 
 
-def _dedupe_warnings(ws: List[str]) -> List[str]:
-    return [m if n == 1 else f"{m} x{n}" for m, n in Counter(ws).items()]
+def _iso(t: datetime) -> str:
+    return t.astimezone(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def _fmt_one(w: tuple) -> str:
+    kind, src, t = w
+    return f"{kind}:{src}@{t.astimezone(UTC).isoformat()}"
+
+
+def _dedupe_warnings(ws: List[tuple]) -> List[str]:
+    """One entry per (warning type, source) with a count and first/last timestamp."""
+    groups: Dict[Tuple[str, Optional[str]], List[Optional[datetime]]] = {}
+    for kind, src, t in ws:
+        groups.setdefault((kind, src), []).append(t)
+    out: List[str] = []
+    for (kind, src), ts in groups.items():
+        msg = kind if src is None else f"{kind} src={src}"
+        real = [t for t in ts if t is not None]
+        if len(ts) > 1:
+            msg += f" x{len(ts)}"
+        if real:
+            lo, hi = _iso(min(real)), _iso(max(real))
+            msg += f" ({lo})" if lo == hi else f" ({lo}..{hi})"
+        out.append(msg)
+    return out
 
 
 def aggregate_tier(readings: List[Reading], bucket_list: List[Tuple[datetime, datetime]],
@@ -250,19 +272,24 @@ def aggregate_tier(readings: List[Reading], bucket_list: List[Tuple[datetime, da
     repeated identical warnings are merged as "msg xN"), `now` (P1D: the bucket containing it
     expects ceil((now - b0)/1h) hours instead of the full local day).
     """
-    ws: List[str] = []
+    ws: List[tuple] = []
     summing = semantics in ("cumulative", "amount")
     if semantics == "cumulative":
         pairs, cw = _deltas(readings, counter_max, max_rate_per_hour)
         ws.extend(cw)
     elif semantics == "amount":
-        pairs = [(r, None) for r in readings]
+        uniq: Dict[Tuple[str, datetime], Reading] = {}
+        for r in readings:  # duplicate (source, t): keep the max value, never double-count
+            old = uniq.get((r.source_id, r.t))
+            if old is None or r.value > old.value:
+                uniq[(r.source_id, r.t)] = r
+        pairs = [(uniq[k], None) for k in sorted(uniq, key=lambda k: (k[0], k[1]))]
     else:
         pairs = []
         for r in readings:
             bad = (valid_min is not None and r.value < valid_min) or (valid_max is not None and r.value > valid_max)
             if bad:
-                ws.append(f"reading_out_of_range:{r.source_id}@{r.t.astimezone(UTC).isoformat()}")
+                ws.append(("reading_out_of_range", r.source_id, r.t))
             else:
                 pairs.append((r, None))
 
@@ -294,7 +321,7 @@ def aggregate_tier(readings: List[Reading], bucket_list: List[Tuple[datetime, da
     return out
 
 
-def _coverage_fn(b0: datetime, b1: datetime, resolution: str, now: Optional[datetime], ws: List[str]):
+def _coverage_fn(b0: datetime, b1: datetime, resolution: str, now: Optional[datetime], ws: List[tuple]):
     if resolution != "P1D":
         return lambda kept: 1.0 if kept else 0.0
     expected = max(round((b1 - b0) / _HOUR), 1)
@@ -305,19 +332,21 @@ def _coverage_fn(b0: datetime, b1: datetime, resolution: str, now: Optional[date
         hours = set()
         for r, tp in kept:
             cur = (r.t - b0) // _HOUR
-            lo = cur
+            lo, hi = cur, cur
             if tp is not None:
                 if r.t - tp <= _LONG_GAP:
+                    # local hours overlapped by the half-open [t_prev, t_cur)
                     lo = (tp - b0) // _HOUR
+                    hi = -((b0 - r.t) // _HOUR) - 1
                 else:
-                    ws.append(f"long_gap:{r.source_id}@{r.t.astimezone(UTC).isoformat()}")
-            hours.update(range(max(lo, 0), cur + 1))
+                    ws.append(("long_gap", r.source_id, r.t))
+            hours.update(range(max(lo, 0), hi + 1))
         return min(1.0, len(hours) / expected)
 
     return cov
 
 
-def _point(t: datetime, in_b: List[Pair], summing: bool, fusion: str, ws: List[str],
+def _point(t: datetime, in_b: List[Pair], summing: bool, fusion: str, ws: List[tuple],
            valid_min: Optional[float], valid_max: Optional[float], cov) -> BucketPoint:
     per_src: Dict[str, List[Pair]] = {}
     for pr in in_b:
@@ -329,7 +358,7 @@ def _point(t: datetime, in_b: List[Pair], summing: bool, fusion: str, ws: List[s
         vals = [r.value for r, _ in prs]
         v = sum(vals) if summing else sum(vals) / len(vals)
         if summing and ((valid_min is not None and v < valid_min) or (valid_max is not None and v > valid_max)):
-            ws.append(f"increment_out_of_range:{sid}@{t.astimezone(UTC).isoformat()}")
+            ws.append(("increment_out_of_range", sid, t))
             continue
         first = prs[0][0]
         srcs.append({

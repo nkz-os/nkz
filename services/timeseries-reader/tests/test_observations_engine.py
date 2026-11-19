@@ -341,3 +341,46 @@ def test_raw_resolution_one_point_per_timestamp():
     pts = aggregate_tier(rs, win, "instant", "median", None, None, "raw")
     assert [(p.t, p.value, p.coverage) for p in pts] == [
         (d(2026, 11, 3, 1), 2.0, 1.0), (d(2026, 11, 3, 2), 5.0, 1.0)]
+
+
+def test_c1_mixed_context_shapes_do_not_crash_and_are_deterministic():
+    a = rd("a", d(2026, 11, 3), 1, {"organ": "leaf"})
+    b = rd("b", d(2026, 11, 3), 1, {"heightAboveGround": 1.5})
+    c = rd("c", d(2026, 11, 3), 1, {"depthFrom": 0, "depthTo": 20})
+    e = rd("e", d(2026, 11, 3), 1, {})
+    tol = {"heightAboveGround": 0.5}
+    g1 = group_by_sub_context([a, b], tol)
+    assert len(g1) == 2
+    assert len(group_by_sub_context([c, e], tol)) == 2
+    g2 = group_by_sub_context([a, b, c, e], tol)
+    g3 = group_by_sub_context([e, c, b, a], tol)
+    assert len(g2) == 4 and [x[0] for x in g2] == [x[0] for x in g3]
+
+
+def test_i1_wrap_with_previous_above_counter_max_is_not_a_negative_increment():
+    rs = [rd("a", d(2026, 11, 3, 10), 7000.0), rd("a", d(2026, 11, 3, 11), 100.0)]
+    out, warns = counter_deltas(rs, 6553.5, 200.0)
+    assert all(r.value >= 0 for r in out)
+    assert [r.value for r in out] == [100.0] and "counter_reset" in warns[0]
+
+
+def test_i2_amount_duplicate_source_t_not_double_counted():
+    (bk,) = day_buckets()
+    rs = [rd("a", bk[0] + timedelta(hours=1), 2.0), rd("a", bk[0] + timedelta(hours=1), 2.0)]
+    (p,) = aggregate_tier(rs, [bk], "amount", "median", None, None, "P1D")
+    assert p.value == 2.0 and p.sources[0]["n_readings"] == 1
+
+
+def test_warnings_aggregated_per_type_and_source_with_range():
+    (bk,) = day_buckets()
+    rs = [rd("S1", bk[0] + timedelta(hours=h), 999.0) for h in range(24)]
+    w = []
+    aggregate_tier(rs, [bk], "instant", "median", 0, 100, "P1D", warnings=w)
+    assert w == ["reading_out_of_range src=S1 x24 (2026-11-03T00:00:00Z..2026-11-03T23:00:00Z)"]
+
+
+def test_m1_cumulative_exact_hour_t_cur_does_not_add_its_own_hour():
+    (bk,) = day_buckets()
+    rs = [rd("a", bk[0] + timedelta(hours=1), 0.0), rd("a", bk[0] + timedelta(hours=3), 1.0)]
+    (p,) = aggregate_tier(rs, [bk], "cumulative", "median", None, None, "P1D")
+    assert p.coverage == pytest.approx(2 / 24)  # hours 1 and 2 of [01:00, 03:00)
