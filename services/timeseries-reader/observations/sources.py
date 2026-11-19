@@ -15,7 +15,6 @@ short transaction and commits, then opens the read transaction (Task 11 review r
 from __future__ import annotations
 
 import json
-import logging
 from datetime import timedelta
 from typing import Any, Dict, List, Optional, Set, Tuple
 
@@ -25,10 +24,10 @@ from urn_resolution import WEATHER_OBSERVED_ENTITY_TYPES
 from .engine import Reading, buckets
 from .request import BestRequest, RequestError
 
-logger = logging.getLogger(__name__)
-
 GREENHOUSE_TYPES = frozenset({"AgriGreenhouse", "Greenhouse"})
-PRIOR_LOOKBACK = timedelta(days=2)       # cumulative: how far back the pre-window reading is sought
+# ASSUMPTION: 2 days is long enough to find the last counter reading before the window (loggers
+# report at least daily); a longer silence loses the first delta of that source, never fabricates one.
+PRIOR_LOOKBACK = timedelta(days=2)
 PROFILE_LOOKBACK = timedelta(days=30)    # counterMax: how far back the latest device event is sought
 MAX_REGIONAL_RADIUS_M = 50_000.0
 MODEL_SOURCE_ID = "parcel_weather"
@@ -107,8 +106,11 @@ def _channel(dep: dict, attr: str) -> Tuple[Optional[str], Optional[str]]:
     ctx = ov.get("observationContext")
     if not isinstance(ctx, dict):
         ctx = dep["observation_context"] or {}
+    medium = ctx.get("medium")
     feature = ov.get("observesFeature") or dep["observes_feature"] or None
-    return ctx.get("medium"), feature
+    if feature is None and medium == "equipment":
+        feature = dep["device_urn"]  # same rule as the worker's observation_context
+    return medium, feature
 
 
 def _sub_context(row: dict) -> dict:
@@ -167,16 +169,20 @@ WHERE g.tenant_id = %s
 """
 
 _VALUE_COLUMNS = """m.observed_at, m.device_id, m.attribute_name, m.value,
-       m.deployment_id::text AS deployment_id, m.source_kind,
+       m.deployment_id::text AS deployment_id, m.source_kind, m.feature_of_interest,
        m.depth_from_cm, m.depth_to_cm, m.height_m, m.organ, m.context_ref,
        COALESCE((e.payload->'calibration_period_ids') ? m.attribute_name, false) AS calibrated,
        COALESCE(ST_Covers((SELECT g FROM area), m.location), false) AS r_in_area,
        ST_Distance((SELECT g FROM area), m.location) AS r_dist_m"""
 
+# The event join is bounded like the measurements (tenant, device, same instant): it lets chunk
+# exclusion work on telemetry_events.
 _VALUE_FROM = """FROM telemetry_measurements m
 LEFT JOIN telemetry_events e
        ON e.tenant_id = m.tenant_id AND e.observed_at = m.observed_at
-      AND e.id = m.source_event_id"""
+      AND e.id = m.source_event_id
+      AND e.tenant_id = %s AND e.device_id = ANY(%s)
+      AND e.observed_at >= %s AND e.observed_at < %s"""
 
 # tenant_id and attribute_name are compression segmentby keys: always present (contract 8.1).
 _VALUE_FILTER = """m.tenant_id = %s
@@ -186,19 +192,18 @@ _VALUE_FILTER = """m.tenant_id = %s
   AND m.medium = %s
   AND m.deployment_id IS NOT NULL
   AND m.deployment_id = ANY(%s::uuid[])
-  AND m.quality_flag = 'valid'"""
+  AND m.quality_flag = 'valid'
+  AND m.observed_at >= %s AND m.observed_at < %s"""
 
 _VALUES_SQL = (
     "-- obs:values\nWITH area AS (SELECT ST_GeomFromGeoJSON(%s::text)::geography AS g)\n"
-    f"SELECT {_VALUE_COLUMNS}\n{_VALUE_FROM}\nWHERE {_VALUE_FILTER}\n"
-    "  AND m.observed_at >= %s AND m.observed_at < %s\nORDER BY m.observed_at"
+    f"SELECT {_VALUE_COLUMNS}\n{_VALUE_FROM}\nWHERE {_VALUE_FILTER}\nORDER BY m.observed_at"
 )
 
 _PRIOR_SQL = (
     "-- obs:prior\nWITH area AS (SELECT ST_GeomFromGeoJSON(%s::text)::geography AS g)\n"
     f"SELECT DISTINCT ON (m.device_id, m.attribute_name) {_VALUE_COLUMNS}\n{_VALUE_FROM}\n"
     f"WHERE {_VALUE_FILTER}\n"
-    "  AND m.observed_at >= %s AND m.observed_at < %s\n"
     "ORDER BY m.device_id, m.attribute_name, m.observed_at DESC"
 )
 
@@ -233,27 +238,19 @@ def _property_attrs(cur, tenant_id: str, prop_name: str) -> List[str]:
 
 # --------------------------------------------------------- tier planning
 
-class _Plan:
-    """Tier assignment of one deployment: fixed tier, or per-reading ('mobile')."""
+def _candidate_deployments(cur, tenant_id: str, req: BestRequest, prop: dict, medium: str,
+                           attrs: List[str], area_geom: Optional[dict], lo, hi) -> Dict[str, str]:
+    """{deployment id: device URN} of deployments that could contribute to some tier (bounds the values query only).
 
-    __slots__ = ("dep", "urn", "tier", "distance_m")
-
-    def __init__(self, dep: dict, tier: Optional[int], distance_m: Optional[float] = None):
-        self.dep = dep
-        self.urn = dep["device_urn"]
-        self.tier = tier  # None = mobile, classified per reading
-        self.distance_m = distance_m
-
-
-def _plan_deployments(cur, tenant_id: str, req: BestRequest, prop: dict, medium: str,
-                      attrs: List[str], area_geom: Optional[dict], w0, w1) -> Dict[str, _Plan]:
+    Final tier membership is decided per stored row, never per deployment: a datalogger with
+    several channels can observe several features.
+    """
     area_json = json.dumps(area_geom) if area_geom else None
-    cur.execute(_DEPLOYMENTS_SQL, (area_json, tenant_id, w0, w1))
-    deps = [dict(r) for r in cur.fetchall()]
-
+    cur.execute(_DEPLOYMENTS_SQL, (area_json, tenant_id, lo, hi))
     radius = _num(prop.get("nearby_radius_m")) or 0.0
-    cand: List[Tuple[dict, Set[str]]] = []
-    for dep in deps:
+    keep: Dict[str, str] = {}
+    for r in cur.fetchall():
+        dep = dict(r)
         dep["observation_context"] = dep.get("observation_context") or {}
         dep["channel_overrides"] = dep.get("channel_overrides") or {}
         feats: Set[str] = set()
@@ -264,36 +261,27 @@ def _plan_deployments(cur, tenant_id: str, req: BestRequest, prop: dict, medium:
                 matched = True
                 if f:
                     feats.add(f)
-        if matched:
-            cand.append((dep, feats))
-
-    covered: Set[str] = set()
-    if area_geom is not None:
-        probe = sorted({f for _, feats in cand for f in feats if f != req.feature})
-        if probe:
-            cur.execute(_COVERED_SQL, (tenant_id, probe, area_json))
-            covered = {r["entity_urn"] for r in cur.fetchall()}
-
-    plans: Dict[str, _Plan] = {}
-    for dep, feats in cand:
+        if not matched:
+            continue
         if req.feature is not None and req.feature in feats:
-            plans[dep["id"]] = _Plan(dep, 1)
+            keep[dep["id"]] = dep["device_urn"]
         elif area_geom is None:
             continue
-        elif dep["mobility"] == "mobile":
-            plans[dep["id"]] = _Plan(dep, None)
-        elif dep.get("in_area") or (feats & covered):
-            plans[dep["id"]] = _Plan(dep, 2)
-        elif radius > 0 and dep.get("dist_m") is not None and float(dep["dist_m"]) <= radius:
-            plans[dep["id"]] = _Plan(dep, 3, float(dep["dist_m"]))
-    return plans
+        elif (dep["mobility"] == "mobile" or feats or dep.get("in_area")
+              or (radius > 0 and dep.get("dist_m") is not None and float(dep["dist_m"]) <= radius)):
+            keep[dep["id"]] = dep["device_urn"]
+    return keep
 
 
-def _reading_tier(plan: _Plan, row: dict, radius: float) -> Tuple[Optional[int], Optional[float]]:
-    """(tier, distance_m) of one reading; mobile deployments use the reading's own location."""
-    if plan.tier is not None:
-        return plan.tier, plan.distance_m
-    if row.get("r_in_area"):
+def _row_tier(req: BestRequest, row: dict, area_geom: Optional[dict], covered: Set[str],
+              radius: float) -> Tuple[Optional[int], Optional[float]]:
+    """(tier, distance_m) of one stored row: first tier it qualifies for, from its own columns."""
+    feature = row.get("feature_of_interest")
+    if req.feature is not None and feature == req.feature:
+        return 1, None
+    if area_geom is None:
+        return None, None
+    if row.get("r_in_area") or (feature and feature in covered):
         return 2, None
     dist = row.get("r_dist_m")
     if radius > 0 and dist is not None and float(dist) <= radius:
@@ -317,58 +305,75 @@ def _counter_maxes(cur, tenant_id: str, prop_name: str, device_ids: List[str],
     return {k: v[1] for k, v in best.items()}
 
 
+
+
 # --------------------------------------------------------- public: 1-3
 
 def observed_tiers(cur, tenant_id: str, req: BestRequest, prop: dict, medium: str,
                    area_geom: Optional[dict]) -> Dict[int, List[Reading]]:
     """Readings of tiers 1 (direct), 2 (contained), 3 (nearby); every key always present.
 
-    `area_geom` is the GeoJSON of the request feature (geometry_of, resolved beforehand) or
-    `req.geometry`. With no area only tier 1 can be populated. `cur` is a tenant_cursor.
+    Tier is decided per stored row (resolved columns): 1 iff feature_of_interest == feature;
+    2 iff the cached geometry of feature_of_interest is covered by the area or the row's
+    location is inside it; 3 iff the row's location is within nearby_radius_m of the area
+    (distance_m set). `area_geom` is the GeoJSON of the request feature (geometry_of, resolved
+    beforehand) or `req.geometry`; with no area only tier 1 can be populated.
+    `cur` is a tenant_cursor.
     """
     out: Dict[int, List[Reading]] = {1: [], 2: [], 3: []}
     bks = buckets(req.start, req.end, req.resolution, req.tz)
     w0, w1 = bks[0][0], bks[-1][1]
+    cumulative = prop.get("temporal_semantics") == "cumulative"
 
     attrs = _property_attrs(cur, tenant_id, req.property)
     if not attrs:
         return out
-    plans = _plan_deployments(cur, tenant_id, req, prop, medium, attrs, area_geom, w0, w1)
-    if not plans:
+    prior_lo = w0 - PRIOR_LOOKBACK
+    urns = _candidate_deployments(cur, tenant_id, req, prop, medium, attrs, area_geom,
+                                  prior_lo if cumulative else w0, w1)
+    if not urns:
         return out
-
     area_json = json.dumps(area_geom) if area_geom else None
-    device_ids = sorted({_device_id(p.urn) for p in plans.values()})
-    dep_ids = sorted(plans)
-    base = (tenant_id, attrs, device_ids, req.property, medium, dep_ids)
+    device_ids = sorted({_device_id(u) for u in urns.values()})
+    dep_ids = sorted(urns)
 
-    cur.execute(_VALUES_SQL, (area_json,) + base + (w0, w1))
-    rows = [dict(r) for r in cur.fetchall()]
-    cumulative = prop.get("temporal_semantics") == "cumulative"
+    def fetch(sql: str, lo, hi) -> List[dict]:
+        cur.execute(sql, (area_json, tenant_id, device_ids, lo, hi,
+                          tenant_id, attrs, device_ids, req.property, medium, dep_ids, lo, hi))
+        return [dict(r) for r in cur.fetchall()]
+
+    rows = fetch(_VALUES_SQL, w0, w1)
     cmax: Dict[Tuple[str, str], float] = {}
     if cumulative:
-        cur.execute(_PRIOR_SQL, (area_json,) + base + (w0 - PRIOR_LOOKBACK, w0))
-        rows = [dict(r) for r in cur.fetchall()] + rows
+        rows = fetch(_PRIOR_SQL, prior_lo, w0) + rows
         cmax = _counter_maxes(cur, tenant_id, req.property, device_ids, w0, w1)
+
+    covered: Set[str] = set()
+    if area_geom is not None:
+        probe = sorted({r["feature_of_interest"] for r in rows
+                        if r.get("feature_of_interest") and r["feature_of_interest"] != req.feature})
+        if probe:
+            cur.execute(_COVERED_SQL, (tenant_id, probe, area_json))
+            covered = {r["entity_urn"] for r in cur.fetchall()}
 
     radius = _num(prop.get("nearby_radius_m")) or 0.0
     for row in rows:
-        plan = plans.get(row["deployment_id"])
-        if plan is None:
+        urn = urns.get(row["deployment_id"])
+        if urn is None:
             continue
-        tier, dist = _reading_tier(plan, row, radius)
+        tier, dist = _row_tier(req, row, area_geom, covered, radius)
         if tier is None:
             continue
         sub = _sub_context(row)
         if not _matches_request_sub_context(sub, req.sub_context, prop):
             continue
         out[tier].append(Reading(
-            source_id=plan.urn,
+            source_id=urn,
             deployment_id=row["deployment_id"],
             t=row["observed_at"],
             value=float(row["value"]),
             sub_context=sub,
-            distance_m=dist if tier == 3 else None,
+            distance_m=dist,
             kind=row.get("source_kind") or "device",
             calibrated=bool(row.get("calibrated")),
             counter_max=cmax.get((row["device_id"], row["attribute_name"])) if cumulative else None,
@@ -385,6 +390,37 @@ FROM telemetry_events e
 WHERE e.tenant_id = %s
   AND e.entity_type = ANY(%s)
   AND e.entity_id LIKE %s
+  AND e.observed_at >= %s AND e.observed_at < %s
+ORDER BY e.observed_at
+"""
+
+# Nearest non-parcel WeatherObserved station (location of its latest row in the window, as in
+# urn_resolution.nearest_weather_entity) within the radius; its rows in the window. %s order:
+# tenant, types, w0, w1, lon, lat, lon, lat, radius, tenant, types, w0, w1.
+_REGIONAL_SQL = """-- obs:regional
+WITH st AS (
+    SELECT DISTINCT ON (x.entity_id) x.entity_id,
+           ST_SetSRID(ST_MakePoint(
+               (x.payload#>>'{{raw,location,value,coordinates,0}}')::double precision,
+               (x.payload#>>'{{raw,location,value,coordinates,1}}')::double precision), 4326)::geography AS g
+    FROM telemetry_events x
+    WHERE x.tenant_id = %s AND x.entity_type = ANY(%s)
+      AND x.observed_at >= %s AND x.observed_at < %s
+      AND x.entity_id NOT LIKE '%%:parcel-%%' AND x.entity_id NOT LIKE '%%-daily'
+      AND x.payload#>>'{{raw,location,value,coordinates,1}}' IS NOT NULL
+    ORDER BY x.entity_id, x.observed_at DESC
+), near AS (
+    SELECT s.entity_id, ST_Distance(s.g, ST_SetSRID(ST_MakePoint(%s, %s), 4326)::geography) AS d
+    FROM st s
+    WHERE ST_DWithin(s.g, ST_SetSRID(ST_MakePoint(%s, %s), 4326)::geography, %s)
+    ORDER BY d
+    LIMIT 1
+)
+SELECT e.observed_at, near.d AS distance_m,
+       (CASE WHEN {ref} ~ '{pat}' THEN ({ref})::double precision END) AS value
+FROM near
+JOIN telemetry_events e ON e.entity_id = near.entity_id
+WHERE e.tenant_id = %s AND e.entity_type = ANY(%s)
   AND e.observed_at >= %s AND e.observed_at < %s
 ORDER BY e.observed_at
 """
@@ -414,31 +450,49 @@ def model_tiers(cur, tenant_id: str, req: BestRequest, prop: dict,
                 point: Optional[Tuple[float, float]]) -> Dict[int, List[Reading]]:
     """Tiers 4 (parcel model) and 5 (regional proxy); both keys always present.
 
-    Only when `prop.has_model` and `req.tiers == "all"`. Tier 5 is empty today (no regional
-    WeatherObserved source is ingested; contract 8.1). Precipitation values are per-period
-    amounts: aggregate tiers 4/5 with `model_semantics(prop)`.
+    Only when `prop.has_model` and `req.tiers == "all"`. Tier 4 needs `parcel_urn`. Tier 5 needs
+    `point` = (lon, lat) and searches the nearest non-parcel WeatherObserved within
+    min(nearby_radius_m * 10, 50 km); it is empty until a regional source is ingested. Precip-
+    itation values are per-period amounts: aggregate tiers 4/5 with `model_semantics(prop)`.
     """
     out: Dict[int, List[Reading]] = {4: [], 5: []}
     if not prop.get("has_model") or req.tiers != "all":
         return out
     key = _MODEL_KEYS.get(prop.get("name") or req.property)
-    if key is None or not parcel_urn:
+    if key is None:
         return out
     bks = buckets(req.start, req.end, req.resolution, req.tz)
     w0, w1 = bks[0][0], bks[-1][1]
-
-    bare = parcel_urn.rsplit(":", 1)[-1]
-    suffix = "-daily" if req.resolution == "P1D" else ""
-    pattern = "%:parcel-" + _like_escape(bare) + suffix
     ref = f"e.payload->'measurements'->>'{key}'"  # key from the constant map above
-    cur.execute(_MODEL_SQL.format(ref=ref, pat=_NUMERIC_TEXT_PATTERN),
-                (tenant_id, list(WEATHER_OBSERVED_ENTITY_TYPES), pattern, w0, w1))
-    for r in cur.fetchall():
-        if r["value"] is None:
-            continue
-        out[4].append(Reading(
-            source_id=MODEL_SOURCE_ID, deployment_id=None, t=r["observed_at"],
-            value=float(r["value"]), sub_context={}, distance_m=None,
-            kind="model", calibrated=False,
-        ))
+    types = list(WEATHER_OBSERVED_ENTITY_TYPES)
+
+    if parcel_urn:
+        bare = parcel_urn.rsplit(":", 1)[-1]
+        suffix = "-daily" if req.resolution == "P1D" else ""
+        pattern = "%:parcel-" + _like_escape(bare) + suffix
+        cur.execute(_MODEL_SQL.format(ref=ref, pat=_NUMERIC_TEXT_PATTERN),
+                    (tenant_id, types, pattern, w0, w1))
+        for r in cur.fetchall():
+            if r["value"] is None:
+                continue
+            out[4].append(Reading(
+                source_id=MODEL_SOURCE_ID, deployment_id=None, t=r["observed_at"],
+                value=float(r["value"]), sub_context={}, distance_m=None,
+                kind="model", calibrated=False,
+            ))
+
+    radius = min((_num(prop.get("nearby_radius_m")) or 0.0) * 10, MAX_REGIONAL_RADIUS_M)
+    if point is not None and radius > 0:
+        lon, lat = float(point[0]), float(point[1])
+        cur.execute(_REGIONAL_SQL.format(ref=ref, pat=_NUMERIC_TEXT_PATTERN),
+                    (tenant_id, types, w0, w1, lon, lat, lon, lat, radius,
+                     tenant_id, types, w0, w1))
+        for r in cur.fetchall():
+            if r["value"] is None:
+                continue
+            out[5].append(Reading(
+                source_id=REGIONAL_SOURCE_ID, deployment_id=None, t=r["observed_at"],
+                value=float(r["value"]), sub_context={},
+                distance_m=float(r["distance_m"]), kind="model", calibrated=False,
+            ))
     return out

@@ -69,7 +69,7 @@ def dep(id_="d1", urn="urn:ngsi-ld:Device:tenantA:dev1", feature=FEATURE, medium
 def value_row(dep_id="d1", dev="dev1", t=None, v=1.0, **kw):
     row = {"observed_at": t or datetime(2026, 11, 1, 3, tzinfo=UTC), "device_id": dev,
            "attribute_name": "airTemperature", "value": v, "deployment_id": dep_id,
-           "source_kind": "device", "depth_from_cm": None, "depth_to_cm": None,
+           "source_kind": "device", "feature_of_interest": FEATURE, "depth_from_cm": None, "depth_to_cm": None,
            "height_m": 2.0, "organ": None, "context_ref": None, "calibrated": False,
            "r_in_area": False, "r_dist_m": None}
     row.update(kw)
@@ -116,7 +116,7 @@ def test_tier1_sql_filters_feature_medium_tenant():
     assert "d.tenant_id = %s" in sql and "d.valid && tstzrange" in sql
     assert T in params
     # alias attribute canonicalised before use
-    attrs = cur.sql("values")[0][2][2]
+    attrs = cur.sql("values")[0][2][6]
     assert attrs == ["airTemperature"]
     # tier 1 reading: sub-context built from columns, None omitted, no distance
     r = out[1][0]
@@ -148,7 +148,9 @@ def test_fetch_filters_segmentby_keys():
                    "m.observed_property = %s", "m.medium = %s", "m.deployment_id IS NOT NULL",
                    "m.quality_flag = 'valid'"):
         assert needle in sql, needle
-    assert T in params and "dev1" in params[3]
+    assert T in params and "dev1" in params[7]
+    for needle in ("e.tenant_id = %s", "e.device_id = ANY(", "e.observed_at >= %s"):
+        assert needle in sql, needle  # event join is bounded
 
 
 def test_window_and_cumulative_prior_query():
@@ -181,7 +183,9 @@ def test_tier2_by_location_and_by_covered_feature_excluding_tier1():
     deps = [dep("a", "urn:x:Device:t:a", feature=FEATURE),
             dep("b", "urn:x:Device:t:b", feature=None, in_area=True),
             dep("c", "urn:x:Device:t:c", feature=other)]
-    rows = [value_row("a", "a"), value_row("b", "b"), value_row("c", "c")]
+    rows = [value_row("a", "a"),
+            value_row("b", "b", feature_of_interest=None, r_in_area=True),
+            value_row("c", "c", feature_of_interest=other)]
     cur = FakeCursor(answers(deployments=deps, values=rows, covered=[{"entity_urn": other}]))
     out = observed_tiers(cur, T, req(), prop(), "ambientAir", AREA)
     assert [r.deployment_id for r in out[1]] == ["a"]
@@ -190,30 +194,61 @@ def test_tier2_by_location_and_by_covered_feature_excluding_tier1():
     assert FEATURE not in cur.sql("covered")[0][2][1]  # tier-1 feature not probed
 
 
+def test_two_channels_one_device_split_per_row():
+    """A datalogger with channel temperature -> tree1 and temperature2 -> tree2."""
+    tree1, tree2 = "urn:t:tree1", "urn:t:tree2"
+    d = dep(feature=None, overrides={
+        "temperature": {"observesFeature": tree1},
+        "temperature2": {"observesFeature": tree2}})
+    rows = [value_row(v=10.0, feature_of_interest=tree1),
+            value_row(v=20.0, feature_of_interest=tree2)]
+    at = [{"attr": "temperature"}, {"attr": "temperature2"}]
+    cur = FakeCursor(answers(deployments=[d], values=rows, attrs=at))
+    out = observed_tiers(cur, T, req(feature=tree1), prop(), "ambientAir", AREA)
+    assert [r.value for r in out[1]] == [10.0]
+    assert out[2] == [] and out[3] == []
+    cur = FakeCursor(answers(deployments=[d], values=rows, covered=[{"entity_urn": tree2}], attrs=at))
+    out = observed_tiers(cur, T, req(feature=None, geometry=AREA), prop(), "ambientAir", AREA)
+    assert [r.value for r in out[2]] == [20.0] and out[1] == []
+
+
+def test_equipment_medium_without_feature_observes_own_device():
+    urn = "urn:ngsi-ld:Device:tenantA:eq"
+    d = dep("e", urn, feature=None, medium="equipment")
+    cur = FakeCursor(answers(deployments=[d], values=[value_row("e", "eq", feature_of_interest=urn)]))
+    out = observed_tiers(cur, T, req(feature=urn), prop(allowed_media=["equipment"]),
+                         "equipment", AREA)
+    assert len(out[1]) == 1
+
+
 def test_tier3_carries_distance_and_mobile_uses_reading_location():
     deps = [dep("n", "urn:x:Device:t:n", feature=None, dist=500.0),
             dep("m", "urn:x:Device:t:m", feature=None, mobility="mobile")]
-    rows = [value_row("n", "n"),
-            value_row("m", "m", r_in_area=True),
-            value_row("m", "m", r_dist_m=300.0),
-            value_row("m", "m", r_dist_m=5000.0)]
+    nf = {"feature_of_interest": None}
+    rows = [value_row("n", "n", r_dist_m=500.0, **nf),
+            value_row("m", "m", r_in_area=True, **nf),
+            value_row("m", "m", r_dist_m=300.0, **nf),
+            value_row("m", "m", r_dist_m=5000.0, **nf)]
     cur = FakeCursor(answers(deployments=deps, values=rows))
     out = observed_tiers(cur, T, req(), prop(), "ambientAir", AREA)
     assert [(r.deployment_id, r.distance_m) for r in out[3]] == [("n", 500.0), ("m", 300.0)]
     assert [r.deployment_id for r in out[2]] == ["m"]
+    assert all(r.distance_m is None for r in out[2])
 
 
 def test_tier3_excluded_when_radius_zero():
     for radius in (0, None):
-        deps = [dep("n", "urn:x:Device:t:n", feature=None, dist=10.0)]
-        cur = FakeCursor(answers(deployments=deps))
+        deps = [dep("n", "urn:x:Device:t:n", feature=None, dist=10.0, in_area=False)]
+        rows = [value_row("n", "n", r_dist_m=10.0, feature_of_interest=None)]
+        cur = FakeCursor(answers(deployments=deps, values=rows))
         out = observed_tiers(cur, T, req(), prop(nearby_radius_m=radius), "ambientAir", AREA)
         assert out == {1: [], 2: [], 3: []}
 
 
 def test_no_area_only_tier1():
     deps = [dep("a", feature=FEATURE), dep("b", "urn:x:Device:t:b", feature=None, in_area=True)]
-    cur = FakeCursor(answers(deployments=deps, values=[value_row("a")]))
+    cur = FakeCursor(answers(deployments=deps, values=[value_row("a"), value_row(
+        "b", "b", feature_of_interest=None, r_in_area=True)]))
     out = observed_tiers(cur, T, req(), prop(), "ambientAir", None)
     assert len(out[1]) == 1 and out[2] == [] and out[3] == []
 
@@ -267,3 +302,26 @@ def test_precipitation_semantics_marker_and_parcel_urn():
     assert parcel_urn_of("urn:z", {"type": "Zone", "refAgriParcel":
                                    {"type": "Relationship", "object": "urn:p"}}) == "urn:p"
     assert parcel_urn_of("urn:z", {"type": "Zone"}) is None
+
+
+def test_regional_tier5_query_and_readings():
+    rows = [{"observed_at": datetime(2026, 11, 1, 2, tzinfo=UTC), "value": 9.0, "distance_m": 4200.0}]
+    cur = FakeCursor({"regional": rows, "model": []})
+    out = model_tiers(cur, T, req(), prop(), None, (-1.6, 42.8))  # no parcel: tier 5 still runs
+    r = out[5][0]
+    assert (r.source_id, r.kind, r.distance_m, r.value) == ("regional_proxy", "model", 4200.0, 9.0)
+    _, sql, params = cur.sql("regional")[0]
+    assert "NOT LIKE '%%:parcel-%%'" in sql and "NOT LIKE '%%-daily'" in sql and "ST_DWithin" in sql
+    assert "->>'airTemperature'" in sql and "x.tenant_id = %s" in sql and "e.tenant_id = %s" in sql
+    assert 10000.0 in params  # nearby_radius_m 1000 * 10
+    assert not cur.sql("model")
+
+
+def test_regional_radius_capped_and_skipped_without_point_or_radius():
+    cur = FakeCursor({"regional": []})
+    model_tiers(cur, T, req(), prop(nearby_radius_m=20000), None, (0.0, 0.0))
+    assert 50000.0 in cur.sql("regional")[0][2]
+    cur = FakeCursor({"regional": []})
+    model_tiers(cur, T, req(), prop(), None, None)
+    model_tiers(cur, T, req(), prop(nearby_radius_m=0), None, (0.0, 0.0))
+    assert not cur.calls

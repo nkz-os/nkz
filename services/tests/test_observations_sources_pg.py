@@ -74,15 +74,15 @@ def _seed(su, tenant):
             cur.execute(
                 "INSERT INTO telemetry_measurements (tenant_id, observed_at, source_event_id,"
                 " entity_type, device_id, attribute_name, value, observed_property, medium,"
-                " height_m, deployment_id, source_kind, quality_flag) VALUES "
-                "(%s, %s, %s, 'DeviceMeasurement', %s, 'airTemperature', %s, 'airTemperature',"
-                " %s, %s, %s, 'device', 'valid')",
+                " height_m, deployment_id, source_kind, quality_flag, feature_of_interest, location)"
+                " VALUES (%s, %s, %s, 'DeviceMeasurement', %s, 'airTemperature', %s,"
+                f" 'airTemperature', %s, %s, %s, 'device', 'valid', %s, {locs[k] or 'NULL'})",
                 (tenant, READ_AT, int(k[1]), k, 10.0 + int(k[1]), ctxs[k]["medium"],
-                 2.0 if k == "d1" else None, dep_ids[k]))
+                 2.0 if k == "d1" else None, dep_ids[k], feats[k]))
     return p, z, devs, dep_ids
 
 
-def _run(pg_dsn, tenant, feature, p_urn):
+def _run(pg_dsn, tenant, feature, p_urn, model_point=None, prop_over=None):
     import psycopg2
 
     from observations.catalogue import get_property
@@ -109,6 +109,11 @@ def _run(pg_dsn, tenant, feature, p_urn):
             prop["nearby_radius_m"] = 1000
             medium = resolve_medium(req, prop, None)
             out = observed_tiers(cur, tenant, req, prop, medium, area)
+            if model_point is not None:
+                from observations.sources import model_tiers
+                prop["has_model"] = True
+                out = dict(out)
+                out.update(model_tiers(cur, tenant, req, prop, None, model_point))
         conn.rollback()
         return out
     finally:
@@ -154,3 +159,80 @@ def test_other_tenant_sees_nothing(pg_dsn, su):
             (other, p, json.dumps(PARCEL)))
     out = _run(pg_dsn, other, p, p)
     assert out == {1: [], 2: [], 3: []}
+
+
+TREE1 = {"type": "Polygon", "coordinates": [[[-1.5997, 42.8012], [-1.5997, 42.8013],
+                                              [-1.5996, 42.8013], [-1.5996, 42.8012],
+                                              [-1.5997, 42.8012]]]}
+TREE2 = {"type": "Polygon", "coordinates": [[[-1.5985, 42.8012], [-1.5985, 42.8013],
+                                              [-1.5984, 42.8013], [-1.5984, 42.8012],
+                                              [-1.5985, 42.8012]]]}
+
+
+def test_datalogger_two_channels_two_trees(pg_dsn, su):
+    tenant = f"t_{uuid.uuid4().hex[:8]}"
+    t1 = f"urn:ngsi-ld:AgriTree:{tenant}:t1"
+    t2 = f"urn:ngsi-ld:AgriTree:{tenant}:t2"
+    urn = f"urn:ngsi-ld:Device:{tenant}:log"
+    with su.cursor() as cur:
+        for u, g in ((t1, TREE1), (t2, TREE2)):
+            cur.execute("INSERT INTO observation_geometry_cache VALUES "
+                        "(%s, %s, 'AgriTree', ST_GeomFromGeoJSON(%s)::geography, now())",
+                        (tenant, u, json.dumps(g)))
+        cur.execute(
+            "INSERT INTO sensor_profiles (tenant_id, code, name, sdm_entity_type, mapping) "
+            "VALUES (%s, %s, 'p', 'Device', %s::jsonb)",
+            (tenant, f"prof_{tenant}", json.dumps({"measurements": [
+                {"sdmAttribute": "airTemperature", "observedProperty": "airTemperature"},
+                {"sdmAttribute": "airTemperature2", "observedProperty": "airTemperature"}]})))
+        cur.execute(
+            "INSERT INTO device_deployments (tenant_id, device_urn, valid, observation_context,"
+            " channel_overrides, created_by) VALUES (%s, %s, tstzrange(%s, NULL), %s::jsonb,"
+            " %s::jsonb, 'test') RETURNING id::text",
+            (tenant, urn, datetime(2026, 1, 1, tzinfo=UTC), json.dumps({"medium": "ambientAir"}),
+             json.dumps({"airTemperature": {"observesFeature": t1},
+                         "airTemperature2": {"observesFeature": t2}})))
+        dep_id = cur.fetchone()[0]
+        for i, (attr, feat, val) in enumerate((("airTemperature", t1, 10.0),
+                                               ("airTemperature2", t2, 20.0))):
+            cur.execute(
+                "INSERT INTO telemetry_measurements (tenant_id, observed_at, source_event_id,"
+                " entity_type, device_id, attribute_name, value, observed_property, medium,"
+                " deployment_id, source_kind, quality_flag, feature_of_interest) VALUES "
+                "(%s, %s, %s, 'DeviceMeasurement', 'log', %s, %s, 'airTemperature', 'ambientAir',"
+                " %s, 'device', 'valid', %s)", (tenant, READ_AT, i + 1, attr, val, dep_id, feat))
+    out = _run(pg_dsn, tenant, t1, None)
+    assert [r.value for r in out[1]] == [10.0]
+    assert out[2] == [] and out[3] == []
+    out = _run(pg_dsn, tenant, t2, None)
+    assert [r.value for r in out[1]] == [20.0]
+
+
+def _weather_event(cur, tenant, entity_id, lon, lat, temp, i):
+    cur.execute(
+        "INSERT INTO telemetry_events (tenant_id, observed_at, entity_id, entity_type, payload)"
+        " VALUES (%s, %s, %s, 'WeatherObserved', %s::jsonb)",
+        (tenant, READ_AT, entity_id, json.dumps({
+            "measurements": {"airTemperature": temp},
+            "raw": {"location": {"value": {"type": "Point", "coordinates": [lon, lat]}}}})))
+
+
+def test_regional_tier5_real_query(pg_dsn, su):
+    tenant = f"t_{uuid.uuid4().hex[:8]}"
+    p, z, _, _ = _seed(su, tenant)
+    centre = ((LON0 + LON1) / 2, (LAT0 + LAT1) / 2)
+    with su.cursor() as cur:
+        _weather_event(cur, tenant, f"urn:ngsi-ld:WeatherObserved:{tenant}:parcel-p1",
+                       centre[0], centre[1], 11.0, 1)
+        _weather_event(cur, tenant, f"urn:ngsi-ld:WeatherObserved:{tenant}:parcel-p1-daily",
+                       centre[0], centre[1], 12.0, 2)
+    out = _run(pg_dsn, tenant, p, p, model_point=centre)
+    assert out[5] == []  # only parcel weather exists
+    with su.cursor() as cur:
+        _weather_event(cur, tenant, f"urn:ngsi-ld:WeatherObserved:{tenant}:station-x",
+                       centre[0], centre[1] + 0.027, 7.5, 3)  # ~3 km north
+        _weather_event(cur, tenant, f"urn:ngsi-ld:WeatherObserved:{tenant}:station-far",
+                       centre[0], centre[1] + 0.5, 1.5, 4)  # ~55 km: outside 10 km
+    out = _run(pg_dsn, tenant, p, p, model_point=centre)
+    assert [(r.source_id, r.value, r.kind) for r in out[5]] == [("regional_proxy", 7.5, "model")]
+    assert out[5][0].distance_m == pytest.approx(3000, abs=100)
