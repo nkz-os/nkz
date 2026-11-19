@@ -32,10 +32,17 @@ interface DeviceDeploymentsProps {
   profileCode?: string | null;
 }
 
-/** Profile code from `hasDeviceProfile` / `refDeviceProfile` (`urn:ngsi-ld:DeviceProfile:<code>`). */
+/**
+ * Profile code of a device: the `profileCode` Property written at registration (the term
+ * may come back as a full IRI when it is not in the platform context), else the
+ * `hasDeviceProfile` / `refDeviceProfile` URN suffix.
+ */
 export function readDeviceProfileCode(entity: unknown): string | null {
   if (!entity || typeof entity !== 'object') return null;
   const e = entity as Record<string, unknown>;
+  const prop = e.profileCode ?? e['https://nkz-os.org/ns/profileCode'];
+  const code = prop && typeof prop === 'object' ? (prop as { value?: unknown }).value : prop;
+  if (typeof code === 'string' && code) return code;
   const [urn] = relationshipTargets(e.hasDeviceProfile ?? e.refDeviceProfile);
   if (!urn) return null;
   return urn.startsWith('urn:ngsi-ld:DeviceProfile:') ? urn.slice('urn:ngsi-ld:DeviceProfile:'.length) : urn;

@@ -158,4 +158,13 @@ describe('DeviceDeployments', () => {
     expect(readDeviceProfileCode({ refDeviceProfile: urn })).toBe('prof-1');
     expect(readDeviceProfileCode({})).toBeNull();
   });
+
+  it('readDeviceProfileCode reads profileCode first (short or full-IRI key)', () => {
+    const urn = 'urn:ngsi-ld:DeviceProfile:other';
+    expect(readDeviceProfileCode({ profileCode: { type: 'Property', value: 'prof-1' } })).toBe('prof-1');
+    expect(readDeviceProfileCode({ profileCode: 'prof-1' })).toBe('prof-1');
+    expect(
+      readDeviceProfileCode({ 'https://nkz-os.org/ns/profileCode': { type: 'Property', value: 'prof-1' }, hasDeviceProfile: urn }),
+    ).toBe('prof-1');
+  });
 });
