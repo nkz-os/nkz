@@ -20,7 +20,7 @@ from collections import defaultdict
 from dataclasses import dataclass
 from datetime import date, datetime, tzinfo
 from statistics import mean
-from typing import Dict, Iterable, List, Optional
+from typing import Dict, Iterable, List, Optional, Tuple
 
 _W_M2_TO_MJ_M2_DAY = 0.0864
 _MIN_HOURS = {"airTemperature": 20, "relativeHumidity": 20, "precipitation": 24, "solarRadiation": 24}
@@ -81,6 +81,61 @@ def _device_day(by_hour: Dict[str, Dict[int, List[float]]]) -> Dict[str, float]:
             # FAO-56 eq. 19 (mean relative humidity)
             out["vapour_pressure_kpa"] = round(rh_mean / 100.0 * (_es(out["tmax_c"]) + _es(out["tmin_c"])) / 2, 4)
     return out
+
+
+# Only sensors declared in open air feed the parcel weather. A sensor under a structure,
+# inside a greenhouse, in the soil or inside an instrument measures another medium, and a
+# sensor with no declared medium is never assumed to be in open air.
+AMBIENT_AIR = "ambientAir"
+_CONTEXT_KEYS = ("observationContext", "https://nkz-os.org/ns/observationContext")
+_OVERRIDE_KEYS = ("channelOverrides", "https://nkz-os.org/ns/channelOverrides")
+
+# (attributes count by default, {attribute: counts} from the per-channel overrides)
+MediumRule = Tuple[bool, Dict[str, bool]]
+
+
+def _property_value(entity: dict, keys) -> object:
+    """Value of the first key present, normalized or keyValues form."""
+    for key in keys:
+        if key in entity:
+            raw = entity[key]
+            if isinstance(raw, dict) and raw.get("type") == "Property" and "value" in raw:
+                return raw["value"]
+            return raw
+    return None
+
+
+def medium_rule(device: dict) -> Optional[MediumRule]:
+    """Which attributes of a Device entity measure open air; None when none does.
+
+    The medium of an attribute is its channel override's medium if it has one, otherwise
+    the Device's own medium.
+    """
+    context = _property_value(device, _CONTEXT_KEYS)
+    default = isinstance(context, dict) and context.get("medium") == AMBIENT_AIR
+    overrides: Dict[str, bool] = {}
+    channels = _property_value(device, _OVERRIDE_KEYS)
+    if isinstance(channels, dict):
+        for attribute, override in channels.items():
+            ctx = override.get("observationContext") if isinstance(override, dict) else None
+            if isinstance(ctx, dict) and "medium" in ctx:
+                overrides[attribute] = ctx.get("medium") == AMBIENT_AIR
+    if not default and not any(overrides.values()):
+        return None
+    return (default, overrides)
+
+
+def ambient_air_only(readings: Iterable[Reading], rules: Dict[str, MediumRule]) -> List[Reading]:
+    """The readings whose device and attribute measure open air."""
+    kept = []
+    for r in readings:
+        rule = rules.get(r.device)
+        if rule is None:
+            continue
+        default, overrides = rule
+        if overrides.get(r.variable, default):
+            kept.append(r)
+    return kept
 
 
 def aggregate(readings: Iterable[Reading], tz: tzinfo) -> Dict[date, Dict[str, float]]:

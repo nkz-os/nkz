@@ -101,3 +101,48 @@ def test_merge_rejects_temperatures_far_from_the_model():
     sd.merge(days, {DAY: {"tmin_c": 13.0, "tmax_c": 45.0}})
     assert days[0]["tmax_c"] == 29.0 and days[0]["sources"]["tmax_c"] == "parcel_weather"
     assert days[0]["tmin_c"] == 13.0 and days[0]["sources"]["tmin_c"] == "iot_sensor"
+
+
+# ---- medium filter (only open-air sensors feed the parcel weather) ---------
+
+def _dev(ctx=None, overrides=None, kv=False, iri=False):
+    e = {"id": "urn:ngsi-ld:Device:t1:d1", "type": "Device"}
+    ck = "https://nkz-os.org/ns/observationContext" if iri else "observationContext"
+    ok = "https://nkz-os.org/ns/channelOverrides" if iri else "channelOverrides"
+    if ctx is not None:
+        e[ck] = ctx if kv else {"type": "Property", "value": ctx}
+    if overrides is not None:
+        e[ok] = overrides if kv else {"type": "Property", "value": overrides}
+    return e
+
+
+def test_medium_rule_ambient_air_device_counts_every_attribute():
+    assert sd.medium_rule(_dev({"medium": "ambientAir", "heightAboveGround": 2.0})) == (True, {})
+    assert sd.medium_rule(_dev({"medium": "ambientAir"}, kv=True)) == (True, {})
+    assert sd.medium_rule(_dev({"medium": "ambientAir"}, iri=True)) == (True, {})
+
+
+def test_medium_rule_rejects_other_media_and_unset_context():
+    under = {"medium": "ambientAirUnderStructure", "structure": "urn:ngsi-ld:AgriSolarPark:t1:p"}
+    assert sd.medium_rule(_dev(under)) is None
+    assert sd.medium_rule(_dev({"medium": "enclosedAir", "enclosure": "urn:ngsi-ld:Greenhouse:t1:g"})) is None
+    assert sd.medium_rule(_dev()) is None  # no declared medium: never assumed open air
+
+
+def test_medium_rule_channel_overrides_win_per_attribute():
+    rule = sd.medium_rule(_dev({"medium": "ambientAir"},
+                               {"temperature": {"observationContext": {"medium": "equipment"}},
+                                "relativeHumidity": {"observesFeature": "urn:ngsi-ld:AgriParcel:x"}}))
+    assert rule == (True, {"temperature": False})
+    only_one = sd.medium_rule(_dev({"medium": "equipment"},
+                                   {"airTemperature": {"observationContext": {"medium": "ambientAir"}}}))
+    assert only_one == (False, {"airTemperature": True})
+
+
+def test_ambient_air_only_keeps_allowed_readings():
+    t = datetime(2026, 7, 10, 10, tzinfo=timezone.utc)
+    readings = [sd.Reading("d1", t, "airTemperature", 20.0), sd.Reading("d1", t, "temperature", 35.0),
+                sd.Reading("d2", t, "airTemperature", 25.0), sd.Reading("d3", t, "airTemperature", 21.0)]
+    rules = {"d1": (True, {"temperature": False}), "d3": (False, {"airTemperature": True})}
+    kept = sd.ambient_air_only(readings, rules)
+    assert [(r.device, r.variable) for r in kept] == [("d1", "airTemperature"), ("d3", "airTemperature")]
