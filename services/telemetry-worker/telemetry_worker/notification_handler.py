@@ -53,6 +53,9 @@ REF_DEVICE_KEYS = (
 # ASSUMPTION: a missing, unknown or differently cased measurementType is gated; the builder
 # always writes one from the closed vocabulary.
 CONTEXT_MEASUREMENT_TYPES = frozenset({"instant", "mean", "last", "sum"})
+# The closed `measurementType` vocabulary of the SDM shape (shape discriminator, see
+# `device_measurement_shape`).
+SDM_MEASUREMENT_TYPES = frozenset({"instant", "mean", "min", "max", "stddev", "last", "sum"})
 # Profile-entry `statistic` values (after window-statistics expansion) that keep context.
 CONTEXT_STATISTICS = frozenset({"mean", "last", "sum"})
 
@@ -395,11 +398,16 @@ def _non_empty_str(value: Any) -> Optional[str]:
 class DeviceMeasurementShape:
     """Which DeviceMeasurement shape a notification carries, and its channel.
 
-    New (SDM) shape, `name` present under any NAME_KEYS form: channel = `name`, catalogue
-    name = `controlledProperty`, `measurementType` from the closed vocabulary.
-    Legacy (Phase 1) shape, no `name`: channel = `controlledProperty`; the catalogue name
-    comes from the profile entry of (`deviceType`, channel); `measurementType` is the
+    New (SDM) shape, `name` present under any NAME_KEYS form AND `measurementType` in the
+    closed vocabulary (SDM_MEASUREMENT_TYPES): channel = `name`, catalogue name =
+    `controlledProperty`.
+    Legacy (Phase 1) shape, anything else: channel = `controlledProperty`; the catalogue
+    name comes from the profile entry of (`deviceType`, channel); `measurementType` is the
     profile `type` and means nothing here.
+    Rollback safety: the flag-off builder never deletes `name` (DMs are upserted with
+    options=update), so after a flag rollback a DM keeps a stale `name` while
+    `measurementType` returns to the profile `type`. `name` alone therefore does not decide
+    the shape; recompute mirrors this discriminator.
     `channel` is None when the reading cannot be keyed: a `name` that is present but not a
     non-empty string is never replaced by `controlledProperty` (that fallback would collapse
     `airTemperatureMin`/`Max` into `airTemperature`).
@@ -417,8 +425,9 @@ def device_measurement_shape(entity: Dict[str, Any]) -> DeviceMeasurementShape:
     # observation context: `entity_id_conforms` blocks it in `_resolve_observation_payload`.
     controlled = _non_empty_str(_prop_value(entity, "controlledProperty"))
     measurement_type = _prop_value(entity, "measurementType")
+    sdm_type = isinstance(measurement_type, str) and measurement_type in SDM_MEASUREMENT_TYPES
     for key in NAME_KEYS:
-        if key in entity:
+        if sdm_type and key in entity:
             return DeviceMeasurementShape(
                 sdm=True,
                 channel=_non_empty_str(_prop_value(entity, key)),
@@ -530,6 +539,15 @@ async def _resolve_observation_payload(
                     continue
                 observed_property = shape.controlled_property if def_property else None
             else:
+                if not (isinstance(profile_code, str) and profile_code):
+                    # Expand step 1: a main entity-manager emits no deviceType, so the
+                    # legacy rule has no profile to read the catalogue name from.
+                    _skip_warnings.warning(
+                        (tenant_id, device_urn, f"no_device_type:{attr}"),
+                        f"no_device_type: no observation written: {log_ctx} "
+                        f"entity_id={entity_id} attribute={attr}",
+                    )
+                    continue
                 observed_property = def_property
             if not observed_property:
                 _skip_warnings.warning(

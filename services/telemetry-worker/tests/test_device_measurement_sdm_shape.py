@@ -153,12 +153,23 @@ def test_legacy_measurement_type_is_the_profile_type_not_a_gate(caplog):
     assert not _gate_lines(caplog)
 
 
-def test_legacy_without_device_type_gets_no_observation():
-    e = _legacy("airTemperature")
-    del e["deviceType"]
-    ev = _run(e, FakeLookup(dep=_dep()))
-    assert "observations" not in ev.payload
-    assert ev.payload["measurements"] == {"airTemperature": 21.5}
+def test_legacy_without_device_type_gets_no_observation(caplog):
+    """Expand step 1: the new worker against a main entity-manager that emits no deviceType."""
+    readings = [_legacy("airTemperature", at=f"2026-08-29T10:0{i}:00Z") for i in range(3)]
+    for e in readings:
+        del e["deviceType"]
+    lk = FakeLookup(dep=_dep())
+    with caplog.at_level(logging.WARNING):
+        events = _run_many(readings, lk)
+    for ev in events:
+        assert "observations" not in ev.payload
+        assert ev.payload["measurements"] == {"airTemperature": 21.5}
+    msgs = [r.getMessage() for r in caplog.records if "no_device_type" in r.getMessage()]
+    assert len(msgs) == 1
+    for needle in (TENANT, DEVICE_URN, "attribute=airTemperature"):
+        assert needle in msgs[0], needle
+    assert not [r for r in caplog.records if "no observedProperty" in r.getMessage()]
+    assert not [c for c in lk.calls if c[0] == "def"]
 
 
 # ---------------------------------------------------------------- statistic gate
@@ -244,16 +255,62 @@ def test_stddev_is_gated_in_both_shapes():
         assert ev.payload["measurements"] == {"airTemperatureStdDev": 21.5}
 
 
-@pytest.mark.parametrize("mtype", [None, "", "INSTANT", "average", 3])
-def test_new_shape_missing_or_unknown_measurement_type_is_gated(mtype):
-    e = _sdm("airTemperature")
+# ---------------------------------------------------------------- rollback-safe discriminator
+# The flag-off builder never deletes `name` (DMs are upserted with options=update), so after a
+# flag rollback a DM keeps a stale `name` while `measurementType` returns to the profile `type`.
+# The SDM shape needs `name` AND a closed-vocabulary measurementType; anything else is legacy.
+
+
+def _stale(mtype, name="temperatureSensor2"):
+    """A rolled-back DM: legacy controlledProperty (= channel) plus a stale `name`."""
+    e = _legacy("temperatureSensor2", mtype=mtype)
+    e["name"] = _prop(name)
     if mtype is None:
         del e["measurementType"]
-    else:
-        e["measurementType"] = _prop(mtype)
-    ev = _run(e, FakeLookup(dep=_dep()))
+    return e
+
+
+def test_stale_name_with_profile_type_takes_the_legacy_branch(caplog):
+    with caplog.at_level(logging.DEBUG):
+        ev = _run(_stale("temperature"), FakeLookup(dep=_dep()))
+    assert ev.payload["measurements"] == {"temperatureSensor2": 21.5}
+    assert ev.payload["observations"]["temperatureSensor2"]["observedProperty"] == "airTemperature"
+    assert not _gate_lines(caplog)
+
+
+def test_stale_name_with_statistic_measurement_type_takes_the_sdm_branch(caplog):
+    e = _sdm("airTemperatureMin", controlled="airTemperature", mtype="min", value=10.0)
+    with caplog.at_level(logging.DEBUG):
+        ev = _run(e, FakeLookup(dep=_dep()))
+    assert device_measurement_shape_of(e).sdm is True
+    assert ev.payload["measurements"] == {"airTemperatureMin": 10.0}  # keyed by name
     assert "observations" not in ev.payload
-    assert ev.payload["measurements"] == {"airTemperature": 21.5}
+    assert len(_gate_lines(caplog)) == 1
+
+
+def test_name_with_missing_measurement_type_takes_the_legacy_branch():
+    e = _stale(None, name="someOtherName")
+    assert device_measurement_shape_of(e).sdm is False
+    ev = _run(e, FakeLookup(dep=_dep()))
+    assert ev.payload["measurements"] == {"temperatureSensor2": 21.5}  # keyed by controlledProperty
+    assert "observations" in ev.payload
+
+
+@pytest.mark.parametrize("mtype", ["", "INSTANT", "average", 3, "temperature"])
+def test_name_with_out_of_vocabulary_measurement_type_takes_the_legacy_branch(mtype):
+    e = _stale(mtype, name="someOtherName")
+    assert device_measurement_shape_of(e).sdm is False
+    ev = _run(e, FakeLookup(dep=_dep()))
+    assert ev.payload["measurements"] == {"temperatureSensor2": 21.5}
+
+
+@pytest.mark.parametrize("mtype", ["instant", "mean", "min", "max", "stddev", "last", "sum"])
+def test_name_with_closed_vocabulary_measurement_type_is_the_sdm_shape(mtype):
+    assert device_measurement_shape_of(_sdm("airTemperature", mtype=mtype)).sdm is True
+
+
+def device_measurement_shape_of(entity):
+    return nh.device_measurement_shape(entity)
 
 
 def test_legacy_expanded_statistic_channel_is_gated(caplog):
