@@ -247,3 +247,74 @@ def test_conforming_entity_id_gets_observation_nonconforming_does_not(caplog):
         for needle in (f"tenant_id={TENANT}", f"device_urn={DEVICE_URN}", f"entity_id={bad}",
                        "attribute=temperature", "observed_at=2026-08-29T10:00:00+00:00"):
             assert needle in msgs[0], (needle, msgs[0])
+
+
+def _run_many(entities, lookup, tenant=TENANT):
+    """Several readings under one handler wiring (the throttle state survives between them)."""
+    nh.init_handler(
+        settings=Settings(postgres_url="postgresql://test:test@localhost/test"),
+        profile_service=FakeProfileService(), event_sink=None, observation_lookup=lookup,
+    )
+
+    async def go():
+        return [await nh._process_entity(e, tenant) for e in entities]
+
+    try:
+        return asyncio.run(go())
+    finally:
+        nh.init_handler(
+            settings=Settings(postgres_url="postgresql://test:test@localhost/test"),
+            profile_service=FakeProfileService(), event_sink=None,
+        )
+
+
+def _warnings(caplog, needle):
+    return [r.getMessage() for r in caplog.records
+            if r.levelno == logging.WARNING and needle in r.getMessage()]
+
+
+def _readings(n, **extra):
+    return [_entity(value=20.0 + i, dateObserved={"type": "Property",
+                                                  "value": f"2026-08-29T10:0{i}:00Z"}, **extra)
+            for i in range(n)]
+
+
+def test_undeployed_device_warns_once_not_per_reading(caplog):
+    with caplog.at_level(logging.WARNING):
+        events = _run_many(_readings(5), FakeLookup(dep=None))
+    assert all(ev is not None and "observations" not in ev.payload for ev in events)
+    lines = _warnings(caplog, "no deployment")
+    assert len(lines) == 1
+    assert TENANT in lines[0] and DEVICE_URN in lines[0] and "2026-08-29T10:00:00" in lines[0]
+
+
+def test_missing_observed_property_warns_once(caplog):
+    entities = _readings(4)
+    for e in entities:
+        del e["observedProperty"]
+    with caplog.at_level(logging.WARNING):
+        _run_many(entities, FakeLookup(dep=_dep()))
+    assert len(_warnings(caplog, "no observedProperty")) == 1
+
+
+def test_unit_mismatch_warns_once(caplog):
+    with caplog.at_level(logging.WARNING):
+        _run_many(_readings(3), FakeLookup(dep=_dep(), unit="µm"))
+    assert len(_warnings(caplog, "observation_unit_mismatch")) == 1
+
+
+def test_nonconforming_entity_id_warns_once(caplog):
+    bad = "urn:ngsi-ld:DeviceMeasurement:acmefarm:other-device:temperature"
+    with caplog.at_level(logging.WARNING):
+        _run_many(_readings(3, id=bad), FakeLookup(dep=_dep()))
+    assert len(_warnings(caplog, "observation_entity_id_nonconforming")) == 1
+
+
+def test_throttle_is_per_device(caplog):
+    other = "urn:ngsi-ld:Device:acmefarm:sensor-002"
+    entities = _readings(2) + _readings(2, refDevice={"type": "Relationship", "object": other})
+    with caplog.at_level(logging.WARNING):
+        _run_many(entities, FakeLookup(dep=None))
+    lines = _warnings(caplog, "no deployment")
+    assert len(lines) == 2
+    assert DEVICE_URN in lines[0] and other in lines[1]

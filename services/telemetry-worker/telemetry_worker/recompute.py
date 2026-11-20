@@ -52,6 +52,7 @@ import asyncpg
 
 from common.observation_context import MEDIA, entity_id_conforms
 
+from .log_throttle import ThrottledWarnings
 from .observation_lookup import _DEPLOYMENTS_SQL, _in_range, _json, _to_deployment
 from .observations import (
     Deployment,
@@ -64,6 +65,10 @@ from .observations import (
 )
 
 logger = logging.getLogger(__name__)
+
+# Same reasons as ingest repeat for every row of a device in a run: logged once per
+# (tenant, device, reason), the rest counted and reported at the end of the run.
+_skip_warnings = ThrottledWarnings(logger)
 
 INTERVAL_ENV = "OBSERVATION_RECOMPUTE_INTERVAL_S"
 DEFAULT_INTERVAL_S = 30.0
@@ -354,6 +359,8 @@ def plan_row(
     prop: Optional[PropertyDef],
     measurement_def: Optional[Dict[str, Any]],
     device_urn: str,
+    *,
+    tenant_id: str,
 ) -> Optional[RowUpdate]:
     """Target values for one row, or None when nothing would change.
 
@@ -376,10 +383,11 @@ def plan_row(
     device_id = device_urn.rsplit(":", 1)[-1]
     if has_context and not entity_id_conforms(row.entity_id, device_id, row.attribute_name):
         has_context = False
-        logger.warning(
-            f"observation_entity_id_nonconforming: context left NULL: "
+        _skip_warnings.warning(
+            (tenant_id, device_urn, f"observation_entity_id_nonconforming:{row.attribute_name}"),
+            f"observation_entity_id_nonconforming: context left NULL: tenant_id={tenant_id} "
             f"device_urn={device_urn} observed_at={row.observed_at.isoformat()} "
-            f"entity_id={row.entity_id} attribute={row.attribute_name}"
+            f"entity_id={row.entity_id} attribute={row.attribute_name}",
         )
     # Unit guard (same as ingest): a property is only filled in from the raw event when
     # the profile's unit matches the catalogue's; otherwise the row stays without one.
@@ -391,18 +399,19 @@ def plan_row(
         )
     ):
         has_context = False
-        logger.warning(
-            f"observation_unit_mismatch: observed_property left NULL: "
+        _skip_warnings.warning(
+            (tenant_id, device_urn, f"observation_unit_mismatch:{row.attribute_name}"),
+            f"observation_unit_mismatch: observed_property left NULL: tenant_id={tenant_id} "
             f"device_urn={device_urn} observed_at={row.observed_at.isoformat()} "
             f"attribute={row.attribute_name} "
             f"profile_unit={(measurement_def or {}).get('unit')!r} "
-            f"catalogue_unit={prop.unit if prop is not None else None!r}"
+            f"catalogue_unit={prop.unit if prop is not None else None!r}",
         )
 
     if has_context:
         log_ctx = (
-            f"device_urn={device_urn} observed_at={row.observed_at.isoformat()} "
-            f"attribute={row.attribute_name}"
+            f"tenant_id={tenant_id} device_urn={device_urn} "
+            f"observed_at={row.observed_at.isoformat()} attribute={row.attribute_name}"
         )
         ctx = observation_context(row.attribute_name, device_urn, dep)
         medium = ctx["medium"]
@@ -728,7 +737,7 @@ class RecomputeLoop:
                     if key not in mdefs:
                         mdefs[key] = await self._lookup.measurement_def(tenant_id, *key)
                     mdef = mdefs[key]
-                target = plan_row(row, dep, prop, mdef, device_urn)
+                target = plan_row(row, dep, prop, mdef, device_urn, tenant_id=tenant_id)
                 if target is not None:
                     updates.append(target)
             if updates:
@@ -787,6 +796,8 @@ class RecomputeLoop:
                     f"Recompute attempt failed and could not be recorded (lease will "
                     f"expire): {ctx}: {error}; {_error_text(mark_exc)}"
                 )
+        finally:
+            _skip_warnings.flush()  # the run's suppressed counts, whatever its outcome
 
     async def run_once(self) -> int:
         """Claim and process eligible runs of every tenant. Returns runs processed."""

@@ -697,7 +697,14 @@ def test_interval_from_env(monkeypatch):
 
 
 def _plan(row, dep=_dep(), prop=PROP, mdef=MDEF):
-    return plan_row(row, dep, prop, mdef, URN)
+    return plan_row(row, dep, prop, mdef, URN, tenant_id=TENANT)
+
+
+@pytest.fixture(autouse=True)
+def _fresh_skip_warnings():
+    rc._skip_warnings.reset()
+    yield
+    rc._skip_warnings.reset()
 
 
 def test_plan_never_changes_set_quality_value_or_property():
@@ -808,10 +815,53 @@ def test_plan_nonconforming_entity_id_gets_no_context_and_warns(caplog):
                 "urn:ngsi-ld:DeviceMeasurement:tenant_a:other:temperature", None):
         row = _row(deployment_id=DEP_ID, observed_property="airTemperature", entity_id=bad,
                    height_m=1.5, medium="ambientAir")
+        rc._skip_warnings.reset()  # each bad id is a first occurrence here
         with caplog.at_level(logging.WARNING):
             u = _plan(row)
         assert u is not None and u.deployment_id is None and u.medium is None
         assert u.observed_property == "airTemperature"  # never changed
         assert any("observation_entity_id_nonconforming" in r.getMessage()
                    and f"entity_id={bad}" in r.getMessage() and URN in r.getMessage()
+                   and f"tenant_id={TENANT}" in r.getMessage()
                    for r in caplog.records)
+
+
+def _skip_lines(caplog, needle):
+    import logging
+
+    return [r.getMessage() for r in caplog.records
+            if r.levelno == logging.WARNING and needle in r.getMessage()]
+
+
+def test_plan_warnings_carry_tenant_and_repeat_once(caplog):
+    import logging
+
+    bad = "urn:ngsi-ld:DeviceMeasurement:tenant_a:other:temperature"
+    with caplog.at_level(logging.WARNING):
+        for i in range(4):
+            _plan(_row(i, deployment_id=DEP_ID, entity_id=bad))
+            _plan(_row(i), mdef={"unit": "µm"})
+    nonconf = _skip_lines(caplog, "observation_entity_id_nonconforming")
+    mismatch = _skip_lines(caplog, "observation_unit_mismatch")
+    assert len(nonconf) == 1 and len(mismatch) == 1
+    for line in nonconf + mismatch:
+        assert f"tenant_id={TENANT}" in line and URN in line
+
+
+@_sync
+async def test_run_end_reports_suppressed_warnings(caplog):
+    import logging
+
+    db = FakeDB()
+    _with_deployment(db)
+    for i in range(3):
+        db.add_row(_row(i))
+    db.add_run("r1")
+    lookup = FakeLookup(mdefs={("P", "temperature"): {"unit": "µm"}})
+
+    with caplog.at_level(logging.WARNING):
+        await _loop(db, lookup).run_once()
+
+    lines = _skip_lines(caplog, "observation_unit_mismatch")
+    assert len(lines) == 2
+    assert "2 similar suppressed" in lines[1] and f"tenant_id={TENANT}" in lines[1]

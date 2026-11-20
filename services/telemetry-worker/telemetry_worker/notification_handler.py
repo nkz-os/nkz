@@ -22,8 +22,13 @@ from .dedup import NotificationDedup
 from .observations import reading_point, resolve_observation, units_compatible
 from common.observation_context import entity_id_conforms
 from .geometry_cache import upsert_geometry
+from .log_throttle import ThrottledWarnings
 
 logger = logging.getLogger(__name__)
+
+# "No observation" reasons that hold for every reading of a device (most devices have
+# no deployment): logged once per (tenant, device, reason), then summarised per window.
+_skip_warnings = ThrottledWarnings(logger)
 
 router = APIRouter()
 
@@ -80,6 +85,7 @@ def init_handler(
     _dedup = dedup
     _observation_lookup = observation_lookup
     _geometry_pool = geometry_pool
+    _skip_warnings.reset()
 
 
 async def process_notification_task(
@@ -312,7 +318,10 @@ async def _resolve_observation_payload(
     try:
         dep = await _observation_lookup.deployment_at(tenant_id, device_urn, observed_at)
         if dep is None:
-            logger.warning(f"Observation skipped, no deployment at observed_at: {log_ctx}")
+            _skip_warnings.warning(
+                (tenant_id, device_urn, "no_deployment"),
+                f"Observation skipped, no deployment at observed_at: {log_ctx}",
+            )
             return {}
 
         observed_property = _prop_value(entity, "observedProperty")
@@ -325,14 +334,20 @@ async def _resolve_observation_payload(
             # The reader prunes compressed batches by this entity id rule (common
             # observation_context.entity_id_conforms, timeseries-reader sources._SERIES_PRUNE):
             # a row it would skip must not carry observation context at all.
+            # ASSUMPTION: per-attribute reasons key on the attribute too, so each
+            # misconfigured channel of a device is reported once, not only the first.
             if not entity_id_conforms(entity_id, device_id, attr):
-                logger.warning(
+                _skip_warnings.warning(
+                    (tenant_id, device_urn, f"observation_entity_id_nonconforming:{attr}"),
                     f"observation_entity_id_nonconforming: no observation written: {log_ctx} "
-                    f"entity_id={entity_id} attribute={attr}"
+                    f"entity_id={entity_id} attribute={attr}",
                 )
                 continue
             if not isinstance(observed_property, str) or not observed_property:
-                logger.warning(f"Observation skipped for {attr}, no observedProperty: {log_ctx}")
+                _skip_warnings.warning(
+                    (tenant_id, device_urn, f"no_observed_property:{attr}"),
+                    f"Observation skipped for {attr}, no observedProperty: {log_ctx}",
+                )
                 continue
             if isinstance(value, bool) or not isinstance(value, (int, float)):
                 continue
@@ -350,9 +365,10 @@ async def _resolve_observation_payload(
                 ) or None
             profile_unit = measurement_def.get("unit") if measurement_def else None
             if not units_compatible(profile_unit, prop.unit):
-                logger.warning(
+                _skip_warnings.warning(
+                    (tenant_id, device_urn, f"observation_unit_mismatch:{attr}"),
                     f"observation_unit_mismatch: no observation written: {log_ctx} "
-                    f"attribute={attr} profile_unit={profile_unit!r} catalogue_unit={prop.unit!r}"
+                    f"attribute={attr} profile_unit={profile_unit!r} catalogue_unit={prop.unit!r}",
                 )
                 continue
             observations[attr] = resolve_observation(
