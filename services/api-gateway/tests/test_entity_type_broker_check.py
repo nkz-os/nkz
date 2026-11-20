@@ -1,3 +1,4 @@
+import http.client
 import importlib
 import io
 import json
@@ -101,6 +102,47 @@ def test_gives_up_after_attempts():
         fetch(opener, sleep=sleep, attempts=3)
     assert len(opener.requests) == 3
     assert len(sleep.calls) == 2
+
+
+def test_non_http_answer_is_retried():
+    opener = FakeOpener(http.client.BadStatusLine("x"), http.client.BadStatusLine("x"), items("a:b"))
+    sleep = FakeSleep()
+    assert fetch(opener, sleep=sleep) == ["a:b"]
+    assert len(opener.requests) == 3
+    assert len(sleep.calls) == 2
+
+
+def test_body_cut_off_mid_read_ends_in_broker_check_error():
+    class CutResponse(FakeResponse):
+        def read(self):
+            raise http.client.IncompleteRead(b"")
+
+    requests = []
+
+    def opener(request, timeout=None):
+        requests.append(request)
+        return CutResponse(b"")
+
+    with pytest.raises(g.BrokerCheckError):
+        fetch(opener, attempts=3)
+    assert len(requests) == 3
+
+
+def test_address_without_scheme_fails_at_once_without_retry():
+    sleep = FakeSleep()
+    opener = FakeOpener(items("a:b"))
+    with pytest.raises(g.BrokerCheckError):
+        g.stored_type_iris("broker.invalid:1026", "tenant-a", opener=opener, sleep=sleep)
+    assert sleep.calls == []
+
+
+def test_value_error_from_opener_fails_at_once_without_retry():
+    sleep = FakeSleep()
+    opener = FakeOpener(ValueError("unknown url type"))
+    with pytest.raises(g.BrokerCheckError):
+        fetch(opener, sleep=sleep)
+    assert len(opener.requests) == 1
+    assert sleep.calls == []
 
 
 def test_timeout_counts_as_connection_error():
@@ -221,10 +263,40 @@ def test_run_truncated_message(accepted):
     assert lines == ["error tenant-a: listing may be truncated at 1000 types"]
 
 
-def test_run_empty_tenant(accepted):
+def test_run_empty_listing_is_an_error(accepted):
+    # The tenant list is written by hand: a wrong name must not read as a clean tenant.
     code, lines = run(accepted, {"tenant-a": []})
-    assert code == 0
-    assert lines == ["ok tenant-a: 0 types"]
+    assert code == 2
+    assert lines == ["error tenant-a: no entity types found"]
+
+
+def test_run_unexpected_exception_is_an_error_and_next_tenant_is_checked(accepted):
+    code, lines = run(accepted, {"tenant-a": RuntimeError("secret-detail"), "tenant-b": [GOOD]})
+    assert code == 2
+    assert lines == ["error tenant-a: RuntimeError", "ok tenant-b: 1 types"]
+
+
+def test_default_out_flushes_every_line(accepted, monkeypatch):
+    class Recorder:
+        def __init__(self):
+            self.written = []
+            self.flushes = 0
+
+        def write(self, text):
+            self.written.append(text)
+            return len(text)
+
+        def flush(self):
+            self.flushes += 1
+
+    recorder = Recorder()
+    monkeypatch.setattr("sys.stdout", recorder)
+    results = {"tenant-a": [GOOD], "tenant-b": [GOOD, FOO]}
+    code = g.run_broker_check(URL, list(results), accepted, fetch=lambda u, t: results[t])
+    assert code == 1
+    printed = "".join(recorder.written).splitlines()
+    assert len(printed) == 2
+    assert recorder.flushes >= len(printed)
 
 
 @pytest.fixture
@@ -267,6 +339,16 @@ def test_main_ok(env, monkeypatch, capsys):
     assert g.main(["broker"]) == 0
     assert seen == [(URL, "tenant-a"), (URL, "tenant-b")]
     assert "ok tenant-a: 1 types" in capsys.readouterr().out
+
+
+def test_main_never_lets_an_exception_escape(env, monkeypatch, capsys):
+    def boom(url, tenant, **kw):
+        raise RuntimeError("secret-detail")
+
+    monkeypatch.setattr(g, "stored_type_iris", boom)
+    assert g.main(["broker"]) == 2
+    out = capsys.readouterr().out
+    assert "secret-detail" not in out
 
 
 def test_import_makes_no_network_call(monkeypatch):

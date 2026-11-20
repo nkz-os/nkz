@@ -12,12 +12,15 @@ No Flask import and no relative import: the module is loaded both as
 
 from __future__ import annotations
 
+import functools
+import http.client
 import json
 import logging
 import os
 import sys
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 from dataclasses import dataclass
 from pathlib import Path
@@ -314,18 +317,27 @@ def stored_type_iris(
     No `Link` header is sent: the `id` of each item is the stored IRI either way.
     Connection failures and 5xx are retried because a job can start before its
     network policy is programmed; a broker that never answers must end in an
-    error, never in a clean result.
+    error, never in a clean result. Every failure to get an answer, whatever its
+    class, ends in BrokerCheckError so the caller can tell "could not check" from
+    "found an unknown type".
     """
-    request = urllib.request.Request(
-        orion_url.rstrip("/") + TYPES_PATH,
-        headers={
-            "NGSILD-Tenant": tenant,
-            "Fiware-Service": tenant,
-            "Fiware-ServicePath": "/",
-            "Accept": "application/json",
-        },
-        method="GET",
-    )
+    # An address without a scheme ("host:1026") parses with the host as the
+    # scheme, so urllib would only fail later and be retried: reject it here.
+    if urllib.parse.urlsplit(orion_url).scheme not in ("http", "https"):
+        raise BrokerCheckError("broker address needs an http or https scheme")
+    try:
+        request = urllib.request.Request(
+            orion_url.rstrip("/") + TYPES_PATH,
+            headers={
+                "NGSILD-Tenant": tenant,
+                "Fiware-Service": tenant,
+                "Fiware-ServicePath": "/",
+                "Accept": "application/json",
+            },
+            method="GET",
+        )
+    except ValueError as exc:
+        raise BrokerCheckError("broker address is not valid") from exc
     last: Exception | None = None
     raw = b""
     for attempt in range(attempts):
@@ -340,8 +352,12 @@ def stored_type_iris(
             if exc.code < 500:
                 raise BrokerCheckError(f"broker answered HTTP {exc.code}") from exc
             last = exc
-        except OSError as exc:  # URLError, connection refused, DNS failure, timeouts
+        except (OSError, http.client.HTTPException) as exc:
+            # URLError, connection refused, DNS failure, timeouts; and a
+            # non-HTTP answer or a body cut off mid-read (a broker restarting).
             last = exc
+        except ValueError as exc:  # a malformed request will not improve on retry
+            raise BrokerCheckError("broker request is not valid") from exc
     if last is not None:
         raise BrokerCheckError("broker unreachable") from last
     try:
@@ -373,12 +389,16 @@ def run_broker_check(
     accepted: AcceptedTypes,
     *,
     fetch: Callable[[str, str], list[str]] = stored_type_iris,
-    out: Callable[[str], None] = print,
+    out: Callable[[str], None] = functools.partial(print, flush=True),
 ) -> int:
     """0 clean, 1 an unknown type stored, 2 a tenant could not be checked.
 
     Every tenant is checked even after a finding. Lines carry the class of an
-    error, never its message, which can hold addresses.
+    error, never its message, which can hold addresses. Any exception from
+    `fetch` counts as a tenant that could not be checked, and an empty listing
+    does too: the tenant list is written by hand, and a wrong name would
+    otherwise read as clean every day. Output is flushed per line so a job
+    killed at its deadline keeps what it already reported.
     """
     unknown_found = False
     errored = False
@@ -388,6 +408,14 @@ def run_broker_check(
         except BrokerCheckError as exc:
             errored = True
             out(f"error {tenant}: {_error_label(exc)}")
+            continue
+        except Exception as exc:  # noqa: BLE001 - nothing may stop the other tenants
+            errored = True
+            out(f"error {tenant}: {type(exc).__name__}")
+            continue
+        if not iris:
+            errored = True
+            out(f"error {tenant}: no entity types found")
             continue
         unknown = unknown_stored_types(iris, accepted)
         if unknown:
@@ -399,7 +427,7 @@ def run_broker_check(
     return 2 if errored else 1 if unknown_found else 0
 
 
-def main(argv: list[str] | None = None) -> int:
+def _main(argv: list[str] | None = None) -> int:
     import argparse
 
     parser = argparse.ArgumentParser(prog="entity_type_guard")
@@ -408,19 +436,30 @@ def main(argv: list[str] | None = None) -> int:
 
     orion_url = os.environ.get(ORION_URL_ENV, "").strip()
     if not orion_url:
-        print(f"error: {ORION_URL_ENV} is not set")
+        print(f"error: {ORION_URL_ENV} is not set", flush=True)
         return 2
     tenants = [t.strip() for t in os.environ.get(TENANTS_ENV, "").split(",") if t.strip()]
     if not tenants:
-        print(f"error: {TENANTS_ENV} is empty")
+        print(f"error: {TENANTS_ENV} is empty", flush=True)
         return 2
     try:
         accepted = load_accepted()
     except GuardUnavailable:
-        print("error: entity type lists unavailable")
+        print("error: entity type lists unavailable", flush=True)
         return 2
     # Looked up here, not bound as a default, so the name can be replaced in tests.
     return run_broker_check(orion_url, tenants, accepted, fetch=stored_type_iris)
+
+
+def main(argv: list[str] | None = None) -> int:
+    """Entry point: an unexpected error is a failed check (2), never a traceback."""
+    try:
+        return _main(argv)
+    except SystemExit:
+        raise
+    except Exception as exc:  # noqa: BLE001 - the job's exit code is the alarm
+        print(f"error: {type(exc).__name__}", flush=True)
+        return 2
 
 
 if __name__ == "__main__":
