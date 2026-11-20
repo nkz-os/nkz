@@ -623,8 +623,12 @@ def test_context_declares_new_terms():
     assert ctx["observesFeature"] == "http://www.w3.org/ns/sosa/hasFeatureOfInterest"
     assert not isinstance(ctx["observesFeature"], dict) or "@type" not in ctx["observesFeature"]
     for term in ("observationContext", "channelOverrides", "mobility", "deploymentId",
-                 "observedProperty", "timeSource"):
+                 "timeSource"):
         assert ctx[term] == f"nkz:{term}"
+    # DeviceMeasurement uses the SDM controlledProperty / measurementType; no own observedProperty.
+    assert "observedProperty" not in ctx
+    for term in ("controlledProperty", "measurementType"):
+        assert ctx[term] == f"https://smartdatamodels.org/dataModel.Device/{term}"
 
 
 def test_context_maps_device_type_to_the_sdm_iri():

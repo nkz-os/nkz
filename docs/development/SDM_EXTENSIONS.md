@@ -111,7 +111,6 @@ fails on it.
 | `numberOfSubsamples` | atributo | propuesta-sdm | Attribute of AgriPlantSample, AgriSoilSample (smart-data-models/incubated#283) |
 | `observationContext` | atributo | extension-declarada | Medium a device measures (air, soil, plant, water) and where in it; SDM Device has no such property |
 | `observesFeature` | atributo | extension-declarada | SDM Device has no feature-of-interest relation; maps to W3C SOSA sosa:hasFeatureOfInterest |
-| `observedProperty` | atributo | extension-declarada | Catalogue name (string) of the property a measurement observes; own vocabulary until the SOSA alignment with URN values |
 | `OpenChannelFlow` | entidad | sin-revisar | Not yet reviewed |
 | `organicCarbon` | atributo | propuesta-sdm | Attribute of AgriSoilSample (smart-data-models/incubated#283) |
 | `organicMatter` | atributo | propuesta-sdm | Attribute of AgriSoilSample (smart-data-models/incubated#283) |
@@ -399,3 +398,9 @@ Closed value sets of declared extensions, for any module that reads them.
 - **`irrigationRegime`** (AgriParcel and AgriCrop): `rainfed` | `irrigated`. Writers before
   2026-10-13 stored the Spanish words `secano` / `regadío`; readers should still map those to the
   two values above. Translated labels are a UI concern, never stored.
+
+- **`measurementType`** (DeviceMeasurement, official SDM Device term, not an extension):
+  `instant` | `mean` | `min` | `max` | `stddev` | `last` | `sum`. Always written. `instant` is a
+  single reading; the others are window statistics of the channel. In a DeviceMeasurement,
+  `controlledProperty` is the catalogue property name, `name` is the channel (the storage key),
+  and `measurementType` is the statistic.

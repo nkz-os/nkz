@@ -836,7 +836,6 @@
         "@id": "https://smartdatamodels.org/dataModel.Device/controlledAsset"
       },
       "observesFeature": "http://www.w3.org/ns/sosa/hasFeatureOfInterest",
-      "observedProperty": "nkz:observedProperty",
       "timeSource": "nkz:timeSource",
       "observationContext": "nkz:observationContext",
       "channelOverrides": "nkz:channelOverrides",
