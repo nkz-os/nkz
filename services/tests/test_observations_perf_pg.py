@@ -18,7 +18,7 @@ Seeding:
   - the 97 other devices (and the dense devices): telemetry_measurements rows inserted directly,
     with every column the 115 trigger sets. ASSUMPTION: no telemetry_events rows for them; the
     reader's event join is bounded by the candidate device ids, so their events are never read.
-    `test_seeded_row_matches_trigger` checks one direct row against the trigger's row.
+    `_parity_check` checks one direct row against the trigger's row.
 Disk guard: refuses to start below 8 GB free on '/', aborts and drops the scratch DB below 4 GB.
 
 Opt-in: runs only with `-m perf` or env NKZ_PERF=1 (a plain `-m pg_integration` run skips it).

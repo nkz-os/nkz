@@ -60,6 +60,7 @@ T1_OUT = [(datetime(2026, 10, 21, 3, tzinfo=UTC), datetime(2026, 10, 21, 10, tzi
           (datetime(2026, 10, 25, 0, 10, tzinfo=UTC), datetime(2026, 10, 25, 2, 40, tzinfo=UTC)),
           (datetime(2026, 10, 26, 12, tzinfo=UTC), datetime(2026, 10, 26, 17, 30, tzinfo=UTC)),
           (datetime(2026, 3, 29, 0, 30, tzinfo=UTC), datetime(2026, 3, 29, 6, tzinfo=UTC))]
+T1_OUT_NO_DST = [o for o in T1_OUT if o[0].date() != datetime(2026, 10, 25).date()]
 T2_OUT = [(datetime(2026, 10, 21, 4, tzinfo=UTC), datetime(2026, 10, 21, 9, tzinfo=UTC)),
           (datetime(2026, 10, 25, 1, tzinfo=UTC), datetime(2026, 10, 25, 1, 50, tzinfo=UTC)),
           (datetime(2026, 10, 26, 15, tzinfo=UTC), datetime(2026, 10, 26, 15, 40, tzinfo=UTC))]
@@ -78,7 +79,9 @@ def _devices(tenant):
     devs = {
         "t1a": (p, INSIDE, dict(sub2), "device", T1_OUT, False, "fixed"),
         "t1b": (p, INSIDE, {"heightAboveGround": 2.3}, "device", T1_OUT, False, "fixed"),
-        "t1c": (p, INSIDE, {"heightAboveGround": 3.0}, "device", T1_OUT, False, "fixed"),
+        # t1c reads through the repeated DST hour (both passes): a grain that merges them loses
+        # one coverage hour on the 25 h day
+        "t1c": (p, INSIDE, {"heightAboveGround": 3.0}, "device", T1_OUT_NO_DST, False, "fixed"),
         "t1d": (p, INSIDE, {"depthFrom": 20, "depthTo": 40}, "manual", T1_OUT, False, "fixed"),
         "t1e": (p, INSIDE, {"heightAboveGround": 7.0}, "device", [], True, "fixed"),
         "t2a": (z, INSIDE, dict(sub2), "device", T2_OUT, False, "fixed"),
