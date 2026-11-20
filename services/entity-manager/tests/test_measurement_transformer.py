@@ -278,27 +278,6 @@ class TestProvenance:
         m = _by_controlled_property(build_measurements(entity, PROFILE), "leafTemperature")
         assert m["timeSource"] == {"type": "Property", "value": "server"}
 
-    def test_observed_property_from_profile(self):
-        profile = {
-            "id": 2,
-            "sdm_entity_type": "Device",
-            "mapping": {
-                "measurements": [
-                    {"type": "airTemp", "unit": "°C", "sdmAttribute": "temperature",
-                     "observedProperty": "airTemperature"},
-                ]
-            },
-        }
-        entity = _entity(temperature={"type": "Property", "value": 18.0,
-                                      "observedAt": "2026-08-29T10:00:00Z"})
-        result = build_measurements(entity, profile)
-        m = _by_controlled_property(result, "airTemperature")  # alias canonicalised
-        assert m["observedProperty"] == {"type": "Property", "value": "airTemperature"}
-
-    def test_observed_property_absent_when_profile_lacks_it(self):
-        m = _by_controlled_property(build_measurements(_entity(), PROFILE), "leafTemperature")
-        assert "observedProperty" not in m
-
     def test_device_type_carries_the_device_profile_code(self):
         # SDM Device.deviceType on the DeviceMeasurement; the source stays the Device's profileCode.
         entity = _entity(profileCode={"type": "Property", "value": "bench-x"})
@@ -310,3 +289,115 @@ class TestProvenance:
         for m in build_measurements(_entity(), PROFILE):
             assert "deviceType" not in m
             assert "profileCode" not in m
+
+
+FLAG = "DEVICE_MEASUREMENT_SDM_SHAPE_ENABLED"
+
+STAT_PROFILE = {
+    "id": 3,
+    "sdm_entity_type": "Device",
+    "mapping": {
+        "measurements": [
+            {"type": "airTemp", "unit": "°C", "sdmAttribute": "airTemperature",
+             "observedProperty": "airTemperature", "statistics": ["mean", "min"]},
+            {"type": "windGust", "unit": "m/s", "sdmAttribute": "windGust",
+             "statistics": ["max"]},
+            {"type": "rainTotal", "unit": "mm", "sdmAttribute": "rain",
+             "observedProperty": "precipitation", "statistics": ["sum"]},
+            {"type": "lastTemp", "unit": "°C", "sdmAttribute": "soilTemperature",
+             "statistics": ["last"]},
+            {"type": "soilMoisture", "unit": "%", "sdmAttribute": "soilMoisture",
+             "observedProperty": "soilMoisture"},
+        ]
+    },
+}
+
+
+def _stat_entity():
+    attrs = {}
+    for name in ("airTemperature", "airTemperatureMin", "windGustMax", "rain",
+                 "soilTemperature", "soilMoisture"):
+        attrs[name] = {"type": "Property", "value": 1.5, "observedAt": "2026-08-29T10:00:00Z"}
+    return _entity(
+        profileCode={"type": "Property", "value": "bench-x"}, **attrs
+    )
+
+
+def _by_id_channel(result, channel):
+    for m in result:
+        if m["id"].endswith(":" + channel):
+            return m
+    raise AssertionError(f"no DeviceMeasurement for channel {channel!r}")
+
+
+class TestSdmShapeFlag:
+    def test_flag_off_legacy_shape(self, monkeypatch):
+        monkeypatch.delenv(FLAG, raising=False)
+        result = build_measurements(_stat_entity(), STAT_PROFILE)
+        m = _by_id_channel(result, "airTemperatureMin")
+        assert m["controlledProperty"] == {"type": "Property", "value": "airTemperatureMin"}
+        assert "name" not in m
+        assert m["measurementType"] == {"type": "Property", "value": "airTemp"}
+        assert m["deviceType"] == {"type": "Property", "value": "bench-x"}
+        assert m["timeSource"] == {"type": "Property", "value": "device"}
+
+    def test_flag_on_sdm_shape_instant(self, monkeypatch):
+        monkeypatch.setenv(FLAG, "true")
+        result = build_measurements(_stat_entity(), STAT_PROFILE)
+        m = _by_id_channel(result, "soilMoisture")
+        assert m["controlledProperty"] == {"type": "Property", "value": "soilMoisture"}
+        assert m["name"] == {"type": "Property", "value": "soilMoisture"}
+        assert m["measurementType"] == {"type": "Property", "value": "instant"}
+        assert m["deviceType"] == {"type": "Property", "value": "bench-x"}
+        assert m["timeSource"]["value"] == "device"
+        assert m["id"].endswith(":soilMoisture")
+
+    def test_flag_on_window_statistic_measurement_type(self, monkeypatch):
+        monkeypatch.setenv(FLAG, "true")
+        result = build_measurements(_stat_entity(), STAT_PROFILE)
+        mn = _by_id_channel(result, "airTemperatureMin")
+        # channel in name, catalogue name in controlledProperty, statistic in measurementType
+        assert mn["name"]["value"] == "airTemperatureMin"
+        assert mn["controlledProperty"]["value"] == "airTemperature"
+        assert mn["measurementType"]["value"] == "min"
+        assert _by_id_channel(result, "airTemperature")["measurementType"]["value"] == "mean"
+        assert _by_id_channel(result, "rain")["measurementType"]["value"] == "sum"
+        assert _by_id_channel(result, "soilTemperature")["measurementType"]["value"] == "last"
+        # no catalogue name: fallback is the BASE attribute, never the expanded channel
+        mx = _by_id_channel(result, "windGustMax")
+        assert mx["name"]["value"] == "windGustMax"
+        assert mx["controlledProperty"]["value"] == "windGust"
+        assert mx["measurementType"]["value"] == "max"
+
+    @pytest.mark.parametrize("value", ["", "1", "yes", "TRUE ", "on", "false", "tru"])
+    def test_flag_unparseable_is_off(self, monkeypatch, value):
+        monkeypatch.setenv(FLAG, value)
+        result = build_measurements(_stat_entity(), STAT_PROFILE)
+        for m in result:
+            assert "name" not in m
+            assert m["controlledProperty"]["value"] == m["id"].rsplit(":", 1)[1]
+
+    def test_flag_value_is_case_insensitive_true(self, monkeypatch):
+        monkeypatch.setenv(FLAG, "True")
+        assert "name" in _by_id_channel(build_measurements(_stat_entity(), STAT_PROFILE),
+                                        "soilMoisture")
+
+    @pytest.mark.parametrize("flag", [None, "true", "false"])
+    def test_never_emits_observed_property(self, monkeypatch, flag):
+        if flag is None:
+            monkeypatch.delenv(FLAG, raising=False)
+        else:
+            monkeypatch.setenv(FLAG, flag)
+        for m in build_measurements(_stat_entity(), STAT_PROFILE):
+            assert "observedProperty" not in m
+
+    def test_measurement_type_always_present_when_on(self, monkeypatch):
+        monkeypatch.setenv(FLAG, "true")
+        vocab = {"instant", "mean", "min", "max", "stddev", "last", "sum"}
+        result = build_measurements(_stat_entity(), STAT_PROFILE)
+        assert len(result) == 6
+        for m in result:
+            assert m["measurementType"]["value"] in vocab
+        # profile without a catalogue name or statistics still gets `instant`
+        for m in build_measurements(_entity(), PROFILE):
+            assert m["measurementType"]["value"] == "instant"

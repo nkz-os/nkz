@@ -11,6 +11,8 @@ this into `blueprints/notifications.py` and the actual Orion write.
 
 from __future__ import annotations
 
+import logging
+import os
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -22,6 +24,31 @@ from common.window_statistics import expand_measurements
 # identity/metadata, not a reading. Kept as an explicit allow-list-adjacent skip so a coincidental
 # profile entry can never turn identity data into a bogus DeviceMeasurement.
 _NON_MEASUREMENT_KEYS = frozenset({"id", "type", "@context"})
+
+logger = logging.getLogger(__name__)
+
+SDM_SHAPE_FLAG = "DEVICE_MEASUREMENT_SDM_SHAPE_ENABLED"
+# Closed `measurementType` vocabulary of the SDM shape: the window statistics of
+# `common.window_statistics.STATISTICS` (mean/min/max/stddev/last/sum) map 1:1, and a reading
+# with no window is `instant`.
+INSTANT = "instant"
+
+
+def sdm_shape_enabled() -> bool:
+    """Effective value of `DEVICE_MEASUREMENT_SDM_SHAPE_ENABLED` (default off).
+
+    Parsed like `RECONCILE_BACKSTOP_ENABLED`: only `.lower() == "true"` is on, any other value
+    (including unparseable ones) is off. Read on every call so the effective value is never stale.
+    """
+    return os.getenv(SDM_SHAPE_FLAG, "false").lower() == "true"
+
+
+def log_sdm_shape_flag() -> None:
+    """Log the effective flag value once at startup, as a structured field."""
+    logger.info(
+        "device_measurement_sdm_shape_flag",
+        extra={"flag": SDM_SHAPE_FLAG, "enabled": sdm_shape_enabled()},
+    )
 
 
 class DeviceIdShapeError(ValueError):
@@ -110,6 +137,7 @@ def build_measurements(entity: Dict[str, Any], profile: Dict[str, Any]) -> List[
     profile_code_attr = entity.get("profileCode")
     profile_code = profile_code_attr.get("value") if isinstance(profile_code_attr, dict) else None
 
+    sdm_shape = sdm_shape_enabled()
     results: List[Dict[str, Any]] = []
     # One reading per canonical name: when the entity carries both aliases, the canonical
     # attribute wins.
@@ -149,8 +177,6 @@ def build_measurements(entity: Dict[str, Any], profile: Dict[str, Any]) -> List[
             "id": f"urn:ngsi-ld:DeviceMeasurement:{tenant}:{external_id}:{attr_name}",
             "type": "DeviceMeasurement",
             "refDevice": {"type": "Relationship", "object": entity_id},
-            "controlledProperty": {"type": "Property", "value": attr_name},
-            "measurementType": {"type": "Property", "value": measurement_def.get("type")},
             value_key: value_prop,
             "dateObserved": {
                 "type": "Property",
@@ -158,9 +184,29 @@ def build_measurements(entity: Dict[str, Any], profile: Dict[str, Any]) -> List[
             },
             "timeSource": {"type": "Property", "value": time_source},
         }
-        observed_property = measurement_def.get("observedProperty")
-        if observed_property:
-            measurement["observedProperty"] = {"type": "Property", "value": observed_property}
+        if sdm_shape:
+            # A.1: `name` = the channel, `controlledProperty` = the catalogue name. Without one,
+            # the BASE attribute (not the expanded `...Min` channel; the statistic now lives in
+            # `measurementType`). Defs that were never expanded carry no `baseAttribute`, so the
+            # channel is already the base.
+            controlled = (
+                measurement_def.get("observedProperty")
+                or measurement_def.get("baseAttribute")
+                or attr_name
+            )
+            measurement["controlledProperty"] = {"type": "Property", "value": controlled}
+            measurement["name"] = {"type": "Property", "value": attr_name}
+            measurement["measurementType"] = {
+                "type": "Property",
+                "value": measurement_def.get("statistic") or INSTANT,
+            }
+        else:
+            # Phase 1 shape, unchanged: channel in `controlledProperty`, profile type.
+            measurement["controlledProperty"] = {"type": "Property", "value": attr_name}
+            measurement["measurementType"] = {
+                "type": "Property",
+                "value": measurement_def.get("type"),
+            }
         if profile_code is not None:
             measurement["deviceType"] = {"type": "Property", "value": profile_code}
         results.append(measurement)
