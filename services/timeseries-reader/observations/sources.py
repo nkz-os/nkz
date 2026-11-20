@@ -318,6 +318,12 @@ FROM ser
 # rule) and the out-of-range counts. The tier itself is still decided in Python (`_row_tier`)
 # from the class columns, which fix it: a mobile device keeps its newest row in every tier, and
 # no channel or sub-context is lost. Calibration is looked up for the chosen rows only.
+# The per-location facts are spread to the rows by a window over `loc`, never by a join: the
+# spatial functions run on the first row of each location only (CASE), and bool_or / max pick
+# that row's value for the whole partition. A join back to the distinct locations was planned as
+# a nested loop whenever the window was under-estimated (rows=1 for a fresh chunk), i.e.
+# O(rows x distinct locations) for a mobile device; the window form is one sort, whatever the
+# estimates.
 _KEY_COLS = ("deployment_id", "device_id", "attribute_name", "source_kind",
              "feature_of_interest", "depth_from_cm", "depth_to_cm", "height_m", "organ",
              "context_ref")
@@ -330,16 +336,22 @@ w AS (
            (m.value >= %(lo)s AND m.value <= %(hi)s) AS ok
     FROM telemetry_measurements m
     WHERE {filter}
-), locs AS (
-    SELECT d.loc,
-           COALESCE(ST_Covers((SELECT g FROM area), NULLIF(d.loc, '\\x'::bytea)::geography),
-                    false) AS r_in_area,
-           ST_Distance((SELECT g FROM area), NULLIF(d.loc, '\\x'::bytea)::geography) AS r_dist_m
-    FROM (SELECT DISTINCT loc FROM w) d
+), wl AS (
+    SELECT w.*, row_number() OVER (PARTITION BY w.loc) = 1 AS loc_first
+    FROM w
+), lf AS (
+    SELECT tenant_id, observed_at, source_event_id, value, ok, {key_c},
+           bool_or(CASE WHEN loc_first THEN
+                   COALESCE(ST_Covers((SELECT g FROM area), NULLIF(loc, '\\x'::bytea)::geography),
+                            false) END) OVER l AS r_in_area,
+           max(CASE WHEN loc_first THEN
+               ST_Distance((SELECT g FROM area), NULLIF(loc, '\\x'::bytea)::geography)
+               END) OVER l AS r_dist_m
+    FROM wl
+    WINDOW l AS (PARTITION BY loc)
 ), c AS (
-    SELECT w.*, l.r_in_area, l.r_dist_m,
-           COALESCE(%(radius)s > 0 AND l.r_dist_m <= %(radius)s, false) AS r_near
-    FROM w JOIN locs l ON l.loc = w.loc
+    SELECT lf.*, COALESCE(%(radius)s > 0 AND lf.r_dist_m <= %(radius)s, false) AS r_near
+    FROM lf
 ), r AS (
     SELECT c.*,
            row_number() OVER (cls ORDER BY ok DESC, observed_at DESC, value DESC) AS rn,

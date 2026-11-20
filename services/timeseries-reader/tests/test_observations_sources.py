@@ -457,8 +457,13 @@ def test_latest_sql_one_window_pass_per_series_key_and_tier_class():
             "r_in_area, r_near)") in sql
     assert "row_number() OVER (cls ORDER BY ok DESC, observed_at DESC, value DESC) AS rn" in sql
     assert "WHERE r.rn = 1" in sql and "LIMIT" not in sql
-    assert "FROM (SELECT DISTINCT loc FROM w) d" in sql  # spatial facts once per location
-    assert "COALESCE(%(radius)s > 0 AND l.r_dist_m <= %(radius)s, false) AS r_near" in sql
+    # spatial facts once per distinct location, spread by a window over loc, never by a join
+    # (a join back to the locations degraded to a nested loop: rows x locations)
+    assert "row_number() OVER (PARTITION BY w.loc) = 1 AS loc_first" in sql
+    assert "bool_or(CASE WHEN loc_first THEN" in sql and "max(CASE WHEN loc_first THEN" in sql
+    assert "WINDOW l AS (PARTITION BY loc)" in sql
+    assert "JOIN" not in sql.split("SELECT r.deployment_id", 1)[0]
+    assert "COALESCE(%(radius)s > 0 AND lf.r_dist_m <= %(radius)s, false) AS r_near" in sql
     assert "(m.value >= %(lo)s AND m.value <= %(hi)s) AS ok" in sql
     assert (params["w0"], params["w1"]) == (q.start, q.end)
     assert (params["lo"], params["hi"], params["radius"]) == (-40.0, 60.0, 1000.0)
