@@ -16,7 +16,7 @@ def test_the_reading_changes_between_runs():
     """A constant value is dropped by the delta filter and reads as a break."""
     a = path_check.build_entity("t1", _now())
     b = path_check.build_entity("t1", _now() + timedelta(minutes=10))
-    assert a["batteryLevel"]["value"] != b["batteryLevel"]["value"]
+    assert a["numValue"]["value"] != b["numValue"]["value"]
 
 
 def test_the_entity_id_is_stable():
@@ -30,8 +30,34 @@ def test_the_entity_id_is_stable():
 def test_the_entity_carries_a_numeric_property():
     """No measurement means no row, whatever the pipeline does."""
     entity = path_check.build_entity("t1", _now())
-    assert entity["batteryLevel"]["type"] == "Property"
-    assert isinstance(entity["batteryLevel"]["value"], (int, float))
+    assert entity["numValue"]["type"] == "Property"
+    assert isinstance(entity["numValue"]["value"], (int, float))
+
+
+def test_the_probe_uses_a_type_the_worker_still_subscribes_to():
+    """The AgriDevice subscription was retired; probing it would always fail."""
+    from telemetry_worker import subscription_manager as sm
+
+    entity = path_check.build_entity("t1", _now())
+    subscribed = {e["type"] for s in sm.SUBSCRIPTIONS for e in s["entities"]
+                  if "watchedAttributes" not in s}
+    assert entity["type"] == path_check.ENTITY_TYPE == "DeviceMeasurement"
+    assert entity["type"] in subscribed
+
+
+def test_the_worker_reads_the_probe_as_a_reading():
+    """Shape drift between the probe and the worker's DeviceMeasurement branch fails here."""
+    from common.observation_context import entity_id_conforms
+    from telemetry_worker import notification_handler as nh
+
+    entity = path_check.build_entity("t1", _now())
+    device_id, measurements = nh._extract_device_measurement(entity)
+    assert device_id == path_check.SYNTHETIC_DEVICE
+    assert measurements == {path_check.MEASUREMENT: entity["numValue"]["value"]}
+    assert nh._extract_device_measurement_observed_at(entity) == _now()
+    assert entity_id_conforms(entity["id"], device_id, path_check.MEASUREMENT)
+    # The stored row's entity_id is the one wait_for_row polls for.
+    assert entity["id"] == path_check.entity_id_for("t1")
 
 
 def _cursor_returning(rows):

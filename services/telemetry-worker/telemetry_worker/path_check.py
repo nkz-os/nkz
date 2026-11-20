@@ -14,6 +14,10 @@ Two details decide whether the probe is honest:
 * The entity keeps a fixed id, so the broker holds one synthetic entity rather
   than a growing pile. The `telemetry_events` rows it produces are tagged with
   that id and are the only trace left behind.
+* It is a `DeviceMeasurement`, the type every sensor reading reaches the worker
+  as, in the shape entity-manager's build_measurements writes. The legacy
+  AgriDevice subscription is retired, so probing that type would always fail.
+  The synthetic device has no deployment, so no observation context is written.
 
 Exit code is the result: 0 the path works, 1 it does not.
 """
@@ -32,7 +36,8 @@ import requests
 logger = logging.getLogger("telemetry-path-check")
 
 SYNTHETIC_DEVICE = "synthetic-path-check"
-ENTITY_TYPE = "AgriDevice"
+ENTITY_TYPE = "DeviceMeasurement"
+MEASUREMENT = "batteryLevel"
 
 # How long the whole hop is given. The subscription fires within a second in a
 # healthy cluster; the rest is headroom for a busy worker, not for a broken one.
@@ -40,8 +45,13 @@ DEFAULT_TIMEOUT_S = 90
 POLL_INTERVAL_S = 3
 
 
+def device_urn_for(tenant_id: str) -> str:
+    return f"urn:ngsi-ld:Device:{tenant_id}:{SYNTHETIC_DEVICE}"
+
+
 def entity_id_for(tenant_id: str) -> str:
-    return f"urn:ngsi-ld:{ENTITY_TYPE}:{tenant_id}:{SYNTHETIC_DEVICE}"
+    # The DeviceMeasurement id rule: urn:ngsi-ld:DeviceMeasurement:{tenant}:{externalId}:{attr}
+    return f"urn:ngsi-ld:{ENTITY_TYPE}:{tenant_id}:{SYNTHETIC_DEVICE}:{MEASUREMENT}"
 
 
 def build_entity(tenant_id: str, now: datetime) -> dict:
@@ -54,7 +64,9 @@ def build_entity(tenant_id: str, now: datetime) -> dict:
     return {
         "id": entity_id_for(tenant_id),
         "type": ENTITY_TYPE,
-        "batteryLevel": {"type": "Property", "value": battery},
+        "refDevice": {"type": "Relationship", "object": device_urn_for(tenant_id)},
+        "controlledProperty": {"type": "Property", "value": MEASUREMENT},
+        "numValue": {"type": "Property", "value": battery},
         "dateObserved": {
             "type": "Property",
             "value": now.isoformat().replace("+00:00", "Z"),
