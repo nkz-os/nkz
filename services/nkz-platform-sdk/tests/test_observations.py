@@ -231,3 +231,67 @@ def test_default_base_url(monkeypatch):
 
 def test_manual_observation_confidence_high():
     assert confidence_from_fidelity("manual_observation") == "high"
+
+
+# ---- fix round 1: paging guards and malformed bodies
+
+from nkz_platform_sdk.observations import ObservationsParseError  # noqa: E402
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_raw_repeated_cursor_raises_async():
+    route = respx.post(f"{BASE}/api/observations").mock(
+        return_value=Response(200, json={"items": [], "nextCursor": "same"}))
+    async with ObservationsClient(BASE, TENANT, SECRET) as c:
+        with pytest.raises(ObservationsError) as ei:
+            async for _ in c.raw(feature=FEATURE, property="p", start=START, end=END):
+                pass
+    assert ei.value.status == 502 and "repeated" in ei.value.message
+    assert route.call_count == 2  # first page, then the repeat is detected
+
+
+@respx.mock
+def test_raw_repeated_cursor_raises_sync():
+    route = respx.post(f"{BASE}/api/observations").mock(side_effect=[
+        Response(200, json={"items": [], "nextCursor": "a"}),
+        Response(200, json={"items": [], "nextCursor": "b"}),
+        Response(200, json={"items": [], "nextCursor": "a"})])  # A -> B -> A cycle
+    with SyncObservationsClient(BASE, TENANT, SECRET) as c:
+        with pytest.raises(ObservationsError) as ei:
+            list(c.raw(feature=FEATURE, property="p", start=START, end=END))
+    assert ei.value.status == 502 and route.call_count == 3
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_malformed_best_is_typed_error():
+    bad = {**BEST_BODY, "groups": [{"points": [{"t": "2026-11-01T00:00:00Z", "value": 1.0}]}]}
+    respx.post(f"{BASE}/api/observations/best").mock(return_value=Response(200, json=bad))
+    async with ObservationsClient(BASE, TENANT, SECRET) as c:
+        with pytest.raises(ObservationsParseError) as ei:
+            await c.best(feature=FEATURE, property="p", start=START, end=END)
+    assert isinstance(ei.value, ObservationsError) and ei.value.status == 502
+
+
+@respx.mock
+def test_malformed_raw_item_and_non_json_sync():
+    respx.post(f"{BASE}/api/observations").mock(return_value=Response(
+        200, json={"items": [{"t": "2026-11-01T00:00:00Z"}], "nextCursor": None}))
+    respx.get(f"{BASE}/api/observations/properties").mock(
+        return_value=Response(200, text="<html>"))
+    with SyncObservationsClient(BASE, TENANT, SECRET) as c:
+        with pytest.raises(ObservationsParseError):
+            list(c.raw(feature=FEATURE, property="p", start=START, end=END))
+        with pytest.raises(ObservationsParseError):
+            c.properties()
+
+
+@respx.mock
+def test_source_without_id_tolerated():
+    body = json.loads(json.dumps(BEST_BODY))
+    del body["groups"][0]["points"][1]["sources"][0]["id"]
+    respx.post(f"{BASE}/api/observations/best").mock(return_value=Response(200, json=body))
+    with SyncObservationsClient(BASE, TENANT, SECRET) as c:
+        res = c.best(feature=FEATURE, property="p", start=START, end=END)
+    assert res.groups[0].points[1].sources[0].id == ""

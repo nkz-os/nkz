@@ -42,6 +42,42 @@ class ObservationsError(Exception):
         self.message = message
 
 
+class ObservationsParseError(ObservationsError):
+    """The reader answered 2xx with a body that does not match the expected shape,
+    or paging misbehaved (repeated cursor, runaway page count). Status is 502."""
+
+    def __init__(self, message: str):
+        super().__init__(502, message)
+
+
+MAX_RAW_PAGES = 100_000
+
+
+def _parse(builder: Any, data: Any, what: str) -> Any:
+    try:
+        return builder(data)
+    except (KeyError, TypeError, ValueError, AttributeError) as e:
+        raise ObservationsParseError(f"malformed {what} in reader response: {e!r}") from e
+
+
+def _next_cursor(page: Any, seen: set[str]) -> str | None:
+    """Validate a raw page and return the next cursor (None = done). Raises on a
+    repeated cursor or a runaway page count instead of looping forever."""
+    if not isinstance(page, dict) or not isinstance(page.get("items", []), list):
+        raise ObservationsParseError("malformed raw page in reader response")
+    cursor = page.get("nextCursor")
+    if not cursor:
+        return None
+    if not isinstance(cursor, str):
+        raise ObservationsParseError("nextCursor is not a string")
+    if cursor in seen:
+        raise ObservationsParseError(f"repeated nextCursor {cursor!r}: aborting raw paging")
+    if len(seen) >= MAX_RAW_PAGES:
+        raise ObservationsParseError(f"more than {MAX_RAW_PAGES} raw pages: aborting")
+    seen.add(cursor)
+    return cursor
+
+
 # ------------------------------------------------------------------ types
 
 def _dt(value: Any) -> datetime | None:
@@ -63,7 +99,7 @@ class ObservationSource:
 
     @classmethod
     def from_json(cls, d: dict[str, Any]) -> "ObservationSource":
-        return cls(kind=d["kind"], id=d["id"], deployment_id=d.get("deploymentId"),
+        return cls(kind=d["kind"], id=d.get("id", ""), deployment_id=d.get("deploymentId"),
                    distance_m=d.get("distanceM"), n=d.get("n"))
 
 
@@ -208,6 +244,10 @@ class ObservableProperty:
 
 # ---------------------------------------------------------- shared logic
 
+def _properties(page: dict[str, Any]) -> list[ObservableProperty]:
+    return [ObservableProperty.from_json(i) for i in page.get("items") or ()]
+
+
 def _iso_z(dt: datetime) -> str:
     if dt.tzinfo is None:
         raise ValueError("datetime must be timezone-aware")
@@ -316,7 +356,10 @@ class ObservationsClient(_Base):
         resp = await self._client.request(method, self._url(path), headers=self._headers(),
                                           json=body)
         _raise_for_status(resp)
-        return resp.json()
+        try:
+            return resp.json()
+        except ValueError as e:
+            raise ObservationsParseError("reader response is not valid JSON") from e
 
     async def best(
         self, *, feature: str | None = None, geometry: dict | None = None, property: str,
@@ -328,7 +371,8 @@ class ObservationsClient(_Base):
                           geometry=geometry, property=property, start=start, end=end,
                           medium=medium, sub_context=sub_context, tiers=tiers,
                           allow_medium_fallback=allow_medium_fallback)
-        return BestResult.from_json(await self._call("POST", "/api/observations/best", body))
+        return _parse(BestResult.from_json,
+                      await self._call("POST", "/api/observations/best", body), "best result")
 
     async def latest(
         self, *, feature: str, property: str, medium: str | None = None,
@@ -348,21 +392,23 @@ class ObservationsClient(_Base):
         """Every stored observation, unfused. Follows ``nextCursor`` until null: a page may
         be short or empty while a cursor is still present."""
         cursor: str | None = None
+        seen: set[str] = set()
         while True:
             body = _raw_body(limit=limit, quality_flags=quality_flags, cursor=cursor,
                              feature=feature, geometry=geometry, property=property,
                              start=start, end=end, medium=medium, sub_context=sub_context,
                              tiers=tiers, allow_medium_fallback=allow_medium_fallback)
             page = await self._call("POST", "/api/observations", body)
+            nxt = _next_cursor(page, seen)
             for item in page.get("items") or ():
-                yield Observation.from_json(item)
-            cursor = page.get("nextCursor")
-            if not cursor:
+                yield _parse(Observation.from_json, item, "observation")
+            if nxt is None:
                 return
+            cursor = nxt
 
     async def properties(self) -> list[ObservableProperty]:
         page = await self._call("GET", "/api/observations/properties")
-        return [ObservableProperty.from_json(i) for i in page.get("items") or ()]
+        return _parse(_properties, page, "properties")
 
 
 # ------------------------------------------------------------------ sync
@@ -386,7 +432,10 @@ class SyncObservationsClient(_Base):
     def _call(self, method: str, path: str, body: dict | None = None) -> Any:
         resp = self._client.request(method, self._url(path), headers=self._headers(), json=body)
         _raise_for_status(resp)
-        return resp.json()
+        try:
+            return resp.json()
+        except ValueError as e:
+            raise ObservationsParseError("reader response is not valid JSON") from e
 
     def best(
         self, *, feature: str | None = None, geometry: dict | None = None, property: str,
@@ -398,7 +447,8 @@ class SyncObservationsClient(_Base):
                           geometry=geometry, property=property, start=start, end=end,
                           medium=medium, sub_context=sub_context, tiers=tiers,
                           allow_medium_fallback=allow_medium_fallback)
-        return BestResult.from_json(self._call("POST", "/api/observations/best", body))
+        return _parse(BestResult.from_json,
+                      self._call("POST", "/api/observations/best", body), "best result")
 
     def latest(
         self, *, feature: str, property: str, medium: str | None = None,
@@ -416,18 +466,20 @@ class SyncObservationsClient(_Base):
         limit: int | None = None,
     ) -> Iterator[Observation]:
         cursor: str | None = None
+        seen: set[str] = set()
         while True:
             body = _raw_body(limit=limit, quality_flags=quality_flags, cursor=cursor,
                              feature=feature, geometry=geometry, property=property,
                              start=start, end=end, medium=medium, sub_context=sub_context,
                              tiers=tiers, allow_medium_fallback=allow_medium_fallback)
             page = self._call("POST", "/api/observations", body)
+            nxt = _next_cursor(page, seen)
             for item in page.get("items") or ():
-                yield Observation.from_json(item)
-            cursor = page.get("nextCursor")
-            if not cursor:
+                yield _parse(Observation.from_json, item, "observation")
+            if nxt is None:
                 return
+            cursor = nxt
 
     def properties(self) -> list[ObservableProperty]:
         page = self._call("GET", "/api/observations/properties")
-        return [ObservableProperty.from_json(i) for i in page.get("items") or ()]
+        return _parse(_properties, page, "properties")

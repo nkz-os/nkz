@@ -38,6 +38,7 @@ from nkz_platform_sdk.observations import (
     ObservationSource,
     ObservationsClient,
     ObservationsError,
+    ObservationsParseError,
     SyncObservationsClient,
 )
 from nkz_platform_sdk.lifecycle import ModuleLifecycle, LifecycleResult, lifecycle_hint_router
@@ -84,6 +85,7 @@ __all__ = [
     "ObservationsClient",
     "SyncObservationsClient",
     "ObservationsError",
+    "ObservationsParseError",
     "BestResult",
     "ObservationGroup",
     "ObservationPoint",
