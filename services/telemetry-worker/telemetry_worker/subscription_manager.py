@@ -36,6 +36,10 @@ DEFAULT_TENANT = os.getenv("DEFAULT_TENANT", "platform")
 
 # Entity types whose `location` feeds observation_geometry_cache (contract 1.4):
 # the geometry subscription and the startup backfill (geometry_backfill) share it.
+# This tuple is the only place the types are listed: adding one is a one-line change.
+# Nothing here depends on the AgriParcelZone name or its id pattern. The per-type plan
+# (sheet 12) may migrate AgriParcelZone to AgriManagementZone, which has no @context
+# term yet; the entry is then replaced or extended here, with no logic touched.
 GEOMETRY_ENTITY_TYPES = ("AgriParcel", "AgriParcelZone", "AgriPlant", "AgriGreenhouse")
 
 # NGSI-LD subscriptions — no watchedAttributes = trigger on ANY attribute change

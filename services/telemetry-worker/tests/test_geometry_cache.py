@@ -200,7 +200,7 @@ def test_subscription_declared():
     assert sub["notification"]["format"] == "normalized"
     assert "throttling" not in sub
     types = {e["type"] for e in sub["entities"]}
-    assert types == {"AgriParcel", "AgriParcelZone", "AgriPlant", "AgriGreenhouse"}
+    assert types == set(sm.GEOMETRY_ENTITY_TYPES)
     assert sm._subscription_id(sub) not in {
         sm._subscription_id(s) for s in sm.SUBSCRIPTIONS if s is not sub
     }
