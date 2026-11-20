@@ -283,6 +283,14 @@ SUBSCRIPTIONS = [
     },
 ]
 
+# Subscriptions this worker used to declare. Dropping an entry above only stops it
+# being reconciled; the one already registered stays in the broker, per tenant,
+# until it is deleted here. Exact descriptions only: never a prefix, never a type.
+RETIRED_DESCRIPTIONS = frozenset({
+    "Telemetry Worker - AgriSensor updates",
+    "Telemetry Worker - AgriDevice updates",
+})
+
 
 INTERNAL_SERVICE_SECRET = os.getenv("INTERNAL_SERVICE_SECRET", "")
 _SUB_ID_PREFIX = "telemetry-worker"
@@ -491,6 +499,16 @@ def _ensure_tenant_subscriptions(tenant_id: str):
         by_description: dict = {}
         for existing in existing_subs:
             by_description.setdefault(existing.get("description"), []).append(existing)
+
+        # Before the declared ones, so a failure further down cannot skip it.
+        # _delete_subscription counts a 404 as done and logs any other failure
+        # without raising, so one bad delete never blocks the reconciliation.
+        for retired in existing_subs:
+            if retired.get("description") in RETIRED_DESCRIPTIONS and retired.get("id"):
+                logger.info(
+                    "Removing retired subscription %s for %s", retired.get("id"), tenant_id,
+                )
+                _delete_subscription(headers, retired.get("id"))
 
         for sub in SUBSCRIPTIONS:
             sub_id = _subscription_id(sub)

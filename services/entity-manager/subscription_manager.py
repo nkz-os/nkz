@@ -74,6 +74,9 @@ SUBSCRIPTIONS = [
 # Subscriptions this service used to declare. Dropping an entry above only stops
 # it being reconciled; the one already registered stays in the broker, per
 # tenant, until it is deleted here.
+# TODO(evidence): "Entity Manager - AgriSensor registration" is no longer declared
+# but is not retired here yet. The SDM reviewer requires production evidence first
+# (the subscription's lastNotification); add the exact description once it is in.
 RETIRED_DESCRIPTIONS = frozenset({
     "Entity Manager - RiskAssessment evaluations",
 })
