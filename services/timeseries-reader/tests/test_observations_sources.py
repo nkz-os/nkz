@@ -10,6 +10,7 @@ import pytest  # noqa: E402
 
 from observations.request import BestRequest, RequestError  # noqa: E402
 from observations.sources import (  # noqa: E402
+    fetch_plan,
     model_semantics,
     model_tiers,
     observed_tiers,
@@ -50,7 +51,10 @@ class FakeCursor:
     def execute(self, sql, params=None):
         tag = sql.split("\n", 1)[0].replace("-- obs:", "").strip()
         self.calls.append((tag, sql, params))
-        self._rows = list(self.answers.get(tag, []))
+        if tag == "series" and tag not in self.answers:
+            self._rows = [_as_aggregated(r, tag) for r in self.answers.get("values", [])]
+        else:
+            self._rows = list(self.answers.get(tag, []))
 
     def fetchall(self):
         return self._rows
@@ -74,6 +78,22 @@ def value_row(dep_id="d1", dev="dev1", t=None, v=1.0, **kw):
            "r_in_area": False, "r_dist_m": None}
     row.update(kw)
     return row
+
+
+def _as_aggregated(row, tag):
+    """The SQL-aggregated row a single stored raw row gives (series: n=1 fold; latest: newest)."""
+    out = {k: v for k, v in row.items() if k not in ("observed_at", "value", "attribute_name")}
+    out.update(oor_n=0, oor_first=None, oor_last=None)
+    if tag == "series":  # one series key, one grain
+        out.update(n=[1], value_sum=[row["value"]], t_first=[row["observed_at"]],
+                   calibrated=[row["calibrated"]], oor_n=[0], oor_first=[None], oor_last=[None])
+    else:
+        out.update(observed_at=row["observed_at"], value=row["value"],
+                   attribute_name=row["attribute_name"])
+    return out
+
+
+BOTH_PATHS = pytest.mark.parametrize("sql_path", [False, True], ids=["raw", "sql"])
 
 
 # ---------------------------------------------------------------- medium
@@ -110,7 +130,8 @@ def answers(**kw):
 
 def test_tier1_sql_filters_feature_medium_tenant():
     cur = FakeCursor(answers())
-    out = observed_tiers(cur, T, req(), prop(), "ambientAir", AREA)
+    out = observed_tiers(cur, T, req(), prop(), "ambientAir", AREA,
+                   aggregate_in_sql=False)
     assert [r.source_id for r in out[1]] == ["urn:ngsi-ld:Device:tenantA:dev1"]
     _, sql, params = cur.sql("deployments")[0]
     assert "d.tenant_id = %s" in sql and "d.valid && tstzrange" in sql
@@ -124,25 +145,30 @@ def test_tier1_sql_filters_feature_medium_tenant():
     assert r.kind == "device" and r.deployment_id == "d1"
 
 
-def test_tier1_matches_channel_override_feature_and_medium():
+@BOTH_PATHS
+def test_tier1_matches_channel_override_feature_and_medium(sql_path):
     d = dep(feature=None, medium="soil",
             overrides={"temperature": {"observesFeature": FEATURE,
                                        "observationContext": {"medium": "ambientAir"}}})
     cur = FakeCursor(answers(deployments=[d]))
-    out = observed_tiers(cur, T, req(), prop(), "ambientAir", AREA)
+    out = observed_tiers(cur, T, req(), prop(), "ambientAir", AREA,
+                         aggregate_in_sql=sql_path)
     assert len(out[1]) == 1
 
 
-def test_medium_mismatch_excludes_deployment():
+@BOTH_PATHS
+def test_medium_mismatch_excludes_deployment(sql_path):
     cur = FakeCursor(answers(deployments=[dep(medium="ambientAirUnderStructure")]))
-    out = observed_tiers(cur, T, req(), prop(), "ambientAir", AREA)
+    out = observed_tiers(cur, T, req(), prop(), "ambientAir", AREA,
+                         aggregate_in_sql=sql_path)
     assert out == {1: [], 2: [], 3: []}
     assert not cur.sql("values")
 
 
 def test_fetch_filters_segmentby_keys():
     cur = FakeCursor(answers())
-    observed_tiers(cur, T, req(), prop(), "ambientAir", AREA)
+    observed_tiers(cur, T, req(), prop(), "ambientAir", AREA,
+                   aggregate_in_sql=False)
     _, sql, params = cur.sql("values")[0]
     for needle in ("m.tenant_id = %s", "m.attribute_name = ANY(", "m.device_id = ANY(",
                    "m.observed_property = %s", "m.medium = %s", "m.deployment_id IS NOT NULL",
@@ -178,7 +204,8 @@ def test_instant_property_has_no_prior_or_counter_queries():
     assert not cur.sql("prior") and not cur.sql("counter_max")
 
 
-def test_tier2_by_location_and_by_covered_feature_excluding_tier1():
+@BOTH_PATHS
+def test_tier2_by_location_and_by_covered_feature_excluding_tier1(sql_path):
     other = "urn:ngsi-ld:AgriParcelZone:tenantA:z2"
     deps = [dep("a", "urn:x:Device:t:a", feature=FEATURE),
             dep("b", "urn:x:Device:t:b", feature=None, in_area=True),
@@ -187,14 +214,16 @@ def test_tier2_by_location_and_by_covered_feature_excluding_tier1():
             value_row("b", "b", feature_of_interest=None, r_in_area=True),
             value_row("c", "c", feature_of_interest=other)]
     cur = FakeCursor(answers(deployments=deps, values=rows, covered=[{"entity_urn": other}]))
-    out = observed_tiers(cur, T, req(), prop(), "ambientAir", AREA)
+    out = observed_tiers(cur, T, req(), prop(), "ambientAir", AREA,
+                         aggregate_in_sql=sql_path)
     assert [r.deployment_id for r in out[1]] == ["a"]
     assert sorted(r.deployment_id for r in out[2]) == ["b", "c"]
     assert out[3] == []
     assert FEATURE not in cur.sql("covered")[0][2][1]  # tier-1 feature not probed
 
 
-def test_two_channels_one_device_split_per_row():
+@BOTH_PATHS
+def test_two_channels_one_device_split_per_row(sql_path):
     """A datalogger with channel temperature -> tree1 and temperature2 -> tree2."""
     tree1, tree2 = "urn:t:tree1", "urn:t:tree2"
     d = dep(feature=None, overrides={
@@ -204,24 +233,29 @@ def test_two_channels_one_device_split_per_row():
             value_row(v=20.0, feature_of_interest=tree2)]
     at = [{"attr": "temperature"}, {"attr": "temperature2"}]
     cur = FakeCursor(answers(deployments=[d], values=rows, attrs=at))
-    out = observed_tiers(cur, T, req(feature=tree1), prop(), "ambientAir", AREA)
+    out = observed_tiers(cur, T, req(feature=tree1), prop(), "ambientAir", AREA,
+                         aggregate_in_sql=sql_path)
     assert [r.value for r in out[1]] == [10.0]
     assert out[2] == [] and out[3] == []
     cur = FakeCursor(answers(deployments=[d], values=rows, covered=[{"entity_urn": tree2}], attrs=at))
-    out = observed_tiers(cur, T, req(feature=None, geometry=AREA), prop(), "ambientAir", AREA)
+    out = observed_tiers(cur, T, req(feature=None, geometry=AREA), prop(), "ambientAir", AREA,
+                         aggregate_in_sql=sql_path)
     assert [r.value for r in out[2]] == [20.0] and out[1] == []
 
 
-def test_equipment_medium_without_feature_observes_own_device():
+@BOTH_PATHS
+def test_equipment_medium_without_feature_observes_own_device(sql_path):
     urn = "urn:ngsi-ld:Device:tenantA:eq"
     d = dep("e", urn, feature=None, medium="equipment")
     cur = FakeCursor(answers(deployments=[d], values=[value_row("e", "eq", feature_of_interest=urn)]))
     out = observed_tiers(cur, T, req(feature=urn), prop(allowed_media=["equipment"]),
-                         "equipment", AREA)
+                         "equipment", AREA,
+                         aggregate_in_sql=sql_path)
     assert len(out[1]) == 1
 
 
-def test_tier3_carries_distance_and_mobile_uses_reading_location():
+@BOTH_PATHS
+def test_tier3_carries_distance_and_mobile_uses_reading_location(sql_path):
     deps = [dep("n", "urn:x:Device:t:n", feature=None, dist=500.0),
             dep("m", "urn:x:Device:t:m", feature=None, mobility="mobile")]
     nf = {"feature_of_interest": None}
@@ -230,33 +264,41 @@ def test_tier3_carries_distance_and_mobile_uses_reading_location():
             value_row("m", "m", r_dist_m=300.0, **nf),
             value_row("m", "m", r_dist_m=5000.0, **nf)]
     cur = FakeCursor(answers(deployments=deps, values=rows))
-    out = observed_tiers(cur, T, req(), prop(), "ambientAir", AREA)
-    assert [(r.deployment_id, r.distance_m) for r in out[3]] == [("n", 500.0), ("m", 300.0)]
+    out = observed_tiers(cur, T, req(), prop(), "ambientAir", AREA,
+                         aggregate_in_sql=sql_path)
+    # same instant for all rows: the SQL path orders ties by source; the raw path keeps row order
+    assert sorted((r.deployment_id, r.distance_m) for r in out[3]) == [("m", 300.0), ("n", 500.0)]
     assert [r.deployment_id for r in out[2]] == ["m"]
     assert all(r.distance_m is None for r in out[2])
 
 
-def test_tier3_excluded_when_radius_zero():
+@BOTH_PATHS
+def test_tier3_excluded_when_radius_zero(sql_path):
     for radius in (0, None):
         deps = [dep("n", "urn:x:Device:t:n", feature=None, dist=10.0, in_area=False)]
         rows = [value_row("n", "n", r_dist_m=10.0, feature_of_interest=None)]
         cur = FakeCursor(answers(deployments=deps, values=rows))
-        out = observed_tiers(cur, T, req(), prop(nearby_radius_m=radius), "ambientAir", AREA)
+        out = observed_tiers(cur, T, req(), prop(nearby_radius_m=radius), "ambientAir", AREA,
+                         aggregate_in_sql=sql_path)
         assert out == {1: [], 2: [], 3: []}
 
 
-def test_no_area_only_tier1():
+@BOTH_PATHS
+def test_no_area_only_tier1(sql_path):
     deps = [dep("a", feature=FEATURE), dep("b", "urn:x:Device:t:b", feature=None, in_area=True)]
     cur = FakeCursor(answers(deployments=deps, values=[value_row("a"), value_row(
         "b", "b", feature_of_interest=None, r_in_area=True)]))
-    out = observed_tiers(cur, T, req(), prop(), "ambientAir", None)
+    out = observed_tiers(cur, T, req(), prop(), "ambientAir", None,
+                         aggregate_in_sql=sql_path)
     assert len(out[1]) == 1 and out[2] == [] and out[3] == []
 
 
-def test_request_sub_context_filter():
+@BOTH_PATHS
+def test_request_sub_context_filter(sql_path):
     rows = [value_row(height_m=2.0), value_row(height_m=5.0)]
     cur = FakeCursor(answers(values=rows))
-    out = observed_tiers(cur, T, req(sub_context={"height": 2.0}), prop(), "ambientAir", AREA)
+    out = observed_tiers(cur, T, req(sub_context={"height": 2.0}), prop(), "ambientAir", AREA,
+                         aggregate_in_sql=sql_path)
     assert [r.sub_context["heightAboveGround"] for r in out[1]] == [2.0]
 
 
@@ -333,6 +375,71 @@ def test_preselection_drops_far_deployment_with_uncovered_feature():
     deps = [dep("f", "urn:x:Device:t:far", feature=far),
             dep("n", "urn:x:Device:t:near", feature=near)]
     cur = FakeCursor(answers(deployments=deps, values=[], covered=[{"entity_urn": near}]))
-    observed_tiers(cur, T, req(feature=None, geometry=AREA), prop(), "ambientAir", AREA)
+    observed_tiers(cur, T, req(feature=None, geometry=AREA), prop(), "ambientAir", AREA,
+                   aggregate_in_sql=False)
     assert cur.sql("values")[0][2][7] == ["near"]
     assert cur.sql("covered")[0][2][1] == [far, near]
+
+
+# ------------------------------------------------- SQL-aggregated fetch (8.10)
+
+def test_fetch_plan_dispatch():
+    assert fetch_plan(req(), prop()) == "series"
+    assert fetch_plan(req(resolution="P1D"), prop(temporal_semantics="rate")) == "series"
+    assert fetch_plan(req(resolution="PT15M"), prop(temporal_semantics=None)) == "series"
+    assert fetch_plan(req(resolution="raw"), prop()) == "raw"
+    assert fetch_plan(req(), prop(temporal_semantics="cumulative")) == "raw"
+    assert fetch_plan(req(mode="latest", resolution="raw"), prop()) == "raw"
+    assert fetch_plan(req(mode="latest", resolution="raw"),
+                      prop(temporal_semantics="cumulative")) == "raw"
+
+
+@pytest.mark.parametrize("resolution,grain", [
+    ("PT1H", "time_bucket(interval '1 hour', m.observed_at)"),
+    ("PT15M", "time_bucket(interval '15 minutes', m.observed_at)"),
+    ("P1D", "width_bucket(m.observed_at, b.s)"),
+])
+def test_series_sql_filters_grain_and_params(resolution, grain):
+    cur = FakeCursor(answers())
+    observed_tiers(cur, T, req(resolution=resolution, tz="Europe/Madrid"),
+                   prop(valid_min=-40.0, valid_max=None), "ambientAir", AREA)
+    assert not cur.sql("values") and not cur.sql("prior")
+    (_, sql, params), = cur.sql("series")
+    assert grain in sql
+    for needle in ("m.tenant_id = %(tenant)s", "m.attribute_name = ANY(%(attrs)s)",
+                   "m.device_id = ANY(%(devices)s)", "m.observed_property = %(prop)s",
+                   "m.medium = %(medium)s", "m.quality_flag = 'valid'",
+                   "e.device_id = ANY(%(devices)s)", "count(*) FILTER (WHERE NOT ok) AS oor_n",
+                   "sum(value) FILTER (WHERE ok) AS value_sum",
+                   "bool_and(calibrated) FILTER (WHERE ok)", "min(observed_at) FILTER (WHERE ok)",
+                   "m.entity_id LIKE ANY(%(entity_like)s)",
+                   "array_agg(value_sum ORDER BY grain) AS value_sum"):
+        assert needle in sql, needle
+    assert params["tenant"] == T and params["devices"] == ["dev1"]
+    assert params["attrs"] == ["airTemperature"] and params["deps"] == ["d1"]
+    assert params["lo"] == -40.0 and params["hi"] == float("inf")
+    assert params["entity_like"] == ["%:dev1:airTemperature"]
+    if resolution == "P1D":  # local midnights of Madrid
+        assert params["starts"][0] == datetime(2026, 10, 31, 23, tzinfo=UTC)
+    else:
+        assert params["starts"] == []
+
+
+def test_series_rows_become_folded_readings_ordered_by_first_instant():
+    t = datetime(2026, 11, 1, 3, tzinfo=UTC)
+    base = {k: v for k, v in value_row().items()
+            if k not in ("observed_at", "value", "attribute_name")}
+    rows = [dict(base, n=[3, 0], value_sum=[30.0, None], t_first=[t.replace(minute=20), None],
+                 calibrated=[True, None], oor_n=[1, 2],
+                 oor_first=[t.replace(minute=5), t.replace(hour=4)],
+                 oor_last=[t.replace(minute=5), t.replace(hour=4, minute=9)]),
+            dict(base, n=[1], value_sum=[7.0], t_first=[t.replace(minute=1)], calibrated=[False],
+                 oor_n=[0], oor_first=[None], oor_last=[None])]
+    cur = FakeCursor(answers(series=rows))
+    out = observed_tiers(cur, T, req(), prop(), "ambientAir", AREA)
+    r1, r2, r3 = out[1]
+    assert (r1.t, r1.n, r1.value_sum, r1.value) == (t.replace(minute=1), 1, 7.0, 7.0)
+    assert (r2.n, r2.value, r2.calibrated, r2.oor_n) == (3, 10.0, True, 1)
+    assert r2.oor_first == r2.oor_last == t.replace(minute=5)
+    assert (r3.n, r3.value_sum, r3.t, r3.oor_n, r3.calibrated) == (0, None, t.replace(hour=4), 2, False)
+

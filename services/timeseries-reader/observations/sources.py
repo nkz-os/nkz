@@ -8,6 +8,12 @@ Fetch-window contract (engine docstring): [buckets[0][0], buckets[-1][1]) plus, 
 properties, the last valid reading of every (device, attribute) before the window (it supplies
 the first delta).
 
+Two fetch paths for tiers 1-3 (contract 8.10):
+  - SQL-aggregated (default): `series` at PT15M / PT1H / P1D of instant/rate properties gets one
+    folded row per source x tier inputs x sub-context x grain (engine module doc).
+  - raw rows: everything else (cumulative and amount, resolution=raw, latest). It is also the reference
+    of the differential test (`aggregate_in_sql=False`).
+
 Transactions: `observed_tiers` and `model_tiers` run on a `tenant_cursor` (tenant already set).
 `geometry_of` may write the geometry cache, so the caller resolves geometries FIRST in their own
 short transaction and commits, then opens the read transaction (Task 11 review ruling).
@@ -200,6 +206,138 @@ _VALUES_SQL = (
     f"SELECT {_VALUE_COLUMNS}\n{_VALUE_FROM}\nWHERE {_VALUE_FILTER}\nORDER BY m.observed_at"
 )
 
+# ------------------------------------------------- SQL-aggregated paths (8.10)
+# Named parameters. %(lo)s / %(hi)s are the catalogue valid range (+-Infinity when NULL): the
+# engine's in-range rule `not (v < valid_min or v > valid_max)` for finite values.
+# The spatial tier inputs are computed per distinct stored location (`loc`, exact bytes), not per
+# row: same values as the raw path's per-row ST_Covers / ST_Distance.
+
+# Calibration: only the events that carry calibration ids, and only that key, enter the join.
+# `cal` is non-strict (COALESCE), so PostgreSQL must evaluate it below the outer join (a
+# placeholder at the events scan): the hash holds the small key, never full payloads (a parallel
+# hash of payloads overflows shared memory), and the plan stays parallel (an OFFSET 0 fence
+# would not). Same `calibrated` as the raw path: no event / no key / JSON null -> false.
+_AGG_EVENT_JOIN = """LEFT JOIN (
+        SELECT e.tenant_id, e.observed_at, e.id,
+               COALESCE(e.payload->'calibration_period_ids', 'null'::jsonb) AS cal
+        FROM telemetry_events e
+        WHERE e.tenant_id = %(tenant)s AND e.device_id = ANY(%(devices)s)
+          AND e.observed_at >= %(w0)s AND e.observed_at < %(w1)s
+          AND e.payload ? 'calibration_period_ids') e
+       ON e.tenant_id = m.tenant_id AND e.observed_at = m.observed_at
+      AND e.id = m.source_event_id"""
+
+# Segment pruning (contract 8.1 intent): device_id is not a compression segmentby key of
+# telemetry_measurements, entity_id is. Every row with observation context is a DeviceMeasurement
+# row (worker and recompute job), whose entity_id is `...:{externalId}:{attr}` with device_id
+# the last segment of externalId and attribute_name = attr (entity-manager build_measurements,
+# worker _extract_device_measurement). So `entity_id LIKE '%:{device_id}:{attr}'` keeps every
+# candidate row and lets the compressed scan skip the batches of all other devices.
+# ASSUMPTION: that id scheme holds for every producer, and entity_id is never NULL on such rows
+# (the 115 trigger copies the event's entity_id); guarded by a contract unit test
+# (telemetry-worker tests/test_observation_entity_id_contract.py). An `OR entity_id IS NULL`
+# escape is not used: it defeats the pushdown to the compressed scan (measured 1.1 s vs 0.25 s).
+_SERIES_PRUNE = "m.entity_id LIKE ANY(%(entity_like)s)"
+
+_AGG_FILTER = """m.tenant_id = %(tenant)s
+  AND m.attribute_name = ANY(%(attrs)s)
+  AND m.device_id = ANY(%(devices)s)
+  AND m.observed_property = %(prop)s
+  AND m.medium = %(medium)s
+  AND m.deployment_id IS NOT NULL
+  AND m.deployment_id = ANY(%(deps)s::uuid[])
+  AND m.quality_flag = 'valid'
+  AND m.observed_at >= %(w0)s AND m.observed_at < %(w1)s"""
+
+_SUB_COLS = "depth_from_cm, depth_to_cm, height_m, organ, context_ref"
+
+# Grain = the unit that nests in the engine's buckets: the UTC bucket for PT15M / PT1H; for P1D
+# the hour counted from the local-midnight bucket start b0 (the engine's coverage hour).
+_GRAIN = {
+    "PT15M": "time_bucket(interval '15 minutes', m.observed_at)",
+    "PT1H": "time_bucket(interval '1 hour', m.observed_at)",
+    "P1D": ("b.s[width_bucket(m.observed_at, b.s)] + floor(extract(epoch FROM "
+            "m.observed_at - b.s[width_bucket(m.observed_at, b.s)]) / 3600) * interval '1 hour'"),
+}
+
+_SERIES_SQL = """-- obs:series
+WITH area AS (SELECT ST_GeomFromGeoJSON(%(area)s::text)::geography AS g),
+b AS (SELECT %(starts)s::timestamptz[] AS s),
+x AS (
+    SELECT m.deployment_id, m.device_id, m.source_kind, m.feature_of_interest,
+           m.depth_from_cm, m.depth_to_cm, m.height_m, m.organ, m.context_ref,
+           m.location::bytea AS loc, m.observed_at, m.value,
+           (m.value >= %(lo)s AND m.value <= %(hi)s) AS ok,
+           COALESCE(e.cal ? m.attribute_name, false) AS calibrated,
+           {grain} AS grain
+    FROM telemetry_measurements m
+    {event_join}
+    CROSS JOIN b
+    WHERE {filter}
+      AND {prune}
+), grp AS (
+    SELECT deployment_id::text AS deployment_id, device_id, source_kind, feature_of_interest,
+           {sub}, loc, grain,
+           count(*) FILTER (WHERE ok) AS n,
+           sum(value) FILTER (WHERE ok) AS value_sum,
+           bool_and(calibrated) FILTER (WHERE ok) AS calibrated,
+           min(observed_at) FILTER (WHERE ok) AS t_first,
+           count(*) FILTER (WHERE NOT ok) AS oor_n,
+           min(observed_at) FILTER (WHERE NOT ok) AS oor_first,
+           max(observed_at) FILTER (WHERE NOT ok) AS oor_last
+    FROM x
+    GROUP BY deployment_id, device_id, source_kind, feature_of_interest, {sub}, loc, grain
+), ser AS (
+    -- one row per stored series key; the grains as parallel arrays
+    SELECT deployment_id, source_kind, feature_of_interest, {sub}, loc,
+           array_agg(n ORDER BY grain) AS n,
+           array_agg(value_sum ORDER BY grain) AS value_sum,
+           array_agg(calibrated ORDER BY grain) AS calibrated,
+           array_agg(t_first ORDER BY grain) AS t_first,
+           array_agg(oor_n ORDER BY grain) AS oor_n,
+           array_agg(oor_first ORDER BY grain) AS oor_first,
+           array_agg(oor_last ORDER BY grain) AS oor_last
+    FROM grp
+    GROUP BY deployment_id, device_id, source_kind, feature_of_interest, {sub}, loc
+)
+SELECT ser.deployment_id, ser.source_kind, ser.feature_of_interest, {ser_sub},
+       ser.n, ser.value_sum, ser.calibrated, ser.t_first, ser.oor_n, ser.oor_first, ser.oor_last,
+       COALESCE(ST_Covers((SELECT g FROM area), ser.loc::geography), false) AS r_in_area,
+       ST_Distance((SELECT g FROM area), ser.loc::geography) AS r_dist_m
+FROM ser
+"""
+
+def _series_sql(resolution: str) -> str:
+    return _SERIES_SQL.format(
+        grain=_GRAIN[resolution], event_join=_AGG_EVENT_JOIN, filter=_AGG_FILTER,
+        prune=_SERIES_PRUNE, sub=_SUB_COLS,
+        ser_sub=", ".join(f"ser.{c}" for c in _SUB_COLS.split(", ")))
+
+
+SQL_SEMANTICS = frozenset({"instant", "rate"})
+SQL_SERIES_RESOLUTIONS = frozenset(_GRAIN)
+
+
+def fetch_plan(req: BestRequest, prop: dict) -> str:
+    """'series' (SQL-aggregated, 8.10) or 'raw' (raw rows; cumulative, raw resolution, latest)."""
+    sem = prop.get("temporal_semantics") or "instant"
+    if sem not in SQL_SEMANTICS:
+        return "raw"
+    if req.mode == "series" and req.resolution in SQL_SERIES_RESOLUTIONS:
+        return "series"
+    return "raw"
+
+
+def entity_like_patterns(device_ids: List[str], attrs: List[str]) -> List[str]:
+    """LIKE patterns matching the DeviceMeasurement entity ids of (device, attribute) pairs."""
+    return [f"%:{_like_escape(d)}:{_like_escape(a)}" for d in device_ids for a in attrs]
+
+
+def _bound(v: Any, default: float) -> float:
+    n = _num(v)
+    return default if n is None else n
+
+
 _PRIOR_SQL = (
     "-- obs:prior\nWITH area AS (SELECT ST_GeomFromGeoJSON(%s::text)::geography AS g)\n"
     f"SELECT DISTINCT ON (m.device_id, m.attribute_name) {_VALUE_COLUMNS}\n{_VALUE_FROM}\n"
@@ -331,8 +469,12 @@ def _counter_maxes(cur, tenant_id: str, prop_name: str, device_ids: List[str],
 # --------------------------------------------------------- public: 1-3
 
 def observed_tiers(cur, tenant_id: str, req: BestRequest, prop: dict, medium: str,
-                   area_geom: Optional[dict]) -> Dict[int, List[Reading]]:
+                   area_geom: Optional[dict], *,
+                   aggregate_in_sql: bool = True) -> Dict[int, List[Reading]]:
     """Readings of tiers 1 (direct), 2 (contained), 3 (nearby); every key always present.
+
+    `aggregate_in_sql` (default) uses the SQL-aggregated fetch where `fetch_plan` allows it: the
+    readings are then folded (series). False forces the raw-row fetch.
 
     Tier is decided per stored row (resolved columns): 1 iff feature_of_interest == feature;
     2 iff the cached geometry of feature_of_interest is covered by the area or the row's
@@ -363,11 +505,22 @@ def observed_tiers(cur, tenant_id: str, req: BestRequest, prop: dict, medium: st
                           tenant_id, attrs, device_ids, req.property, medium, dep_ids, lo, hi))
         return [dict(r) for r in cur.fetchall()]
 
-    rows = fetch(_VALUES_SQL, w0, w1)
+    plan = fetch_plan(req, prop) if aggregate_in_sql else "raw"
     cmax: Dict[Tuple[str, str], float] = {}
-    if cumulative:
-        rows = fetch(_PRIOR_SQL, prior_lo, w0) + rows
-        cmax = _counter_maxes(cur, tenant_id, req.property, device_ids, w0, w1)
+    if plan == "raw":
+        rows = fetch(_VALUES_SQL, w0, w1)
+        if cumulative:
+            rows = fetch(_PRIOR_SQL, prior_lo, w0) + rows
+            cmax = _counter_maxes(cur, tenant_id, req.property, device_ids, w0, w1)
+    else:
+        params = {"area": area_json, "tenant": tenant_id, "devices": device_ids, "attrs": attrs,
+                  "prop": req.property, "medium": medium, "deps": dep_ids, "w0": w0, "w1": w1,
+                  "lo": _bound(prop.get("valid_min"), float("-inf")),
+                  "hi": _bound(prop.get("valid_max"), float("inf")),
+                  "starts": [b[0] for b in bks] if req.resolution == "P1D" else [],
+                  "entity_like": entity_like_patterns(device_ids, attrs)}
+        cur.execute(_series_sql(req.resolution), params)
+        rows = [dict(r) for r in cur.fetchall()]
 
     if area_geom is not None:  # row features the deployment preselection did not probe
         extra = sorted({r["feature_of_interest"] for r in rows
@@ -377,6 +530,9 @@ def observed_tiers(cur, tenant_id: str, req: BestRequest, prop: dict, medium: st
         covered = covered | _covered_features(cur, tenant_id, extra, area_json)
 
     radius = _num(prop.get("nearby_radius_m")) or 0.0
+    if plan != "raw":
+        _append_aggregated(out, rows, urns, req, prop, area_geom, covered, radius)
+        return out
     for row in rows:
         urn = urns.get(row["deployment_id"])
         if urn is None:
@@ -399,6 +555,50 @@ def observed_tiers(cur, tenant_id: str, req: BestRequest, prop: dict, medium: st
             counter_max=cmax.get((row["device_id"], row["attribute_name"])) if cumulative else None,
         ))
     return out
+
+
+def _append_aggregated(out: Dict[int, List[Reading]], rows: List[dict],
+                       urns: Dict[str, str], req: BestRequest, prop: dict,
+                       area_geom: Optional[dict], covered: Set[str], radius: float) -> None:
+    """Folded readings of the SQL-aggregated series rows, per tier.
+
+    Each tier list is ordered by the reading's first in-range instant (the raw path's row order),
+    so the engine's "first reading of a source in a bucket" is the same; ties are broken by the
+    remaining columns (the raw path leaves them to the database).
+    """
+    staged: List[Tuple[tuple, int, Reading]] = []
+    for row in rows:
+        urn = urns.get(row["deployment_id"])
+        if urn is None:
+            continue
+        tier, dist = _row_tier(req, row, area_geom, covered, radius)
+        if tier is None:
+            continue
+        sub = _sub_context(row)
+        if not _matches_request_sub_context(sub, req.sub_context, prop):
+            continue
+        kind = row.get("source_kind") or "device"
+        key = (urn, row["deployment_id"], kind, -1.0 if dist is None else dist,
+               repr(sorted(sub.items())))
+        grains = zip(row["n"], row["value_sum"], row["calibrated"], row["t_first"],
+                     row["oor_n"], row["oor_first"], row["oor_last"])  # one entry per grain
+        for n, value_sum, calibrated, t_first, oor_n, oor_first, oor_last in grains:
+            n, oor_n = int(n or 0), int(oor_n or 0)
+            value_sum = float(value_sum) if n else None
+            value = value_sum / n if n else 0.0
+            t = t_first if n else oor_first
+            if t is None:  # neither in-range nor out-of-range readings: nothing stored
+                continue
+            reading = Reading(
+                source_id=urn, deployment_id=row["deployment_id"], t=t, value=value,
+                sub_context=sub, distance_m=dist, kind=kind,
+                calibrated=bool(calibrated) if n else False, n=n, value_sum=value_sum,
+                oor_n=oor_n, oor_first=oor_first if oor_n else None,
+                oor_last=oor_last if oor_n else None)
+            staged.append(((t,) + key + (value,), tier, reading))
+    staged.sort(key=lambda x: x[0])
+    for _, tier, reading in staged:
+        out[tier].append(reading)
 
 
 # --------------------------------------------------------- public: 4-5

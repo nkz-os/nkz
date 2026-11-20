@@ -393,3 +393,112 @@ def test_pre_aggregated_gives_full_coverage_for_a_daily_row():
     assert low.coverage < 0.1
     full = aggregate_tier([r], b, "instant", "median", None, None, "P1D", pre_aggregated=True)[0]
     assert full.coverage == 1.0 and full.value == 5.0
+
+
+# ------------------------------------------------- folded readings (8.10)
+
+def _fold(rs, grain):
+    """Python model of the SQL pre-aggregation: one folded Reading per (source, deployment,
+    kind, distance, calibrated-agnostic sub-context, grain); in range = [-40, 60]."""
+    groups = {}
+    for r in sorted(rs, key=lambda r: r.t):
+        key = (r.source_id, r.deployment_id, r.kind, r.distance_m,
+               tuple(sorted(r.sub_context.items())), grain(r.t))
+        groups.setdefault(key, []).append(r)
+    out = []
+    for key, members in groups.items():
+        ok = [m for m in members if -40 <= m.value <= 60]
+        bad = [m for m in members if not -40 <= m.value <= 60]
+        t = ok[0].t if ok else bad[0].t
+        out.append(Reading(key[0], key[1], t, (sum(m.value for m in ok) / len(ok)) if ok else 0.0,
+                           dict(key[4]), key[3], key[2], all(m.calibrated for m in ok),
+                           n=len(ok), value_sum=sum(m.value for m in ok) if ok else None,
+                           oor_n=len(bad), oor_first=bad[0].t if bad else None,
+                           oor_last=bad[-1].t if bad else None))
+    return sorted(out, key=lambda r: (r.t, r.source_id))
+
+
+def test_folded_readings_weighted_mean_counts_and_first_attributes():
+    bl = buckets(d(2026, 11, 3, 10), d(2026, 11, 3, 11), "PT1H", "UTC")
+    a1 = Reading("a", "dep-old", d(2026, 11, 3, 10, 0), 2.0, {}, 5.0, "device", True,
+                 n=2, value_sum=4.0)
+    a2 = Reading("a", "dep-new", d(2026, 11, 3, 10, 30), 10.0, {}, 7.0, "manual", False,
+                 n=1, value_sum=10.0)
+    (p,) = aggregate_tier([a1, a2], bl, "instant", "median", None, None, "PT1H")
+    (s,) = p.sources
+    assert s["value"] == pytest.approx(14.0 / 3) and s["n_readings"] == 3
+    assert s["deployment_id"] == "dep-old" and s["distance_m"] == 5.0 and s["kind"] == "device"
+    assert s["calibrated"] is False
+
+
+def test_folded_out_of_range_only_reading_warns_and_gives_no_value():
+    bl = buckets(d(2026, 11, 3, 10), d(2026, 11, 3, 12), "PT1H", "UTC")
+    only_bad = Reading("S1", "d", d(2026, 11, 3, 10, 5), 0.0, {}, None, "device", False,
+                       n=0, oor_n=3, oor_first=d(2026, 11, 3, 10, 5), oor_last=d(2026, 11, 3, 10, 50))
+    mixed = Reading("S1", "d", d(2026, 11, 3, 11, 0), 5.0, {}, None, "device", False,
+                    n=1, value_sum=5.0, oor_n=1, oor_first=d(2026, 11, 3, 11, 40),
+                    oor_last=d(2026, 11, 3, 11, 40))
+    w = []
+    p0, p1 = aggregate_tier([only_bad, mixed], bl, "instant", "median", -40, 60, "PT1H", warnings=w)
+    assert p0.value is None and p1.value == 5.0 and p1.sources[0]["n_readings"] == 1
+    assert w == ["reading_out_of_range src=S1 x4 (2026-11-03T10:05:00Z..2026-11-03T11:40:00Z)"]
+
+
+def test_folded_readings_rejected_for_summing_semantics_and_raw():
+    bl = buckets(d(2026, 11, 3, 10), d(2026, 11, 3, 11), "PT1H", "UTC")
+    r = Reading("a", "d", d(2026, 11, 3, 10), 1.0, {}, None, "device", False, n=2, value_sum=2.0)
+    for sem, res in (("cumulative", "PT1H"), ("amount", "PT1H"), ("instant", "raw")):
+        with pytest.raises(ValueError):
+            aggregate_tier([r], bl, sem, "median", None, None, res)
+
+
+@pytest.mark.parametrize("resolution,tz,start,end", [
+    ("PT1H", "UTC", d(2026, 10, 24, 20), d(2026, 10, 26, 2)),
+    ("PT15M", "UTC", d(2026, 10, 25, 0), d(2026, 10, 25, 6)),
+    ("P1D", "Europe/Madrid", d(2026, 10, 23, 22), d(2026, 10, 26, 23)),   # 25 h day
+    ("P1D", "Europe/Madrid", d(2026, 3, 27, 23), d(2026, 3, 30, 22)),     # 23 h day
+    ("P1D", "Asia/Kolkata", d(2026, 10, 23, 18, 30), d(2026, 10, 26, 18, 30)),
+])
+def test_folded_aggregation_equals_raw_aggregation(resolution, tz, start, end):
+    import random
+
+    rng = random.Random(16)
+    bl = buckets(start, end, resolution, tz)
+    raw = []
+    for src, dist, kind in (("a", None, "device"), ("b", 300.0, "device"), ("c", None, "manual")):
+        t = bl[0][0] + timedelta(seconds=rng.randint(0, 600))
+        while t < bl[-1][1]:
+            v = rng.choice([rng.uniform(-10, 40)] * 9 + [rng.choice([-99.0, 99.0])])
+            sub = {"heightAboveGround": rng.choice([2.0, 2.0, 2.3])}
+            raw.append(Reading(src, "dep-" + src, t, v, sub, dist, kind, rng.random() < 0.7))
+            t += timedelta(seconds=rng.randint(60, 2400))
+    raw.sort(key=lambda r: r.t)
+    if resolution == "P1D":
+        starts = [b[0] for b in bl]
+
+        def grain(t):
+            import bisect as bs
+            b0 = starts[bs.bisect_right(starts, t) - 1]
+            return (b0, (t - b0) // timedelta(hours=1))
+    else:
+        step = timedelta(hours=1) if resolution == "PT1H" else timedelta(minutes=15)
+
+        def grain(t):
+            return (t - d(2000, 1, 3)) // step
+    now = bl[-1][0] + timedelta(hours=5)
+    w_raw, w_fold = [], []
+    out_raw = aggregate_tier(raw, bl, "instant", "median", -40, 60, resolution, warnings=w_raw, now=now)
+    out_fold = aggregate_tier(_fold(raw, grain), bl, "instant", "median", -40, 60, resolution,
+                              warnings=w_fold, now=now)
+    assert w_raw and w_fold == w_raw
+    assert [p.t for p in out_fold] == [p.t for p in out_raw]
+    for a, b in zip(out_fold, out_raw):
+        assert (a.value is None) == (b.value is None)
+        if a.value is not None:
+            assert a.value == pytest.approx(b.value, rel=1e-9)
+        assert a.coverage == b.coverage and a.n_sources == b.n_sources
+        for x, y in zip(a.sources, b.sources):
+            assert x["value"] == pytest.approx(y["value"], rel=1e-9)
+            assert {k: v for k, v in x.items() if k != "value"} == \
+                {k: v for k, v in y.items() if k != "value"}
+

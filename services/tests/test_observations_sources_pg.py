@@ -32,6 +32,12 @@ ZONE = {"type": "Polygon", "coordinates": [[[-1.5995, 42.8005], [-1.5995, 42.801
                                              [-1.5995, 42.8005]]]}
 
 
+def _measurement_urn(tenant, device_id, attr):
+    """DeviceMeasurement id as entity-manager build_measurements mints it (what the 115 trigger
+    copies into telemetry_measurements.entity_id)."""
+    return f"urn:ngsi-ld:DeviceMeasurement:{tenant}:{device_id}:{attr}"
+
+
 def _point_sql(lon, lat):
     return f"ST_SetSRID(ST_MakePoint({lon}, {lat}), 4326)::geography"
 
@@ -73,11 +79,12 @@ def _seed(su, tenant):
             dep_ids[k] = cur.fetchone()[0]
             cur.execute(
                 "INSERT INTO telemetry_measurements (tenant_id, observed_at, source_event_id,"
-                " entity_type, device_id, attribute_name, value, observed_property, medium,"
-                " height_m, deployment_id, source_kind, quality_flag, feature_of_interest, location)"
-                " VALUES (%s, %s, %s, 'DeviceMeasurement', %s, 'airTemperature', %s,"
+                " entity_id, entity_type, device_id, attribute_name, value, observed_property,"
+                " medium, height_m, deployment_id, source_kind, quality_flag, feature_of_interest,"
+                " location) VALUES (%s, %s, %s, %s, 'DeviceMeasurement', %s, 'airTemperature', %s,"
                 f" 'airTemperature', %s, %s, %s, 'device', 'valid', %s, {locs[k] or 'NULL'})",
-                (tenant, READ_AT, int(k[1]), k, 10.0 + int(k[1]), ctxs[k]["medium"],
+                (tenant, READ_AT, int(k[1]), _measurement_urn(tenant, k, "airTemperature"), k,
+                 10.0 + int(k[1]), ctxs[k]["medium"],
                  2.0 if k == "d1" else None, dep_ids[k], feats[k]))
     return p, z, devs, dep_ids
 
@@ -197,10 +204,12 @@ def test_datalogger_two_channels_two_trees(pg_dsn, su):
                                                ("airTemperature2", t2, 20.0))):
             cur.execute(
                 "INSERT INTO telemetry_measurements (tenant_id, observed_at, source_event_id,"
-                " entity_type, device_id, attribute_name, value, observed_property, medium,"
-                " deployment_id, source_kind, quality_flag, feature_of_interest) VALUES "
-                "(%s, %s, %s, 'DeviceMeasurement', 'log', %s, %s, 'airTemperature', 'ambientAir',"
-                " %s, 'device', 'valid', %s)", (tenant, READ_AT, i + 1, attr, val, dep_id, feat))
+                " entity_id, entity_type, device_id, attribute_name, value, observed_property,"
+                " medium, deployment_id, source_kind, quality_flag, feature_of_interest) VALUES "
+                "(%s, %s, %s, %s, 'DeviceMeasurement', 'log', %s, %s, 'airTemperature',"
+                " 'ambientAir', %s, 'device', 'valid', %s)",
+                (tenant, READ_AT, i + 1, _measurement_urn(tenant, "log", attr), attr, val, dep_id,
+                 feat))
     out = _run(pg_dsn, tenant, t1, None)
     assert [r.value for r in out[1]] == [10.0]
     assert out[2] == [] and out[3] == []

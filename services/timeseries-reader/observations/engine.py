@@ -6,11 +6,19 @@ All datetimes are timezone-aware; output datetimes are UTC.
 Caller contract: fetch readings for [buckets[0][0], buckets[-1][1]) plus, for every cumulative
 source, the last reading before that window (it supplies the first delta). P1D expected hours
 are the full local day, except the bucket containing `now` (partial day): ceil((now-b0)/1h).
+
+Folded readings (contract 8.10, instant/rate only): one Reading may stand for `n` raw readings of
+one source that SQL already grouped inside one grain (a bucket, or one hour from b0 for P1D):
+`value_sum` is the sum of the n in-range values, `t` the first of them, and `oor_n` / `oor_first`
+/ `oor_last` count the out-of-range readings of the same group (excluded from n). n == 0 carries
+only out-of-range statistics (it still defines its sub-context group). A Reading with the
+defaults (n=1, value_sum None, oor_n 0) is a plain raw reading.
 """
 from __future__ import annotations
 
 import math
 import statistics
+import bisect
 from dataclasses import dataclass, replace
 from datetime import date, datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional, Tuple
@@ -37,6 +45,15 @@ class Reading:
     kind: str
     calibrated: bool
     counter_max: Optional[float] = None  # per-source counter ceiling; wins over the call-level one
+    n: int = 1                           # raw readings folded in (see module doc); 0 = oor only
+    value_sum: Optional[float] = None    # sum of the n in-range values; None = single raw reading
+    oor_n: int = 0                       # out-of-range readings folded in (not counted in n)
+    oor_first: Optional[datetime] = None
+    oor_last: Optional[datetime] = None
+
+
+def _folded(r: Reading) -> bool:
+    return r.value_sum is not None or r.n != 1 or r.oor_n > 0
 
 
 @dataclass(frozen=True)
@@ -236,21 +253,39 @@ def _fmt_one(w: tuple) -> str:
 
 
 def _dedupe_warnings(ws: List[tuple]) -> List[str]:
-    """One entry per (warning type, source) with a count and first/last timestamp."""
-    groups: Dict[Tuple[str, Optional[str]], List[Optional[datetime]]] = {}
-    for kind, src, t in ws:
-        groups.setdefault((kind, src), []).append(t)
+    """One entry per (warning type, source) with a count and first/last timestamp.
+
+    Entries are (kind, src, t) for one occurrence, or (kind, src, t_first, t_last, n) for n
+    occurrences already counted (folded readings); both merge into the same message.
+    """
+    groups: Dict[Tuple[str, Optional[str]], List[Any]] = {}
+    for w in ws:
+        kind, src = w[0], w[1]
+        lo, hi, n = (w[2], w[3], w[4]) if len(w) == 5 else (w[2], w[2], 1)
+        g = groups.setdefault((kind, src), [0, None, None])
+        g[0] += n
+        if lo is not None:
+            g[1] = lo if g[1] is None else min(g[1], lo)
+        if hi is not None:
+            g[2] = hi if g[2] is None else max(g[2], hi)
     out: List[str] = []
-    for (kind, src), ts in groups.items():
+    for (kind, src), (count, t_lo, t_hi) in groups.items():
         msg = kind if src is None else f"{kind} src={src}"
-        real = [t for t in ts if t is not None]
-        if len(ts) > 1:
-            msg += f" x{len(ts)}"
-        if real:
-            lo, hi = _iso(min(real)), _iso(max(real))
+        if count > 1:
+            msg += f" x{count}"
+        if t_lo is not None:
+            lo, hi = _iso(t_lo), _iso(t_hi)
             msg += f" ({lo})" if lo == hi else f" ({lo}..{hi})"
         out.append(msg)
     return out
+
+
+def _folded_oor_warnings(rs: List[Reading], ws: List[tuple]) -> None:
+    """reading_out_of_range entries of folded readings, in order of first occurrence."""
+    oor = sorted(((r.oor_first, r.source_id, r.oor_last, r.oor_n) for r in rs if r.oor_n > 0),
+                 key=lambda x: (x[0], x[1]))
+    for t_lo, src, t_hi, n in oor:
+        ws.append(("reading_out_of_range", src, t_lo, t_hi, n))
 
 
 def aggregate_tier(readings: List[Reading], bucket_list: List[Tuple[datetime, datetime]],
@@ -276,7 +311,14 @@ def aggregate_tier(readings: List[Reading], bucket_list: List[Tuple[datetime, da
     """
     ws: List[tuple] = []
     summing = semantics in ("cumulative", "amount")
-    if semantics == "cumulative":
+    folded = [r for r in readings if _folded(r)]
+    if folded and (summing or resolution == "raw" or len(folded) != len(readings)):
+        raise ValueError("folded readings are only valid alone, for instant/rate bucketed series")
+    if folded:
+        # range already applied in SQL: n > 0 readings are in range, oor counts become warnings
+        _folded_oor_warnings(folded, ws)
+        pairs: List[Pair] = [(r, None) for r in folded if r.n > 0]
+    elif semantics == "cumulative":
         pairs, cw = _deltas(readings, counter_max, max_rate_per_hour)
         ws.extend(cw)
     elif semantics == "amount":
@@ -312,8 +354,12 @@ def aggregate_tier(readings: List[Reading], bucket_list: List[Tuple[datetime, da
             if pt.value is not None:
                 out.append(pt)
     else:
-        for b0, b1 in bucket_list:
-            in_b = [(r, tp) for r, tp in pairs if b0 <= r.t < b1]
+        by_bucket = _assign(pairs, bucket_list) if folded else None
+        for i, (b0, b1) in enumerate(bucket_list):
+            if by_bucket is not None:
+                in_b = by_bucket[i]
+            else:
+                in_b = [(r, tp) for r, tp in pairs if b0 <= r.t < b1]
             if not in_b:
                 out.append(_empty(b0))
                 continue
@@ -321,6 +367,18 @@ def aggregate_tier(readings: List[Reading], bucket_list: List[Tuple[datetime, da
             out.append(build(b0, in_b, cov))
     if warnings is not None:
         warnings.extend(_dedupe_warnings(ws))
+    return out
+
+
+def _assign(pairs: List[Pair], bucket_list: List[Tuple[datetime, datetime]]) -> List[List[Pair]]:
+    """Single pass: pairs per bucket, each list in `pairs` order (same lists as the per-bucket
+    filter `b0 <= t < b1`, for sorted non-overlapping buckets)."""
+    starts = [b[0] for b in bucket_list]
+    out: List[List[Pair]] = [[] for _ in bucket_list]
+    for pr in pairs:
+        i = bisect.bisect_right(starts, pr[0].t) - 1
+        if i >= 0 and pr[0].t < bucket_list[i][1]:
+            out[i].append(pr)
     return out
 
 
@@ -358,15 +416,18 @@ def _point(t: datetime, in_b: List[Pair], summing: bool, fusion: str, ws: List[t
     kept: List[Pair] = []
     for sid in sorted(per_src):
         prs = per_src[sid]
-        vals = [r.value for r, _ in prs]
-        v = sum(vals) if summing else sum(vals) / len(vals)
+        n_readings = sum(r.n for r, _ in prs)
+        if summing:
+            v = sum(r.value for r, _ in prs)
+        else:  # folded readings: sum of sums / sum of counts (raw: the plain mean)
+            v = sum(r.value if r.value_sum is None else r.value_sum for r, _ in prs) / n_readings
         if summing and ((valid_min is not None and v < valid_min) or (valid_max is not None and v > valid_max)):
             ws.append(("increment_out_of_range", sid, t))
             continue
         first = prs[0][0]
         srcs.append({
             "source_id": sid, "deployment_id": first.deployment_id, "value": v,
-            "n_readings": len(prs), "distance_m": first.distance_m, "kind": first.kind,
+            "n_readings": n_readings, "distance_m": first.distance_m, "kind": first.kind,
             "calibrated": all(r.calibrated for r, _ in prs),
         })
         kept.extend(prs)
