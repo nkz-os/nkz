@@ -164,12 +164,38 @@ def test_extremes_without_coverage_use_today_rule():
     assert "tmin_c" not in sd.aggregate(readings, MADRID).get(DAY, {})
 
 
-def test_extremes_out_of_range_are_dropped():
+def test_glitch_extreme_sample_is_ignored():
+    readings = (_hourly("d1", "airTemperature", [12.0] * 24)
+                + _hourly("d1", "airTemperatureMax", [75.0, 14.0] + [None] * 22))
+    day = sd.aggregate(readings, MADRID)[DAY]
+    assert day["tmax_c"] == 14.0
+    assert day["tmin_c"] == 12.0
+
+
+def test_glitch_extreme_alone_falls_back_to_means():
     readings = (_hourly("d1", "airTemperature", [12.0] * 24)
                 + _hourly("d1", "airTemperatureMax", [75.0] + [None] * 23))
     day = sd.aggregate(readings, MADRID)[DAY]
-    assert "tmax_c" not in day
+    assert day["tmax_c"] == 12.0
     assert day["tmin_c"] == 12.0
+
+
+def test_day_with_out_of_range_final_extreme_serves_neither():
+    readings = _hourly("d1", "airTemperature", [12.0] * 23 + [75.0])
+    assert "tmin_c" not in sd.aggregate(readings, MADRID).get(DAY, {})
+    assert "tmax_c" not in sd.aggregate(readings, MADRID).get(DAY, {})
+
+
+def test_partial_max_coverage_keeps_cold_morning_in_tmin():
+    readings = (_hourly("d1", "airTemperature", [4.0] * 12 + [20.0] * 12)
+                + _hourly("d1", "airTemperatureMin", [None] * 12 + [18.0] * 12))
+    assert sd.aggregate(readings, MADRID)[DAY]["tmin_c"] == 4.0
+
+
+def test_partial_max_coverage_keeps_hot_morning_in_tmax():
+    readings = (_hourly("d1", "airTemperature", [30.0] * 12 + [10.0] * 12)
+                + _hourly("d1", "airTemperatureMax", [None] * 12 + [12.0] * 12))
+    assert sd.aggregate(readings, MADRID)[DAY]["tmax_c"] == 30.0
 
 
 def test_only_temperature_extremes_enter_the_aggregate():

@@ -65,14 +65,16 @@ def _device_day(by_hour: Dict[str, Dict[int, List[float]]]) -> Dict[str, float]:
     temps = covered.get("airTemperature")
     if temps:
         values = [x for vals in temps.values() for x in vals]
-        mins = [x for vals in by_hour.get("airTemperatureMin", {}).values() for x in vals]
-        maxs = [x for vals in by_hour.get("airTemperatureMax", {}).values() for x in vals]
-        tmin = min(mins) if mins else min(values)
-        tmax = max(maxs) if maxs else max(values)
-        if _in("airTemperature", tmin):
-            out["tmin_c"] = tmin
-        if _in("airTemperature", tmax):
-            out["tmax_c"] = tmax
+        # One glitch Min/Max sample is ignored; it must not void the day.
+        mins = [x for vals in by_hour.get("airTemperatureMin", {}).values() for x in vals
+                if _in("airTemperature", x)]
+        maxs = [x for vals in by_hour.get("airTemperatureMax", {}).values() for x in vals
+                if _in("airTemperature", x)]
+        # A window mean is never below its window min nor above its window max, so hours
+        # without Min/Max readings still bound the day through their means.
+        tmin, tmax = min(mins + values), max(maxs + values)
+        if _in("airTemperature", tmin) and _in("airTemperature", tmax):
+            out["tmin_c"], out["tmax_c"] = tmin, tmax
 
     rain = covered.get("precipitation")
     if rain:
@@ -87,7 +89,7 @@ def _device_day(by_hour: Dict[str, Dict[int, List[float]]]) -> Dict[str, float]:
             out["radiation_mj_m2"] = round(daily_mean * _W_M2_TO_MJ_M2_DAY, 4)
 
     rh = covered.get("relativeHumidity")
-    if rh and "tmin_c" in out and "tmax_c" in out:
+    if rh and "tmin_c" in out:
         rh_mean = mean(mean(vals) for vals in rh.values())
         if _in("relativeHumidity", rh_mean):
             # FAO-56 eq. 19 (mean relative humidity)
