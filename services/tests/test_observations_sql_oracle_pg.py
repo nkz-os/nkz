@@ -1,4 +1,4 @@
-"""pg_integration: differential oracle of the SQL-aggregated read path (contract 8.10).
+"""pg_integration: differential oracle of the SQL-aggregated read path (contract 8.9, 8.10).
 
 `best()` through the SQL-aggregated fetch must give the same response as `best()` through the
 raw-row fetch (`observed_tiers(..., aggregate_in_sql=False)`, the pre-8.10 path), field by field:
@@ -12,7 +12,7 @@ sub-context, a group whose readings are all out of range, out-of-range readings,
 rows the reader must ignore (other medium, suspect), outages so the fall-through reaches tiers 2
 and 3, and compressed chunks. Requests: P1D over the Europe/Madrid DST days (25 h and 23 h) and in
 Asia/Kolkata, PT1H, PT15M, a sub-context filter, a geometry request, a `now` inside the current
-day.
+day; `latest` at several instants (SQL newest-row lookup vs raw rows, same 8.9 semantics).
 """
 import functools
 import json
@@ -295,3 +295,95 @@ def test_series_geometry_request_equals_raw_path(bench):
     old, _ = _best(bench, body, sql=False)
     assert old["tiersUsed"] == [2, 3]
     _assert_same(new, old)
+
+
+@pytest.mark.parametrize("now", [NOW, datetime(2026, 10, 21, 7, 30, tzinfo=UTC),
+                                 datetime(2026, 10, 25, 2, 0, tzinfo=UTC),
+                                 datetime(2026, 3, 29, 5, 0, tzinfo=UTC)])
+def test_latest_sql_path_equals_raw_path(bench, now):
+    body = _body(bench, mode="latest", **{"from": "2026-10-01T00:00:00Z", "to": "2026-10-02T00:00:00Z"})
+    new, tags_new = _best(bench, body, sql=True, now=now)
+    old, tags_old = _best(bench, body, sql=False, now=now)
+    assert "-- obs:latest" in tags_new and "-- obs:values" not in tags_new
+    pts = [pt for g in old["groups"] for pt in g["points"]]
+    assert pts and all(len(g["points"]) <= 1 for g in old["groups"])
+    _assert_same(new, old)
+
+
+def test_latest_fallthrough_reaches_tier2_during_tier1_outage(bench):
+    body = _body(bench, mode="latest", **{"from": "2026-10-01T00:00:00Z", "to": "2026-10-02T00:00:00Z"})
+    out, _ = _best(bench, body, sql=True, now=datetime(2026, 10, 21, 10, 0, tzinfo=UTC))
+    (g,) = [g for g in out["groups"] if g["subContext"] == {"heightM": 2.0}]
+    (pt,) = g["points"]
+    assert pt["tier"] == 2 and len(pt["sources"]) >= 2
+    assert all(s["n"] == 1 for s in pt["sources"])
+
+
+# ------------------------------------------------- latest SQL edge cases (8.9)
+
+def test_latest_sql_multi_subcontext_and_two_channel_datalogger(oracle_dsn):
+    """One deployment, several stored series: heights 2 m / 5 m (the 5 m row is older), and two
+    channels on two trees. Every series keeps its own newest row (none is lost to LIMIT 1)."""
+    import psycopg2
+
+    tenant = f"orc_{uuid.uuid4().hex[:8]}"
+    t1 = f"urn:ngsi-ld:AgriTree:{tenant}:t1"
+    t2 = f"urn:ngsi-ld:AgriTree:{tenant}:t2"
+    urn = f"urn:ngsi-ld:Device:{tenant}:log"
+    trees = {t1: {"type": "Polygon", "coordinates": [[[-1.5997, 42.8012], [-1.5997, 42.8013],
+                                                      [-1.5996, 42.8013], [-1.5996, 42.8012],
+                                                      [-1.5997, 42.8012]]]},
+             t2: {"type": "Polygon", "coordinates": [[[-1.5985, 42.8012], [-1.5985, 42.8013],
+                                                      [-1.5984, 42.8013], [-1.5984, 42.8012],
+                                                      [-1.5985, 42.8012]]]}}
+    su = psycopg2.connect(oracle_dsn)
+    su.autocommit = True
+    try:
+        with su.cursor() as cur:
+            for u in (t1, t2):
+                cur.execute("INSERT INTO observation_geometry_cache VALUES "
+                            "(%s, %s, 'AgriTree', ST_GeomFromGeoJSON(%s)::geography, now())",
+                            (tenant, u, json.dumps(trees[u])))
+            cur.execute(
+                "INSERT INTO sensor_profiles (tenant_id, code, name, sdm_entity_type, mapping) "
+                "VALUES (%s, %s, 'p', 'Device', %s::jsonb)",
+                (tenant, f"prof_{tenant}", json.dumps({"measurements": [
+                    {"sdmAttribute": "airTemperature", "observedProperty": "airTemperature"},
+                    {"sdmAttribute": "airTemperature2", "observedProperty": "airTemperature"}]})))
+            cur.execute(
+                "INSERT INTO device_deployments (tenant_id, device_urn, valid, observation_context,"
+                " channel_overrides, created_by) VALUES (%s, %s, tstzrange(%s, NULL), %s::jsonb,"
+                " %s::jsonb, 'test') RETURNING id::text",
+                (tenant, urn, datetime(2026, 1, 1, tzinfo=UTC), json.dumps({"medium": "ambientAir"}),
+                 json.dumps({"airTemperature": {"observesFeature": t1},
+                             "airTemperature2": {"observesFeature": t2}})))
+            dep = cur.fetchone()[0]
+            rows = [  # (minutes before NOW, attribute, feature, height, value)
+                (40, "airTemperature", t1, 2.0, 10.0), (5, "airTemperature", t1, 2.0, 11.0),
+                (30, "airTemperature", t1, 5.0, 7.0), (50, "airTemperature", t1, 5.0, 6.0),
+                (20, "airTemperature2", t2, 2.0, 20.0), (2, "airTemperature2", t2, 2.0, 99.0),
+            ]
+            for i, (m, attr, feat, h, v) in enumerate(rows):
+                cur.execute(
+                    "INSERT INTO telemetry_measurements (tenant_id, observed_at, source_event_id,"
+                    " entity_type, device_id, attribute_name, value, observed_property, medium,"
+                    " height_m, deployment_id, source_kind, quality_flag, feature_of_interest)"
+                    " VALUES (%s, %s, %s, 'DeviceMeasurement', 'log', %s, %s, 'airTemperature',"
+                    " 'ambientAir', %s, %s, 'device', 'valid', %s)",
+                    (tenant, NOW - timedelta(minutes=m), i + 1, attr, v, h, dep, feat))
+    finally:
+        su.close()
+    bench_ = {"dsn": oracle_dsn, "tenant": tenant}
+    body = {"feature": t1, "property": "airTemperature", "mode": "latest",
+            "from": "2026-10-01T00:00:00Z", "to": "2026-10-02T00:00:00Z"}
+    out, tags = _best(bench_, body, sql=True)
+    assert "-- obs:latest" in tags
+    got = [(g["subContext"], [(p["value"], p["t"], p["tier"]) for p in g["points"]])
+           for g in out["groups"]]
+    assert got == [({"heightM": 2.0}, [(11.0, "2026-10-27T13:15:00Z", 1)]),
+                   ({"heightM": 5.0}, [(7.0, "2026-10-27T12:50:00Z", 1)])]
+    out, _ = _best(bench_, dict(body, feature=t2), sql=True)
+    (g,) = out["groups"]
+    # the newest t2 row is out of range: its previous valid row is used, the oor one is reported
+    assert [(p["value"], p["t"]) for p in g["points"]] == [(20.0, "2026-10-27T13:00:00Z")]
+    assert out["warnings"] == [f"reading_out_of_range src={urn} (2026-10-27T13:18:00Z)"]

@@ -453,6 +453,71 @@ def test_latest_without_data_has_no_points_and_prefers_lower_tier():
     assert len(pts) == 1 and pts[0]["tier"] == 1 and pts[0]["value"] == 4.0
 
 
+def _lrd(src, minutes_ago, v, seconds=0, sub=None, dep="d", cal=False, dist=None, kind="device"):
+    return Reading(src, dep, NOW - timedelta(minutes=minutes_ago, seconds=seconds), v, sub or {},
+                   dist, kind, cal)
+
+
+def test_latest_fuses_unsynchronised_sources():
+    """Contract 8.9: each source's newest valid reading, fused (median); t = the newest."""
+    obs = {1: [_lrd("S1", 5, 10.0), _lrd("S1", 2, 11.0, seconds=7),
+               _lrd("S2", 2, 14.0, seconds=3, cal=True),
+               _lrd("S3", 2, 30.0, seconds=11), _lrd("S3", 9, 1.0)], 2: [], 3: []}
+    with Env(observed=obs, orion=entity()) as env:
+        out = env.run(dict(BODY, mode="latest"))
+    (g,) = out["groups"]
+    (pt,) = g["points"]
+    assert pt["value"] == 14.0 and pt["tier"] == 1
+    assert pt["t"] == "2026-11-10T11:57:57Z"  # S2, the newest of the three newest readings
+    assert [(s["id"], s["n"]) for s in pt["sources"]] == [("S1", 1), ("S2", 1), ("S3", 1)]
+    assert pt["calibrated"] is False and pt["coverage"] == 1.0
+
+
+def test_latest_out_of_range_newest_falls_back_to_previous_valid():
+    obs = {1: [_lrd("S1", 30, 12.0), _lrd("S1", 20, 13.0), _lrd("S1", 1, 999.0),
+               _lrd("S2", 3, 15.0)], 2: [], 3: []}
+    with Env(observed=obs, orion=entity()) as env:
+        out = env.run(dict(BODY, mode="latest"))
+    (pt,) = out["groups"][0]["points"]
+    assert pt["value"] == 14.0 and pt["t"] == "2026-11-10T11:57:00Z"
+    assert [s["id"] for s in pt["sources"]] == ["S1", "S2"]
+    assert out["warnings"] == ["reading_out_of_range src=S1 (2026-11-10T11:59:00Z)"]
+
+
+def test_latest_multi_subcontext_deployment():
+    """One datalogger deployment at 2 m and 5 m: each height is its own group, its own point."""
+    obs = {1: [_lrd("L", 4, 10.0, sub={"heightAboveGround": 2.0}),
+               _lrd("L", 1, 8.0, sub={"heightAboveGround": 5.0}),
+               _lrd("L", 6, 9.0, sub={"heightAboveGround": 5.0})], 2: [], 3: []}
+    with Env(observed=obs, orion=entity()) as env:
+        out = env.run(dict(BODY, mode="latest"))
+    got = [(g["subContext"], [(p["value"], p["t"]) for p in g["points"]]) for g in out["groups"]]
+    assert got == [({"heightM": 2.0}, [(10.0, "2026-11-10T11:56:00Z")]),
+                   ({"heightM": 5.0}, [(8.0, "2026-11-10T11:59:00Z")])]
+
+
+def test_latest_tier_with_any_valid_value_wins_over_newer_lower_tier():
+    obs = {1: [_lrd("S1", 100, 4.0)], 2: [], 3: [_lrd("N1", 1, 9.0, dist=400.0)]}
+    with Env(observed=obs, orion=entity()) as env:
+        (pt,) = env.run(dict(BODY, mode="latest"))["groups"][0]["points"]
+    assert pt["tier"] == 1 and pt["value"] == 4.0
+    obs = {1: [_lrd("S1", 1, 99.0)], 2: [], 3: [_lrd("N1", 2, 9.0, dist=400.0)]}
+    with Env(observed=obs, p=prop("airTemperature", valid_max=60.0), orion=entity()) as env:
+        (pt,) = env.run(dict(BODY, mode="latest"))["groups"][0]["points"]
+    assert pt["tier"] == 3 and pt["sources"][0]["distanceM"] == 400.0
+
+
+def test_latest_cumulative_fuses_each_source_last_delta():
+    p = prop("precipitation", unit="mm", temporal_semantics="cumulative", valid_min=0.0,
+             valid_max=500.0, has_model=False)
+    obs = {1: [_lrd("R1", 200, 10.0), _lrd("R1", 30, 12.0), _lrd("R1", 10, 13.0),
+               _lrd("R2", 200, 5.0), _lrd("R2", 5, 8.0)], 2: [], 3: []}
+    with Env(observed=obs, p=p, orion=entity()) as env:
+        (pt,) = env.run(dict(BODY, property="precipitation", mode="latest"))["groups"][0]["points"]
+    assert [(s["id"], s["n"]) for s in pt["sources"]] == [("R1", 1), ("R2", 1)]
+    assert pt["value"] == 2.0 and pt["t"] == "2026-11-10T11:55:00Z"  # median(1, 3)
+
+
 # --------------------------------------------------------------------- 413
 
 def test_413_over_10000_points():

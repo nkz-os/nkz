@@ -15,6 +15,7 @@ from observations.engine import (  # noqa: E402
     counter_deltas,
     fall_through,
     group_by_sub_context,
+    latest_point,
 )
 
 UTC = timezone.utc
@@ -502,3 +503,50 @@ def test_folded_aggregation_equals_raw_aggregation(resolution, tz, start, end):
             assert {k: v for k, v in x.items() if k != "value"} == \
                 {k: v for k, v in y.items() if k != "value"}
 
+
+# ------------------------------------------------------------ latest (8.9)
+
+def test_latest_point_fuses_newest_valid_per_source():
+    rs = [rd("a", d(2026, 11, 3, 10, 0), 1.0), rd("a", d(2026, 11, 3, 10, 59), 4.0),
+          rd("b", d(2026, 11, 3, 10, 58), 6.0), rd("c", d(2026, 11, 3, 10, 57), 99.0),
+          rd("c", d(2026, 11, 3, 10, 50), 8.0)]
+    w = []
+    p = latest_point(rs, "instant", "median", -40, 60, warnings=w)
+    assert p.value == 6.0 and p.t == d(2026, 11, 3, 10, 59) and p.n_sources == 3
+    assert [(s["source_id"], s["value"], s["n_readings"]) for s in p.sources] == \
+        [("a", 4.0, 1), ("b", 6.0, 1), ("c", 8.0, 1)]
+    assert w == ["reading_out_of_range src=c (2026-11-03T10:57:00Z)"]
+
+
+def test_latest_point_none_without_valid_values_and_duplicates_keep_max():
+    assert latest_point([rd("a", d(2026, 11, 3), 99.0)], "instant", "median", 0, 50) is None
+    assert latest_point([], "instant", "median", None, None) is None
+    p = latest_point([rd("a", d(2026, 11, 3), 3.0), rd("a", d(2026, 11, 3), 5.0)],
+                     "instant", "median", None, None)
+    assert p.value == 5.0
+
+
+def test_latest_point_folded_readings_use_n1_and_aggregate_oor():
+    good = Reading("a", "d", d(2026, 11, 3, 10), 7.0, {}, None, "device", True, n=1, oor_n=2,
+                   oor_first=d(2026, 11, 3, 10, 5), oor_last=d(2026, 11, 3, 10, 9))
+    bad_only = Reading("b", "d", d(2026, 11, 3, 10, 7), 0.0, {}, None, "device", False, n=0,
+                       oor_n=1, oor_first=d(2026, 11, 3, 10, 7), oor_last=d(2026, 11, 3, 10, 7))
+    w = []
+    p = latest_point([bad_only, good], "instant", "median", -40, 60, warnings=w)
+    assert p.value == 7.0 and [s["source_id"] for s in p.sources] == ["a"]
+    assert p.sources[0]["calibrated"] is True
+    assert w == ["reading_out_of_range src=a x2 (2026-11-03T10:05:00Z..2026-11-03T10:09:00Z)",
+                 "reading_out_of_range src=b (2026-11-03T10:07:00Z)"]
+
+
+def test_latest_point_cumulative_last_delta_per_source():
+    rs = [rd("a", d(2026, 11, 3, 9), 10.0), rd("a", d(2026, 11, 3, 10), 12.0),
+          rd("a", d(2026, 11, 3, 11), 15.0),
+          rd("b", d(2026, 11, 3, 9, 30), 1.0), rd("b", d(2026, 11, 3, 10, 30), 2.0),
+          rd("b", d(2026, 11, 3, 10, 45), 900.0)]
+    w = []
+    p = latest_point(rs, "cumulative", "median", 0, 500, warnings=w)
+    # a: last delta 3 @11:00; b: 898 out of range -> previous delta 1 @10:30
+    assert [(s["source_id"], s["value"]) for s in p.sources] == [("a", 3.0), ("b", 1.0)]
+    assert p.value == 2.0 and p.t == d(2026, 11, 3, 11)
+    assert w == ["increment_out_of_range src=b (2026-11-03T10:45:00Z)"]

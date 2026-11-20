@@ -437,6 +437,74 @@ def _point(t: datetime, in_b: List[Pair], summing: bool, fusion: str, ws: List[t
     return BucketPoint(t=t, value=fused, n_sources=len(srcs), coverage=cov(kept), sources=srcs)
 
 
+# --------------------------------------------------------------- latest
+
+def latest_point(readings: List[Reading], semantics: str, fusion: str,
+                 valid_min: Optional[float], valid_max: Optional[float], *,
+                 counter_max: Optional[float] = None,
+                 max_rate_per_hour: Optional[float] = None,
+                 warnings: Optional[List[str]] = None) -> Optional[BucketPoint]:
+    """`latest` of one tier of one group (contract 8.9); None when no source has a valid value.
+
+    Per source, its newest valid value in the readings (the caller passes the max_age window):
+    instant/rate: the newest in-range reading (folded readings: the n == 1 ones; their oor counts
+    become warnings); cumulative: the newest delta after the counter rule whose increment is in
+    range; amount: the newest in-range reading. Duplicates at the same instant keep the max value
+    (the engine's duplicate rule). The values are fused with `fusion`; t is the newest of them;
+    each source is listed with n_readings 1 and its own value, kind, calibrated and distance_m.
+    Out-of-range readings / increments of the window are reported in `warnings`.
+    """
+    ws: List[tuple] = []
+    newest: Dict[str, Reading] = {}
+
+    def offer(r: Reading) -> None:
+        cur = newest.get(r.source_id)
+        if cur is None or (r.t, r.value) > (cur.t, cur.value):
+            newest[r.source_id] = r
+
+    def in_range(v: float) -> bool:
+        return not ((valid_min is not None and v < valid_min)
+                    or (valid_max is not None and v > valid_max))
+
+    if semantics in ("cumulative", "amount"):
+        if any(_folded(r) for r in readings):
+            raise ValueError("folded readings are only valid for instant/rate")
+        if semantics == "cumulative":
+            pairs, cw = _deltas(readings, counter_max, max_rate_per_hour)
+            ws.extend(cw)
+            values = [r for r, _ in pairs]
+        else:
+            values = list(readings)
+        for r in values:
+            if in_range(r.value):
+                offer(r)
+            else:
+                ws.append(("increment_out_of_range", r.source_id, r.t))
+    else:
+        _folded_oor_warnings([r for r in readings if _folded(r)], ws)
+        for r in readings:
+            if _folded(r):
+                if r.n == 1:
+                    offer(r)
+            elif in_range(r.value):
+                offer(r)
+            else:
+                ws.append(("reading_out_of_range", r.source_id, r.t))
+
+    point: Optional[BucketPoint] = None
+    if newest:
+        srcs = [{"source_id": sid, "deployment_id": r.deployment_id, "value": r.value,
+                 "n_readings": 1, "distance_m": r.distance_m, "kind": r.kind,
+                 "calibrated": bool(r.calibrated)}
+                for sid, r in sorted(newest.items())]
+        fused = _fuse([x["value"] for x in srcs], fusion, ws)
+        point = BucketPoint(t=max(r.t for r in newest.values()).astimezone(UTC), value=fused,
+                            n_sources=len(srcs), coverage=1.0, sources=srcs)
+    if warnings is not None:
+        warnings.extend(_dedupe_warnings(ws))
+    return point
+
+
 # --------------------------------------------------------- fall-through
 
 def fall_through(tiers: List[Tuple[int, List[BucketPoint]]], min_coverage: Optional[float],

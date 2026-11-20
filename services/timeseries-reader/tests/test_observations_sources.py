@@ -51,7 +51,7 @@ class FakeCursor:
     def execute(self, sql, params=None):
         tag = sql.split("\n", 1)[0].replace("-- obs:", "").strip()
         self.calls.append((tag, sql, params))
-        if tag == "series" and tag not in self.answers:
+        if tag in ("series", "latest") and tag not in self.answers:
             self._rows = [_as_aggregated(r, tag) for r in self.answers.get("values", [])]
         else:
             self._rows = list(self.answers.get(tag, []))
@@ -389,7 +389,7 @@ def test_fetch_plan_dispatch():
     assert fetch_plan(req(resolution="PT15M"), prop(temporal_semantics=None)) == "series"
     assert fetch_plan(req(resolution="raw"), prop()) == "raw"
     assert fetch_plan(req(), prop(temporal_semantics="cumulative")) == "raw"
-    assert fetch_plan(req(mode="latest", resolution="raw"), prop()) == "raw"
+    assert fetch_plan(req(mode="latest", resolution="raw"), prop()) == "latest"
     assert fetch_plan(req(mode="latest", resolution="raw"),
                       prop(temporal_semantics="cumulative")) == "raw"
 
@@ -443,3 +443,32 @@ def test_series_rows_become_folded_readings_ordered_by_first_instant():
     assert r2.oor_first == r2.oor_last == t.replace(minute=5)
     assert (r3.n, r3.value_sum, r3.t, r3.oor_n, r3.calibrated) == (0, None, t.replace(hour=4), 2, False)
 
+
+def test_latest_sql_lateral_per_series_key_and_readings():
+    cur = FakeCursor(answers())
+    q = req(mode="latest", resolution="raw")
+    observed_tiers(cur, T, q, prop(valid_min=-40.0, valid_max=60.0), "ambientAir", AREA)
+    (_, sql, params), = cur.sql("latest")
+    assert not cur.sql("values") and not cur.sql("series")
+    assert "LEFT JOIN LATERAL" in sql and "LIMIT 1" in sql
+    assert "ORDER BY m.observed_at DESC, m.value DESC" in sql
+    assert "m.value >= %(lo)s AND m.value <= %(hi)s" in sql
+    for col in ("feature_of_interest", "depth_from_cm", "depth_to_cm", "height_m", "organ",
+                "context_ref", "source_kind"):
+        assert f"m.{col} IS NOT DISTINCT FROM k.{col}" in sql, col
+    assert "m.attribute_name = k.attribute_name" in sql
+    assert "m.location::bytea IS NOT DISTINCT FROM k.loc" in sql
+    assert (params["w0"], params["w1"]) == (q.start, q.end)
+    assert (params["lo"], params["hi"]) == (-40.0, 60.0)
+
+    t = datetime(2026, 11, 1, 3, tzinfo=UTC)
+    base = {k: v for k, v in value_row().items() if k not in ("observed_at", "value")}
+    rows = [dict(base, observed_at=t, value=5.0, calibrated=True, oor_n=2,
+                 oor_first=t.replace(minute=7), oor_last=t.replace(minute=9)),
+            dict(base, height_m=5.0, observed_at=None, value=None, calibrated=None, oor_n=1,
+                 oor_first=t.replace(minute=8), oor_last=t.replace(minute=8))]
+    cur = FakeCursor(answers(latest=rows))
+    out = observed_tiers(cur, T, q, prop(), "ambientAir", AREA)
+    a, b = out[1]
+    assert (a.t, a.value, a.n, a.calibrated, a.oor_n) == (t, 5.0, 1, True, 2)
+    assert (b.n, b.oor_n, b.t, b.sub_context) == (0, 1, t.replace(minute=8), {"heightAboveGround": 5.0})

@@ -10,8 +10,9 @@ the first delta).
 
 Two fetch paths for tiers 1-3 (contract 8.10):
   - SQL-aggregated (default): `series` at PT15M / PT1H / P1D of instant/rate properties gets one
-    folded row per source x tier inputs x sub-context x grain (engine module doc).
-  - raw rows: everything else (cumulative and amount, resolution=raw, latest). It is also the reference
+    folded row per source x tier inputs x sub-context x grain (engine module doc); `latest` of
+    instant/rate properties gets each series' newest in-range row in the window (8.9).
+  - raw rows: everything else (cumulative and amount, resolution=raw). It is also the reference
     of the differential test (`aggregate_in_sql=False`).
 
 Transactions: `observed_tiers` and `model_tiers` run on a `tenant_cursor` (tenant already set).
@@ -307,6 +308,55 @@ SELECT ser.deployment_id, ser.source_kind, ser.feature_of_interest, {ser_sub},
 FROM ser
 """
 
+# Latest (8.9): the series keys of the window with their out-of-range counts, then one LATERAL
+# newest-row lookup per key (index device_id, observed_at DESC). A key is a full row context
+# (attribute, feature, sub-context, kind, location), so no channel, sub-context or tier is lost.
+_KEY_COLS = ("deployment_id", "device_id", "attribute_name", "source_kind",
+             "feature_of_interest", "depth_from_cm", "depth_to_cm", "height_m", "organ",
+             "context_ref")
+
+_LATEST_SQL = """-- obs:latest
+WITH area AS (SELECT ST_GeomFromGeoJSON(%(area)s::text)::geography AS g),
+keys AS (
+    SELECT {key_m}, m.location::bytea AS loc,
+           count(*) FILTER (WHERE NOT (m.value >= %(lo)s AND m.value <= %(hi)s)) AS oor_n,
+           min(m.observed_at) FILTER (WHERE NOT (m.value >= %(lo)s AND m.value <= %(hi)s)) AS oor_first,
+           max(m.observed_at) FILTER (WHERE NOT (m.value >= %(lo)s AND m.value <= %(hi)s)) AS oor_last
+    FROM telemetry_measurements m
+    WHERE {filter}
+    GROUP BY {key_m}, m.location::bytea
+)
+SELECT k.deployment_id::text AS deployment_id, {key_k_rest}, k.oor_n, k.oor_first, k.oor_last,
+       l.observed_at, l.value, l.calibrated,
+       COALESCE(ST_Covers((SELECT g FROM area), k.loc::geography), false) AS r_in_area,
+       ST_Distance((SELECT g FROM area), k.loc::geography) AS r_dist_m
+FROM keys k
+LEFT JOIN LATERAL (
+    SELECT m.observed_at, m.value,
+           COALESCE((e.payload->'calibration_period_ids') ? m.attribute_name, false) AS calibrated
+    FROM telemetry_measurements m
+    LEFT JOIN telemetry_events e
+           ON e.tenant_id = m.tenant_id AND e.observed_at = m.observed_at
+          AND e.id = m.source_event_id
+          AND e.tenant_id = %(tenant)s AND e.device_id = k.device_id
+          AND e.observed_at >= %(w0)s AND e.observed_at < %(w1)s
+    WHERE m.tenant_id = %(tenant)s
+      AND m.device_id = k.device_id
+      AND m.attribute_name = k.attribute_name
+      AND m.deployment_id = k.deployment_id
+      AND {key_match}
+      AND m.location::bytea IS NOT DISTINCT FROM k.loc
+      AND m.observed_property = %(prop)s
+      AND m.medium = %(medium)s
+      AND m.quality_flag = 'valid'
+      AND m.observed_at >= %(w0)s AND m.observed_at < %(w1)s
+      AND m.value >= %(lo)s AND m.value <= %(hi)s
+    ORDER BY m.observed_at DESC, m.value DESC
+    LIMIT 1
+) l ON true
+"""
+
+
 def _series_sql(resolution: str) -> str:
     return _SERIES_SQL.format(
         grain=_GRAIN[resolution], event_join=_AGG_EVENT_JOIN, filter=_AGG_FILTER,
@@ -314,15 +364,27 @@ def _series_sql(resolution: str) -> str:
         ser_sub=", ".join(f"ser.{c}" for c in _SUB_COLS.split(", ")))
 
 
+def _latest_sql() -> str:
+    exact = ("deployment_id", "device_id", "attribute_name")
+    return _LATEST_SQL.format(
+        key_m=", ".join(f"m.{c}" for c in _KEY_COLS),
+        key_k_rest=", ".join(f"k.{c}" for c in _KEY_COLS if c != "deployment_id"),
+        filter=_AGG_FILTER,
+        key_match="\n      AND ".join(f"m.{c} IS NOT DISTINCT FROM k.{c}"
+                                      for c in _KEY_COLS if c not in exact))
+
+
 SQL_SEMANTICS = frozenset({"instant", "rate"})
 SQL_SERIES_RESOLUTIONS = frozenset(_GRAIN)
 
 
 def fetch_plan(req: BestRequest, prop: dict) -> str:
-    """'series' (SQL-aggregated, 8.10) or 'raw' (raw rows; cumulative, raw resolution, latest)."""
+    """'series' | 'latest' (SQL-aggregated, 8.10) or 'raw' (raw rows; cumulative, raw resolution)."""
     sem = prop.get("temporal_semantics") or "instant"
     if sem not in SQL_SEMANTICS:
         return "raw"
+    if req.mode == "latest":
+        return "latest"
     if req.mode == "series" and req.resolution in SQL_SERIES_RESOLUTIONS:
         return "series"
     return "raw"
@@ -474,7 +536,8 @@ def observed_tiers(cur, tenant_id: str, req: BestRequest, prop: dict, medium: st
     """Readings of tiers 1 (direct), 2 (contained), 3 (nearby); every key always present.
 
     `aggregate_in_sql` (default) uses the SQL-aggregated fetch where `fetch_plan` allows it: the
-    readings are then folded (series). False forces the raw-row fetch.
+    readings are then folded (series) or one newest reading per stored series (latest; mode
+    `latest` with the request window = the max_age window). False forces the raw-row fetch.
 
     Tier is decided per stored row (resolved columns): 1 iff feature_of_interest == feature;
     2 iff the cached geometry of feature_of_interest is covered by the area or the row's
@@ -519,7 +582,7 @@ def observed_tiers(cur, tenant_id: str, req: BestRequest, prop: dict, medium: st
                   "hi": _bound(prop.get("valid_max"), float("inf")),
                   "starts": [b[0] for b in bks] if req.resolution == "P1D" else [],
                   "entity_like": entity_like_patterns(device_ids, attrs)}
-        cur.execute(_series_sql(req.resolution), params)
+        cur.execute(_series_sql(req.resolution) if plan == "series" else _latest_sql(), params)
         rows = [dict(r) for r in cur.fetchall()]
 
     if area_geom is not None:  # row features the deployment preselection did not probe
@@ -531,7 +594,7 @@ def observed_tiers(cur, tenant_id: str, req: BestRequest, prop: dict, medium: st
 
     radius = _num(prop.get("nearby_radius_m")) or 0.0
     if plan != "raw":
-        _append_aggregated(out, rows, urns, req, prop, area_geom, covered, radius)
+        _append_aggregated(out, plan, rows, urns, req, prop, area_geom, covered, radius)
         return out
     for row in rows:
         urn = urns.get(row["deployment_id"])
@@ -557,10 +620,10 @@ def observed_tiers(cur, tenant_id: str, req: BestRequest, prop: dict, medium: st
     return out
 
 
-def _append_aggregated(out: Dict[int, List[Reading]], rows: List[dict],
+def _append_aggregated(out: Dict[int, List[Reading]], plan: str, rows: List[dict],
                        urns: Dict[str, str], req: BestRequest, prop: dict,
                        area_geom: Optional[dict], covered: Set[str], radius: float) -> None:
-    """Folded readings of the SQL-aggregated series rows, per tier.
+    """Folded (series) / newest (latest) readings of the SQL-aggregated rows, per tier.
 
     Each tier list is ordered by the reading's first in-range instant (the raw path's row order),
     so the engine's "first reading of a source in a bucket" is the same; ties are broken by the
@@ -580,12 +643,20 @@ def _append_aggregated(out: Dict[int, List[Reading]], rows: List[dict],
         kind = row.get("source_kind") or "device"
         key = (urn, row["deployment_id"], kind, -1.0 if dist is None else dist,
                repr(sorted(sub.items())))
-        grains = zip(row["n"], row["value_sum"], row["calibrated"], row["t_first"],
-                     row["oor_n"], row["oor_first"], row["oor_last"])  # one entry per grain
+        if plan == "series":  # parallel arrays, one entry per grain
+            grains = zip(row["n"], row["value_sum"], row["calibrated"], row["t_first"],
+                         row["oor_n"], row["oor_first"], row["oor_last"])
+        else:
+            n1 = 1 if row.get("observed_at") is not None else 0
+            grains = [(n1, None, row.get("calibrated"), row.get("observed_at"),
+                       row.get("oor_n"), row.get("oor_first"), row.get("oor_last"))]
         for n, value_sum, calibrated, t_first, oor_n, oor_first, oor_last in grains:
             n, oor_n = int(n or 0), int(oor_n or 0)
-            value_sum = float(value_sum) if n else None
-            value = value_sum / n if n else 0.0
+            if plan == "series":
+                value_sum = float(value_sum) if n else None
+                value = value_sum / n if n else 0.0
+            else:
+                value = float(row["value"]) if n else 0.0
             t = t_first if n else oor_first
             if t is None:  # neither in-range nor out-of-range readings: nothing stored
                 continue

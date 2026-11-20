@@ -23,7 +23,8 @@ from common.unit_codes import to_unit_code
 
 from .catalogue import get_property
 from .db import tenant_cursor
-from .engine import BucketPoint, Reading, aggregate_tier, buckets, fall_through, group_by_sub_context
+from .engine import (BucketPoint, Reading, aggregate_tier, buckets, fall_through,
+                     group_by_sub_context, latest_point)
 from .geometry import fetch_orion_entity_status, geometry_of
 from .request import BestRequest, RequestError, iso_z
 from .sources import model_semantics, model_tiers, observed_tiers, parcel_urn_of, resolve_medium
@@ -210,11 +211,21 @@ def best(conn, tenant_id: str, req: BestRequest, *, now: Optional[datetime] = No
     for sc, members in groups:
         ids = {id(r) for r in members}
         tier_points: List[Tuple[int, List[BucketPoint]]] = []
+        latest_points: List[Tuple[int, BucketPoint]] = []
         for k in observed_keys + model_keys:
             rs = tier_readings[k]
             if k < _FALLBACK_OFFSET or (k < _MODEL_OFFSET and fallback_grouped):
                 rs = [r for r in rs if id(r) in ids]
             if not rs:
+                continue
+            if latest:  # contract 8.9: each source's newest valid value, fused
+                lp = latest_point(rs, sem if k < _MODEL_OFFSET else msem,
+                                  prop.get("fusion") or "median", prop.get("valid_min"),
+                                  prop.get("valid_max"),
+                                  max_rate_per_hour=prop.get("max_rate_per_hour"),
+                                  warnings=warnings)
+                if lp is not None:
+                    latest_points.append((k, lp))
                 continue
             tier_points.append((k, aggregate_tier(
                 rs, bks, sem if k < _MODEL_OFFSET else msem, prop.get("fusion") or "median",
@@ -222,13 +233,14 @@ def best(conn, tenant_id: str, req: BestRequest, *, now: Optional[datetime] = No
                 max_rate_per_hour=prop.get("max_rate_per_hour"), warnings=warnings, now=now,
                 # P1D tier 4 reads the one-row-per-day twin: a present row is a full day
                 pre_aggregated=(k == _MODEL_OFFSET + 4 and q.resolution == "P1D"))))
-        chosen = fall_through(tier_points, prop.get("min_coverage"), q.resolution)
-        if latest:
-            real = [(k, p) for k, p in chosen if k is not None]
-            chosen = real[-1:]  # raw fall-through is one tier, time-sorted: its newest point
-        elif q.resolution != "raw" and not chosen:
-            chosen = [(None, BucketPoint(t=b0, value=None, n_sources=0, coverage=0.0, sources=[]))
-                      for b0, _ in bks]
+        if latest:  # the first tier, in fall-through order, with any valid value
+            chosen = sorted(latest_points, key=lambda x: x[0])[:1]
+        else:
+            chosen = fall_through(tier_points, prop.get("min_coverage"), q.resolution)
+            if q.resolution != "raw" and not chosen:
+                chosen = [(None, BucketPoint(t=b0, value=None, n_sources=0, coverage=0.0,
+                                             sources=[]))
+                          for b0, _ in bks]
         points = [_point_json(k, p, medium) for k, p in chosen]
         if len(points) > MAX_POINTS_PER_GROUP:
             raise RequestError(413, "too many points: lower the resolution or narrow the period")
