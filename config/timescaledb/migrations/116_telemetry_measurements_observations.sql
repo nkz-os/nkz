@@ -192,6 +192,9 @@ BEGIN
             SELECT key, trim(value) AS value_txt
             FROM jsonb_each_text(NEW.payload->'measurements')
         LOOP
+            -- JSON null: a NULL comparison below would not skip (066's set-based
+            -- WHERE did), and value is NOT NULL, so the event INSERT would abort.
+            CONTINUE WHEN kv.value_txt IS NULL;
             -- 066 numeric filter: finite decimal/scientific values only.
             CONTINUE WHEN kv.value_txt !~ '^[-+]?(?:\d+\.?\d*|\.\d+)(?:[eE][-+]?\d+)?$';
             CONTINUE WHEN lower(kv.value_txt) IN ('nan', '+nan', '-nan', 'inf', '+inf', '-inf',

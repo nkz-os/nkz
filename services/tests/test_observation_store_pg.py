@@ -185,3 +185,35 @@ def test_trigger_attribute_without_observation(cur):
 def test_trigger_keeps_066_numeric_filter(cur):
     ev = _insert_event(cur, {"measurements": {"ok": 1, "bad": "NaN", "txt": "abc"}})
     assert [r[0] for r in _rows(cur, ev)] == ["ok"]
+
+
+def test_trigger_skips_json_null_measurement(cur):
+    # 066 skipped NULL (set-based WHERE); a NULL must never abort the event.
+    ev = _insert_event(cur, {
+        "measurements": {"a": None, "b": 1.5},
+        "observations": {"a": {"observedProperty": "airTemperature"},
+                         "b": {"observedProperty": "airTemperature"}},
+    })
+    cur.execute("SELECT count(*) FROM telemetry_events WHERE id = %s", (ev,))
+    assert cur.fetchone()[0] == 1
+    cur.execute(
+        "SELECT attribute_name, value FROM telemetry_measurements "
+        "WHERE source_event_id = %s ORDER BY attribute_name", (ev,),
+    )
+    assert cur.fetchall() == [("b", 1.5)]
+
+
+def test_trigger_skips_text_measurement_keeps_numeric_string(cur):
+    ev = _insert_event(cur, {"measurements": {"label": "on", "n": " 2.5e1 "}})
+    cur.execute(
+        "SELECT attribute_name, value FROM telemetry_measurements "
+        "WHERE source_event_id = %s ORDER BY attribute_name", (ev,),
+    )
+    assert cur.fetchall() == [("n", 25.0)]
+
+
+def test_trigger_all_null_measurements_store_event_only(cur):
+    ev = _insert_event(cur, {"measurements": {"a": None}})
+    cur.execute("SELECT count(*) FROM telemetry_events WHERE id = %s", (ev,))
+    assert cur.fetchone()[0] == 1
+    assert _rows(cur, ev) == []
