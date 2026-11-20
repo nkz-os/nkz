@@ -122,7 +122,7 @@ SELECT %(tenant)s, g.t, d.dev, d.meas_urn, 'DeviceMeasurement',
                 'value', to_char(g.t AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"')),
             'timeSource', jsonb_build_object('type', 'Property', 'value', 'device'),
             'observedProperty', jsonb_build_object('type', 'Property', 'value', 'airTemperature'),
-            'profileCode', jsonb_build_object('type', 'Property', 'value', d.profile),
+            'deviceType', jsonb_build_object('type', 'Property', 'value', d.profile),
             '@context', jsonb_build_array(
                 'https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.8.jsonld')),
          'observations', jsonb_build_object('airTemperature', jsonb_build_object(

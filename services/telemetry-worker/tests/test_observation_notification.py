@@ -68,7 +68,7 @@ def _entity(value=21.5, **extra):
         "numValue": {"type": "Property", "value": value},
         "dateObserved": {"type": "Property", "value": "2026-08-29T10:00:00Z"},
         "observedProperty": {"type": "Property", "value": "airTemperature"},
-        "profileCode": {"type": "Property", "value": "prof-x"},
+        "deviceType": {"type": "Property", "value": "prof-x"},
         "timeSource": {"type": "Property", "value": "device"},
     }
     e.update(extra)
@@ -136,10 +136,24 @@ def test_unknown_property_skips_attr_and_warns(caplog):
 
 def test_counter_max_from_profile_code():
     prop = PropertyDef("rainfallTotal", "cumulative", None, None, "mm")
-    e = _entity(value=500.0, profileCode={"type": "Property", "value": "prof-x"})
+    e = _entity(value=500.0, deviceType={"type": "Property", "value": "prof-x"})
     e["observedProperty"]["value"] = "rainfallTotal"
     ev = _run(e, FakeLookup(dep=_dep(), prop=prop, counter_max=100, unit="mm"))
     assert ev.payload["observations"]["temperature"]["qualityFlag"] == "out_of_range"
+
+
+def test_profile_lookup_uses_device_type_not_profile_code():
+    lk = FakeLookup(dep=_dep())
+    _run(_entity(), lk)
+    assert [c[2] for c in lk.calls if c[0] == "def"] == ["prof-x"]
+    # A DeviceMeasurement that only carries profileCode (not SDM deviceType) gets no profile
+    # lookup: the unit guard is bypassed by an absent profile, never read from profileCode.
+    e = _entity()
+    del e["deviceType"]
+    e["profileCode"] = {"type": "Property", "value": "prof-x"}
+    lk = FakeLookup(dep=_dep())
+    _run(e, lk)
+    assert not [c for c in lk.calls if c[0] == "def"]
 
 
 def test_missing_time_source_is_absent_not_guessed():

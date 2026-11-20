@@ -162,7 +162,7 @@ def build_measurements(entity: Dict[str, Any], profile: Dict[str, Any]) -> List[
         if observed_property:
             measurement["observedProperty"] = {"type": "Property", "value": observed_property}
         if profile_code is not None:
-            measurement["profileCode"] = {"type": "Property", "value": profile_code}
+            measurement["deviceType"] = {"type": "Property", "value": profile_code}
         results.append(measurement)
 
     return results

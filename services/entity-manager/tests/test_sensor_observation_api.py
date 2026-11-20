@@ -627,6 +627,13 @@ def test_context_declares_new_terms():
         assert ctx[term] == f"nkz:{term}"
 
 
+def test_context_maps_device_type_to_the_sdm_iri():
+    # DeviceMeasurement carries the profile code as the SDM-standard Device.deviceType.
+    root = pathlib.Path(__file__).resolve().parents[3]
+    ctx = json.loads((root / "config" / "ngsi-ld-context.json").read_text())["@context"][1]
+    assert ctx["deviceType"] == "https://smartdatamodels.org/dataModel.Device/deviceType"
+
+
 def test_context_leaves_profile_code_in_the_default_vocabulary():
     # Contract 8.14: existing Devices carry profileCode under the default vocab;
     # mapping it would change its expanded IRI and break bare-name queries.

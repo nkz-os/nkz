@@ -299,11 +299,14 @@ class TestProvenance:
         m = _by_controlled_property(build_measurements(_entity(), PROFILE), "leafTemperature")
         assert "observedProperty" not in m
 
-    def test_profile_code_copied_from_entity(self):
+    def test_device_type_carries_the_device_profile_code(self):
+        # SDM Device.deviceType on the DeviceMeasurement; the source stays the Device's profileCode.
         entity = _entity(profileCode={"type": "Property", "value": "bench-x"})
         for m in build_measurements(entity, PROFILE):
-            assert m["profileCode"] == {"type": "Property", "value": "bench-x"}
+            assert m["deviceType"] == {"type": "Property", "value": "bench-x"}
+            assert "profileCode" not in m
 
-    def test_profile_code_absent_when_entity_lacks_it(self):
+    def test_device_type_absent_when_entity_lacks_profile_code(self):
         for m in build_measurements(_entity(), PROFILE):
+            assert "deviceType" not in m
             assert "profileCode" not in m

@@ -442,12 +442,12 @@ _PRIOR_SQL = (
 _COUNTER_MAX_SQL = """-- obs:counter_max
 WITH latest AS (
     SELECT DISTINCT ON (e.device_id) e.device_id,
-           e.payload->'raw'->'profileCode'->>'value' AS code
+           e.payload->'raw'->'deviceType'->>'value' AS code
     FROM telemetry_events e
     WHERE e.tenant_id = %s
       AND e.device_id = ANY(%s)
       AND e.observed_at >= %s AND e.observed_at < %s
-      AND e.payload->'raw'->'profileCode'->>'value' IS NOT NULL
+      AND e.payload->'raw'->'deviceType'->>'value' IS NOT NULL
     ORDER BY e.device_id, e.observed_at DESC
 )
 SELECT l.device_id, p.tenant_id AS profile_tenant, m->>'sdmAttribute' AS attr,

@@ -110,7 +110,7 @@ class Device:
             "type": "DeviceMeasurement",
             "refDevice": {"type": "Relationship", "object": self.urn},
             "observedProperty": {"type": "Property", "value": "airTemperature"},
-            "profileCode": {"type": "Property", "value": self.profile_code},
+            "deviceType": {"type": "Property", "value": self.profile_code},
         }
         if gps is not None:
             raw["location"] = {"type": "GeoProperty",

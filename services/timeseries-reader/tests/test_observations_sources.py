@@ -195,6 +195,9 @@ def test_window_and_cumulative_prior_query():
     assert "DISTINCT ON (m.device_id, m.attribute_name)" in prior[1]
     assert prior[2][-1] == datetime(2026, 11, 1, tzinfo=UTC)
     assert len(cur.sql("counter_max")) == 1
+    cm_sql = cur.sql("counter_max")[0][1]
+    assert "'raw'->'deviceType'->>'value'" in cm_sql
+    assert "profileCode" not in cm_sql
     assert [r.value for r in out[1]] == [4.0, 5.0]
     assert all(r.counter_max == 100.0 for r in out[1])
 

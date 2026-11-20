@@ -234,7 +234,7 @@ SELECT m.observed_at, m.source_event_id, m.attribute_name, m.value,
        m.deployment_id::text AS deployment_id, m.source_kind, m.quality_flag,
        ST_X(m.location::geometry) AS lon, ST_Y(m.location::geometry) AS lat,
        e.payload->'raw'->'observedProperty'->>'value' AS raw_observed_property,
-       e.payload->'raw'->'profileCode'->>'value' AS raw_profile_code,
+       e.payload->'raw'->'deviceType'->>'value' AS raw_profile_code,
        e.payload->'raw'->'location'->'value' AS raw_location,
        m.entity_id
 FROM public.telemetry_measurements m

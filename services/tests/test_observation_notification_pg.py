@@ -20,8 +20,8 @@ pytestmark = pytest.mark.pg_integration
 def _notify(pg_dsn, pg_conn, profile_unit):
     """Run one temperature notification through the worker; return (row, deployment id).
 
-    The device's profile (sensor_profiles row, referenced by profileCode) declares
-    ``profile_unit`` for temperature; None omits the unit from the measurement.
+    The device's profile (sensor_profiles row, referenced by the DeviceMeasurement
+    deviceType) declares ``profile_unit`` for temperature; None omits the unit from the measurement.
     """
     from telemetry_worker import notification_handler as nh
     from telemetry_worker.config import Settings
@@ -64,7 +64,7 @@ def _notify(pg_dsn, pg_conn, profile_unit):
         "dateObserved": {"type": "Property", "value": "2026-08-29T10:00:00Z"},
         "observedProperty": {"type": "Property", "value": "airTemperature"},
         "timeSource": {"type": "Property", "value": "device"},
-        "profileCode": {"type": "Property", "value": profile_code},
+        "deviceType": {"type": "Property", "value": profile_code},
     }
 
     class _Profiles:

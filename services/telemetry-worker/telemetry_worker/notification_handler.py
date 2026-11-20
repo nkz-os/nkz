@@ -325,7 +325,7 @@ async def _resolve_observation_payload(
             return {}
 
         observed_property = _prop_value(entity, "observedProperty")
-        profile_code = _prop_value(entity, "profileCode")
+        profile_code = _prop_value(entity, "deviceType")
         entity_id = entity.get("id")
         # same short-id rule as _extract_device_measurement (the stored device_id)
         device_id = device_urn.split(":")[-1]
