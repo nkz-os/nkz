@@ -116,6 +116,18 @@ def test_enforcing_instance_rejected(sdm, client, monkeypatch):
     assert outbound == []
 
 
+def test_enforcing_prefixed_sdm_name_rejected(sdm, client, monkeypatch):
+    # nkz:Device would be stored under the platform namespace, not as the SDM type.
+    _set_mode(monkeypatch, sdm, True)
+    limits = _limits_stub(monkeypatch, sdm, True)
+    outbound = _no_outbound(monkeypatch, sdm)
+    r = client.post("/sdm/entities/nkz%3ADevice/instances", json={"name": "x"})
+    assert r.status_code == 422
+    assert r.get_json() == {**REJECTION, "types": ["nkz:Device"]}
+    assert limits == []
+    assert outbound == []
+
+
 def test_enforcing_batch_rejected(sdm, client, monkeypatch):
     _set_mode(monkeypatch, sdm, True)
     limits = _limits_stub(monkeypatch, sdm, True)

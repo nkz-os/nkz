@@ -37,6 +37,11 @@ def test_load_real_files(accepted):
     assert "AgriculturalRobot" not in accepted.names
     assert "https://saref.etsi.org/saref4agri/AgriParcel" in accepted.iris
     assert "https://nkz-os.org/ns/AgriPlant" in accepted.iris
+    # The zone has no term: a second IRI for it must not be admitted, and
+    # names with an SDM IRI must not gain a platform-namespace twin.
+    assert "https://nkz-os.org/ns/AgriManagementZone" not in accepted.iris
+    assert "https://nkz-os.org/ns/Device" not in accepted.iris
+    assert accepted.prefixes["nkz"] == "https://nkz-os.org/ns/"
     zone = "https://uri.etsi.org/ngsi-ld/default-context/AgriManagementZone"
     assert zone in accepted.iris
     others = [i for i in accepted.iris if i.startswith("https://uri.etsi.org/ngsi-ld/default-context/") and i != zone]
@@ -62,6 +67,10 @@ def test_find_config_dir_override_is_only_candidate(tmp_path, monkeypatch):
     ({"type": ["A", "B"]}, ["A", "B"]),
     ([], None), ("x", None), (None, None), ({}, None),
     ({"type": []}, None), ({"type": 5}, None), ({"type": ["A", 5]}, None),
+    ({"type": "A", "@type": "B"}, ["A", "B"]),
+    ({"type": None, "@type": "B"}, ["B"]),
+    ({"type": [], "@type": "B"}, ["B"]),
+    ({"type": "A", "@type": 5}, ["A"]),
 ])
 def test_declared_types(body, expected):
     assert g.declared_types(body) == expected
@@ -74,6 +83,16 @@ def test_declared_types(body, expected):
     (["AgriParcel", "FooAsset"], ["FooAsset"]),
     (["https://nkz-os.org/ns/AgriEnergyTracker"], ["https://nkz-os.org/ns/AgriEnergyTracker"]),
     (["agriparcel"], ["agriparcel"]),
+    (["nkz:Device"], ["nkz:Device"]),
+    (["nkz:AgriParcel"], ["nkz:AgriParcel"]),
+    (["nkz:AgriManagementZone"], ["nkz:AgriManagementZone"]),
+    (["foo:Device"], ["foo:Device"]),
+    (["urn:ngsi-ld:Device"], ["urn:ngsi-ld:Device"]),
+    (["nkz:OpenChannelFlow"], []),
+    (["Device"], []),
+    (["AgriManagementZone"], []),
+    (["saref4agri:AgriParcel"], []),
+    (["schema:AgriParcel"], ["schema:AgriParcel"]),
     (["https://uri.etsi.org/ngsi-ld/default-context/FooAsset"], ["https://uri.etsi.org/ngsi-ld/default-context/FooAsset"]),
 ])
 def test_rejected_types(accepted, types, expected):
@@ -107,6 +126,26 @@ def test_guard_not_enforcing_logs(accepted, caplog):
 def test_guard_enforcing_rejects(accepted):
     guard = g.EntityTypeGuard("svc", accepted, True)
     assert guard.check(["AgriParcel", "FooAsset"], tenant="tenant-a", path="/x") == ["FooAsset"]
+
+
+def test_echo_is_bounded_by_count(accepted, caplog):
+    guard = g.EntityTypeGuard("svc", accepted, True)
+    types = [f"FooAsset{n}" for n in range(100)]
+    with caplog.at_level(logging.INFO, logger=g.logger.name):
+        returned = guard.check(types, tenant="tenant-a", path="/x")
+    assert returned == types[:20]
+    payload = json.loads(caplog.records[0].getMessage().split(" ", 1)[1])
+    assert payload["types"] == types[:20]
+
+
+def test_echo_is_bounded_by_length(accepted, caplog):
+    guard = g.EntityTypeGuard("svc", accepted, True)
+    with caplog.at_level(logging.INFO, logger=g.logger.name):
+        returned = guard.check(["F" * 5000], tenant="tenant-a", path="/x")
+    assert returned == ["F" * 200 + "\u2026"]
+    payload = json.loads(caplog.records[0].getMessage().split(" ", 1)[1])
+    assert payload["types"] == returned
+    assert len(caplog.records[0].getMessage()) < 1000
 
 
 def test_guard_foreign_context_info(accepted, caplog):

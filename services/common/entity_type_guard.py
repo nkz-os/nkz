@@ -17,6 +17,8 @@ import logging
 import os
 from dataclasses import dataclass
 from pathlib import Path
+from types import MappingProxyType
+from typing import Mapping
 
 logger = logging.getLogger(__name__)
 
@@ -28,7 +30,12 @@ LEGACY_FILE = "legacy.txt"
 CONTEXT_FILE = "ngsi-ld-context.json"
 BROKER_HEADER = "## broker"
 CODE_HEADER = "## code"
-NKZ_NAMESPACE = "https://nkz-os.org/ns/"
+# Bounds on what one rejection echoes (log line and 422 body): a client controls
+# these strings, and log pipelines drop or cut oversized lines.
+MAX_ECHOED_TYPES = 20
+MAX_ECHOED_CHARS = 200
+# JSON-LD only treats a term as a prefix when its IRI ends in one of these.
+PREFIX_DELIMITERS = ("/", "#", ":", "?", "@", "[", "]")
 # The one type without a term in the platform context: the broker stored it
 # under the default vocabulary, so that IRI must keep matching.
 ZONE_NAME = "AgriManagementZone"
@@ -43,6 +50,9 @@ class GuardUnavailable(Exception):
 class AcceptedTypes:
     names: frozenset[str]
     iris: frozenset[str]
+    # Prefix term -> absolute IRI, from the same context: `nkz:X` is judged by
+    # the IRI the broker will store, not by the bare name after the colon.
+    prefixes: Mapping[str, str]
 
 
 def parse_names(text: str) -> list[str]:
@@ -141,17 +151,19 @@ def load_accepted(config_dir: Path | None = None) -> AcceptedTypes:
         iri = _expand(terms, name)
         if iri:
             iris.add(iri)
-    iris.update(NKZ_NAMESPACE + name for name in broker)
     if ZONE_NAME in names:
         iris.add(ZONE_DEFAULT_IRI)
-    return AcceptedTypes(names=names, iris=frozenset(iris))
+    prefixes: dict[str, str] = {}
+    for term in terms:
+        if term.startswith("@"):
+            continue
+        base = _expand(terms, term)
+        if base and "://" in base and base.endswith(PREFIX_DELIMITERS):
+            prefixes[term] = base
+    return AcceptedTypes(names=names, iris=frozenset(iris), prefixes=MappingProxyType(prefixes))
 
 
-def declared_types(body: object) -> list[str] | None:
-    """The type(s) a payload declares, or None when it cannot be judged."""
-    if not isinstance(body, dict):
-        return None
-    value = body.get("type", body.get("@type"))
+def _judgeable(value: object) -> list[str] | None:
     if isinstance(value, str):
         return [value]
     if isinstance(value, list) and value and all(isinstance(item, str) for item in value):
@@ -159,15 +171,41 @@ def declared_types(body: object) -> list[str] | None:
     return None
 
 
+def declared_types(body: object) -> list[str] | None:
+    """The type(s) a payload declares, or None when it cannot be judged.
+
+    Both `type` and `@type` are read: a body carrying both must not get one
+    past the check by hiding it under the key that is not looked at.
+    """
+    if not isinstance(body, dict):
+        return None
+    found: list[str] = []
+    for key in ("type", "@type"):
+        values = _judgeable(body.get(key))
+        if values:
+            found.extend(values)
+    return found or None
+
+
 def _is_accepted(value: str, accepted: AcceptedTypes) -> bool:
     if "://" in value:
         return value in accepted.iris
-    name = value[4:] if value.startswith("nkz:") else value
-    return name in accepted.names
+    prefix, sep, rest = value.partition(":")
+    if sep:
+        base = accepted.prefixes.get(prefix)
+        return base is not None and (base + rest) in accepted.iris
+    return value in accepted.names
 
 
 def rejected_types(types: list[str], accepted: AcceptedTypes) -> list[str]:
     return [value for value in types if not _is_accepted(value, accepted)]
+
+
+def _bounded(values: list[str]) -> list[str]:
+    return [
+        value if len(value) <= MAX_ECHOED_CHARS else value[:MAX_ECHOED_CHARS] + "\u2026"
+        for value in values[:MAX_ECHOED_TYPES]
+    ]
 
 
 def enforce_enabled(raw: str | None) -> bool:
@@ -209,6 +247,7 @@ class EntityTypeGuard:
         rejected = rejected_types(types, self.accepted)
         if not rejected and not foreign_context:
             return []
+        rejected = _bounded(rejected)
         record = {
             "enforced": self.enforce,
             "foreign_context": foreign_context,

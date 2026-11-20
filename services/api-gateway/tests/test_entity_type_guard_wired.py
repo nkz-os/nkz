@@ -115,15 +115,20 @@ def test_enforcing_rejects_code_block_type(forwarded, monkeypatch, prefix):
 
 @pytest.mark.parametrize("prefix", PREFIXES)
 @pytest.mark.parametrize(
-    "body",
-    [{"@type": "FooAsset"}, {"type": ["AgriParcel", "FooAsset"]}],
+    "body,expected",
+    [
+        ({"@type": "FooAsset"}, ["FooAsset"]),
+        ({"type": ["AgriParcel", "FooAsset"]}, ["FooAsset"]),
+        ({"type": "AgriParcel", "@type": "FooAsset"}, ["FooAsset"]),
+        ({"type": "nkz:Device"}, ["nkz:Device"]),
+    ],
 )
-def test_enforcing_rejects_alternate_declarations(forwarded, monkeypatch, prefix, body):
+def test_enforcing_rejects_alternate_declarations(forwarded, monkeypatch, prefix, body, expected):
     gw, calls = forwarded
     _set_guard(monkeypatch, gw, enforce=True)
     resp = _call(gw, prefix, "POST", body)
     assert resp.status_code == 422
-    assert resp.get_json()["types"] == ["FooAsset"]
+    assert resp.get_json()["types"] == expected
     assert calls == []
 
 
@@ -186,3 +191,18 @@ def test_platform_context_still_injected(forwarded, monkeypatch, prefix):
         "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context.jsonld",
         gw.CONTEXT_URL,
     ]
+
+
+@pytest.mark.parametrize("prefix", PREFIXES)
+def test_guard_judges_the_body_as_sent_not_after_context_injection(forwarded, monkeypatch, caplog, prefix):
+    # If the guard ran after the platform @context was injected, every body
+    # would look like it carried its own context.
+    gw, calls = forwarded
+    _set_guard(monkeypatch, gw, enforce=False)
+    with caplog.at_level(logging.INFO):
+        resp = _call(gw, prefix, "POST", {"id": "urn:ngsi-ld:FooAsset:tenant-a:1", "type": "FooAsset"})
+    assert resp.status_code == 204
+    records = _guard_records(caplog)
+    assert len(records) == 1 and records[0].levelno == logging.WARNING
+    assert json.loads(records[0].getMessage().split(" ", 1)[1])["foreign_context"] is False
+    assert calls[0][2]["@context"][1] == gw.CONTEXT_URL
