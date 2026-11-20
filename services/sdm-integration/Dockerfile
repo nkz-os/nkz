@@ -14,6 +14,10 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copiar directorio common (necesario para imports)
 COPY services/common /app/common
 
+# Read by common/entity_type_guard.py (lookup is <common dir>/../config)
+COPY config/entity-types /app/config/entity-types
+COPY config/ngsi-ld-context.json /app/config/ngsi-ld-context.json
+
 # Copiar código de la aplicación
 COPY services/sdm-integration/ .
 

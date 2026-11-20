@@ -21,6 +21,7 @@ from auth_middleware import require_auth, inject_fiware_headers, log_entity_oper
 from api_errors import internal_error
 from entity_utils import generate_entity_id
 from common.csrf_guard import install_csrf_guard
+from common.entity_type_guard import EntityTypeGuard
 
 # Configure logging to stdout for kubernetes
 logging.basicConfig(
@@ -34,6 +35,7 @@ logger.setLevel(logging.DEBUG)
 app = Flask(__name__)
 # Direct ingress routes reach this app without the gateway's same-site check.
 install_csrf_guard(app, "sdm-integration")
+ENTITY_TYPE_GUARD = EntityTypeGuard.from_env("sdm-integration")
 _cors_origins = [o.strip() for o in os.getenv('CORS_ORIGINS', 'http://localhost:3000,http://localhost:5173').split(',') if o.strip()]
 CORS(app, origins=_cors_origins, supports_credentials=True)
 
@@ -733,6 +735,26 @@ def list_entity_instances(entity_type):
         return jsonify({'error': 'Internal server error'}), 500
 
 
+def _reject_unaccepted_entity_type(entity_type):
+    """422 response when the URL entity type is outside the closed list, else None.
+
+    The guard logs and decides; with enforcement off it returns nothing.
+    """
+    rejected = ENTITY_TYPE_GUARD.check(
+        [entity_type],
+        tenant=g.tenant,
+        path=request.path,
+        module_id=request.headers.get('X-Module-Id'),
+    )
+    if not rejected:
+        return None
+    return jsonify({
+        'error': 'Entity type not accepted',
+        'types': rejected,
+        'hint': 'Accepted types are listed in config/entity-types of the platform repository',
+    }), 422
+
+
 @app.route('/sdm/entities/<entity_type>/instances', methods=['POST'])
 @require_auth
 def create_entity_instance(entity_type):
@@ -743,10 +765,10 @@ def create_entity_instance(entity_type):
         if not data:
             return jsonify({'error': 'No data provided'}), 400
         
-        # Validate entity type against allowed schemas if necessary, or just rely on Orion
-        # if entity_type not in ALLOWED_ENTITY_TYPES: # If we had such a list
-        #    return jsonify({'error': 'Entity type not found'}), 404
-            
+        rejection = _reject_unaccepted_entity_type(entity_type)
+        if rejection:
+            return rejection
+
         # Check tenant limits
         if not _check_tenant_limits(g.tenant, entity_type):
             return jsonify({
@@ -1025,6 +1047,10 @@ def create_entity_batch(entity_type):
         data = request.get_json()
         if not data or 'entities' not in data:
             return jsonify({'error': 'Body must contain an "entities" array'}), 400
+
+        rejection = _reject_unaccepted_entity_type(entity_type)
+        if rejection:
+            return rejection
 
         rows = data['entities']
         if not isinstance(rows, list) or len(rows) == 0:
