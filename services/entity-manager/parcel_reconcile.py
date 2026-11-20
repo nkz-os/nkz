@@ -289,8 +289,6 @@ DERIVED_TYPE_REGISTRY = [
     {"type": "EOProduct", "ref_keys": ["hasAgriParcel"]},
     {"type": "CropHealthAssessment", "ref_keys": ["hasAgriParcel"]},
     {"type": "CropHealthZoneAssessment", "ref_keys": ["hasAgriParcel"]},
-    {"type": "RiskAssessment", "ref_keys": ["targetEntityId"],
-     "require_target_type": "AgriParcel"},
     {"type": "DataProcessingJob", "ref_keys": ["hasAgriParcel", "refAgriParcel"]},
     {"type": "AgriParcelOperation", "ref_keys": ["hasAgriParcel", "refAgriParcel"]},
     {"type": "DigitalAsset", "ref_keys": ["hasAgriParcel", "refAgriParcel"]},

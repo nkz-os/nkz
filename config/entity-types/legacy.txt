@@ -14,7 +14,6 @@ DataProcessingJob
 DigitalAsset
 OpenChannelFlow
 PhotovoltaicInstallation
-RiskAssessment
 
 ## code
 # Types named in code with no entities. They cannot be created through the API.

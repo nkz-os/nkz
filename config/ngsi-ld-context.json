@@ -354,10 +354,6 @@
         "@id": "nkz:DiseaseRiskAssessment",
         "@type": "@id"
       },
-      "RiskAssessment": {
-        "@id": "nkz:RiskAssessment",
-        "@type": "@id"
-      },
       "DeviceCommand": {
         "@id": "nkz:DeviceCommand",
         "@type": "@id"

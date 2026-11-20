@@ -82,7 +82,7 @@ WRITTEN_TYPES = [
     "AgriParcelOperation", "AgriGreenhouse", "AgriParcelZone", "AgriCropSeason",
     "WeatherObserved", "WeatherAlert", "EOProduct", "VegetationIndex",
     "CropHealthAssessment", "CropHealthZoneAssessment", "CropAdvisory",
-    "RiskAssessment", "DiseaseRiskAssessment", "CarbonStock", "CarbonAssessment",
+    "DiseaseRiskAssessment", "CarbonStock", "CarbonAssessment",
     "CarbonCalculationRun", "BaselineScenario", "ProjectScenario", "CompostRecipe",
     "SoilSamplingPoint", "SoilSurvey", "SoilDerivedRaster", "ElevationSource",
     "DataProcessingJob", "DeviceProfile", "DeviceCommand", "AgriSensor",
