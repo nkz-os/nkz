@@ -444,22 +444,26 @@ def test_series_rows_become_folded_readings_ordered_by_first_instant():
     assert (r3.n, r3.value_sum, r3.t, r3.oor_n, r3.calibrated) == (0, None, t.replace(hour=4), 2, False)
 
 
-def test_latest_sql_lateral_per_series_key_and_readings():
+def test_latest_sql_one_window_pass_per_series_key_and_tier_class():
     cur = FakeCursor(answers())
     q = req(mode="latest", resolution="raw")
     observed_tiers(cur, T, q, prop(valid_min=-40.0, valid_max=60.0), "ambientAir", AREA)
     (_, sql, params), = cur.sql("latest")
     assert not cur.sql("values") and not cur.sql("series")
-    assert "LEFT JOIN LATERAL" in sql and "LIMIT 1" in sql
-    assert "ORDER BY m.observed_at DESC, m.value DESC" in sql
-    assert "m.value >= %(lo)s AND m.value <= %(hi)s" in sql
-    for col in ("feature_of_interest", "depth_from_cm", "depth_to_cm", "height_m", "organ",
-                "context_ref", "source_kind"):
-        assert f"m.{col} IS NOT DISTINCT FROM k.{col}" in sql, col
-    assert "m.attribute_name = k.attribute_name" in sql
-    assert "m.location::bytea IS NOT DISTINCT FROM k.loc" in sql
+    # one pass: newest in-range row per (series key, tier class); no per-row LATERAL re-scan
+    assert ("WINDOW cls AS (PARTITION BY deployment_id, device_id, attribute_name, source_kind, "
+            "feature_of_interest, depth_from_cm, depth_to_cm, height_m, organ, context_ref, "
+            "r_in_area, r_near)") in sql
+    assert "row_number() OVER (cls ORDER BY ok DESC, observed_at DESC, value DESC) AS rn" in sql
+    assert "WHERE r.rn = 1" in sql and "LIMIT" not in sql
+    assert "FROM (SELECT DISTINCT loc FROM w) d" in sql  # spatial facts once per location
+    assert "COALESCE(%(radius)s > 0 AND l.r_dist_m <= %(radius)s, false) AS r_near" in sql
+    assert "(m.value >= %(lo)s AND m.value <= %(hi)s) AS ok" in sql
     assert (params["w0"], params["w1"]) == (q.start, q.end)
-    assert (params["lo"], params["hi"]) == (-40.0, 60.0)
+    assert (params["lo"], params["hi"], params["radius"]) == (-40.0, 60.0, 1000.0)
+    tags = [c[0] for c in cur.calls]
+    i = tags.index("latest")
+    assert tags[i - 1:i + 2] == ["jit_off", "latest", "jit_default"]  # JIT off for it only
 
     t = datetime(2026, 11, 1, 3, tzinfo=UTC)
     base = {k: v for k, v in value_row().items() if k not in ("observed_at", "value")}

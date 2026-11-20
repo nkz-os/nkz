@@ -311,52 +311,60 @@ SELECT ser.deployment_id, ser.source_kind, ser.feature_of_interest, {ser_sub},
 FROM ser
 """
 
-# Latest (8.9): the series keys of the window with their out-of-range counts, then one LATERAL
-# newest-row lookup per key (index device_id, observed_at DESC). A key is a full row context
-# (attribute, feature, sub-context, kind, location), so no channel, sub-context or tier is lost.
+# Latest (8.9): one pass over the max_age window. Each stored row is classed by its series key
+# (deployment, device, attribute, kind, feature, sub-context) and by its location-derived tier
+# inputs (inside the area; within the nearby radius), computed once per distinct stored
+# location. Per class, the newest in-range row (ties: the higher value, as the engine's duplicate
+# rule) and the out-of-range counts. The tier itself is still decided in Python (`_row_tier`)
+# from the class columns, which fix it: a mobile device keeps its newest row in every tier, and
+# no channel or sub-context is lost. Calibration is looked up for the chosen rows only.
 _KEY_COLS = ("deployment_id", "device_id", "attribute_name", "source_kind",
              "feature_of_interest", "depth_from_cm", "depth_to_cm", "height_m", "organ",
              "context_ref")
 
 _LATEST_SQL = """-- obs:latest
 WITH area AS (SELECT ST_GeomFromGeoJSON(%(area)s::text)::geography AS g),
-keys AS (
-    SELECT {key_m}, m.location::bytea AS loc,
-           count(*) FILTER (WHERE NOT (m.value >= %(lo)s AND m.value <= %(hi)s)) AS oor_n,
-           min(m.observed_at) FILTER (WHERE NOT (m.value >= %(lo)s AND m.value <= %(hi)s)) AS oor_first,
-           max(m.observed_at) FILTER (WHERE NOT (m.value >= %(lo)s AND m.value <= %(hi)s)) AS oor_last
+w AS (
+    SELECT m.tenant_id, m.observed_at, m.source_event_id, m.value, {key_m},
+           COALESCE(m.location::bytea, '\\x'::bytea) AS loc,
+           (m.value >= %(lo)s AND m.value <= %(hi)s) AS ok
     FROM telemetry_measurements m
     WHERE {filter}
-    GROUP BY {key_m}, m.location::bytea
+), locs AS (
+    SELECT d.loc,
+           COALESCE(ST_Covers((SELECT g FROM area), NULLIF(d.loc, '\\x'::bytea)::geography),
+                    false) AS r_in_area,
+           ST_Distance((SELECT g FROM area), NULLIF(d.loc, '\\x'::bytea)::geography) AS r_dist_m
+    FROM (SELECT DISTINCT loc FROM w) d
+), c AS (
+    SELECT w.*, l.r_in_area, l.r_dist_m,
+           COALESCE(%(radius)s > 0 AND l.r_dist_m <= %(radius)s, false) AS r_near
+    FROM w JOIN locs l ON l.loc = w.loc
+), r AS (
+    SELECT c.*,
+           row_number() OVER (cls ORDER BY ok DESC, observed_at DESC, value DESC) AS rn,
+           count(*) FILTER (WHERE NOT ok) OVER cls AS oor_n,
+           min(observed_at) FILTER (WHERE NOT ok) OVER cls AS oor_first,
+           max(observed_at) FILTER (WHERE NOT ok) OVER cls AS oor_last
+    FROM c
+    WINDOW cls AS (PARTITION BY {key_c}, r_in_area, r_near)
 )
-SELECT k.deployment_id::text AS deployment_id, {key_k_rest}, k.oor_n, k.oor_first, k.oor_last,
-       l.observed_at, l.value, l.calibrated,
-       COALESCE(ST_Covers((SELECT g FROM area), k.loc::geography), false) AS r_in_area,
-       ST_Distance((SELECT g FROM area), k.loc::geography) AS r_dist_m
-FROM keys k
+SELECT r.deployment_id::text AS deployment_id, {key_r_rest}, r.oor_n, r.oor_first, r.oor_last,
+       CASE WHEN r.ok THEN r.observed_at END AS observed_at,
+       CASE WHEN r.ok THEN r.value END AS value,
+       COALESCE(ev.calibrated, false) AS calibrated,
+       r.r_in_area, r.r_dist_m
+FROM r
 LEFT JOIN LATERAL (
-    SELECT m.observed_at, m.value,
-           COALESCE((e.payload->'calibration_period_ids') ? m.attribute_name, false) AS calibrated
-    FROM telemetry_measurements m
-    LEFT JOIN telemetry_events e
-           ON e.tenant_id = m.tenant_id AND e.observed_at = m.observed_at
-          AND e.id = m.source_event_id
-          AND e.tenant_id = %(tenant)s AND e.device_id = k.device_id
-          AND e.observed_at >= %(w0)s AND e.observed_at < %(w1)s
-    WHERE m.tenant_id = %(tenant)s
-      AND m.device_id = k.device_id
-      AND m.attribute_name = k.attribute_name
-      AND m.deployment_id = k.deployment_id
-      AND {key_match}
-      AND m.location::bytea IS NOT DISTINCT FROM k.loc
-      AND m.observed_property = %(prop)s
-      AND m.medium = %(medium)s
-      AND m.quality_flag = 'valid'
-      AND m.observed_at >= %(w0)s AND m.observed_at < %(w1)s
-      AND m.value >= %(lo)s AND m.value <= %(hi)s
-    ORDER BY m.observed_at DESC, m.value DESC
-    LIMIT 1
-) l ON true
+    SELECT (e.payload->'calibration_period_ids') ? r.attribute_name AS calibrated
+    FROM telemetry_events e
+    WHERE r.ok
+      AND e.tenant_id = r.tenant_id AND e.observed_at = r.observed_at
+      AND e.id = r.source_event_id
+      AND e.tenant_id = %(tenant)s AND e.device_id = ANY(%(devices)s)
+      AND e.observed_at >= %(w0)s AND e.observed_at < %(w1)s
+) ev ON true
+WHERE r.rn = 1
 """
 
 
@@ -367,14 +375,19 @@ def _series_sql(resolution: str) -> str:
         ser_sub=", ".join(f"ser.{c}" for c in _SUB_COLS.split(", ")))
 
 
+# JIT is switched off for the latest statement only: it is a short pass over the max_age window,
+# but the PostGIS functions' cost estimates push its plan over the JIT thresholds, and compiling
+# took 1.2 s of a 1.4 s run (mobile device, 5400 rows); without JIT the run takes ~0.2 s.
+_JIT_OFF_SQL = "-- obs:jit_off\nSET LOCAL jit = off"
+_JIT_DEFAULT_SQL = "-- obs:jit_default\nSET LOCAL jit TO DEFAULT"
+
+
 def _latest_sql() -> str:
-    exact = ("deployment_id", "device_id", "attribute_name")
     return _LATEST_SQL.format(
         key_m=", ".join(f"m.{c}" for c in _KEY_COLS),
-        key_k_rest=", ".join(f"k.{c}" for c in _KEY_COLS if c != "deployment_id"),
-        filter=_AGG_FILTER,
-        key_match="\n      AND ".join(f"m.{c} IS NOT DISTINCT FROM k.{c}"
-                                      for c in _KEY_COLS if c not in exact))
+        key_c=", ".join(_KEY_COLS),
+        key_r_rest=", ".join(f"r.{c}" for c in _KEY_COLS if c != "deployment_id"),
+        filter=_AGG_FILTER)
 
 
 SQL_SEMANTICS = frozenset({"instant", "rate"})
@@ -586,9 +599,16 @@ def observed_tiers(cur, tenant_id: str, req: BestRequest, prop: dict, medium: st
                   "lo": _bound(prop.get("valid_min"), float("-inf")),
                   "hi": _bound(prop.get("valid_max"), float("inf")),
                   "starts": [b[0] for b in bks] if req.resolution == "P1D" else [],
-                  "entity_like": entity_like_patterns(device_ids, attrs)}
-        cur.execute(_series_sql(req.resolution) if plan == "series" else _latest_sql(), params)
-        rows = [dict(r) for r in cur.fetchall()]
+                  "entity_like": entity_like_patterns(device_ids, attrs),
+                  "radius": _num(prop.get("nearby_radius_m")) or 0.0}
+        if plan == "series":
+            cur.execute(_series_sql(req.resolution), params)
+            rows = [dict(r) for r in cur.fetchall()]
+        else:
+            cur.execute(_JIT_OFF_SQL)
+            cur.execute(_latest_sql(), params)
+            rows = [dict(r) for r in cur.fetchall()]
+            cur.execute(_JIT_DEFAULT_SQL)
 
     if area_geom is not None:  # row features the deployment preselection did not probe
         extra = sorted({r["feature_of_interest"] for r in rows

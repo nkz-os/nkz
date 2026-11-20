@@ -390,3 +390,72 @@ def test_latest_sql_multi_subcontext_and_two_channel_datalogger(oracle_dsn):
     # the newest t2 row is out of range: its previous valid row is used, the oor one is reported
     assert [(p["value"], p["t"]) for p in g["points"]] == [(20.0, "2026-10-27T13:00:00Z")]
     assert out["warnings"] == [f"reading_out_of_range src={urn} (2026-10-27T13:18:00Z)"]
+
+
+def test_latest_mobile_device_5s_is_fast_and_equals_raw_path(oracle_dsn):
+    """Regression (Task 16b review): a mobile deployment stores a distinct point per reading.
+    Latest must not re-scan per location (it was O(n^2): 4.2 s at 5 s cadence). 3 h at 5 s =
+    2160 rows wandering inside the parcel, 400 m away and 5 km away; equal to the raw path and
+    <= 150 ms (contract 5 latest budget; median of 5 warm runs)."""
+    import statistics
+    import time
+
+    import psycopg2
+
+    tenant = f"mob_{uuid.uuid4().hex[:8]}"
+    p = f"urn:ngsi-ld:AgriParcel:{tenant}:p1"
+    urn = f"urn:ngsi-ld:Device:{tenant}:mob"
+    su = psycopg2.connect(oracle_dsn)
+    su.autocommit = True
+    try:
+        with su.cursor() as cur:
+            cur.execute("INSERT INTO observation_geometry_cache VALUES "
+                        "(%s, %s, 'AgriParcel', ST_GeomFromGeoJSON(%s)::geography, now())",
+                        (tenant, p, json.dumps(PARCEL)))
+            cur.execute(
+                "INSERT INTO sensor_profiles (tenant_id, code, name, sdm_entity_type, mapping) "
+                "VALUES (%s, %s, 'p', 'Device', %s::jsonb)",
+                (tenant, f"prof_{tenant}", json.dumps({"measurements": [
+                    {"sdmAttribute": "airTemperature", "observedProperty": "airTemperature"}]})))
+            cur.execute(
+                "INSERT INTO device_deployments (tenant_id, device_urn, valid, observation_context,"
+                " mobility, created_by) VALUES (%s, %s, tstzrange(%s, NULL), %s::jsonb, 'mobile',"
+                " 'test') RETURNING id::text",
+                (tenant, urn, datetime(2026, 1, 1, tzinfo=UTC),
+                 json.dumps({"medium": "ambientAir", "heightAboveGround": 2})))
+            dep = cur.fetchone()[0]
+            # n = 1 is the newest; the device wanders: inside P (n % 3 == 0), ~400 m east
+            # (n % 3 == 1, tier 3), ~5 km east (n % 3 == 2, no tier); every 7th reading is out of
+            # range. The newest valid tier-2 row is older than the newest tier-3 row.
+            cur.execute(
+                "INSERT INTO telemetry_measurements (tenant_id, observed_at, source_event_id,"
+                " entity_id, entity_type, device_id, attribute_name, value, observed_property,"
+                " medium, height_m, deployment_id, source_kind, location, quality_flag)"
+                " SELECT %s, %s::timestamptz - g.n * interval '5 seconds', g.n, %s,"
+                " 'DeviceMeasurement', 'mob', 'airTemperature',"
+                " CASE WHEN g.n %% 7 = 0 THEN 99.5 ELSE 15 + (g.n %% 50) / 10.0 END,"
+                " 'airTemperature', 'ambientAir', 2, %s::uuid, 'device',"
+                " ST_SetSRID(ST_MakePoint(CASE g.n %% 3 WHEN 0 THEN -1.5995 + g.n * 1e-8"
+                "   WHEN 1 THEN -1.5931 + g.n * 1e-8 ELSE -1.5390 END, 42.8008), 4326)::geography,"
+                " 'valid' FROM generate_series(1, 2160) g(n)",
+                (tenant, NOW, f"urn:ngsi-ld:DeviceMeasurement:{tenant}:mob:airTemperature", dep))
+            cur.execute("ANALYZE telemetry_measurements")
+    finally:
+        su.close()
+    bench_ = {"dsn": oracle_dsn, "tenant": tenant}
+    body = {"feature": p, "property": "airTemperature", "mode": "latest",
+            "from": "2026-10-01T00:00:00Z", "to": "2026-10-02T00:00:00Z"}
+    new, tags = _best(bench_, body, sql=True)
+    old, _ = _best(bench_, body, sql=False)
+    assert "-- obs:latest" in tags
+    (g,) = old["groups"]
+    (pt,) = g["points"]
+    assert pt["tier"] == 2 and pt["sources"][0]["n"] == 1  # the older tier-2 row wins
+    assert any("reading_out_of_range" in w for w in old["warnings"])
+    _assert_same(new, old)
+    ms = []
+    for _ in range(6):
+        t0 = time.perf_counter()
+        _best(bench_, body, sql=True)
+        ms.append((time.perf_counter() - t0) * 1000)
+    assert statistics.median(ms[1:]) <= 150, f"latest mobile 5 s: {[round(x) for x in ms]} ms"
