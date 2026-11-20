@@ -63,6 +63,9 @@ def parse_legacy(text: str) -> tuple[list[str], list[str]]:
         line = raw.strip()
         if line in blocks:
             current = blocks[line]
+        elif line.startswith("##"):
+            # An unknown header read as a comment would merge its names into the previous block.
+            raise ValueError(f"line {number}: unknown block header '{line}'")
         elif not line or line.startswith("#"):
             continue
         elif current is None:
