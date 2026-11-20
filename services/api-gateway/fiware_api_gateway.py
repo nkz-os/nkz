@@ -8,7 +8,7 @@ import json
 import logging
 import sys
 import time
-from flask import Flask, g, request, jsonify, make_response
+from flask import Flask, Response, g, request, jsonify, make_response
 from werkzeug.middleware.proxy_fix import ProxyFix
 from flask_cors import cross_origin
 import jwt
@@ -1771,6 +1771,110 @@ def timeseries_proxy(path):
     except requests.exceptions.RequestException as e:
         logger.error(f"Error forwarding request to timeseries-reader: {e}")
         return jsonify({"error": "Internal server error"}), 500
+
+
+# Response headers of the observations API that reach the client: the body type
+# (JSON or CSV) and the CSV download name. Hop-by-hop and internal headers stay out.
+_OBSERVATIONS_RESPONSE_HEADERS = ("Content-Type", "Content-Disposition")
+_OBSERVATIONS_CHUNK_BYTES = 64 * 1024
+
+
+def _observations_streamed_response(upstream):
+    """Stream a 2xx reply, pass a 4xx body through, scrub a 5xx body (as safe_proxy_response).
+
+    The upstream connection is always closed: after the last chunk, on a client abort
+    (the generator is closed), or right away for a non-2xx reply.
+    """
+    status = upstream.status_code
+    if status >= 500:
+        try:
+            logger.error("Upstream %s returned %s", request.path, status)
+        finally:
+            upstream.close()
+        return jsonify({"error": "Upstream service error"}), status
+    headers = {
+        name: upstream.headers[name]
+        for name in _OBSERVATIONS_RESPONSE_HEADERS
+        if name in upstream.headers
+    }
+    if not 200 <= status < 300:
+        try:
+            body = upstream.content
+        finally:
+            upstream.close()
+        return make_response(body, status, headers)
+
+    path = request.path
+
+    def generate():
+        try:
+            for chunk in upstream.iter_content(chunk_size=_OBSERVATIONS_CHUNK_BYTES):
+                if chunk:
+                    yield chunk
+        except Exception as e:
+            # The status is already sent: aborting the transfer is the only honest signal.
+            logger.error("Observations stream from upstream broke: path=%s error=%s", path, e)
+            raise
+        finally:
+            upstream.close()
+
+    return Response(generate(), status=status, headers=headers, direct_passthrough=True)
+
+
+def _proxy_observations(suffix):
+    """Forward /api/observations{suffix} to timeseries-reader (contract 8.14).
+
+    Auth, tenant headers and timeouts are those of timeseries_proxy: header_mode="raw"
+    builds every tenant header from the server-resolved tenant, so client-supplied
+    tenant, delegation or signature headers are never forwarded. Two differences, both
+    needed by the raw endpoint: the client's Accept is forwarded (the reader returns CSV
+    for text/csv) and the reply is streamed (long CSV exports).
+    """
+    tenant, headers, err = resolve_request_auth(
+        header_mode="raw",
+        pat_rate_limit=True,
+        jwt_rate_limit=False,
+    )
+    if err:
+        return err
+    accept = request.headers.get("Accept")
+    if accept:
+        headers["Accept"] = accept
+
+    service_url = f"http://timeseries-reader-service:5000/api/observations{suffix}"
+    try:
+        if request.method == "GET":
+            upstream = requests.get(
+                service_url, headers=headers, params=request.args, timeout=60, stream=True
+            )
+        else:
+            upstream = requests.post(
+                service_url,
+                headers=headers,
+                params=request.args,
+                json=request.get_json(silent=True) or {},
+                timeout=120,
+                stream=True,
+            )
+    except requests.exceptions.RequestException as e:
+        logger.error(
+            "Error forwarding request to timeseries-reader: tenant=%s path=%s error=%s",
+            tenant, request.path, e,
+        )
+        return jsonify({"error": "Internal server error"}), 500
+    return _observations_streamed_response(upstream)
+
+
+@app.route("/api/observations", methods=["GET", "POST"])
+def observations_root_proxy():
+    """Proxy POST /api/observations (raw rows, JSON pages or CSV) to timeseries-reader."""
+    return _proxy_observations("")
+
+
+@app.route("/api/observations/<path:path>", methods=["GET", "POST"])
+def observations_proxy(path):
+    """Proxy /api/observations/<path> (best, properties) to timeseries-reader."""
+    return _proxy_observations(f"/{path}")
 
 
 @app.route("/api/gis/<path:path>", methods=["GET", "POST", "PUT", "PATCH", "DELETE"])
