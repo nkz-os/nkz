@@ -18,6 +18,15 @@ Two details decide whether the probe is honest:
   as, in the shape entity-manager's build_measurements writes. The legacy
   AgriDevice subscription is retired, so probing that type would always fail.
   The synthetic device has no deployment, so no observation context is written.
+* It is the SDM shape: `name` is the channel (`pathCheckChannel`), distinct from
+  `controlledProperty` (`batteryLevel`, the catalogue property), with
+  `measurementType` `instant` and a `unitCode` on `numValue`. The probe asserts that
+  the stored `telemetry_measurements.attribute_name` is the channel, so a worker that
+  fell back to `controlledProperty` (the Min/Max collapse) fails it.
+  `observed_property` is NOT asserted: it is only set when the observation context
+  resolves, which needs a deployment, and this device has none, so it is NULL by design.
+* `refDevice` still points at a device that does not exist in the platform. That
+  dangling reference is a separate to-do, deliberately left as it was.
 
 Exit code is the result: 0 the path works, 1 it does not.
 """
@@ -33,11 +42,18 @@ from datetime import datetime, timezone
 import psycopg2
 import requests
 
+from common.unit_codes import to_unit_code
+
 logger = logging.getLogger("telemetry-path-check")
 
 SYNTHETIC_DEVICE = "synthetic-path-check"
 ENTITY_TYPE = "DeviceMeasurement"
+# Catalogue property (SDM `controlledProperty`) and the channel (SDM `name`) differ on
+# purpose: equal values would pass even if the worker collapsed one into the other.
 MEASUREMENT = "batteryLevel"
+CHANNEL = "pathCheckChannel"
+# batteryLevel is a percentage; the code comes from the single source of truth.
+UNIT_CODE = to_unit_code("%")
 
 # How long the whole hop is given. The subscription fires within a second in a
 # healthy cluster; the rest is headroom for a busy worker, not for a broken one.
@@ -50,8 +66,8 @@ def device_urn_for(tenant_id: str) -> str:
 
 
 def entity_id_for(tenant_id: str) -> str:
-    # The DeviceMeasurement id rule: urn:ngsi-ld:DeviceMeasurement:{tenant}:{externalId}:{attr}
-    return f"urn:ngsi-ld:{ENTITY_TYPE}:{tenant_id}:{SYNTHETIC_DEVICE}:{MEASUREMENT}"
+    # The DeviceMeasurement id rule: urn:ngsi-ld:DeviceMeasurement:{tenant}:{externalId}:{channel}
+    return f"urn:ngsi-ld:{ENTITY_TYPE}:{tenant_id}:{SYNTHETIC_DEVICE}:{CHANNEL}"
 
 
 def build_entity(tenant_id: str, now: datetime) -> dict:
@@ -66,7 +82,9 @@ def build_entity(tenant_id: str, now: datetime) -> dict:
         "type": ENTITY_TYPE,
         "refDevice": {"type": "Relationship", "object": device_urn_for(tenant_id)},
         "controlledProperty": {"type": "Property", "value": MEASUREMENT},
-        "numValue": {"type": "Property", "value": battery},
+        "name": {"type": "Property", "value": CHANNEL},
+        "measurementType": {"type": "Property", "value": "instant"},
+        "numValue": {"type": "Property", "value": battery, "unitCode": UNIT_CODE},
         "dateObserved": {
             "type": "Property",
             "value": now.isoformat().replace("+00:00", "Z"),
@@ -122,6 +140,36 @@ def wait_for_row(dsn: str, entity_id: str, since: datetime, timeout_s: int) -> b
         time.sleep(POLL_INTERVAL_S)
 
 
+def wait_for_channel(
+    dsn: str, entity_id: str, since: datetime, channel: str, timeout_s: int
+) -> bool:
+    """Check that the long-format row is stored under the channel (`name`).
+
+    `observed_property` is not read: it stays NULL for this device (no deployment).
+    A row under any other `attribute_name` is a definitive failure, not a wait.
+    """
+    deadline = time.monotonic() + timeout_s
+    query = (
+        "SELECT attribute_name FROM telemetry_measurements "
+        "WHERE entity_id = %s AND observed_at >= %s LIMIT 1"
+    )
+    while True:
+        with psycopg2.connect(dsn) as conn, conn.cursor() as cur:
+            cur.execute(query, (entity_id, since))
+            row = cur.fetchone()
+            if row:
+                if row[0] == channel:
+                    return True
+                logger.error(
+                    "Stored attribute_name is %r, expected the channel %r",
+                    row[0], channel,
+                )
+                return False
+        if time.monotonic() >= deadline:
+            return False
+        time.sleep(POLL_INTERVAL_S)
+
+
 def _headers(tenant_id: str) -> dict:
     from common.ngsi_headers import inject_fiware_headers
 
@@ -153,8 +201,19 @@ def main() -> int:
     logger.info("Wrote %s, waiting up to %ss for the row", eid, timeout_s)
 
     if wait_for_row(dsn, eid, now, timeout_s):
-        logger.info("RESULT: OK — the reading reached telemetry_events")
-        return 0
+        # The row is in; the channel check is bounded by the same timeout.
+        if wait_for_channel(dsn, eid, now, CHANNEL, timeout_s):
+            logger.info(
+                "RESULT: OK — the reading reached telemetry_events and "
+                "telemetry_measurements.attribute_name is %s", CHANNEL,
+            )
+            return 0
+        logger.error(
+            "RESULT: FAILED — %s reached telemetry_events but "
+            "telemetry_measurements has no row with attribute_name=%s. The worker "
+            "is not reading the SDM `name` as the channel.", eid, CHANNEL,
+        )
+        return 1
 
     logger.error(
         "RESULT: FAILED — %s never reached telemetry_events in %ss. The broker "
