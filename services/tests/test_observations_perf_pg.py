@@ -8,6 +8,10 @@ Chunks older than 7 days are compressed as the seed advances (both hypertables),
 Budgets: series 30 d PT1H p95 <= 500 ms, latest p95 <= 150 ms; 3 warm-ups then 50 timed runs,
 end to end through `best()` as nkz_rls_test (tenant_cursor, production 10 s statement timeout).
 
+Mobile latest (same gating test, same scratch DB, own tenant): one mobile device at 5 s over a 3 h
+window wandering in/around its parcel, latest p95 <= 150 ms (same 3 warm-ups + 50 runs). Its verdict
+is asserted together with the budgets above, so one failure never hides another.
+
 Dense scenario (informational, env NKZ_PERF_DENSE=1, its own test function and scratch DB): 10
 devices at 5 s on a parcel. Only asserts that the series completes under the 10 s statement
 timeout; prints p50/p95.
@@ -52,6 +56,8 @@ DENSE_N, DENSE_STEP_S = 10, 5
 CAL_EVERY = 4
 WARMUP, RUNS, DENSE_RUNS = 3, 50, 20
 BUDGET_SERIES_MS, BUDGET_LATEST_MS = 500.0, 150.0
+BUDGET_MOBILE_LATEST_MS = 150.0
+MOBILE_STEP_S, MOBILE_HOURS = 5, 3
 PROD_TIMEOUT_SQL = "SET LOCAL statement_timeout = '10s'"
 MIN_FREE_START, MIN_FREE_SEED = 8 << 30, 4 << 30
 MAX_RSS_GB = 4
@@ -191,6 +197,54 @@ def _setup_tenant(cur, tenant, n_direct, n_other, step_direct, start):
         if direct:
             direct_urns.append(urn)
     return p, direct_urns
+
+
+def _seed_mobile(su, end):
+    """One mobile device at 5 s over 3 h (2160 rows) on its own tenant and parcel P (same scratch
+    DB). Wanders inside P (n%3==0), ~400 m east (tier 3), ~5 km east (no tier); every 7th reading
+    out of range. Rows are inserted directly (the shape the 115 trigger writes). Returns
+    (tenant, parcel urn, device urn, latest request)."""
+    from observations.request import parse_best
+
+    tenant = f"mob_{uuid.uuid4().hex[:8]}"
+    p = f"urn:ngsi-ld:AgriParcel:{tenant}:p1"
+    urn = f"urn:ngsi-ld:Device:{tenant}:mob"
+    n_rows = MOBILE_HOURS * 3600 // MOBILE_STEP_S
+    with su.cursor() as cur:
+        cur.execute("INSERT INTO observation_geometry_cache VALUES "
+                    "(%s, %s, 'AgriParcel', ST_GeomFromGeoJSON(%s)::geography, now())",
+                    (tenant, p, json.dumps(PARCEL)))
+        cur.execute(
+            "INSERT INTO sensor_profiles (tenant_id, code, name, sdm_entity_type, mapping) "
+            "VALUES (%s, %s, 'p', 'Device', %s::jsonb)",
+            (tenant, f"prof_{tenant}", json.dumps({"measurements": [
+                {"sdmAttribute": "airTemperature", "observedProperty": "airTemperature"}]})))
+        cur.execute(
+            "INSERT INTO device_deployments (tenant_id, device_urn, valid, observation_context,"
+            " mobility, created_by) VALUES (%s, %s, tstzrange(%s, NULL), %s::jsonb, 'mobile',"
+            " 'perf') RETURNING id::text",
+            (tenant, urn, end - timedelta(days=1),
+             json.dumps({"medium": "ambientAir", "heightAboveGround": 2})))
+        dep = cur.fetchone()[0]
+        cur.execute(
+            "INSERT INTO telemetry_measurements (tenant_id, observed_at, source_event_id,"
+            " entity_id, entity_type, device_id, attribute_name, value, observed_property,"
+            " medium, height_m, deployment_id, source_kind, location, quality_flag)"
+            " SELECT %s, %s::timestamptz - g.n * make_interval(secs => %s), g.n, %s,"
+            " 'DeviceMeasurement', 'mob', 'airTemperature',"
+            " CASE WHEN g.n %% 7 = 0 THEN 99.5 ELSE 15 + (g.n %% 50) / 10.0 END,"
+            " 'airTemperature', 'ambientAir', 2, %s::uuid, 'device',"
+            " ST_SetSRID(ST_MakePoint(CASE g.n %% 3 WHEN 0 THEN -1.5995 + g.n * 1e-8"
+            "   WHEN 1 THEN -1.5931 + g.n * 1e-8 ELSE -1.5390 END, 42.8008), 4326)::geography,"
+            " 'valid' FROM generate_series(1, %s) g(n)",
+            (tenant, end, MOBILE_STEP_S, f"urn:ngsi-ld:DeviceMeasurement:{tenant}:mob:airTemperature",
+             dep, n_rows))
+        cur.execute("ANALYZE telemetry_measurements")
+    iso = "%Y-%m-%dT%H:%M:%SZ"
+    req = parse_best({"feature": p, "property": "airTemperature", "mode": "latest",
+                      "from": (end - timedelta(hours=MOBILE_HOURS)).strftime(iso),
+                      "to": end.strftime(iso)})
+    return tenant, urn, req
 
 
 def _compress_older(cur, upto):
@@ -411,8 +465,10 @@ def test_best_read_performance(pg_schema_factory):
             f"measurements={size_m} events={size_e} free={_free() / 2**30:.1f} GiB")
 
         series_req, latest_req = _requests(p, end)
+        mob_tenant, mob_urn, mob_req = _seed_mobile(su, end)
         conn = _connect_rls(dsn)
         results, slow = {}, {}
+        failures = []
         try:
             for label, req, budget in (("series_30d_PT1H", series_req, BUDGET_SERIES_MS),
                                        ("latest", latest_req, BUDGET_LATEST_MS)):
@@ -424,16 +480,31 @@ def test_best_read_performance(pg_schema_factory):
                 assert ids == set(direct_urns), f"{label}: tier-1 sources {sorted(ids)}"
                 assert {pt["tier"] for pt in pts} == {1}
                 slow[label] = _slowest_statements(conn, tenant, req, log, label)
+            # mobile latest: own tenant; measured after the tier-1 labels, asserted with them
+            label = "latest_mobile_5s_3h"
+            ms, out = _measure(conn, mob_tenant, mob_req, RUNS, BUDGET_MOBILE_LATEST_MS, log, label)
+            results[label] = ms
+            pts = [pt for g in out["groups"] for pt in g["points"] if pt["value"] is not None]
+            if not pts or {s["id"] for pt in pts for s in pt["sources"]} != {mob_urn}:
+                failures.append(f"{label}: no value from the mobile device (seed/query mismatch)")
+            slow[label] = _slowest_statements(conn, mob_tenant, mob_req, log, label)
             rss_gb = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 2**20
             log(f"client peak RSS {rss_gb:.2f} GiB")
-            budgets = (("series_30d_PT1H", BUDGET_SERIES_MS), ("latest", BUDGET_LATEST_MS))
-            for label, budget in budgets:
-                if _pct(results[label], 0.95) > budget:
-                    _explain(conn, tenant, slow[label][0], log, label)
-            for label, budget in budgets:
-                p95 = _pct(results[label], 0.95)
-                assert p95 <= budget, f"{label}: p95 {p95:.1f} ms > budget {budget:.0f} ms"
-            assert rss_gb < MAX_RSS_GB, f"client peak RSS {rss_gb:.2f} GiB"
+            budgets = (("series_30d_PT1H", BUDGET_SERIES_MS), ("latest", BUDGET_LATEST_MS),
+                       (label, BUDGET_MOBILE_LATEST_MS))
+            tenants = {"series_30d_PT1H": tenant, "latest": tenant, label: mob_tenant}
+            for lbl, budget in budgets:
+                if _pct(results[lbl], 0.95) > budget:
+                    _explain(conn, tenants[lbl], slow[lbl][0], log, lbl)
+            summary = []
+            for lbl, budget in budgets:
+                p95 = _pct(results[lbl], 0.95)
+                summary.append(f"{lbl}: p95 {p95:.1f} ms (budget {budget:.0f} ms)")
+                if p95 > budget:
+                    failures.append(f"{lbl}: p95 {p95:.1f} ms > budget {budget:.0f} ms")
+            if rss_gb >= MAX_RSS_GB:
+                failures.append(f"client peak RSS {rss_gb:.2f} GiB")
+            assert not failures, "; ".join(failures) + " | all: " + "; ".join(summary)
         finally:
             conn.close()
             su.close()
