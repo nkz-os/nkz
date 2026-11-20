@@ -264,3 +264,53 @@ def test_miss_revalidate_bounds():
         ObservationLookup(FakePool(), miss_revalidate_s=0)
     with pytest.raises(ValueError):
         ObservationLookup(FakePool(), ttl_s=10, miss_revalidate_s=11)
+
+
+_STAT_PROFILE = {
+    "mapping": {"measurements": [
+        {"sdmAttribute": "airTemperature", "unit": "°C", "observedProperty": "airTemperature",
+         "type": "temperature", "statistics": ["mean", "min", "max"], "counterMax": 9},
+        {"sdmAttribute": "relativeHumidity", "unit": "%", "observedProperty": "relativeHumidity"},
+        {"unit": "x"},  # no sdmAttribute: ignored, never a KeyError
+        "garbage",
+    ]}
+}
+
+
+@_sync
+async def test_channel_def_matches_the_expanded_published_channel():
+    lk = ObservationLookup(FakePool([_STAT_PROFILE]))
+    base = await lk.channel_def(TENANT, "prof", "airTemperature")
+    assert base["statistic"] == "mean" and base["observedProperty"] == "airTemperature"
+    mn = await lk.channel_def(TENANT, "prof", "airTemperatureMin")
+    assert mn["statistic"] == "min" and mn["unit"] == "°C"
+    mx = await lk.channel_def(TENANT, "prof", "airTemperatureMax")
+    assert mx["statistic"] == "max"
+    plain = await lk.channel_def(TENANT, "prof", "relativeHumidity")
+    assert "statistic" not in plain and plain["unit"] == "%"
+    assert await lk.channel_def(TENANT, "prof", "airTemperatureStdDev") is None
+    assert await lk.channel_def(TENANT, "prof", "nonexistent") is None
+
+
+@_sync
+async def test_channel_def_alias_and_missing_profile():
+    row = {"mapping": {"measurements": [{"sdmAttribute": "temperature", "unit": "°C"}]}}
+    lk = ObservationLookup(FakePool([row]))
+    assert (await lk.channel_def(TENANT, "prof", "temperature"))["unit"] == "°C"
+    assert await ObservationLookup(FakePool([])).channel_def(TENANT, "prof", "x") is None
+
+
+@_sync
+async def test_channel_def_requires_tenant():
+    lk = ObservationLookup(FakePool([_STAT_PROFILE]))
+    with pytest.raises(TenantContextMissing):
+        await lk.channel_def("", "prof", "airTemperature")
+
+
+@_sync
+async def test_measurement_def_is_unchanged_by_channel_def():
+    """measurement_def (recompute) keeps matching the unexpanded profile entries."""
+    lk = ObservationLookup(FakePool([_STAT_PROFILE]))
+    assert await lk.measurement_def(TENANT, "prof", "airTemperatureMin") is None
+    assert (await lk.measurement_def(TENANT, "prof", "airTemperature"))["statistics"] == [
+        "mean", "min", "max"]

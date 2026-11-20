@@ -36,9 +36,14 @@ def _dep(mobility="fixed", location=(-3.7, 40.4)):
 
 
 class FakeLookup:
-    def __init__(self, dep=None, prop=AIR_TEMP, counter_max=None, raises=None, unit="°C"):
+    """`channel_def` stands in for the profile entry of the published channel: the legacy
+    shape takes the catalogue name from its `observedProperty` (no DM attribute carries it)."""
+
+    def __init__(self, dep=None, prop=AIR_TEMP, counter_max=None, raises=None, unit="°C",
+                 observed_property="airTemperature", statistic=None, has_def=True):
         self.dep, self.prop, self.counter_max, self.raises = dep, prop, counter_max, raises
         self.unit = unit
+        self.observed_property, self.statistic, self.has_def = observed_property, statistic, has_def
         self.calls = []
 
     async def deployment_at(self, tenant_id, device_urn, at):
@@ -47,9 +52,17 @@ class FakeLookup:
             raise self.raises
         return self.dep
 
-    async def measurement_def(self, tenant_id, profile_code, attr):
+    async def channel_def(self, tenant_id, profile_code, attr):
         self.calls.append(("def", tenant_id, profile_code, attr))
-        d = {"unit": self.unit} if self.unit is not None else {}
+        if not self.has_def:
+            return None
+        d = {"sdmAttribute": attr}
+        if self.unit is not None:
+            d["unit"] = self.unit
+        if self.observed_property is not None:
+            d["observedProperty"] = self.observed_property
+        if self.statistic is not None:
+            d["statistic"] = self.statistic
         if self.counter_max is not None:
             d["counterMax"] = self.counter_max
         return d
@@ -67,7 +80,6 @@ def _entity(value=21.5, **extra):
         "controlledProperty": {"type": "Property", "value": "temperature"},
         "numValue": {"type": "Property", "value": value},
         "dateObserved": {"type": "Property", "value": "2026-08-29T10:00:00Z"},
-        "observedProperty": {"type": "Property", "value": "airTemperature"},
         "deviceType": {"type": "Property", "value": "prof-x"},
         "timeSource": {"type": "Property", "value": "device"},
     }
@@ -121,9 +133,14 @@ def test_no_deployment_keeps_legacy_payload(caplog):
 
 
 def test_profile_without_observed_property_skips_attr():
-    e = _entity()
-    del e["observedProperty"]
-    ev = _run(e, FakeLookup(dep=_dep()))
+    ev = _run(_entity(), FakeLookup(dep=_dep(), observed_property=None))
+    assert "observations" not in ev.payload
+
+
+def test_dm_observed_property_attribute_is_never_read():
+    """The builder no longer emits `observedProperty`; a stray one must not opt a channel in."""
+    e = _entity(observedProperty={"type": "Property", "value": "airTemperature"})
+    ev = _run(e, FakeLookup(dep=_dep(), observed_property=None))
     assert "observations" not in ev.payload
 
 
@@ -137,8 +154,8 @@ def test_unknown_property_skips_attr_and_warns(caplog):
 def test_counter_max_from_profile_code():
     prop = PropertyDef("rainfallTotal", "cumulative", None, None, "mm")
     e = _entity(value=500.0, deviceType={"type": "Property", "value": "prof-x"})
-    e["observedProperty"]["value"] = "rainfallTotal"
-    ev = _run(e, FakeLookup(dep=_dep(), prop=prop, counter_max=100, unit="mm"))
+    ev = _run(e, FakeLookup(dep=_dep(), prop=prop, counter_max=100, unit="mm",
+                            observed_property="rainfallTotal"))
     assert ev.payload["observations"]["temperature"]["qualityFlag"] == "out_of_range"
 
 
@@ -304,10 +321,8 @@ def test_undeployed_device_warns_once_not_per_reading(caplog):
 
 def test_missing_observed_property_warns_once(caplog):
     entities = _readings(4)
-    for e in entities:
-        del e["observedProperty"]
     with caplog.at_level(logging.WARNING):
-        _run_many(entities, FakeLookup(dep=_dep()))
+        _run_many(entities, FakeLookup(dep=_dep(), observed_property=None))
     assert len(_warnings(caplog, "no observedProperty")) == 1
 
 

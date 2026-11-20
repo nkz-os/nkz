@@ -18,6 +18,7 @@ from typing import Any, Callable, Dict, List, Optional, Tuple
 import asyncpg
 
 from common.context_aliases import canonical_attribute
+from common.window_statistics import expand_measurements
 from .observations import Deployment, PropertyDef
 
 MAX_TTL_S = 60.0
@@ -174,6 +175,34 @@ class ObservationLookup:
                 continue
             name = item.get("sdmAttribute")
             if isinstance(name, str) and canonical_attribute(name) == canonical_attribute(attr):
+                return item
+        return None
+
+    async def channel_def(
+        self, tenant_id: str, profile_code: str, channel: str
+    ) -> Optional[dict]:
+        """The profile entry of a PUBLISHED channel, after window-statistics expansion.
+
+        Unlike `measurement_def` (unexpanded entries, used by recompute), this matches the
+        channels the entity-manager builder publishes (`common.window_statistics`): a
+        derived `<attr>Min`/`Max`/`StdDev` channel, or the base channel of a profile with
+        `statistics`, returns an entry carrying `statistic` (and `baseAttribute`).
+        Entries without a string `sdmAttribute` are ignored.
+        """
+        self._require_tenant(tenant_id)
+
+        async def load() -> Optional[Dict[str, Any]]:
+            rows = await self._fetch(tenant_id, _PROFILE_SQL, profile_code)
+            return _json(rows[0]["mapping"]) if rows else None
+
+        mapping = await self._cached(tenant_id, "profile", profile_code, load)
+        items = [
+            m for m in (mapping or {}).get("measurements") or []
+            if isinstance(m, dict) and isinstance(m.get("sdmAttribute"), str) and m["sdmAttribute"]
+        ]
+        wanted = canonical_attribute(channel)
+        for item in expand_measurements(items):
+            if canonical_attribute(item["sdmAttribute"]) == wanted:
                 return item
         return None
 

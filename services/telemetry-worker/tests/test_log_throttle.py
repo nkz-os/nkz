@@ -130,3 +130,29 @@ def test_preformatted_message_with_percent_is_safe(caplog):
     tw.warning("k", "battery 30% low")
     assert [m for _, m in _lines(caplog)] == [
         "battery 50% low", "battery 30% low (1 similar suppressed in the last 600 s)"]
+
+
+def test_level_applies_to_first_line_summary_flush_and_eviction(caplog):
+    """An INFO-level throttle never escalates to WARNING on any path."""
+    clock = Clock()
+    tw = ThrottledWarnings(LOGGER, clock=clock, max_keys=2, level=logging.INFO)
+    caplog.set_level(logging.DEBUG, logger=LOGGER.name)
+    tw.warning("k1", "a")
+    tw.warning("k1", "a2")          # pending
+    clock.t += 601
+    tw.warning("k1", "a3")          # window summary
+    tw.warning("k1", "a4")          # pending again
+    tw.flush()                      # flush summary
+    tw.warning("k1", "a5")          # pending again
+    tw.warning("k2", "b")
+    tw.warning("k3", "c")           # evicts k1 with its pending count
+    lines = _lines(caplog)
+    assert len(lines) == 6
+    assert {lvl for lvl, _ in lines} == {logging.INFO}
+
+
+def test_default_level_is_warning(caplog):
+    tw = ThrottledWarnings(LOGGER, clock=Clock())
+    caplog.set_level(logging.DEBUG, logger=LOGGER.name)
+    tw.warning("k", "a")
+    assert _lines(caplog) == [(logging.WARNING, "a")]

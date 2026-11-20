@@ -1,4 +1,4 @@
-"""Rate-limited WARNING lines for conditions that repeat on every reading.
+"""Rate-limited log lines (WARNING by default) for conditions that repeat on every reading.
 
 Most devices on the platform have no deployment, so "observation skipped" would
 otherwise be logged for every reading of every such device. Per key (tenant,
@@ -39,6 +39,7 @@ class ThrottledWarnings:
         window_s: float = WINDOW_S,
         clock: Callable[[], float] = time.monotonic,
         max_keys: int = MAX_KEYS,
+        level: int = logging.WARNING,
     ):
         if window_s <= 0 or max_keys <= 0:
             raise ValueError("window_s and max_keys must be positive")
@@ -46,6 +47,9 @@ class ThrottledWarnings:
         self._window_s = window_s
         self._clock = clock
         self._max_keys = max_keys
+        # Every line (first occurrence, window summary, flush, eviction) uses this level,
+        # so a deliberate, expected skip can be throttled at INFO without becoming a warning.
+        self._level = level
         self._states: Dict[Hashable, _State] = {}
 
     def __len__(self) -> int:
@@ -58,7 +62,7 @@ class ThrottledWarnings:
         if state is None:
             self._evict_if_full()
             self._states[key] = _State(now)
-            self._logger.warning(msg, *args)
+            self._logger.log(self._level, msg, *args)
             return True
         if now - state.emitted_at < self._window_s:
             state.suppressed += 1
@@ -67,9 +71,11 @@ class ThrottledWarnings:
         suppressed = state.suppressed
         state.emitted_at, state.suppressed = now, 0
         if suppressed:
-            self._logger.warning(_SUMMARY, _text(msg, args), suppressed, int(self._window_s))
+            self._logger.log(
+                self._level, _SUMMARY, _text(msg, args), suppressed, int(self._window_s)
+            )
         else:
-            self._logger.warning(msg, *args)
+            self._logger.log(self._level, msg, *args)
         return True
 
     def flush(self) -> int:
@@ -87,8 +93,9 @@ class ThrottledWarnings:
         self._states.clear()
 
     def _emit_summary(self, state: _State) -> None:
-        self._logger.warning(
-            _SUMMARY, _text(state.msg, state.args), state.suppressed, int(self._window_s)
+        self._logger.log(
+            self._level,
+            _SUMMARY, _text(state.msg, state.args), state.suppressed, int(self._window_s),
         )
 
     def _evict_if_full(self) -> None:
