@@ -87,6 +87,7 @@ def _row(i=0, **kw):
         raw_observed_property="airTemperature",
         raw_profile_code="P",
         raw_location=None,
+        entity_id="urn:ngsi-ld:DeviceMeasurement:tenant_a:d1:temperature",
     )
     base.update(kw)
     return StoredRow(**base)
@@ -795,3 +796,22 @@ def test_plan_unit_mismatch_or_missing_profile_leaves_property_null():
     # A row already carrying observed_property is not re-checked.
     u = _plan(_row(observed_property="airTemperature"), mdef={"unit": "µm"})
     assert u.observed_property == "airTemperature"
+
+
+def test_plan_nonconforming_entity_id_gets_no_context_and_warns(caplog):
+    """Entity id rule (common.observation_context.entity_id_conforms): the reader prunes by it."""
+    import logging
+
+    ok = _plan(_row())
+    assert ok is not None and ok.deployment_id == DEP_ID
+    for bad in ("urn:ngsi-ld:DeviceMeasurement:tenant_a:d1:humidity",
+                "urn:ngsi-ld:DeviceMeasurement:tenant_a:other:temperature", None):
+        row = _row(deployment_id=DEP_ID, observed_property="airTemperature", entity_id=bad,
+                   height_m=1.5, medium="ambientAir")
+        with caplog.at_level(logging.WARNING):
+            u = _plan(row)
+        assert u is not None and u.deployment_id is None and u.medium is None
+        assert u.observed_property == "airTemperature"  # never changed
+        assert any("observation_entity_id_nonconforming" in r.getMessage()
+                   and f"entity_id={bad}" in r.getMessage() and URN in r.getMessage()
+                   for r in caplog.records)

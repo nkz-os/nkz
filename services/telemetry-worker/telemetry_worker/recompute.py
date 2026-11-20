@@ -50,7 +50,7 @@ from typing import Any, Callable, Dict, List, NamedTuple, Optional, Sequence, Se
 
 import asyncpg
 
-from common.observation_context import MEDIA
+from common.observation_context import MEDIA, entity_id_conforms
 
 from .observation_lookup import _DEPLOYMENTS_SQL, _in_range, _json, _to_deployment
 from .observations import (
@@ -107,6 +107,7 @@ class StoredRow(NamedTuple):
     raw_observed_property: Optional[str]
     raw_profile_code: Optional[str]
     raw_location: Any  # the raw entity's location value (jsonb text or parsed)
+    entity_id: Optional[str]  # the DeviceMeasurement id (entity id rule, see plan_row)
 
 
 class RowUpdate(NamedTuple):
@@ -229,7 +230,8 @@ SELECT m.observed_at, m.source_event_id, m.attribute_name, m.value,
        ST_X(m.location::geometry) AS lon, ST_Y(m.location::geometry) AS lat,
        e.payload->'raw'->'observedProperty'->>'value' AS raw_observed_property,
        e.payload->'raw'->'profileCode'->>'value' AS raw_profile_code,
-       e.payload->'raw'->'location'->'value' AS raw_location
+       e.payload->'raw'->'location'->'value' AS raw_location,
+       m.entity_id
 FROM public.telemetry_measurements m
 LEFT JOIN public.telemetry_events e
        ON e.tenant_id = m.tenant_id AND e.observed_at = m.observed_at
@@ -369,6 +371,16 @@ def plan_row(
         row.observed_property is not None
         or (effective_property is not None and prop is not None)
     )
+    # Entity id rule (same as ingest, common.observation_context.entity_id_conforms): the
+    # reader prunes compressed batches by it, so a row it would skip never gets context.
+    device_id = device_urn.rsplit(":", 1)[-1]
+    if has_context and not entity_id_conforms(row.entity_id, device_id, row.attribute_name):
+        has_context = False
+        logger.warning(
+            f"observation_entity_id_nonconforming: context left NULL: "
+            f"device_urn={device_urn} observed_at={row.observed_at.isoformat()} "
+            f"entity_id={row.entity_id} attribute={row.attribute_name}"
+        )
     # Unit guard (same as ingest): a property is only filled in from the raw event when
     # the profile's unit matches the catalogue's; otherwise the row stays without one.
     if (

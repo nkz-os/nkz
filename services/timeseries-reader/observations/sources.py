@@ -26,6 +26,7 @@ from datetime import timedelta
 from typing import Any, Dict, List, Optional, Set, Tuple
 
 from common.context_aliases import canonical_attribute
+from common.observation_context import measurement_entity_suffix
 from urn_resolution import WEATHER_OBSERVED_ENTITY_TYPES
 
 from .engine import Reading, buckets
@@ -234,9 +235,11 @@ _AGG_EVENT_JOIN = """LEFT JOIN (
 # the last segment of externalId and attribute_name = attr (entity-manager build_measurements,
 # worker _extract_device_measurement). So `entity_id LIKE '%:{device_id}:{attr}'` keeps every
 # candidate row and lets the compressed scan skip the batches of all other devices.
-# ASSUMPTION: that id scheme holds for every producer, and entity_id is never NULL on such rows
-# (the 115 trigger copies the event's entity_id); guarded by a contract unit test
-# (telemetry-worker tests/test_observation_entity_id_contract.py). An `OR entity_id IS NULL`
+# The rule is enforced at the single writer: the telemetry-worker attaches observation context
+# only when common.observation_context.entity_id_conforms holds (else it logs
+# observation_entity_id_nonconforming), so a non-conforming row has no deployment and is
+# excluded from every read path, not only from this one. Contract test: telemetry-worker
+# tests/test_observation_entity_id_contract.py. An `OR entity_id IS NULL`
 # escape is not used: it defeats the pushdown to the compressed scan (measured 1.1 s vs 0.25 s).
 _SERIES_PRUNE = "m.entity_id LIKE ANY(%(entity_like)s)"
 
@@ -391,8 +394,10 @@ def fetch_plan(req: BestRequest, prop: dict) -> str:
 
 
 def entity_like_patterns(device_ids: List[str], attrs: List[str]) -> List[str]:
-    """LIKE patterns matching the DeviceMeasurement entity ids of (device, attribute) pairs."""
-    return [f"%:{_like_escape(d)}:{_like_escape(a)}" for d in device_ids for a in attrs]
+    """LIKE patterns matching the DeviceMeasurement entity ids of (device, attribute) pairs:
+    the shared rule common.observation_context.measurement_entity_suffix, which the
+    telemetry-worker enforces before it writes observation context (entity_id_conforms)."""
+    return ["%" + _like_escape(measurement_entity_suffix(d, a)) for d in device_ids for a in attrs]
 
 
 def _bound(v: Any, default: float) -> float:

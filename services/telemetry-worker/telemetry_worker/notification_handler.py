@@ -20,6 +20,7 @@ from .profiles import ProfileService
 from .calibration import CalibrationService
 from .dedup import NotificationDedup
 from .observations import reading_point, resolve_observation, units_compatible
+from common.observation_context import entity_id_conforms
 from .geometry_cache import upsert_geometry
 
 logger = logging.getLogger(__name__)
@@ -316,8 +317,20 @@ async def _resolve_observation_payload(
 
         observed_property = _prop_value(entity, "observedProperty")
         profile_code = _prop_value(entity, "profileCode")
+        entity_id = entity.get("id")
+        # same short-id rule as _extract_device_measurement (the stored device_id)
+        device_id = device_urn.split(":")[-1]
         observations: Dict[str, Any] = {}
         for attr, value in filtered.items():
+            # The reader prunes compressed batches by this entity id rule (common
+            # observation_context.entity_id_conforms, timeseries-reader sources._SERIES_PRUNE):
+            # a row it would skip must not carry observation context at all.
+            if not entity_id_conforms(entity_id, device_id, attr):
+                logger.warning(
+                    f"observation_entity_id_nonconforming: no observation written: {log_ctx} "
+                    f"entity_id={entity_id} attribute={attr}"
+                )
+                continue
             if not isinstance(observed_property, str) or not observed_property:
                 logger.warning(f"Observation skipped for {attr}, no observedProperty: {log_ctx}")
                 continue

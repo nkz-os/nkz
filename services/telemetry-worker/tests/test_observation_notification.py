@@ -225,3 +225,25 @@ def test_notification_missing_profile_unit_writes_no_observation(caplog):
         ev = _run(_entity(), FakeLookup(dep=_dep(), unit=None))
     assert "observations" not in ev.payload
     assert any("observation_unit_mismatch" in r.getMessage() for r in caplog.records)
+
+
+def test_conforming_entity_id_gets_observation_nonconforming_does_not(caplog):
+    """The reader prunes compressed batches by entity id (common.observation_context
+    entity_id_conforms): a non-conforming row must carry no observation context at all."""
+    ok = _run(_entity(), FakeLookup(dep=_dep()))
+    assert "temperature" in ok.payload["observations"]
+    for bad in ("urn:ngsi-ld:DeviceMeasurement:acmefarm:sensor-001:humidity",
+                "urn:ngsi-ld:DeviceMeasurement:acmefarm:other-device:temperature",
+                "urn:ngsi-ld:DeviceMeasurement:acmefarm:xsensor-001:temperature"):
+        caplog.clear()
+        with caplog.at_level(logging.WARNING):
+            ev = _run(_entity(id=bad), FakeLookup(dep=_dep()))
+        p = ev.payload
+        assert "observations" not in p and "deploymentId" not in p and "location" not in p
+        assert p["measurements"] == {"temperature": 21.5}  # the reading itself is kept
+        msgs = [r.getMessage() for r in caplog.records
+                if "observation_entity_id_nonconforming" in r.getMessage()]
+        assert len(msgs) == 1
+        for needle in (f"tenant_id={TENANT}", f"device_urn={DEVICE_URN}", f"entity_id={bad}",
+                       "attribute=temperature", "observed_at=2026-08-29T10:00:00+00:00"):
+            assert needle in msgs[0], (needle, msgs[0])

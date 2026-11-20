@@ -1,5 +1,9 @@
 """Contract: the reader's entity-id segment pruning keeps every stored observation row.
 
+The worker (ingest and recompute) writes observation context only when
+common.observation_context.entity_id_conforms holds; the reader prunes with LIKE patterns built
+from the same measurement_entity_suffix. Both must agree with the real id producer.
+
 timeseries-reader `sources.entity_like_patterns` filters telemetry_measurements with
 `entity_id LIKE '%:{device_id}:{attribute}'` (contract 8.10, segment pruning). That holds only
 if the DeviceMeasurement id minted by entity-manager `build_measurements` ends with the
@@ -77,3 +81,10 @@ def test_device_measurement_id_matches_reader_pruning_pattern(producers, externa
     assert any(_like(p, dm["id"]) for p in patterns), (dm["id"], patterns)
     # and the pattern of another device does not match
     assert not any(_like(p, dm["id"]) for p in sources.entity_like_patterns(["other"], [attr]))
+    # the writer's check (worker/recompute) is the same rule as the reader's prune
+    from common.observation_context import entity_id_conforms
+    assert entity_id_conforms(dm["id"], device_id, attr)
+    for other_dev, other_attr in (("other", attr), (device_id, "humidity")):
+        pats = sources.entity_like_patterns([other_dev], [other_attr])
+        assert entity_id_conforms(dm["id"], other_dev, other_attr) is any(
+            _like(p, dm["id"]) for p in pats)
