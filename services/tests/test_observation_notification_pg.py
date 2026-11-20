@@ -1,5 +1,7 @@
 """pg_integration: DeviceMeasurement notification -> telemetry_events -> telemetry_measurements."""
 import asyncio
+import json
+import logging
 import os
 import sys
 import uuid
@@ -15,8 +17,12 @@ for _p in (_SVC, _WORKER):
 pytestmark = pytest.mark.pg_integration
 
 
-def test_notification_row_carries_observation(pg_dsn, pg_conn):
-    import asyncpg
+def _notify(pg_dsn, pg_conn, profile_unit):
+    """Run one temperature notification through the worker; return (row, deployment id).
+
+    The device's profile (sensor_profiles row, referenced by profileCode) declares
+    ``profile_unit`` for temperature; None omits the unit from the measurement.
+    """
     from telemetry_worker import notification_handler as nh
     from telemetry_worker.config import Settings
     from telemetry_worker.event_sink import PostgreSQLSink
@@ -26,7 +32,17 @@ def test_notification_row_carries_observation(pg_dsn, pg_conn):
     tenant = f"t_{uuid.uuid4().hex[:8]}"
     dev = f"d{uuid.uuid4().hex[:6]}"
     urn = f"urn:ngsi-ld:Device:{tenant}:{dev}"
+    profile_code = f"p_{uuid.uuid4().hex[:8]}"
+    measurement = {"sdmAttribute": "temperature"}
+    if profile_unit is not None:
+        measurement["unit"] = profile_unit
     with su.cursor() as cur:
+        cur.execute(
+            """INSERT INTO public.sensor_profiles
+               (tenant_id, code, name, sdm_entity_type, mapping)
+               VALUES (%s, %s, 'p', 'Device', %s::jsonb)""",
+            (tenant, profile_code, json.dumps({"measurements": [measurement]})),
+        )
         cur.execute(
             """INSERT INTO public.device_deployments
                (tenant_id, device_urn, valid, observation_context, mobility, location, created_by)
@@ -48,6 +64,7 @@ def test_notification_row_carries_observation(pg_dsn, pg_conn):
         "dateObserved": {"type": "Property", "value": "2026-08-29T10:00:00Z"},
         "observedProperty": {"type": "Property", "value": "airTemperature"},
         "timeSource": {"type": "Property", "value": "device"},
+        "profileCode": {"type": "Property", "value": profile_code},
     }
 
     class _Profiles:
@@ -83,9 +100,23 @@ def test_notification_row_carries_observation(pg_dsn, pg_conn):
         )
         row = cur.fetchone()
     assert row is not None
+    return row, dep_id
+
+
+def test_notification_row_carries_observation(pg_dsn, pg_conn):
+    row, dep_id = _notify(pg_dsn, pg_conn, "°C")
     assert row[0] == "airTemperature"
     assert row[1] == dep_id
     assert row[2] == "device"
     assert row[3] == "device"
     assert round(row[4], 1) == -3.7
     assert row[5] == "valid"
+
+
+def test_notification_without_profile_unit_writes_no_observation(pg_dsn, pg_conn, caplog):
+    with caplog.at_level(logging.WARNING):
+        row, _ = _notify(pg_dsn, pg_conn, None)
+    # Unit cannot be verified: observation columns stay NULL, the measurement is kept.
+    assert row[0] is None  # observed_property
+    assert row[1] is None  # deployment_id
+    assert any("observation_unit_mismatch" in r.getMessage() for r in caplog.records)
