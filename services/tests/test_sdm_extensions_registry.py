@@ -8,6 +8,7 @@ invente términos que el contexto no define.
 import json
 import pathlib
 import re
+import sys
 
 import pytest
 
@@ -119,3 +120,17 @@ def test_declared_rationale_is_verbatim_from_the_note():
         if _norm(m.group(2)) != _norm(notes[m.group(1)]):
             mismatches[m.group(1)] = (m.group(2), notes[m.group(1)])
     assert not mismatches, f"rationale differs from its note: {mismatches}"
+
+
+def test_documented_measurement_type_vocabulary_matches_code():
+    """The `measurementType` value set in the registry is the one the worker accepts."""
+    for p in (SERVICES_DIR, SERVICES_DIR / "telemetry-worker"):
+        if str(p) not in sys.path:
+            sys.path.insert(0, str(p))
+    from telemetry_worker.device_measurement import SDM_MEASUREMENT_TYPES
+
+    text = REGISTRY_FILE.read_text(encoding="utf-8")
+    m = re.search(r"- \*\*`measurementType`\*\*.*?\n\s+((?:`[a-z]+`(?: \| )?)+)", text, re.S)
+    assert m, "falta la entrada measurementType en 'Value vocabularies'"
+    documented = set(re.findall(r"`([a-z]+)`", m.group(1)))
+    assert documented == set(SDM_MEASUREMENT_TYPES)

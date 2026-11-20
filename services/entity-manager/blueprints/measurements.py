@@ -18,7 +18,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from common.context_aliases import canonical_attribute
 from common.unit_codes import to_unit_code
-from common.window_statistics import expand_measurements
+from common.window_statistics import INSTANT, expand_measurements
 
 # Attributes that are never measurements, regardless of what the profile declares. Device
 # identity/metadata, not a reading. Kept as an explicit allow-list-adjacent skip so a coincidental
@@ -28,10 +28,8 @@ _NON_MEASUREMENT_KEYS = frozenset({"id", "type", "@context"})
 logger = logging.getLogger(__name__)
 
 SDM_SHAPE_FLAG = "DEVICE_MEASUREMENT_SDM_SHAPE_ENABLED"
-# Closed `measurementType` vocabulary of the SDM shape: the window statistics of
-# `common.window_statistics.STATISTICS` (mean/min/max/stddev/last/sum) map 1:1, and a reading
-# with no window is `instant`.
-INSTANT = "instant"
+# Closed `measurementType` vocabulary of the SDM shape: `common.window_statistics.STATISTICS`
+# map 1:1, and a reading with no window is `common.window_statistics.INSTANT`.
 
 
 def sdm_shape_enabled() -> bool:

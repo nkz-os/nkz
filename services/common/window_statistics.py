@@ -10,6 +10,8 @@ from common.context_aliases import canonical_attribute
 
 STATISTICS: tuple[str, ...] = ("mean", "min", "max", "stddev", "last", "sum")
 BASE_NAME_STATISTICS: frozenset[str] = frozenset({"mean", "last", "sum"})
+# `measurementType` of a reading with no window (SDM DeviceMeasurement shape).
+INSTANT = "instant"
 SUFFIXES: dict[str, str] = {"min": "Min", "max": "Max", "stddev": "StdDev"}
 
 # Fixed emission order for derived entries.

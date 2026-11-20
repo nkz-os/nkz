@@ -10,6 +10,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Dict, Optional
 
+from common.window_statistics import BASE_NAME_STATISTICS, INSTANT, STATISTICS
+
 # DeviceMeasurement `name`, accepted under the short name or either IRI so a later
 # platform @context remap never cuts ingestion (design A.1b). Precedence is the tuple order:
 # the short (compacted) name first.
@@ -21,12 +23,12 @@ NAME_KEYS = ("name", "https://schema.org/name", "https://smartdatamodels.org/nam
 # unknown value is treated the same way (fail-safe: no context, never a guessed one).
 # ASSUMPTION: a missing, unknown or differently cased measurementType is gated; the builder
 # always writes one from the closed vocabulary.
-CONTEXT_MEASUREMENT_TYPES = frozenset({"instant", "mean", "last", "sum"})
+CONTEXT_MEASUREMENT_TYPES = frozenset({INSTANT, *BASE_NAME_STATISTICS})
 # The closed `measurementType` vocabulary of the SDM shape (shape discriminator, see
 # `device_measurement_shape`).
-SDM_MEASUREMENT_TYPES = frozenset({"instant", "mean", "min", "max", "stddev", "last", "sum"})
+SDM_MEASUREMENT_TYPES = frozenset({INSTANT, *STATISTICS})
 # Profile-entry `statistic` values (after window-statistics expansion) that keep context.
-CONTEXT_STATISTICS = frozenset({"mean", "last", "sum"})
+CONTEXT_STATISTICS = BASE_NAME_STATISTICS
 
 
 def prop_value(entity: Dict[str, Any], key: str) -> Optional[Any]:
