@@ -45,9 +45,12 @@ def sdm_shape_enabled() -> bool:
 
 def log_sdm_shape_flag() -> None:
     """Log the effective flag value once at startup, as a structured field."""
+    enabled = sdm_shape_enabled()
     logger.info(
-        "device_measurement_sdm_shape_flag",
-        extra={"flag": SDM_SHAPE_FLAG, "enabled": sdm_shape_enabled()},
+        "device_measurement_sdm_shape_flag %s=%s",
+        SDM_SHAPE_FLAG,
+        enabled,
+        extra={"flag": SDM_SHAPE_FLAG, "enabled": enabled},
     )
 
 

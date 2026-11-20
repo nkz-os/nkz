@@ -53,7 +53,7 @@ from tests.real_common import seed_real_common  # noqa: E402
 
 seed_real_common(("context_aliases", "window_statistics"))
 
-from blueprints.measurements import DeviceIdShapeError, build_measurements  # noqa: E402
+from blueprints.measurements import DeviceIdShapeError, build_measurements, log_sdm_shape_flag  # noqa: E402
 
 DEVICE_ID = "urn:ngsi-ld:Device:acmefarm:sensor-001"
 PARCEL_ID = "urn:ngsi-ld:AgriParcel:acmefarm:p1"
@@ -401,3 +401,13 @@ class TestSdmShapeFlag:
         # profile without a catalogue name or statistics still gets `instant`
         for m in build_measurements(_entity(), PROFILE):
             assert m["measurementType"]["value"] == "instant"
+
+
+class TestStartupLog:
+    @pytest.mark.parametrize("raw,shown", [("true", "True"), ("nope", "False")])
+    def test_startup_log_message_contains_effective_value(self, monkeypatch, caplog, raw, shown):
+        import logging
+        monkeypatch.setenv(FLAG, raw)
+        with caplog.at_level(logging.INFO, logger="blueprints.measurements"):
+            log_sdm_shape_flag()
+        assert f"{FLAG}={shown}" in caplog.text
