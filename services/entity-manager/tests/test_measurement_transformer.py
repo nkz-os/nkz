@@ -49,6 +49,10 @@ assert _uc_spec.loader is not None
 _uc_spec.loader.exec_module(_uc_mod)
 sys.modules["common.unit_codes"] = _uc_mod
 
+from tests.real_common import seed_real_common  # noqa: E402
+
+seed_real_common(("context_aliases", "window_statistics"))
+
 from blueprints.measurements import DeviceIdShapeError, build_measurements  # noqa: E402
 
 DEVICE_ID = "urn:ngsi-ld:Device:acmefarm:sensor-001"
@@ -228,3 +232,26 @@ class TestObservedAt:
         result = build_measurements(entity, PROFILE)
         leaf = _by_controlled_property(result, "leafTemperature")
         assert leaf["dateObserved"]["value"] == "2026-01-01T00:00:00Z"
+
+
+class TestWindowStatistics:
+    @staticmethod
+    def _profile(statistics):
+        m = {"type": "temp", "unit": "\u00b0C", "sdmAttribute": "airTemperature"}
+        if statistics:
+            m["statistics"] = statistics
+        return {"id": 2, "sdm_entity_type": "Device", "mapping": {"version": 1, "measurements": [m]}}
+
+    @staticmethod
+    def _entity_min():
+        return _entity(airTemperatureMin={"type": "Property", "value": 3.1,
+                                          "observedAt": "2026-08-29T10:00:00Z"})
+
+    def test_derived_attribute_becomes_a_measurement(self):
+        result = build_measurements(self._entity_min(), self._profile(["mean", "min"]))
+        m = _by_controlled_property(result, "airTemperatureMin")
+        assert m["id"].endswith(":airTemperatureMin")
+
+    def test_without_statistics_the_derived_attribute_is_skipped(self):
+        result = build_measurements(self._entity_min(), self._profile(None))
+        assert all(m["controlledProperty"]["value"] != "airTemperatureMin" for m in result)

@@ -14,6 +14,7 @@ from typing import Optional
 import requests
 
 from common.context_aliases import canonical_attribute
+from common.window_statistics import expand_measurements
 
 logger = logging.getLogger(__name__)
 
@@ -100,7 +101,7 @@ def build_iota_attributes(measurements: list) -> list:
     agent and must not be produced here.
     """
     attributes = []
-    for m in measurements:
+    for m in expand_measurements(measurements):
         attr = {
             "object_id": m.get("incomingKey") or m["type"],
             "name": canonical_attribute(m["sdmAttribute"]),

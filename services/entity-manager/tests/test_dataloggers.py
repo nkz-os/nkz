@@ -145,6 +145,35 @@ def test_config_has_exactly_the_documented_shape():
                          {"key": "hum", "sdmAttribute": "relativeHumidity", "unit": "P1"}]}]}
 
 
+def _config_for(mapping):
+    st = FakeState()
+    dl = seed_datalogger(st)
+    urn = seed_device(st, dl, "S1")
+    st.profiles["p"] = {"mapping": mapping}
+    with wired(st) as w:
+        w.orion.entities[urn] = {"id": urn, "type": "Device",
+                                 "name": {"type": "Property", "value": "Sensor 1"},
+                                 "profileCode": {"type": "Property", "value": "p"}}
+        r = client().get(f"/api/sensors/dataloggers/{dl}/config", headers=AUTH)
+    assert r.status_code == 200, r.get_json()
+    return r.get_json()["devices"][0]
+
+
+def test_config_carries_window_and_statistics_when_declared():
+    dev = _config_for({"windowSeconds": 60, "measurements": [
+        {"type": "temp", "sdmAttribute": "airTemperature", "unit": "\u00b0C",
+         "statistics": ["mean", "min"]}]})
+    assert dev["windowSeconds"] == 60
+    assert dev["measurements"][0]["statistics"] == {"mean": "temp", "min": "tempMin"}
+
+
+def test_config_without_statistics_keeps_exact_keys():
+    dev = _config_for({"measurements": [
+        {"type": "temp", "sdmAttribute": "airTemperature", "unit": "\u00b0C"}]})
+    assert "windowSeconds" not in dev
+    assert set(dev["measurements"][0]) == {"key", "sdmAttribute", "unit"}
+
+
 def test_rotate_returns_a_new_password_once(caplog):
     st = FakeState()
     dl = seed_datalogger(st)

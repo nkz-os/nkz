@@ -21,6 +21,7 @@ from psycopg2.extras import RealDictCursor
 from common import iot_agent, mqtt_dynsec, mqtt_endpoint
 from common.context_aliases import canonical_attribute
 from common.ngsi_headers import inject_fiware_headers
+from common.window_statistics import gateway_statistics
 from db_helper import get_db_connection_with_tenant
 from helpers import ORION_URL
 
@@ -289,6 +290,16 @@ def _prop(ent: dict, key: str):
     return v.get('value') if isinstance(v, dict) else v
 
 
+def _config_measurement(m: dict) -> dict:
+    entry = {'key': m.get('incomingKey') or m.get('type'),
+             'sdmAttribute': (canonical_attribute(m['sdmAttribute']) if m.get('sdmAttribute') else None),
+             'unit': m.get('unit')}
+    stats = gateway_statistics(m)
+    if stats is not None:
+        entry['statistics'] = stats
+    return entry
+
+
 @in_step('db', 'Database error')
 def get_datalogger_config(tenant: str, dl_id: str) -> dict:
     dl_id = _dl_id(dl_id)
@@ -311,15 +322,16 @@ def get_datalogger_config(tenant: str, dl_id: str) -> dict:
     out_devices = []
     for d in devices:
         ent = entities.get(d['device_urn'], {})
-        ms = (mappings.get(_prop(ent, 'profileCode')) or {}).get('measurements', [])
+        mapping = mappings.get(_prop(ent, 'profileCode')) or {}
+        ms = mapping.get('measurements', [])
         out_devices.append({
             'externalId': d['external_id'],
             'name': _prop(ent, 'name') or d['external_id'],
             'topic': topic_for(apikey, d['external_id']),
-            'measurements': [{'key': m.get('incomingKey') or m.get('type'),
-                              'sdmAttribute': (canonical_attribute(m['sdmAttribute']) if m.get('sdmAttribute') else None),
-                              'unit': m.get('unit')} for m in ms],
+            'measurements': [_config_measurement(m) for m in ms],
         })
+        if mapping.get('windowSeconds'):
+            out_devices[-1]['windowSeconds'] = mapping['windowSeconds']
     ep = mqtt_endpoint_for_devices()
     mqtt = {k: ep[k] for k in ('host', 'port') if k in ep} if ep.get('configured') else dict(ep)
     mqtt.update({'username': row['mqtt_username'], 'apikey': apikey, 'password': None})
