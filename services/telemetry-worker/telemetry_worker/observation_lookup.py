@@ -183,7 +183,7 @@ class ObservationLookup:
     ) -> Optional[dict]:
         """The profile entry of a PUBLISHED channel, after window-statistics expansion.
 
-        Unlike `measurement_def` (unexpanded entries, used by recompute), this matches the
+        Unlike `measurement_def` (unexpanded entries), this matches the
         channels the entity-manager builder publishes (`common.window_statistics`): a
         derived `<attr>Min`/`Max`/`StdDev` channel, or the base channel of a profile with
         `statistics`, returns an entry carrying `statistic` (and `baseAttribute`).

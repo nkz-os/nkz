@@ -49,7 +49,7 @@ URN = "urn:ngsi-ld:Device:tenant_a:d1"
 DEP_ID = "11111111-1111-1111-1111-111111111111"
 T0 = datetime(2026, 1, 1, tzinfo=timezone.utc)
 PROP = PropertyDef("airTemperature", "instant", -50.0, 70.0, "°C")
-MDEF = {"unit": "°C"}
+MDEF = {"unit": "°C", "observedProperty": "airTemperature"}
 GPS = {"type": "Point", "coordinates": [1.25, 42.5]}
 
 
@@ -84,7 +84,6 @@ def _row(i=0, **kw):
         quality_flag=None,
         lon=None,
         lat=None,
-        raw_observed_property="airTemperature",
         raw_profile_code="P",
         raw_location=None,
         entity_id="urn:ngsi-ld:DeviceMeasurement:tenant_a:d1:temperature",
@@ -361,7 +360,7 @@ class FakeLookup:
     async def property(self, tenant_id, name):
         return self.props.get(name)
 
-    async def measurement_def(self, tenant_id, profile_code, attr):
+    async def channel_def(self, tenant_id, profile_code, attr):
         return self.mdefs.get((profile_code, attr))
 
 
@@ -717,9 +716,10 @@ def test_plan_never_changes_set_quality_value_or_property():
 
 def test_plan_quality_uses_counter_max_for_cumulative():
     rain = PropertyDef("precipitation", "cumulative", 0.0, 10.0, "mm")
-    row = _row(value=50.0, raw_observed_property="precipitation", raw_profile_code="P")
-    assert _plan(row, prop=rain, mdef={"unit": "mm", "counterMax": 100}).quality_flag == "valid"
-    assert _plan(row, prop=rain, mdef={"unit": "mm", "counterMax": 40}).quality_flag == "out_of_range"
+    row = _row(value=50.0, raw_profile_code="P")
+    mdef = {"unit": "mm", "observedProperty": "precipitation"}
+    assert _plan(row, prop=rain, mdef={**mdef, "counterMax": 100}).quality_flag == "valid"
+    assert _plan(row, prop=rain, mdef={**mdef, "counterMax": 40}).quality_flag == "out_of_range"
 
 
 def test_plan_no_deployment_nulls_context_and_location_keeps_property_and_quality():
@@ -752,16 +752,15 @@ def test_plan_fixed_deployment_ignores_raw_point():
 
 
 def test_plan_unknown_raw_property_leaves_row_untouched():
-    row = _row(raw_observed_property="notInCatalogue")
-    assert _plan(row, prop=None) is None
+    assert _plan(_row(), prop=None, mdef={**MDEF, "observedProperty": "notInCatalogue"}) is None
 
 
 def test_plan_without_any_property_gets_no_context():
-    assert _plan(_row(raw_observed_property=None), prop=None) is None
+    assert _plan(_row(), prop=None, mdef={"unit": "°C"}) is None
 
 
 def test_plan_existing_property_reresolved_even_if_catalogue_misses_it():
-    row = _row(observed_property="legacyProp", raw_observed_property=None)
+    row = _row(observed_property="legacyProp")
     u = _plan(row, prop=None)
     assert u.deployment_id == DEP_ID and u.quality_flag is None
 
@@ -787,7 +786,7 @@ async def test_recompute_unit_mismatch_leaves_observed_property_null():
     _with_deployment(db)
     db.add_row(_row(0))
     db.add_run("r1")
-    lookup = FakeLookup(mdefs={("P", "temperature"): {"unit": "µm"}})
+    lookup = FakeLookup(mdefs={("P", "temperature"): {"unit": "µm", "observedProperty": "airTemperature"}})
 
     await _loop(db, lookup).run_once()
 
@@ -840,7 +839,7 @@ def test_plan_warnings_carry_tenant_and_repeat_once(caplog):
     with caplog.at_level(logging.WARNING):
         for i in range(4):
             _plan(_row(i, deployment_id=DEP_ID, entity_id=bad))
-            _plan(_row(i), mdef={"unit": "µm"})
+            _plan(_row(i), mdef={"unit": "µm", "observedProperty": "airTemperature"})
     nonconf = _skip_lines(caplog, "observation_entity_id_nonconforming")
     mismatch = _skip_lines(caplog, "observation_unit_mismatch")
     assert len(nonconf) == 1 and len(mismatch) == 1
@@ -857,7 +856,7 @@ async def test_run_end_reports_suppressed_warnings(caplog):
     for i in range(3):
         db.add_row(_row(i))
     db.add_run("r1")
-    lookup = FakeLookup(mdefs={("P", "temperature"): {"unit": "µm"}})
+    lookup = FakeLookup(mdefs={("P", "temperature"): {"unit": "µm", "observedProperty": "airTemperature"}})
 
     with caplog.at_level(logging.WARNING):
         await _loop(db, lookup).run_once()
@@ -865,3 +864,68 @@ async def test_run_end_reports_suppressed_warnings(caplog):
     lines = _skip_lines(caplog, "observation_unit_mismatch")
     assert len(lines) == 2
     assert "2 similar suppressed" in lines[1] and f"tenant_id={TENANT}" in lines[1]
+
+
+# ---------------------------------------------------------------------------
+# Shape discriminator on the raw payload (mirrors ingest, see device_measurement)
+# ---------------------------------------------------------------------------
+
+
+def _shape(**attrs):
+    return {k: {"type": "Property", "value": v} for k, v in attrs.items()}
+
+
+def test_plan_sdm_raw_shape_gets_context_from_controlled_property():
+    raw = _shape(name="temperature", controlledProperty="airTemperature", measurementType="instant")
+    u = _plan(_row(raw_profile_code=None, raw_shape=raw), mdef=MDEF)
+    assert u.observed_property == "airTemperature" and u.deployment_id == DEP_ID
+    assert u.attribute_name == "temperature"
+
+
+def test_plan_sdm_min_channel_gets_no_context():
+    row = _row(
+        attribute_name="airTemperatureMin", raw_profile_code=None,
+        entity_id="urn:ngsi-ld:DeviceMeasurement:tenant_a:d1:airTemperatureMin",
+        raw_shape=_shape(name="airTemperatureMin", controlledProperty="airTemperature",
+                         measurementType="min"),
+    )
+    assert _plan(row, mdef=MDEF) is None
+
+
+def test_plan_gate_clears_a_stale_context_but_keeps_the_property():
+    row = _row(
+        attribute_name="airTemperatureMin", deployment_id=DEP_ID, height_m=2.0,
+        observed_property="airTemperature", quality_flag="valid", source_kind="device",
+        entity_id="urn:ngsi-ld:DeviceMeasurement:tenant_a:d1:airTemperatureMin",
+        raw_shape=_shape(name="airTemperatureMin", controlledProperty="airTemperature",
+                         measurementType="min"),
+    )
+    u = _plan(row, mdef=MDEF)
+    assert u.deployment_id is None and u.height_m is None
+    assert u.observed_property == "airTemperature" and u.attribute_name == "airTemperatureMin"
+
+
+def test_plan_raw_shape_accepts_jsonb_text_and_iri_name():
+    import json
+
+    raw = json.dumps({
+        "https://schema.org/name": {"type": "Property", "value": "temperature"},
+        "controlledProperty": {"type": "Property", "value": "airTemperature"},
+        "measurementType": {"type": "Property", "value": "mean"},
+    })
+    assert _plan(_row(raw_profile_code=None, raw_shape=raw), mdef=MDEF).deployment_id == DEP_ID
+
+
+def test_plan_legacy_raw_with_device_type_and_no_name():
+    row = _row(raw_shape=_shape(controlledProperty="temperature", measurementType="sum"))
+    assert _plan(row, mdef=MDEF).observed_property == "airTemperature"
+
+
+def test_plan_phase1_raw_with_neither_gets_no_context():
+    assert _plan(_row(raw_profile_code=None, raw_shape=None), mdef=None, prop=None) is None
+
+
+def test_plan_stale_name_after_rollback_resolves_through_the_profile():
+    row = _row(raw_shape=_shape(name="temperature", controlledProperty="temperature",
+                                measurementType="Temperature"))
+    assert _plan(row, mdef=MDEF).observed_property == "airTemperature"

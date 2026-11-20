@@ -23,6 +23,20 @@ from .dedup import NotificationDedup
 from .observations import reading_point, resolve_observation, units_compatible
 from common.observation_context import entity_id_conforms
 from .geometry_cache import upsert_geometry
+from .device_measurement import (  # noqa: F401  (re-exported: the shape rule lives there)
+    CONTEXT_MEASUREMENT_TYPES,
+    CONTEXT_STATISTICS,
+    NAME_KEYS,
+    SDM_MEASUREMENT_TYPES,
+    SKIP_NO_DEVICE_TYPE,
+    SKIP_PROPERTY_MISMATCH,
+    SKIP_STATISTIC,
+    DeviceMeasurementShape,
+    decide_observation_property,
+    device_measurement_shape,
+    non_empty_str as _non_empty_str,
+    prop_value as _prop_value,
+)
 from .log_throttle import ThrottledWarnings
 
 logger = logging.getLogger(__name__)
@@ -34,30 +48,14 @@ _skip_warnings = ThrottledWarnings(logger)
 # throttling, at INFO so they never read as a fault.
 _skip_info = ThrottledWarnings(logger, level=logging.INFO)
 
-# DeviceMeasurement attribute names, accepted under the short name or either IRI so a later
-# platform @context remap never cuts ingestion (design A.1b for `name`, A.5 R1 for
-# `refDevice`). Precedence is the tuple order: the short (compacted) names first. After the
-# R1 remap the old attribute (stored under the hasDevice IRI) compacts to `hasDevice`.
-NAME_KEYS = ("name", "https://schema.org/name", "https://smartdatamodels.org/name")
+# `refDevice` accepted under the short names or either IRI (design A.5 R1). Precedence is the
+# tuple order; after the R1 remap the old attribute compacts to `hasDevice`.
 REF_DEVICE_KEYS = (
     "refDevice",
     "hasDevice",
     "https://smartdatamodels.org/dataModel.Device/hasDevice",
     "https://smartdatamodels.org/dataModel.Device/refDevice",
 )
-# Statistic gate (design A.2). `measurementType` values (SDM shape) that carry observation
-# context: an instant reading, or a window statistic that #122 publishes under the BASE
-# channel as the channel's representative value (mean/last/sum). min/max/stddev are spread
-# statistics of their own `...Min`/`...Max`/`...StdDev` channels and get none; a missing or
-# unknown value is treated the same way (fail-safe: no context, never a guessed one).
-# ASSUMPTION: a missing, unknown or differently cased measurementType is gated; the builder
-# always writes one from the closed vocabulary.
-CONTEXT_MEASUREMENT_TYPES = frozenset({"instant", "mean", "last", "sum"})
-# The closed `measurementType` vocabulary of the SDM shape (shape discriminator, see
-# `device_measurement_shape`).
-SDM_MEASUREMENT_TYPES = frozenset({"instant", "mean", "min", "max", "stddev", "last", "sum"})
-# Profile-entry `statistic` values (after window-statistics expansion) that keep context.
-CONTEXT_STATISTICS = frozenset({"mean", "last", "sum"})
 
 router = APIRouter()
 
@@ -382,13 +380,6 @@ async def _process_entity(
     )
 
 
-def _prop_value(entity: Dict[str, Any], key: str) -> Optional[Any]:
-    attr = entity.get(key)
-    if isinstance(attr, dict):
-        return attr.get("value")
-    return None
-
-
 def _ref_device_urn(entity: Dict[str, Any]) -> Optional[str]:
     """The Device URN of a DeviceMeasurement: the first non-empty `object` in REF_DEVICE_KEYS order."""
     for key in REF_DEVICE_KEYS:
@@ -398,70 +389,6 @@ def _ref_device_urn(entity: Dict[str, Any]) -> Optional[str]:
             if isinstance(target, str) and target:
                 return target
     return None
-
-
-def _non_empty_str(value: Any) -> Optional[str]:
-    return value if isinstance(value, str) and value else None
-
-
-@dataclass(frozen=True)
-class DeviceMeasurementShape:
-    """Which DeviceMeasurement shape a notification carries, and its channel.
-
-    Channel (the storage key): `name` whenever it is present under any NAME_KEYS form,
-    otherwise `controlledProperty`.
-    Observation-context rule:
-    - SDM (`sdm`): `name` present AND `measurementType` in the closed vocabulary
-      (SDM_MEASUREMENT_TYPES). Catalogue name = `controlledProperty`, statistic gate on
-      `measurementType`.
-    - Legacy, anything else: the catalogue name comes from the profile entry of
-      (`deviceType`, channel); `measurementType` is the profile `type` and means nothing.
-    Rollback safety: the flag-off builder never deletes `name` (DMs are upserted with
-    options=update), so after a flag rollback a DM keeps a stale `name` while
-    `measurementType` returns to the profile `type`; the DM id is stable, so the stale
-    `name` equals `controlledProperty` and both give the same key. A corrupt SDM DM (a
-    `name` with a missing or invalid `measurementType`) stays keyed by `name`, so a Min
-    channel never merges into the base channel; the legacy rule then finds the channel's
-    `min` statistic in the profile and gates it. Recompute mirrors this rule.
-    `channel` is None when the reading cannot be keyed: a `name` that is present but not a
-    non-empty string is never replaced by `controlledProperty`.
-    """
-
-    sdm: bool
-    has_name: bool
-    channel: Optional[str]
-    controlled_property: Optional[str]
-    measurement_type: Any
-
-    @property
-    def ambiguous(self) -> bool:
-        """`name` present and different from `controlledProperty`, with an invalid
-        `measurementType`: neither a clean SDM DM nor a rolled-back one."""
-        return self.has_name and not self.sdm and self.channel != self.controlled_property
-
-
-def device_measurement_shape(entity: Dict[str, Any]) -> DeviceMeasurementShape:
-    # ASSUMPTION: a legacy reading whose id does not end in `:{controlledProperty}` is still
-    # stored (design A.2 says drop it; the plan's global constraints do not). It never gets
-    # observation context: `entity_id_conforms` blocks it in `_resolve_observation_payload`.
-    # ASSUMPTION: without `name` the legacy rule applies even when `measurementType` is a
-    # vocabulary word (a Phase 1 profile `type` may collide with it).
-    controlled = _non_empty_str(_prop_value(entity, "controlledProperty"))
-    measurement_type = _prop_value(entity, "measurementType")
-    name_key = next((key for key in NAME_KEYS if key in entity), None)
-    if name_key is None:
-        return DeviceMeasurementShape(
-            sdm=False, has_name=False, channel=controlled,
-            controlled_property=controlled, measurement_type=measurement_type,
-        )
-    sdm_type = isinstance(measurement_type, str) and measurement_type in SDM_MEASUREMENT_TYPES
-    return DeviceMeasurementShape(
-        sdm=sdm_type,
-        has_name=True,
-        channel=_non_empty_str(_prop_value(entity, name_key)),
-        controlled_property=controlled,
-        measurement_type=measurement_type,
-    )
 
 
 def _reading_point(entity: Dict[str, Any]) -> Optional[Dict[str, Any]]:
@@ -530,50 +457,34 @@ async def _resolve_observation_payload(
                 measurement_def = (
                     await _observation_lookup.channel_def(tenant_id, profile_code, attr)
                 ) or None
-            statistic = measurement_def.get("statistic") if measurement_def else None
-            gated_type = shape.sdm and not (
-                isinstance(shape.measurement_type, str)
-                and shape.measurement_type in CONTEXT_MEASUREMENT_TYPES
-            )
-            gated_statistic = statistic is not None and statistic not in CONTEXT_STATISTICS
-            if gated_type or gated_statistic:
+            decision = decide_observation_property(shape, profile_code, measurement_def)
+            if decision.skip == SKIP_STATISTIC:
                 # Deliberate gate, not a fault: a spread statistic (min/max/stddev) is not an
                 # observation of the property itself. The reading is still stored.
                 _skip_info.warning(
                     (tenant_id, device_urn, f"observation_skipped_statistic:{attr}"),
                     f"observation_skipped_statistic: no observation written: {log_ctx} "
                     f"entity_id={entity_id} attribute={attr} "
-                    f"measurementType={shape.measurement_type!r} statistic={statistic!r}",
+                    f"measurementType={shape.measurement_type!r} statistic={decision.statistic!r}",
                 )
                 continue
-            def_property = (
-                _non_empty_str(measurement_def.get("observedProperty")) if measurement_def else None
-            )
-            if shape.sdm:
-                # controlledProperty falls back to the base attribute when the profile has no
-                # catalogue name, so it opts a channel in only when the profile entry declares
-                # the same observedProperty (keeps the contract 8.3 opt-in exact, design A.2).
-                if def_property and shape.controlled_property and def_property != shape.controlled_property:
-                    _skip_warnings.warning(
-                        (tenant_id, device_urn, f"observation_property_mismatch:{attr}"),
-                        f"observation_property_mismatch: no observation written: {log_ctx} "
-                        f"entity_id={entity_id} attribute={attr} "
-                        f"controlledProperty={shape.controlled_property!r} "
-                        f"profile_observedProperty={def_property!r}",
-                    )
-                    continue
-                observed_property = shape.controlled_property if def_property else None
-            else:
-                if not (isinstance(profile_code, str) and profile_code):
-                    # Expand step 1: a main entity-manager emits no deviceType, so the
-                    # legacy rule has no profile to read the catalogue name from.
-                    _skip_warnings.warning(
-                        (tenant_id, device_urn, f"no_device_type:{attr}"),
-                        f"no_device_type: no observation written: {log_ctx} "
-                        f"entity_id={entity_id} attribute={attr}",
-                    )
-                    continue
-                observed_property = def_property
+            if decision.skip == SKIP_PROPERTY_MISMATCH:
+                _skip_warnings.warning(
+                    (tenant_id, device_urn, f"observation_property_mismatch:{attr}"),
+                    f"observation_property_mismatch: no observation written: {log_ctx} "
+                    f"entity_id={entity_id} attribute={attr} "
+                    f"controlledProperty={shape.controlled_property!r} "
+                    f"profile_observedProperty={decision.def_property!r}",
+                )
+                continue
+            if decision.skip == SKIP_NO_DEVICE_TYPE:
+                _skip_warnings.warning(
+                    (tenant_id, device_urn, f"no_device_type:{attr}"),
+                    f"no_device_type: no observation written: {log_ctx} "
+                    f"entity_id={entity_id} attribute={attr}",
+                )
+                continue
+            observed_property = decision.observed_property
             if not observed_property:
                 _skip_warnings.warning(
                     (tenant_id, device_urn, f"no_observed_property:{attr}"),

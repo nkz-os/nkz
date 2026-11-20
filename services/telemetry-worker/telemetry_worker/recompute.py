@@ -52,6 +52,15 @@ import asyncpg
 
 from common.observation_context import MEDIA, entity_id_conforms
 
+from .device_measurement import (
+    GATE_REASONS,
+    SKIP_NAME_UNUSABLE,
+    SKIP_PROPERTY_MISMATCH,
+    SKIP_STATISTIC,
+    ObservationDecision,
+    decide_observation_property,
+    device_measurement_shape,
+)
 from .log_throttle import ThrottledWarnings
 from .observation_lookup import _DEPLOYMENTS_SQL, _in_range, _json, _to_deployment
 from .observations import (
@@ -109,10 +118,12 @@ class StoredRow(NamedTuple):
     quality_flag: Optional[str]
     lon: Optional[float]
     lat: Optional[float]
-    raw_observed_property: Optional[str]
     raw_profile_code: Optional[str]
     raw_location: Any  # the raw entity's location value (jsonb text or parsed)
     entity_id: Optional[str]  # the DeviceMeasurement id (entity id rule, see plan_row)
+    # The raw entity's shape attributes (name in any NAME_KEYS form, controlledProperty,
+    # measurementType) as a jsonb object, or NULL: the input of `device_measurement_shape`.
+    raw_shape: Any = None
 
 
 class RowUpdate(NamedTuple):
@@ -233,10 +244,16 @@ SELECT m.observed_at, m.source_event_id, m.attribute_name, m.value,
        m.depth_from_cm, m.depth_to_cm, m.height_m, m.organ, m.context_ref,
        m.deployment_id::text AS deployment_id, m.source_kind, m.quality_flag,
        ST_X(m.location::geometry) AS lon, ST_Y(m.location::geometry) AS lat,
-       e.payload->'raw'->'observedProperty'->>'value' AS raw_observed_property,
        e.payload->'raw'->'deviceType'->>'value' AS raw_profile_code,
        e.payload->'raw'->'location'->'value' AS raw_location,
-       m.entity_id
+       m.entity_id,
+       CASE WHEN jsonb_typeof(e.payload->'raw') = 'object' THEN
+         (SELECT jsonb_object_agg(kv.key, kv.value)
+            FROM jsonb_each(e.payload->'raw') AS kv
+           WHERE kv.key IN ('name', 'https://schema.org/name',
+                            'https://smartdatamodels.org/name',
+                            'controlledProperty', 'measurementType'))
+       END AS raw_shape
 FROM public.telemetry_measurements m
 LEFT JOIN public.telemetry_events e
        ON e.tenant_id = m.tenant_id AND e.observed_at = m.observed_at
@@ -353,6 +370,39 @@ def raw_point(raw_location: Any) -> Optional[Tuple[float, float]]:
     return lon, lat
 
 
+def decide_row(row: StoredRow, measurement_def: Optional[Dict[str, Any]]) -> ObservationDecision:
+    """The ingest decision (`decide_observation_property`) applied to the stored raw payload.
+
+    `measurement_def` is the profile entry of (raw `deviceType`, the row's channel) as
+    `channel_def` returns it. The channel is the row's `attribute_name`: recompute never
+    changes it. A raw payload with neither `deviceType` nor `name` (Phase 1) falls on the
+    legacy rule without a profile and gets no property.
+    """
+    try:
+        entity = _json(row.raw_shape) if row.raw_shape is not None else {}
+    except (TypeError, ValueError):
+        entity = {}
+    shape = device_measurement_shape(entity if isinstance(entity, dict) else {})
+    return decide_observation_property(shape, row.raw_profile_code, measurement_def)
+
+
+def _log_gate(
+    row: StoredRow, decision: ObservationDecision, device_urn: str, tenant_id: str
+) -> None:
+    reason = {
+        SKIP_STATISTIC: "observation_skipped_statistic",
+        SKIP_PROPERTY_MISMATCH: "observation_property_mismatch",
+        SKIP_NAME_UNUSABLE: "device_measurement_name_unusable",
+    }[decision.skip]
+    _skip_warnings.warning(
+        (tenant_id, device_urn, f"{reason}:{row.attribute_name}"),
+        f"{reason}: context left NULL: tenant_id={tenant_id} device_urn={device_urn} "
+        f"observed_at={row.observed_at.isoformat()} entity_id={row.entity_id} "
+        f"attribute={row.attribute_name} statistic={decision.statistic!r} "
+        f"profile_observedProperty={decision.def_property!r}",
+    )
+
+
 def plan_row(
     row: StoredRow,
     dep: Optional[Deployment],
@@ -368,16 +418,22 @@ def plan_row(
     of the row's effective observed property. The target depends only on them and
     on the raw event, never on the row's current context, so runs converge.
     """
-    effective_property = row.observed_property or row.raw_observed_property or None
+    decision = decide_row(row, measurement_def)
+    effective_property = row.observed_property or decision.observed_property or None
     # A row gets context only when ingest would have given it one: a valid
-    # deployment and an observed property. ASSUMPTION: a property taken from the raw
-    # event must be in the catalogue (a column defined as a catalogue name never
-    # receives an unknown one); a row already carrying observed_property is
-    # re-resolved regardless.
-    has_context = dep is not None and (
+    # deployment and an observed property. ASSUMPTION: a DeviceMeasurement `observedProperty`
+    # in the raw payload is never read (ingest does not read it either); the property comes
+    # from the shared decision. ASSUMPTION: a property taken from the decision must be in the
+    # catalogue (a column defined as a catalogue name never receives an unknown one); a row
+    # already carrying observed_property is re-resolved regardless, except when the decision
+    # is a deliberate gate (statistic channel, property mismatch, unusable name): those never
+    # carry context, so a stale one is cleared. The row's observed_property is left as it is.
+    has_context = dep is not None and decision.skip not in GATE_REASONS and (
         row.observed_property is not None
         or (effective_property is not None and prop is not None)
     )
+    if dep is not None and decision.skip in GATE_REASONS:
+        _log_gate(row, decision, device_urn, tenant_id)
     # Entity id rule (same as ingest, common.observation_context.entity_id_conforms): the
     # reader prunes compressed batches by it, so a row it would skip never gets context.
     device_id = device_urn.rsplit(":", 1)[-1]
@@ -721,22 +777,20 @@ class RecomputeLoop:
             updates: List[RowUpdate] = []
             for row in page:
                 dep = deployment_at(row.observed_at)
-                name = row.observed_property or row.raw_observed_property
+                # The profile entry of the PUBLISHED channel (window statistics expanded),
+                # as ingest reads it: the decision, the unit guard and counterMax need it.
+                mdef = None
+                if dep is not None and row.raw_profile_code:
+                    key = (row.raw_profile_code, row.attribute_name)
+                    if key not in mdefs:
+                        mdefs[key] = await self._lookup.channel_def(tenant_id, *key)
+                    mdef = mdefs[key]
+                name = row.observed_property or decide_row(row, mdef).observed_property
                 prop = None
                 if name and dep is not None:
                     if name not in props:
                         props[name] = await self._lookup.property(tenant_id, name)
                     prop = props[name]
-                mdef = None
-                if (
-                    prop is not None
-                    and (row.quality_flag is None or row.observed_property is None)
-                    and row.raw_profile_code
-                ):
-                    key = (row.raw_profile_code, row.attribute_name)
-                    if key not in mdefs:
-                        mdefs[key] = await self._lookup.measurement_def(tenant_id, *key)
-                    mdef = mdefs[key]
                 target = plan_row(row, dep, prop, mdef, device_urn, tenant_id=tenant_id)
                 if target is not None:
                     updates.append(target)

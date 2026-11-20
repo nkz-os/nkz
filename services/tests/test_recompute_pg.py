@@ -75,7 +75,8 @@ class Device:
                    (tenant_id, code, name, sdm_entity_type, mapping)
                    VALUES (%s, %s, 'p', 'Device', %s::jsonb)""",
                 (self.tenant, self.profile_code, json.dumps({"measurements": [
-                    {"sdmAttribute": "temperature", "unit": "°C"}]})),
+                    {"sdmAttribute": "temperature", "unit": "°C",
+                     "observedProperty": "airTemperature"}]})),
             )
 
     def deploy(self, lower, upper=None, height=1.5, mobility="fixed"):
@@ -99,23 +100,30 @@ class Device:
                 (json.dumps({"medium": "ambientAir", "heightAboveGround": height}), dep_id),
             )
 
-    def ingest(self, observed_at, value=21.5, dep_id=None, height=None, gps=None, mobile=False):
+    def ingest(self, observed_at, value=21.5, dep_id=None, height=None, gps=None, mobile=False,
+               attr="temperature", raw_attrs=None):
         """A DeviceMeasurement event as the worker writes it (observations iff dep_id).
 
         gps: the reading's own point (raw `location`); stored as the location when
         mobile, else the fixed deployment's point is stored.
         """
         raw = {
-            "id": f"urn:ngsi-ld:DeviceMeasurement:{self.tenant}:{self.dev}:temperature",
+            "id": f"urn:ngsi-ld:DeviceMeasurement:{self.tenant}:{self.dev}:{attr}",
             "type": "DeviceMeasurement",
             "refDevice": {"type": "Relationship", "object": self.urn},
             "observedProperty": {"type": "Property", "value": "airTemperature"},
             "deviceType": {"type": "Property", "value": self.profile_code},
         }
+        # raw_attrs: attribute -> value, or None to drop it (shape of the stored raw payload).
+        for key, val in (raw_attrs or {}).items():
+            if val is None:
+                raw.pop(key, None)
+            else:
+                raw[key] = {"type": "Property", "value": val}
         if gps is not None:
             raw["location"] = {"type": "GeoProperty",
                                "value": {"type": "Point", "coordinates": list(gps)}}
-        payload = {"measurements": {"temperature": value}, "raw": raw}
+        payload = {"measurements": {attr: value}, "raw": raw}
         if dep_id is not None:
             stored = list(gps) if mobile else [-3.7, 40.4]
             payload.update({
@@ -123,7 +131,7 @@ class Device:
                 "sourceKind": "device",
                 "timeSource": "device",
                 "location": {"type": "Point", "coordinates": stored},
-                "observations": {"temperature": {
+                "observations": {attr: {
                     "observedProperty": "airTemperature",
                     "featureOfInterest": "urn:ngsi-ld:AgriParcel:p1",
                     "medium": "ambientAir", "heightM": height, "qualityFlag": "valid",
@@ -610,3 +618,79 @@ def test_only_chunks_with_changed_rows_are_decompressed(pg_schema_factory):
             assert [c for (c,) in cur.fetchall()] == [False, True, False]
     finally:
         su.close()
+
+
+def _recompute_late_deployment(pg_dsn, d, t0):
+    """Deploy after the reading was ingested, recompute, return its row + attribute name."""
+    dep = d.deploy(t0, height=2.0)
+    run = d.enqueue(dep, t0)
+
+    async def body(pool):
+        return await _loop(pool).run_once()
+
+    assert _run_as(pg_dsn, "nkz_rls_test", body) == 1
+    with d.su.cursor() as cur:
+        cur.execute("SELECT attribute_name FROM public.telemetry_measurements WHERE tenant_id = %s",
+                    (d.tenant,))
+        attrs = [r[0] for r in cur.fetchall()]
+    (row,) = d.rows()
+    return dep, row, attrs, d.run_row(run)
+
+
+def test_new_shape_raw_gets_context_and_keeps_the_channel(pg_dsn, su):
+    d = Device(su)
+    t0 = datetime(2034, 3, 1, tzinfo=timezone.utc)
+    d.ingest(t0 + timedelta(hours=1), raw_attrs={
+        "name": "temperature", "controlledProperty": "airTemperature",
+        "measurementType": "instant"})
+    dep, row, attrs, run = _recompute_late_deployment(pg_dsn, d, t0)
+    assert row[2] == dep and row[3] == "airTemperature" and row[1] == 2.0
+    assert attrs == ["temperature"] and run[:2] == ("done", 1)
+
+
+def test_legacy_raw_with_device_type_gets_context(pg_dsn, su):
+    d = Device(su)
+    t0 = datetime(2034, 4, 1, tzinfo=timezone.utc)
+    d.ingest(t0 + timedelta(hours=1), raw_attrs={
+        "controlledProperty": "temperature", "measurementType": "SoilMoisture",
+        "observedProperty": None})  # the profile type; the catalogue name is the profile's
+    dep, row, attrs, _ = _recompute_late_deployment(pg_dsn, d, t0)
+    assert row[2] == dep and row[3] == "airTemperature" and attrs == ["temperature"]
+
+
+def test_phase1_raw_with_neither_device_type_nor_name_keeps_null_context(pg_dsn, su):
+    d = Device(su)
+    t0 = datetime(2034, 5, 1, tzinfo=timezone.utc)
+    d.ingest(t0 + timedelta(hours=1), raw_attrs={"deviceType": None})
+    dep, row, attrs, run = _recompute_late_deployment(pg_dsn, d, t0)
+    assert row[2:8] == (None,) * 6 and attrs == ["temperature"]
+    assert run[:3] == ("done", 0, None)
+
+
+def test_new_shape_min_channel_gets_no_context(pg_dsn, su):
+    d = Device(su)
+    t0 = datetime(2034, 6, 1, tzinfo=timezone.utc)
+    with su.cursor() as cur:  # the profile opts the Min channel in: only the gate stops it
+        cur.execute(
+            "UPDATE public.sensor_profiles SET mapping = %s::jsonb WHERE tenant_id = %s AND code = %s",
+            (json.dumps({"measurements": [{"sdmAttribute": "airTemperatureMin", "unit": "°C",
+                                           "observedProperty": "airTemperature"}]}),
+             d.tenant, d.profile_code),
+        )
+    d.ingest(t0 + timedelta(hours=1), attr="airTemperatureMin", raw_attrs={
+        "name": "airTemperatureMin", "controlledProperty": "airTemperature",
+        "measurementType": "min"})
+    dep, row, attrs, run = _recompute_late_deployment(pg_dsn, d, t0)
+    assert row[2:8] == (None,) * 6
+    assert attrs == ["airTemperatureMin"] and run[:3] == ("done", 0, None)
+
+
+def test_stale_name_after_rollback_is_legacy(pg_dsn, su):
+    """Flag rolled back: `name` is stale (= the channel), `measurementType` is a profile type."""
+    d = Device(su)
+    t0 = datetime(2034, 7, 1, tzinfo=timezone.utc)
+    d.ingest(t0 + timedelta(hours=1), raw_attrs={
+        "name": "temperature", "controlledProperty": "temperature",
+        "measurementType": "Temperature"})
+    dep, row, attrs, _ = _recompute_late_deployment(pg_dsn, d, t0)
+    assert row[2] == dep and row[3] == "airTemperature" and attrs == ["temperature"]
