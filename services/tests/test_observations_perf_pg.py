@@ -8,8 +8,9 @@ Chunks older than 7 days are compressed as the seed advances (both hypertables),
 Budgets: series 30 d PT1H p95 <= 500 ms, latest p95 <= 150 ms; 3 warm-ups then 50 timed runs,
 end to end through `best()` as nkz_rls_test (tenant_cursor, production 10 s statement timeout).
 
-Dense scenario (informational, env NKZ_PERF_DENSE=1): another tenant, 10 devices at 5 s on its
-parcel. Only asserts that the series completes under the 10 s statement timeout; prints p50/p95.
+Dense scenario (informational, env NKZ_PERF_DENSE=1, its own test function and scratch DB): 10
+devices at 5 s on a parcel. Only asserts that the series completes under the 10 s statement
+timeout; prints p50/p95.
 
 Seeding:
   - tier-1 devices: one telemetry_events row per reading, inserted with the 115 trigger enabled,
@@ -429,10 +430,6 @@ def test_best_read_performance(pg_schema_factory):
             for label, budget in budgets:
                 if _pct(results[label], 0.95) > budget:
                     _explain(conn, tenant, slow[label][0], log, label)
-
-            if os.environ.get("NKZ_PERF_DENSE") == "1":
-                _dense(pg_schema_factory, end, log)
-
             for label, budget in budgets:
                 p95 = _pct(results[label], 0.95)
                 assert p95 <= budget, f"{label}: p95 {p95:.1f} ms > budget {budget:.0f} ms"
@@ -447,15 +444,31 @@ def test_best_read_performance(pg_schema_factory):
         _drop_db(dsn)
 
 
+def test_dense_parcel_informational(pg_schema_factory):
+    """Informational (NKZ_PERF_DENSE=1): 10 devices at 5 s on one parcel, own scratch DB.
+
+    Separate from the gating test, so a dense failure or kill never hides the gating verdict.
+    Asserts only that the series completes under the production 10 s statement timeout.
+    """
+    from observations import db as obs_db
+
+    if os.environ.get("NKZ_PERF_DENSE") != "1":
+        pytest.skip("dense scenario: set NKZ_PERF_DENSE=1")
+    assert obs_db.STATEMENT_TIMEOUT_SQL == PROD_TIMEOUT_SQL, "production statement timeout changed"
+    if _free() < MIN_FREE_START:
+        pytest.fail(f"free disk {_free() / 2**30:.1f} GiB < 8 GiB: refusing to seed")
+    end = datetime.now(UTC).replace(minute=0, second=0, microsecond=0)
+    try:
+        _dense(pg_schema_factory, end, lambda msg: print(msg, flush=True))
+    except DiskGuardAbort as exc:
+        pytest.fail(str(exc))
+
+
 def _dense(pg_schema_factory, end, log):
-    """Informational: 10 devices at 5 s on the parcel of a tenant in its own scratch DB (the
-    gating DB's old chunks are compressed: 2.10 cannot insert into them)."""
+    """10 devices at 5 s on the parcel of a tenant in its own scratch DB (always dropped)."""
     import psycopg2
     import psycopg2.errors
 
-    if _free() < MIN_FREE_START:
-        log(f"dense: skipped, free disk {_free() / 2**30:.1f} GiB < 8 GiB")
-        return
     dsn = pg_schema_factory(None)
     su = psycopg2.connect(dsn)
     su.autocommit = True
