@@ -216,15 +216,25 @@ async def _process_entity(
         # persist, not a device_id of "" — bail out here rather than falling through.
         device_id, measurements = _extract_device_measurement(entity)
         shape = device_measurement_shape(entity)
-        if shape.sdm and shape.channel is None:
-            # A data problem, not a normal absence: the SDM shape without a usable `name`
-            # cannot be keyed (controlledProperty is the catalogue name, not the channel).
+        if shape.has_name and shape.channel is None:
+            # A data problem, not a normal absence: a present but unusable `name` cannot
+            # be keyed (controlledProperty may be the catalogue name, not the channel).
             _skip_warnings.warning(
                 (tenant_id, entity_id, "device_measurement_name_unusable"),
                 f"device_measurement_name_unusable: reading not stored: tenant_id={tenant_id} "
                 f"entity_id={entity_id}",
             )
             return None
+        if shape.ambiguous:
+            # Stored under `name`; context follows the legacy profile rule for that channel.
+            _skip_warnings.warning(
+                (tenant_id, entity_id, "ambiguous_shape"),
+                f"ambiguous_shape: name differs from controlledProperty and measurementType "
+                f"is not in the closed vocabulary; keyed by name, legacy profile rule: "
+                f"tenant_id={tenant_id} entity_id={entity_id} name={shape.channel!r} "
+                f"controlledProperty={shape.controlled_property!r} "
+                f"measurementType={shape.measurement_type!r}",
+            )
         if device_id is None or not measurements:
             logger.debug(
                 f"DeviceMeasurement {entity_id} missing refDevice or a reading, skipping"
@@ -398,44 +408,59 @@ def _non_empty_str(value: Any) -> Optional[str]:
 class DeviceMeasurementShape:
     """Which DeviceMeasurement shape a notification carries, and its channel.
 
-    New (SDM) shape, `name` present under any NAME_KEYS form AND `measurementType` in the
-    closed vocabulary (SDM_MEASUREMENT_TYPES): channel = `name`, catalogue name =
-    `controlledProperty`.
-    Legacy (Phase 1) shape, anything else: channel = `controlledProperty`; the catalogue
-    name comes from the profile entry of (`deviceType`, channel); `measurementType` is the
-    profile `type` and means nothing here.
+    Channel (the storage key): `name` whenever it is present under any NAME_KEYS form,
+    otherwise `controlledProperty`.
+    Observation-context rule:
+    - SDM (`sdm`): `name` present AND `measurementType` in the closed vocabulary
+      (SDM_MEASUREMENT_TYPES). Catalogue name = `controlledProperty`, statistic gate on
+      `measurementType`.
+    - Legacy, anything else: the catalogue name comes from the profile entry of
+      (`deviceType`, channel); `measurementType` is the profile `type` and means nothing.
     Rollback safety: the flag-off builder never deletes `name` (DMs are upserted with
     options=update), so after a flag rollback a DM keeps a stale `name` while
-    `measurementType` returns to the profile `type`. `name` alone therefore does not decide
-    the shape; recompute mirrors this discriminator.
+    `measurementType` returns to the profile `type`; the DM id is stable, so the stale
+    `name` equals `controlledProperty` and both give the same key. A corrupt SDM DM (a
+    `name` with a missing or invalid `measurementType`) stays keyed by `name`, so a Min
+    channel never merges into the base channel; the legacy rule then finds the channel's
+    `min` statistic in the profile and gates it. Recompute mirrors this rule.
     `channel` is None when the reading cannot be keyed: a `name` that is present but not a
-    non-empty string is never replaced by `controlledProperty` (that fallback would collapse
-    `airTemperatureMin`/`Max` into `airTemperature`).
+    non-empty string is never replaced by `controlledProperty`.
     """
 
     sdm: bool
+    has_name: bool
     channel: Optional[str]
     controlled_property: Optional[str]
     measurement_type: Any
+
+    @property
+    def ambiguous(self) -> bool:
+        """`name` present and different from `controlledProperty`, with an invalid
+        `measurementType`: neither a clean SDM DM nor a rolled-back one."""
+        return self.has_name and not self.sdm and self.channel != self.controlled_property
 
 
 def device_measurement_shape(entity: Dict[str, Any]) -> DeviceMeasurementShape:
     # ASSUMPTION: a legacy reading whose id does not end in `:{controlledProperty}` is still
     # stored (design A.2 says drop it; the plan's global constraints do not). It never gets
     # observation context: `entity_id_conforms` blocks it in `_resolve_observation_payload`.
+    # ASSUMPTION: without `name` the legacy rule applies even when `measurementType` is a
+    # vocabulary word (a Phase 1 profile `type` may collide with it).
     controlled = _non_empty_str(_prop_value(entity, "controlledProperty"))
     measurement_type = _prop_value(entity, "measurementType")
+    name_key = next((key for key in NAME_KEYS if key in entity), None)
+    if name_key is None:
+        return DeviceMeasurementShape(
+            sdm=False, has_name=False, channel=controlled,
+            controlled_property=controlled, measurement_type=measurement_type,
+        )
     sdm_type = isinstance(measurement_type, str) and measurement_type in SDM_MEASUREMENT_TYPES
-    for key in NAME_KEYS:
-        if sdm_type and key in entity:
-            return DeviceMeasurementShape(
-                sdm=True,
-                channel=_non_empty_str(_prop_value(entity, key)),
-                controlled_property=controlled,
-                measurement_type=measurement_type,
-            )
     return DeviceMeasurementShape(
-        sdm=False, channel=controlled, controlled_property=None, measurement_type=measurement_type
+        sdm=sdm_type,
+        has_name=True,
+        channel=_non_empty_str(_prop_value(entity, name_key)),
+        controlled_property=controlled,
+        measurement_type=measurement_type,
     )
 
 

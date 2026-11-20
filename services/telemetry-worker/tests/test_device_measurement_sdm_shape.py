@@ -256,9 +256,12 @@ def test_stddev_is_gated_in_both_shapes():
 
 
 # ---------------------------------------------------------------- rollback-safe discriminator
-# The flag-off builder never deletes `name` (DMs are upserted with options=update), so after a
-# flag rollback a DM keeps a stale `name` while `measurementType` returns to the profile `type`.
-# The SDM shape needs `name` AND a closed-vocabulary measurementType; anything else is legacy.
+# Channel: `name` whenever present (any NAME_KEYS form), else `controlledProperty`.
+# Context: the SDM rule when `name` is present and `measurementType` is in the closed
+# vocabulary; otherwise the legacy profile rule (`deviceType` + the chosen channel).
+# The flag-off builder never deletes `name` (DMs are upserted with options=update): after a
+# rollback a DM keeps a stale `name` (= controlledProperty, the id is stable) while
+# `measurementType` returns to the profile `type`.
 
 
 def _stale(mtype, name="temperatureSensor2"):
@@ -270,12 +273,17 @@ def _stale(mtype, name="temperatureSensor2"):
     return e
 
 
+def _ambiguous_lines(caplog):
+    return [r for r in caplog.records if "ambiguous_shape" in r.getMessage()]
+
+
 def test_stale_name_with_profile_type_takes_the_legacy_branch(caplog):
     with caplog.at_level(logging.DEBUG):
         ev = _run(_stale("temperature"), FakeLookup(dep=_dep()))
     assert ev.payload["measurements"] == {"temperatureSensor2": 21.5}
     assert ev.payload["observations"]["temperatureSensor2"]["observedProperty"] == "airTemperature"
     assert not _gate_lines(caplog)
+    assert not _ambiguous_lines(caplog)  # name == controlledProperty: not ambiguous
 
 
 def test_stale_name_with_statistic_measurement_type_takes_the_sdm_branch(caplog):
@@ -288,25 +296,79 @@ def test_stale_name_with_statistic_measurement_type_takes_the_sdm_branch(caplog)
     assert len(_gate_lines(caplog)) == 1
 
 
-def test_name_with_missing_measurement_type_takes_the_legacy_branch():
-    e = _stale(None, name="someOtherName")
+def test_stale_name_legacy_shape_with_statistic_type_stays_keyed_by_the_channel(caplog):
+    """controlledProperty = channel = name, measurementType a statistic word: same key."""
+    e = _legacy("airTemperatureMin", mtype="min", value=10.0)
+    e["name"] = _prop("airTemperatureMin")
+    with caplog.at_level(logging.DEBUG):
+        ev = _run(e, FakeLookup(dep=_dep(), statistic="min"))
+    assert ev.payload["measurements"] == {"airTemperatureMin": 10.0}
+    assert "observations" not in ev.payload
+    assert not _ambiguous_lines(caplog)
+
+
+def test_name_with_missing_measurement_type_takes_the_legacy_branch_same_key(caplog):
+    e = _stale(None)  # name == controlledProperty
     assert device_measurement_shape_of(e).sdm is False
-    ev = _run(e, FakeLookup(dep=_dep()))
-    assert ev.payload["measurements"] == {"temperatureSensor2": 21.5}  # keyed by controlledProperty
-    assert "observations" in ev.payload
+    with caplog.at_level(logging.DEBUG):
+        ev = _run(e, FakeLookup(dep=_dep()))
+    assert ev.payload["measurements"] == {"temperatureSensor2": 21.5}
+    assert ev.payload["observations"]["temperatureSensor2"]["observedProperty"] == "airTemperature"
+    assert not _ambiguous_lines(caplog)
 
 
 @pytest.mark.parametrize("mtype", ["", "INSTANT", "average", 3, "temperature"])
 def test_name_with_out_of_vocabulary_measurement_type_takes_the_legacy_branch(mtype):
-    e = _stale(mtype, name="someOtherName")
+    e = _stale(mtype)
     assert device_measurement_shape_of(e).sdm is False
     ev = _run(e, FakeLookup(dep=_dep()))
     assert ev.payload["measurements"] == {"temperatureSensor2": 21.5}
+    assert "observations" in ev.payload
+
+
+def test_corrupt_sdm_min_without_measurement_type_stays_min_and_is_gated(caplog):
+    """name='airTemperatureMin', controlledProperty='airTemperature', no measurementType:
+    keyed by name (never merged into the base channel); the legacy profile rule finds the
+    `min` statistic of that channel and gates it; `ambiguous_shape` is warned once."""
+    readings = []
+    for i in range(3):
+        e = _sdm("airTemperatureMin", controlled="airTemperature", value=10.0 + i,
+                 at=f"2026-08-29T10:0{i}:00Z")
+        del e["measurementType"]
+        readings.append(e)
+    lk = _per_channel_lookup()
+    with caplog.at_level(logging.DEBUG):
+        events = _run_many(readings, lk)
+    for i, ev in enumerate(events):
+        assert ev.payload["measurements"] == {"airTemperatureMin": 10.0 + i}
+        assert "observations" not in ev.payload
+    assert ("def", TENANT, "prof-x", "airTemperatureMin") in lk.calls
+    assert len(_gate_lines(caplog)) == 1
+    amb = _ambiguous_lines(caplog)
+    assert len(amb) == 1 and amb[0].levelno == logging.WARNING
+    for needle in (TENANT, f"{DM_PREFIX}:airTemperatureMin", "name='airTemperatureMin'",
+                   "controlledProperty='airTemperature'", "measurementType=None"):
+        assert needle in amb[0].getMessage(), needle
+
+
+@pytest.mark.parametrize("bad", ["", None, 5])
+def test_unusable_name_with_invalid_measurement_type_is_still_skipped(bad):
+    """A present `name` is the channel; an unusable one never falls back to controlledProperty."""
+    e = _sdm("airTemperatureMin", controlled="airTemperature")
+    del e["measurementType"]
+    e["name"] = _prop(bad)
+    assert _run(e, FakeLookup(dep=_dep())) is None
 
 
 @pytest.mark.parametrize("mtype", ["instant", "mean", "min", "max", "stddev", "last", "sum"])
 def test_name_with_closed_vocabulary_measurement_type_is_the_sdm_shape(mtype):
     assert device_measurement_shape_of(_sdm("airTemperature", mtype=mtype)).sdm is True
+
+
+def test_vocabulary_measurement_type_without_name_is_legacy():
+    e = _legacy("airTemperature", mtype="mean")
+    shape = device_measurement_shape_of(e)
+    assert shape.sdm is False and shape.channel == "airTemperature"
 
 
 def device_measurement_shape_of(entity):
