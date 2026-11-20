@@ -15,10 +15,14 @@ from __future__ import annotations
 import json
 import logging
 import os
+import sys
+import time
+import urllib.error
+import urllib.request
 from dataclasses import dataclass
 from pathlib import Path
 from types import MappingProxyType
-from typing import Mapping
+from typing import Callable, Mapping
 
 logger = logging.getLogger(__name__)
 
@@ -40,6 +44,11 @@ PREFIX_DELIMITERS = ("/", "#", ":", "?", "@", "[", "]")
 # under the default vocabulary, so that IRI must keep matching.
 ZONE_NAME = "AgriManagementZone"
 ZONE_DEFAULT_IRI = "https://uri.etsi.org/ngsi-ld/default-context/" + ZONE_NAME
+# Environment of the `broker` subcommand and the page size of the types listing.
+ORION_URL_ENV = "ORION_URL"
+TENANTS_ENV = "ENTITY_TYPE_CHECK_TENANTS"
+TYPES_PAGE_LIMIT = 1000
+TYPES_PATH = f"/ngsi-ld/v1/types?details=true&limit={TYPES_PAGE_LIMIT}"
 
 
 class GuardUnavailable(Exception):
@@ -276,3 +285,143 @@ class EntityTypeGuard:
         level = logging.WARNING if rejected else logging.INFO
         logger.log(level, "entity_type_guard %s", json.dumps(record, sort_keys=True))
         return rejected if self.enforce else []
+
+
+# --- Broker check: the types actually stored, per tenant (daily job) ---------
+
+
+class BrokerCheckError(Exception):
+    """The check could not be completed for a tenant (not the same as finding an unknown type)."""
+
+
+class TruncatedListing(BrokerCheckError):
+    def __init__(self) -> None:
+        super().__init__(f"listing may be truncated at {TYPES_PAGE_LIMIT} types")
+
+
+def stored_type_iris(
+    orion_url: str,
+    tenant: str,
+    *,
+    attempts: int = 5,
+    delay: float = 3.0,
+    timeout: float = 30.0,
+    opener: Callable = urllib.request.urlopen,
+    sleep: Callable[[float], None] = time.sleep,
+) -> list[str]:
+    """The IRIs the broker stores entity types under for one tenant, in the order received.
+
+    No `Link` header is sent: the `id` of each item is the stored IRI either way.
+    Connection failures and 5xx are retried because a job can start before its
+    network policy is programmed; a broker that never answers must end in an
+    error, never in a clean result.
+    """
+    request = urllib.request.Request(
+        orion_url.rstrip("/") + TYPES_PATH,
+        headers={
+            "NGSILD-Tenant": tenant,
+            "Fiware-Service": tenant,
+            "Fiware-ServicePath": "/",
+            "Accept": "application/json",
+        },
+        method="GET",
+    )
+    last: Exception | None = None
+    raw = b""
+    for attempt in range(attempts):
+        if attempt:
+            sleep(delay)
+        try:
+            with opener(request, timeout=timeout) as response:
+                raw = response.read()
+            last = None
+            break
+        except urllib.error.HTTPError as exc:  # before URLError: it is a subclass
+            if exc.code < 500:
+                raise BrokerCheckError(f"broker answered HTTP {exc.code}") from exc
+            last = exc
+        except OSError as exc:  # URLError, connection refused, DNS failure, timeouts
+            last = exc
+    if last is not None:
+        raise BrokerCheckError("broker unreachable") from last
+    try:
+        body = json.loads(raw)
+    except ValueError as exc:
+        raise BrokerCheckError("broker answer is not JSON") from exc
+    if not isinstance(body, list) or not all(isinstance(i, dict) and isinstance(i.get("id"), str) for i in body):
+        raise BrokerCheckError("broker answer is not a list of types")
+    # A full page may hide further types: never report it as clean.
+    if len(body) >= TYPES_PAGE_LIMIT:
+        raise TruncatedListing()
+    return [item["id"] for item in body]
+
+
+def unknown_stored_types(iris: list[str], accepted: AcceptedTypes) -> list[str]:
+    return sorted(set(iris) - accepted.iris)
+
+
+def _error_label(exc: BrokerCheckError) -> str:
+    if isinstance(exc, TruncatedListing):
+        return str(exc)
+    cause = exc.__cause__
+    return type(cause if cause is not None else exc).__name__
+
+
+def run_broker_check(
+    orion_url: str,
+    tenants: list[str],
+    accepted: AcceptedTypes,
+    *,
+    fetch: Callable[[str, str], list[str]] = stored_type_iris,
+    out: Callable[[str], None] = print,
+) -> int:
+    """0 clean, 1 an unknown type stored, 2 a tenant could not be checked.
+
+    Every tenant is checked even after a finding. Lines carry the class of an
+    error, never its message, which can hold addresses.
+    """
+    unknown_found = False
+    errored = False
+    for tenant in tenants:
+        try:
+            iris = fetch(orion_url, tenant)
+        except BrokerCheckError as exc:
+            errored = True
+            out(f"error {tenant}: {_error_label(exc)}")
+            continue
+        unknown = unknown_stored_types(iris, accepted)
+        if unknown:
+            unknown_found = True
+            for iri in unknown:
+                out(f"unknown {tenant}: {iri}")
+        else:
+            out(f"ok {tenant}: {len(iris)} types")
+    return 2 if errored else 1 if unknown_found else 0
+
+
+def main(argv: list[str] | None = None) -> int:
+    import argparse
+
+    parser = argparse.ArgumentParser(prog="entity_type_guard")
+    parser.add_argument("command", choices=["broker"], help="check the entity types stored in the broker")
+    parser.parse_args(argv)
+
+    orion_url = os.environ.get(ORION_URL_ENV, "").strip()
+    if not orion_url:
+        print(f"error: {ORION_URL_ENV} is not set")
+        return 2
+    tenants = [t.strip() for t in os.environ.get(TENANTS_ENV, "").split(",") if t.strip()]
+    if not tenants:
+        print(f"error: {TENANTS_ENV} is empty")
+        return 2
+    try:
+        accepted = load_accepted()
+    except GuardUnavailable:
+        print("error: entity type lists unavailable")
+        return 2
+    # Looked up here, not bound as a default, so the name can be replaced in tests.
+    return run_broker_check(orion_url, tenants, accepted, fetch=stored_type_iris)
+
+
+if __name__ == "__main__":
+    sys.exit(main())
