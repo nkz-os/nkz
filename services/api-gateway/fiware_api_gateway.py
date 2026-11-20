@@ -83,6 +83,7 @@ from log_helpers import redact  # noqa: E402
 from hash_utils import api_key_digest, salted_credential_digest  # noqa: E402
 from proxy_helpers import safe_json_proxy_response  # noqa: E402
 from ngsi_payload_guard import shorthand_null_attributes  # noqa: E402
+from entity_type_guard import EntityTypeGuard, declared_types  # noqa: E402
 
 # Import Keycloak authentication
 try:
@@ -125,6 +126,10 @@ except ImportError:
     def resolve_pat_tenant_id(raw, base):
         return None
 
+
+# Built once: the lists are read at import and a guard that cannot load them
+# lets everything through (and says so), so startup never fails on it.
+ENTITY_TYPE_GUARD = EntityTypeGuard.from_env("api-gateway")
 
 app = Flask(__name__)
 # Cap request bodies: unbounded uploads are a trivial memory-DoS vector
@@ -1314,6 +1319,33 @@ def internal_cache_invalidate():
     return jsonify({"ok": True}), 200
 
 
+def _reject_unaccepted_entity_type(body, tenant):
+    """422 when an entity creation declares a type outside the closed list.
+
+    Called with the body as the client sent it: the platform context is
+    injected afterwards, and a client-supplied @context must be logged as such.
+    The guard logs and decides; with enforcement off it returns nothing.
+    """
+    foreign_context = isinstance(body, dict) and "@context" in body
+    types = declared_types(body)
+    if types is None and not foreign_context:
+        return None
+    rejected = ENTITY_TYPE_GUARD.check(
+        types,
+        tenant=tenant,
+        path=request.path,
+        module_id=request.headers.get("X-Module-Id"),
+        foreign_context=foreign_context,
+    )
+    if not rejected:
+        return None
+    return jsonify({
+        "error": "Entity type not accepted",
+        "types": rejected,
+        "hint": "Accepted types are listed in config/entity-types of the platform repository",
+    }), 422
+
+
 def _reject_shorthand_null(body, tenant, target):
     """400 when a mutation body uses the bare null token as an attribute value.
 
@@ -1405,6 +1437,10 @@ def entities():
     rejected = _reject_shorthand_null(json_body, tenant, "entities")
     if rejected:
         return rejected
+    if request.method == "POST":
+        rejected = _reject_unaccepted_entity_type(json_body, tenant)
+        if rejected:
+            return rejected
     if isinstance(json_body, dict) and "@context" not in json_body:
         json_body["@context"] = [
             "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context.jsonld",
