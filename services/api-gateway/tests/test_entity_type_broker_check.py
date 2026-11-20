@@ -92,7 +92,7 @@ def test_retries_connection_errors_then_succeeds():
     sleep = FakeSleep()
     assert fetch(opener, sleep=sleep, delay=7.0) == ["x:y"]
     assert len(opener.requests) == 3
-    assert sleep.calls == [7.0, 7.0]
+    assert sleep.calls == [7.0, 14.0]  # the wait grows with each attempt
 
 
 def test_gives_up_after_attempts():
@@ -356,4 +356,10 @@ def test_import_makes_no_network_call(monkeypatch):
         raise AssertionError("network call at import")
 
     monkeypatch.setattr(urllib.request, "urlopen", boom)
-    importlib.reload(g)
+    try:
+        importlib.reload(g)
+    finally:
+        # Reload once more with the real opener, or the patched one stays as a default argument.
+        monkeypatch.undo()
+        importlib.reload(g)
+    assert g.stored_type_iris.__kwdefaults__["opener"] is urllib.request.urlopen

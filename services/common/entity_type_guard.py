@@ -307,7 +307,7 @@ def stored_type_iris(
     tenant: str,
     *,
     attempts: int = 5,
-    delay: float = 3.0,
+    delay: float = 10.0,
     timeout: float = 30.0,
     opener: Callable = urllib.request.urlopen,
     sleep: Callable[[float], None] = time.sleep,
@@ -342,7 +342,8 @@ def stored_type_iris(
     raw = b""
     for attempt in range(attempts):
         if attempt:
-            sleep(delay)
+            # A growing wait: the network policy of a fresh pod can take tens of seconds.
+            sleep(delay * attempt)
         try:
             with opener(request, timeout=timeout) as response:
                 raw = response.read()
