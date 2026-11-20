@@ -12,6 +12,13 @@ FAIL OPEN (mandatory): if Redis is unavailable, unreachable at startup, or
 any Redis call raises, the event is treated as NOT a duplicate and the write
 proceeds. A dropped telemetry reading is strictly worse than an occasional
 duplicate row — never let a Redis outage silently discard data.
+
+DeviceMeasurement replay guard (design A.3): a one-off Orion write to a DM
+(backfill, attribute delete) re-notifies its CURRENT state, long after the
+5-minute window above. Per DM entity the last processed (dateObserved, value)
+is kept in Redis without TTL, written only after the event was inserted; a
+notification equal to it is a replay and is skipped. A late or corrected
+reading differs in dateObserved or value and passes. Same fail-open policy.
 """
 
 from __future__ import annotations
@@ -24,9 +31,12 @@ from typing import Any, Dict, Optional
 
 import redis.asyncio as aioredis
 
+from .log_throttle import ThrottledWarnings
+
 logger = logging.getLogger(__name__)
 
 KEY_PREFIX = "telemetry:dedup:"
+REPLAY_KEY_PREFIX = "telemetry:dm_last:"
 DEFAULT_TTL_SECONDS = 300  # 5 minutes — covers Orion's typical retry/replay window
 HASH_LENGTH = 16
 
@@ -84,6 +94,9 @@ class NotificationDedup:
         self._ttl = ttl_seconds
         self._redis_password = redis_password
         self._redis: Optional[aioredis.Redis] = None
+        # One throttle key for every replay-guard Redis failure: an outage is one
+        # condition, not one per entity.
+        self._replay_warnings = ThrottledWarnings(logger)
 
     async def start(self) -> None:
         """Initialize Redis connection. Never raises — fail-open on connect error."""
@@ -155,3 +168,82 @@ class NotificationDedup:
                 f"failing open (treating as new event): {e}"
             )
             return False
+
+    # ── DeviceMeasurement replay guard ──────────────────────────────────────
+    # ASSUMPTION: the guard shares this instance's Redis connection and its enable flag
+    # (TELEMETRY_DEDUP_ENABLED=false turns the replay guard off too), so it follows the
+    # existing dedup's fail-open policy exactly and needs no new setting.
+
+    @staticmethod
+    def _replay_key(tenant_id: Optional[str], entity_id: str) -> str:
+        # ASSUMPTION: scoped by tenant as well as the DM entity id, like the dedup key
+        # above; the id already embeds the tenant, so this only adds isolation.
+        return f"{REPLAY_KEY_PREFIX}{tenant_id or 'unknown'}:{entity_id}"
+
+    def _replay_unavailable(self, entity_id: str, error: Any) -> None:
+        self._replay_warnings.warning(
+            ("replay_guard_unavailable",),
+            "replay_guard_unavailable: Redis unavailable, DeviceMeasurement notifications "
+            "are processed without the replay guard (fail-open): entity_id=%s error=%s",
+            entity_id,
+            error,
+        )
+
+    async def is_replay(
+        self,
+        tenant_id: Optional[str],
+        entity_id: str,
+        observed_at: datetime,
+        value: Any,
+    ) -> bool:
+        """True when (observed_at, value) equals the last processed reading of this DM.
+
+        Compared as values, not strings: the same instant in another offset and 21 vs
+        21.0 match; a bool never matches a number. FAIL OPEN: disabled, never connected,
+        any Redis error or an unreadable record means False (process the notification).
+        """
+        if not self.enabled:
+            return False
+        if not self._redis:
+            self._replay_unavailable(entity_id, "not connected")
+            return False
+        try:
+            stored = await self._redis.get(self._replay_key(tenant_id, entity_id))
+        except Exception as e:
+            self._replay_unavailable(entity_id, e)
+            return False
+        if stored is None:
+            return False
+        try:
+            record = json.loads(stored)
+            last_at = datetime.fromisoformat(record["dateObserved"])
+            last_value = record["value"]
+        except Exception:
+            return False
+        if isinstance(last_value, bool) != isinstance(value, bool):
+            return False
+        try:
+            return last_at == observed_at and last_value == value
+        except TypeError:  # naive vs aware instant: not comparable, not a replay
+            return False
+
+    async def record_processed(
+        self,
+        tenant_id: Optional[str],
+        entity_id: str,
+        observed_at: datetime,
+        value: Any,
+    ) -> None:
+        """Remember the reading just inserted for this DM (no TTL). Never raises."""
+        if not self.enabled:
+            return
+        if not self._redis:
+            self._replay_unavailable(entity_id, "not connected")
+            return
+        record = json.dumps(
+            {"dateObserved": _observed_at_key(observed_at), "value": value}, default=str
+        )
+        try:
+            await self._redis.set(self._replay_key(tenant_id, entity_id), record)
+        except Exception as e:
+            self._replay_unavailable(entity_id, e)

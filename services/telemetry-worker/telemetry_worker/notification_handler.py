@@ -142,14 +142,49 @@ async def process_notification_task(
         # Batch persist all events from this notification
         if events and _event_sink:
             if len(events) == 1:
-                await _event_sink.write(events[0])
+                inserted = events if await _event_sink.write(events[0]) is True else []
             else:
-                await _event_sink.write_batch(events)
+                inserted = await _event_sink.write_batch(events)
+                if not isinstance(inserted, list):
+                    inserted = []
 
-            logger.info(f"Persisted {len(events)} events for tenant={tenant_id}")
+            logger.info(
+                f"Persisted {len(inserted)}/{len(events)} events for tenant={tenant_id}"
+            )
+            # Replay records only for events really inserted (never dead-lettered ones).
+            await _record_replay_state(inserted)
 
     except Exception as e:
         logger.error(f"Error processing notification: {e}", exc_info=True)
+
+
+def _replay_fingerprint(entity: Dict[str, Any]) -> Optional[tuple]:
+    """(dateObserved, value) of a DeviceMeasurement as notified (before calibration).
+
+    None when either is missing or dateObserved is unparseable: observed_at would then fall
+    back to now(), so no meaningful record can exist and the replay guard is bypassed.
+    """
+    at = _date_observed(entity)
+    if at is None:
+        return None
+    for value_key in ("numValue", "textValue"):
+        value_attr = entity.get(value_key)
+        if isinstance(value_attr, dict) and "value" in value_attr:
+            return at, value_attr["value"]
+    return None
+
+
+async def _record_replay_state(inserted: List[TelemetryEvent]) -> None:
+    """After a successful insert, remember each DeviceMeasurement's last reading."""
+    if _dedup is None:
+        return
+    for event in inserted:
+        if event.entity_type != "DeviceMeasurement":
+            continue
+        raw = event.payload.get("raw") if isinstance(event.payload, dict) else None
+        fingerprint = _replay_fingerprint(raw) if isinstance(raw, dict) else None
+        if fingerprint is not None:
+            await _dedup.record_processed(event.tenant_id, event.entity_id, *fingerprint)
 
 
 async def _process_entity(
@@ -196,6 +231,23 @@ async def _process_entity(
     if not _profile_service or not _settings:
         logger.error("Handler not initialized")
         return None
+
+    # Replay guard (design A.3): a one-off Orion write to a DM re-notifies its current
+    # state long after the short dedup window below. Checked before calibration and the
+    # health check (which writes back to Orion). Fail-open inside `is_replay`.
+    if entity_type == "DeviceMeasurement" and _dedup is not None:
+        fingerprint = _replay_fingerprint(entity)
+        if fingerprint is not None and await _dedup.is_replay(
+            tenant_id, entity_id, *fingerprint
+        ):
+            _skip_info.warning(
+                (tenant_id, entity_id, "device_measurement_replay_skipped"),
+                f"device_measurement_replay_skipped: identical to the last processed "
+                f"reading, not stored: tenant_id={tenant_id} entity_id={entity_id} "
+                f"device_id={device_id} date_observed={fingerprint[0].isoformat()} "
+                f"value={fingerprint[1]!r}",
+            )
+            return None
 
     # Get processing profile
     profile = _profile_service.get_profile(
@@ -623,6 +675,12 @@ def _extract_device_measurement_observed_at(entity: Dict[str, Any]) -> datetime:
     `_extract_observed_at` below would never find it there and would silently fall back
     to utcnow(). Same ISO-8601 parsing, dedicated lookup key.
     """
+    at = _date_observed(entity)
+    return at if at is not None else datetime.now(timezone.utc)
+
+
+def _date_observed(entity: Dict[str, Any]) -> Optional[datetime]:
+    """The parsed, timezone-aware `dateObserved` of a DeviceMeasurement, else None."""
     date_observed = entity.get("dateObserved")
     if isinstance(date_observed, dict):
         value = date_observed.get("value")
@@ -631,7 +689,7 @@ def _extract_device_measurement_observed_at(entity: Dict[str, Any]) -> datetime:
                 return _as_aware_utc(datetime.fromisoformat(str(value).replace("Z", "+00:00")))
             except (ValueError, TypeError):
                 pass
-    return datetime.now(timezone.utc)
+    return None
 
 
 def _extract_observed_at(entity: Dict[str, Any]) -> datetime:

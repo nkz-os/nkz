@@ -39,15 +39,20 @@ class FakeRedis:
 
     def __init__(self):
         self.store = {}
+        self.set_calls = []
 
     async def ping(self):
         return True
 
     async def set(self, key, value, nx=False, ex=None):
+        self.set_calls.append((key, value, nx, ex))
         if nx and key in self.store:
             return None
         self.store[key] = value
         return True
+
+    async def get(self, key):
+        return self.store.get(key)
 
     async def close(self):
         pass
@@ -60,6 +65,9 @@ class BrokenRedis:
         raise ConnectionError("redis down")
 
     async def set(self, *args, **kwargs):
+        raise ConnectionError("redis down")
+
+    async def get(self, *args, **kwargs):
         raise ConnectionError("redis down")
 
     async def close(self):
@@ -211,3 +219,110 @@ def test_key_differs_for_different_measurement_values():
     key_a = dedup._build_key(TENANT_ID, ENTITY_ID, OBSERVED_AT, {"temperature": 21.5})
     key_b = dedup._build_key(TENANT_ID, ENTITY_ID, OBSERVED_AT, {"temperature": 22.0})
     assert key_a != key_b
+
+
+# ── DeviceMeasurement replay guard (design A.3) ────────────────────────────
+
+import logging  # noqa: E402
+
+DM_ID = "urn:ngsi-ld:DeviceMeasurement:tenant1:sensor-1:airTemperature"
+T1 = datetime(2026, 8, 4, 10, 0, 0, tzinfo=timezone.utc)
+T0 = datetime(2026, 8, 4, 9, 0, 0, tzinfo=timezone.utc)
+
+
+def _replay(dedup, at, value, entity_id=DM_ID, tenant=TENANT_ID):
+    return asyncio.run(dedup.is_replay(tenant, entity_id, at, value))
+
+
+def _record(dedup, at, value, entity_id=DM_ID, tenant=TENANT_ID):
+    asyncio.run(dedup.record_processed(tenant, entity_id, at, value))
+
+
+def test_replay_nothing_recorded_is_not_a_replay():
+    assert _replay(_dedup_with_fake_redis(), T1, 21.5) is False
+
+
+def test_replay_identical_after_record_is_a_replay():
+    dedup = _dedup_with_fake_redis()
+    _record(dedup, T1, 21.5)
+    assert _replay(dedup, T1, 21.5) is True
+
+
+def test_replay_record_has_no_ttl_and_is_keyed_by_tenant_and_entity():
+    dedup = _dedup_with_fake_redis()
+    _record(dedup, T1, 21.5)
+    (key, _value, nx, ex), = dedup._redis.set_calls
+    assert key == f"telemetry:dm_last:{TENANT_ID}:{DM_ID}"
+    assert ex is None and nx is False
+    assert _replay(dedup, T1, 21.5, tenant="other-tenant") is False
+    assert _replay(dedup, T1, 21.5, entity_id=DM_ID + "Min") is False
+
+
+def test_replay_same_value_different_date_observed_is_not_a_replay():
+    dedup = _dedup_with_fake_redis()
+    _record(dedup, T1, 21.5)
+    assert _replay(dedup, T0, 21.5) is False   # late reading, same value
+    assert _replay(dedup, T1.replace(hour=11), 21.5) is False
+
+
+def test_replay_same_date_different_value_is_not_a_replay():
+    dedup = _dedup_with_fake_redis()
+    _record(dedup, T1, 21.5)
+    assert _replay(dedup, T1, 21.6) is False
+    assert _replay(dedup, T1, "21.5") is False
+
+
+def test_replay_compares_values_and_instants_not_strings():
+    dedup = _dedup_with_fake_redis()
+    _record(dedup, T1, 21)
+    assert _replay(dedup, T1, 21.0) is True
+    other_tz = datetime.fromisoformat("2026-08-04T12:00:00+02:00")
+    assert _replay(dedup, other_tz, 21) is True
+    _record(dedup, T1, 1)
+    assert _replay(dedup, T1, True) is False   # a bool is never equal to a number here
+
+
+def test_replay_last_record_wins():
+    dedup = _dedup_with_fake_redis()
+    _record(dedup, T0, 20.0)
+    _record(dedup, T1, 21.5)
+    assert _replay(dedup, T1, 21.5) is True
+    assert _replay(dedup, T0, 20.0) is False
+
+
+def test_replay_corrupt_record_is_not_a_replay():
+    dedup = _dedup_with_fake_redis()
+    dedup._redis.store[f"telemetry:dm_last:{TENANT_ID}:{DM_ID}"] = "not json"
+    assert _replay(dedup, T1, 21.5) is False
+
+
+def test_replay_redis_errors_fail_open_and_log_once(caplog):
+    dedup = NotificationDedup(redis_url="redis://localhost:6379/0", enabled=True)
+    dedup._redis = BrokenRedis()
+    with caplog.at_level(logging.WARNING):
+        for i in range(3):
+            assert _replay(dedup, T1, 21.5, entity_id=f"{DM_ID}{i}") is False
+            _record(dedup, T1, 21.5, entity_id=f"{DM_ID}{i}")  # must not raise
+    lines = [r for r in caplog.records if "replay_guard_unavailable" in r.getMessage()]
+    assert len(lines) == 1
+    assert lines[0].levelno == logging.WARNING
+
+
+def test_replay_redis_never_connected_fails_open_and_logs_once(caplog):
+    dedup = NotificationDedup(redis_url="redis://localhost:6379/0", enabled=True)
+    assert dedup._redis is None
+    with caplog.at_level(logging.WARNING):
+        assert _replay(dedup, T1, 21.5) is False
+        assert _replay(dedup, T1, 21.5) is False
+        _record(dedup, T1, 21.5)
+    lines = [r for r in caplog.records if "replay_guard_unavailable" in r.getMessage()]
+    assert len(lines) == 1
+
+
+def test_replay_disabled_bypasses_redis_and_logs_nothing(caplog):
+    dedup = _dedup_with_fake_redis(enabled=False)
+    with caplog.at_level(logging.DEBUG):
+        _record(dedup, T1, 21.5)
+        assert _replay(dedup, T1, 21.5) is False
+    assert dedup._redis.store == {}
+    assert not [r for r in caplog.records if "replay_guard" in r.getMessage()]

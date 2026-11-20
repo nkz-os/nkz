@@ -84,12 +84,12 @@ class EventSink(ABC):
         """Release resources."""
 
     @abstractmethod
-    async def write(self, event: TelemetryEvent) -> None:
-        """Persist a single event."""
+    async def write(self, event: TelemetryEvent) -> bool:
+        """Persist a single event. True only when it was inserted (not dead-lettered)."""
 
     @abstractmethod
-    async def write_batch(self, events: List[TelemetryEvent]) -> None:
-        """Persist a batch of events."""
+    async def write_batch(self, events: List[TelemetryEvent]) -> List[TelemetryEvent]:
+        """Persist a batch of events. Returns the events actually inserted (not dead-lettered)."""
 
 
 class PostgreSQLSink(EventSink):
@@ -174,8 +174,11 @@ class PostgreSQLSink(EventSink):
             await self._pool.close()
             logger.info("PostgreSQLSink pool closed")
 
-    async def write(self, event: TelemetryEvent) -> None:
-        """Persist a single event; a record that cannot be stored is dead-lettered."""
+    async def write(self, event: TelemetryEvent) -> bool:
+        """Persist a single event; a record that cannot be stored is dead-lettered.
+
+        Returns True when the event was inserted, False when it was dead-lettered.
+        """
         if not self._pool:
             raise RuntimeError("PostgreSQLSink not started")
 
@@ -189,6 +192,8 @@ class PostgreSQLSink(EventSink):
                     event.entity_id, event.device_id, event.tenant_id, insert_err,
                 )
                 await self._dead_letter(conn, record, str(insert_err), event)
+                return False
+        return True
 
     async def _insert_one(self, conn: asyncpg.Connection, record: tuple, event: TelemetryEvent) -> None:
         """
@@ -216,7 +221,7 @@ class PostgreSQLSink(EventSink):
                 await conn.execute(self.DECOMPRESS_SQL, chunk)
         await conn.execute(self.INSERT_SQL, *record)
 
-    async def write_batch(self, events: List[TelemetryEvent]) -> None:
+    async def write_batch(self, events: List[TelemetryEvent]) -> List[TelemetryEvent]:
         """
         Persist a batch of events using copy_records_to_table for maximum throughput.
 
@@ -227,14 +232,18 @@ class PostgreSQLSink(EventSink):
         batch. A record whose individual insert still fails is dead-lettered
         into telemetry_events_dlq (see _dead_letter()) and processing
         continues with the rest of the batch.
+
+        Returns the events actually inserted (every event when COPY succeeds; the
+        non-dead-lettered ones after the fallback).
         """
         if not self._pool:
             raise RuntimeError("PostgreSQLSink not started")
 
         if not events:
-            return
+            return []
 
         records = [e.as_tuple() for e in events]
+        stored: List[TelemetryEvent] = list(events)
 
         async with self._pool.acquire() as conn:
             try:
@@ -245,10 +254,12 @@ class PostgreSQLSink(EventSink):
                 )
             except Exception as e:
                 logger.warning(f"COPY failed ({e}), falling back to per-record inserts")
+                stored = []
                 dlq_count = 0
                 for event, record in zip(events, records):
                     try:
                         await self._insert_one(conn, record, event)
+                        stored.append(event)
                     except Exception as insert_err:
                         logger.warning(
                             "Poison telemetry record (entity_id=%s, device_id=%s, "
@@ -269,7 +280,8 @@ class PostgreSQLSink(EventSink):
                         dlq_count,
                     )
 
-        logger.debug(f"Batch persisted {len(events)} events")
+        logger.debug(f"Batch persisted {len(stored)} events")
+        return stored
 
     async def _dead_letter(
         self,
