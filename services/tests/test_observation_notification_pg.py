@@ -152,3 +152,12 @@ def test_statistic_channel_is_stored_under_its_channel_without_observation(
     assert row[0] is None and row[1] is None
     assert any("observation_skipped_statistic" in r.getMessage() for r in caplog.records)
     assert not any("observation_unit_mismatch" in r.getMessage() for r in caplog.records)
+
+
+@pytest.mark.parametrize("shape", ["legacy", "sdm"])
+def test_mean_base_channel_of_a_statistics_profile_carries_observation(pg_dsn, pg_conn, shape):
+    """Design A.2: the mean is published under the base channel and is its representative value."""
+    row, dep_id = _notify(pg_dsn, pg_conn, "°C", shape=shape, channel="airTemperature",
+                          statistics=["mean", "min", "max"], measurement_type="mean")
+    assert row[0] == "airTemperature"
+    assert row[1] == dep_id

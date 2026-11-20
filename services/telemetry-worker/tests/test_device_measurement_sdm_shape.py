@@ -184,11 +184,64 @@ def test_new_shape_min_and_max_kept_separate_without_observation(caplog):
     assert not [r for r in caplog.records if r.levelno >= logging.WARNING]
 
 
-@pytest.mark.parametrize("mtype", ["mean", "min", "max", "stddev", "last", "sum"])
-def test_new_shape_every_statistic_is_gated(mtype):
+@pytest.mark.parametrize("mtype", ["min", "max", "stddev"])
+def test_new_shape_spread_statistics_are_gated(mtype):
     ev = _run(_sdm("airTemperature", mtype=mtype), FakeLookup(dep=_dep()))
     assert "observations" not in ev.payload
     assert ev.payload["measurements"] == {"airTemperature": 21.5}
+
+
+@pytest.mark.parametrize("mtype", ["instant", "mean", "last", "sum"])
+def test_new_shape_representative_values_get_context(mtype):
+    """Design A.2: mean/last/sum are published under the BASE channel and are its value."""
+    stat = None if mtype == "instant" else mtype
+    ev = _run(_sdm("airTemperature", mtype=mtype), FakeLookup(dep=_dep(), statistic=stat))
+    assert ev.payload["observations"]["airTemperature"]["observedProperty"] == "airTemperature"
+
+
+def _per_channel_lookup():
+    """Profile airTemperature with statistics [mean, min, max], as expanded by channel_def."""
+    stats = {"airTemperature": "mean", "airTemperatureMin": "min", "airTemperatureMax": "max"}
+
+    class _Lookup(FakeLookup):
+        async def channel_def(self, tenant_id, profile_code, attr):
+            d = await super().channel_def(tenant_id, profile_code, attr)
+            d["statistic"] = stats[attr]
+            return d
+
+    return _Lookup(dep=_dep())
+
+
+@pytest.mark.parametrize("legacy", [False, True])
+def test_mean_min_max_profile_base_gets_context_min_max_do_not(legacy, caplog):
+    lk = _per_channel_lookup()
+    if legacy:
+        readings = [_legacy("airTemperature", value=20.0), _legacy("airTemperatureMin", value=10.0),
+                    _legacy("airTemperatureMax", value=30.0)]
+    else:
+        readings = [_sdm("airTemperature", mtype="mean", value=20.0),
+                    _sdm("airTemperatureMin", mtype="min", value=10.0),
+                    _sdm("airTemperatureMax", mtype="max", value=30.0)]
+    with caplog.at_level(logging.DEBUG):
+        base, mn, mx = _run_many(readings, lk)
+    assert base.payload["observations"]["airTemperature"]["observedProperty"] == "airTemperature"
+    assert mn.payload["measurements"] == {"airTemperatureMin": 10.0}
+    assert mx.payload["measurements"] == {"airTemperatureMax": 30.0}
+    assert "observations" not in mn.payload and "observations" not in mx.payload
+    assert len(_gate_lines(caplog)) == 2
+
+
+def test_sum_channel_gets_context_in_both_shapes():
+    for e in (_sdm("airTemperature", mtype="sum"), _legacy("airTemperature")):
+        ev = _run(e, FakeLookup(dep=_dep(), statistic="sum"))
+        assert "observations" in ev.payload
+
+
+def test_stddev_is_gated_in_both_shapes():
+    for e in (_sdm("airTemperatureStdDev", mtype="stddev"), _legacy("airTemperatureStdDev")):
+        ev = _run(e, FakeLookup(dep=_dep(), statistic="stddev"))
+        assert "observations" not in ev.payload
+        assert ev.payload["measurements"] == {"airTemperatureStdDev": 21.5}
 
 
 @pytest.mark.parametrize("mtype", [None, "", "INSTANT", "average", 3])
@@ -214,8 +267,9 @@ def test_legacy_expanded_statistic_channel_is_gated(caplog):
     assert "statistic='min'" in lines[0].getMessage()
 
 
-def test_profile_statistic_gates_even_if_new_shape_says_instant():
-    ev = _run(_sdm("airTemperature"), FakeLookup(dep=_dep(), statistic="mean"))
+@pytest.mark.parametrize("stat", ["min", "max", "stddev", "unknown"])
+def test_profile_statistic_gates_even_if_new_shape_says_instant(stat):
+    ev = _run(_sdm("airTemperature"), FakeLookup(dep=_dep(), statistic=stat))
     assert "observations" not in ev.payload
 
 
@@ -233,6 +287,7 @@ def test_statistic_gate_is_throttled_per_channel(caplog):
 NAME_KEYS = ["name", "https://schema.org/name", "https://smartdatamodels.org/name"]
 REF_DEVICE_KEYS = [
     "refDevice",
+    "hasDevice",  # design A.5 R1: the old attribute compacts to the short `hasDevice` after the remap
     "https://smartdatamodels.org/dataModel.Device/hasDevice",
     "https://smartdatamodels.org/dataModel.Device/refDevice",
 ]

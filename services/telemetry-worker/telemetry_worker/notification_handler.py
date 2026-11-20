@@ -30,25 +30,31 @@ logger = logging.getLogger(__name__)
 # "No observation" reasons that hold for every reading of a device (most devices have
 # no deployment): logged once per (tenant, device, reason), then summarised per window.
 _skip_warnings = ThrottledWarnings(logger)
-# Deliberate, expected skips (statistic channels never carry observation context): same
+# Deliberate, expected skips (spread-statistic channels never carry observation context): same
 # throttling, at INFO so they never read as a fault.
 _skip_info = ThrottledWarnings(logger, level=logging.INFO)
 
 # DeviceMeasurement attribute names, accepted under the short name or either IRI so a later
 # platform @context remap never cuts ingestion (design A.1b for `name`, A.5 R1 for
-# `refDevice`). Precedence is the tuple order: the short (compacted) name first.
+# `refDevice`). Precedence is the tuple order: the short (compacted) names first. After the
+# R1 remap the old attribute (stored under the hasDevice IRI) compacts to `hasDevice`.
 NAME_KEYS = ("name", "https://schema.org/name", "https://smartdatamodels.org/name")
 REF_DEVICE_KEYS = (
     "refDevice",
+    "hasDevice",
     "https://smartdatamodels.org/dataModel.Device/hasDevice",
     "https://smartdatamodels.org/dataModel.Device/refDevice",
 )
-# The only `measurementType` (SDM shape) that carries observation context. Every other value
-# of the closed vocabulary (mean/min/max/stddev/last/sum) is a window statistic, and a missing
-# or unknown value is treated the same way (fail-safe: no context, never a guessed one).
-# ASSUMPTION: a missing, unknown or differently cased measurementType is gated like a
-# statistic; the builder always writes one from the closed vocabulary.
-INSTANT = "instant"
+# Statistic gate (design A.2). `measurementType` values (SDM shape) that carry observation
+# context: an instant reading, or a window statistic that #122 publishes under the BASE
+# channel as the channel's representative value (mean/last/sum). min/max/stddev are spread
+# statistics of their own `...Min`/`...Max`/`...StdDev` channels and get none; a missing or
+# unknown value is treated the same way (fail-safe: no context, never a guessed one).
+# ASSUMPTION: a missing, unknown or differently cased measurementType is gated; the builder
+# always writes one from the closed vocabulary.
+CONTEXT_MEASUREMENT_TYPES = frozenset({"instant", "mean", "last", "sum"})
+# Profile-entry `statistic` values (after window-statistics expansion) that keep context.
+CONTEXT_STATISTICS = frozenset({"mean", "last", "sum"})
 
 router = APIRouter()
 
@@ -491,8 +497,13 @@ async def _resolve_observation_payload(
                     await _observation_lookup.channel_def(tenant_id, profile_code, attr)
                 ) or None
             statistic = measurement_def.get("statistic") if measurement_def else None
-            if (shape.sdm and shape.measurement_type != INSTANT) or statistic:
-                # Deliberate gate, not a fault: a window statistic (min/max/...) is not an
+            gated_type = shape.sdm and not (
+                isinstance(shape.measurement_type, str)
+                and shape.measurement_type in CONTEXT_MEASUREMENT_TYPES
+            )
+            gated_statistic = statistic is not None and statistic not in CONTEXT_STATISTICS
+            if gated_type or gated_statistic:
+                # Deliberate gate, not a fault: a spread statistic (min/max/stddev) is not an
                 # observation of the property itself. The reading is still stored.
                 _skip_info.warning(
                     (tenant_id, device_urn, f"observation_skipped_statistic:{attr}"),
