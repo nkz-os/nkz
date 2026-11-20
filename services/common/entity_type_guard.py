@@ -108,13 +108,22 @@ def find_config_dir() -> Path | None:
 
 
 def _context_terms(context: object) -> dict:
-    terms: dict = {}
-    parts = context.get("@context", []) if isinstance(context, dict) else []
+    """The term table of the platform context; unusable shapes are an error.
+
+    A context that parses but yields no terms would load an empty table and
+    silently reject every IRI-form type, so it is as unavailable as a missing file.
+    """
+    parts = context.get("@context") if isinstance(context, dict) else None
     if isinstance(parts, dict):
         parts = [parts]
+    if not isinstance(parts, list):
+        raise GuardUnavailable("platform context has no usable @context")
+    terms: dict = {}
     for part in parts:
         if isinstance(part, dict):
             terms.update(part)
+    if not terms:
+        raise GuardUnavailable("platform context defines no terms")
     return terms
 
 
@@ -224,10 +233,11 @@ class EntityTypeGuard:
         enforce = enforce_enabled(os.environ.get(ENFORCE_ENV))
         try:
             accepted = load_accepted()
-        except GuardUnavailable as exc:
+        except Exception as exc:  # noqa: BLE001 - this runs at import; any failure must degrade, not kill the worker
+            # Class only: an exception message can carry a path or file content.
             logger.critical(
                 "entity_type_guard %s",
-                json.dumps({"enforced": enforce, "error": str(exc), "service": service, "status": "unavailable"}, sort_keys=True),
+                json.dumps({"enforced": enforce, "error": type(exc).__name__, "service": service, "status": "unavailable"}, sort_keys=True),
             )
             accepted = None
         return cls(service, accepted, enforce)

@@ -172,6 +172,16 @@ def test_other_routes_not_checked(sdm, client, monkeypatch, method, url):
     assert r.get_json() != REJECTION
 
 
+def test_ships_off_by_default(sdm, monkeypatch):
+    # A guard that enforces without being asked would reject writes that work today.
+    monkeypatch.delenv("ENTITY_TYPE_GUARD_ENFORCE", raising=False)
+    monkeypatch.delenv("ENTITY_TYPE_CONFIG_DIR", raising=False)
+    guard = EntityTypeGuard.from_env("sdm-integration")
+    assert guard.enforce is False
+    assert guard.accepted is not None
+    assert sdm.ENTITY_TYPE_GUARD.enforce is False
+
+
 def test_dockerfile_copies_config_files():
     text = (_REPO_ROOT / "services/sdm-integration/Dockerfile").read_text(encoding="utf-8")
     assert "COPY config/entity-types /app/config/entity-types" in text

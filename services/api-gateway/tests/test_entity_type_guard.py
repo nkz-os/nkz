@@ -1,6 +1,8 @@
 import importlib.util
 import json
 import logging
+import os
+import shutil
 import sys
 from pathlib import Path
 
@@ -165,11 +167,54 @@ def test_from_env_unavailable(tmp_path, monkeypatch, caplog):
     assert guard.check(["FooAsset"], tenant="tenant-a", path="/x") == []
 
 
-def test_parity_with_ci_checker(accepted):
+def _config_copy(tmp_path, context_text):
+    shutil.copytree(CONFIG / "entity-types", tmp_path / "entity-types")
+    (tmp_path / "ngsi-ld-context.json").write_text(context_text, encoding="utf-8")
+    return tmp_path
+
+
+BAD_CONTEXTS = ["[]", "{}", '{"@context": null}', '{"@context": 5}', '{"@context": "http://x"}']
+
+
+@pytest.mark.parametrize("context_text", BAD_CONTEXTS)
+def test_context_without_terms_is_unavailable(tmp_path, context_text):
+    with pytest.raises(g.GuardUnavailable):
+        g.load_accepted(_config_copy(tmp_path, context_text))
+
+
+@pytest.mark.parametrize("context_text", BAD_CONTEXTS)
+def test_from_env_with_unusable_context_is_unavailable(tmp_path, monkeypatch, caplog, context_text):
+    monkeypatch.setenv("ENTITY_TYPE_CONFIG_DIR", str(_config_copy(tmp_path, context_text)))
+    with caplog.at_level(logging.INFO, logger=g.logger.name):
+        guard = g.EntityTypeGuard.from_env("svc")
+    assert guard.accepted is None
+    assert [r.levelno for r in caplog.records].count(logging.CRITICAL) == 1
+    assert guard.check(["FooAsset"], tenant="tenant-a", path="/x") == []
+
+
+@pytest.mark.skipif(os.geteuid() == 0, reason="root ignores directory permissions")
+def test_from_env_never_raises_on_unreadable_directory(tmp_path, monkeypatch, caplog):
+    locked = tmp_path / "locked"
+    (locked / "inner").mkdir(parents=True)
+    monkeypatch.setenv("ENTITY_TYPE_CONFIG_DIR", str(locked / "inner"))
+    locked.chmod(0o000)
+    try:
+        with caplog.at_level(logging.INFO, logger=g.logger.name):
+            guard = g.EntityTypeGuard.from_env("svc")
+    finally:
+        locked.chmod(0o755)
+    assert guard.accepted is None
+    criticals = [r for r in caplog.records if r.levelno == logging.CRITICAL]
+    assert len(criticals) == 1
+    assert str(locked) not in criticals[0].getMessage()
+    assert guard.check(["FooAsset"], tenant="tenant-a", path="/x") == []
+
+
+def test_parity_with_ci_checker(accepted, monkeypatch):
     path = REPO / ".github" / "scripts" / "check_entity_types.py"
     spec = importlib.util.spec_from_file_location("ci_check_entity_types", path)
     ci = importlib.util.module_from_spec(spec)
-    sys.modules[spec.name] = ci  # dataclasses looks the module up by name
+    monkeypatch.setitem(sys.modules, spec.name, ci)  # dataclasses looks the module up by name; undone after the test
     spec.loader.exec_module(ci)
     lists = ci.load_lists(CONFIG / "entity-types")
     assert accepted.names == lists.allowed | lists.legacy_broker

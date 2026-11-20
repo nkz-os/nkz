@@ -206,3 +206,16 @@ def test_guard_judges_the_body_as_sent_not_after_context_injection(forwarded, mo
     assert len(records) == 1 and records[0].levelno == logging.WARNING
     assert json.loads(records[0].getMessage().split(" ", 1)[1])["foreign_context"] is False
     assert calls[0][2]["@context"][1] == gw.CONTEXT_URL
+
+
+def test_ships_off_by_default(monkeypatch):
+    # Default-off is what makes the guard safe to deploy: a guard that
+    # enforces without being asked would reject writes that work today.
+    import fiware_api_gateway as gw
+
+    monkeypatch.delenv("ENTITY_TYPE_GUARD_ENFORCE", raising=False)
+    monkeypatch.delenv("ENTITY_TYPE_CONFIG_DIR", raising=False)
+    guard = EntityTypeGuard.from_env("api-gateway")
+    assert guard.enforce is False
+    assert guard.accepted is not None
+    assert gw.ENTITY_TYPE_GUARD.enforce is False
