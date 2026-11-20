@@ -838,7 +838,6 @@
       "observesFeature": "http://www.w3.org/ns/sosa/hasFeatureOfInterest",
       "observedProperty": "http://www.w3.org/ns/sosa/observedProperty",
       "timeSource": "nkz:timeSource",
-      "profileCode": "nkz:profileCode",
       "observationContext": "nkz:observationContext",
       "channelOverrides": "nkz:channelOverrides",
       "mobility": "nkz:mobility",

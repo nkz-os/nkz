@@ -133,7 +133,7 @@ fails on it.
 | `precipitationMax` | atributo | extension-declarada | Window statistic of precipitation (DaTaK) |
 | `precipitationMin` | atributo | extension-declarada | Window statistic of precipitation (DaTaK) |
 | `precipitationStdDev` | atributo | extension-declarada | Window statistic of precipitation (DaTaK) |
-| `profileCode` | atributo | extension-declarada | Code of the sensor profile that interprets a device's attributes (also carried on DeviceMeasurement); SDM Device has no such property |
+
 | `ProjectScenario` | entidad | sin-revisar | Not yet reviewed |
 | `relativeHumidityMax` | atributo | extension-declarada | Window statistic of relativeHumidity (DaTaK) |
 | `relativeHumidityMin` | atributo | extension-declarada | Window statistic of relativeHumidity (DaTaK) |
