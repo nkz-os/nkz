@@ -7,7 +7,6 @@ after applying Processing Profiles (throttle, filter, delta).
 
 import logging
 import os
-from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
