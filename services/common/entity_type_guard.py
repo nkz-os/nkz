@@ -240,6 +240,12 @@ class EntityTypeGuard:
                 json.dumps({"enforced": enforce, "error": type(exc).__name__, "service": service, "status": "unavailable"}, sort_keys=True),
             )
             accepted = None
+        else:
+            # One line per start: the proof, in each running process, that the lists were found.
+            logger.info(
+                "entity_type_guard %s",
+                json.dumps({"enforced": enforce, "names": len(accepted.names), "service": service, "status": "loaded"}, sort_keys=True),
+            )
         return cls(service, accepted, enforce)
 
     def check(

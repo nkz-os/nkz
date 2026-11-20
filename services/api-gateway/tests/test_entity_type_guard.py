@@ -223,3 +223,21 @@ def test_parity_with_ci_checker(accepted, monkeypatch):
         iri = ci.context_iri(context, name)
         if iri is not None:
             assert iri in accepted.iris, name
+
+
+def test_from_env_says_when_the_lists_loaded(monkeypatch, caplog):
+    # A silent success would leave "no CRITICAL line" as the only evidence in a running process.
+    monkeypatch.delenv(g.ENFORCE_ENV, raising=False)
+    monkeypatch.delenv("ENTITY_TYPE_CONFIG_DIR", raising=False)
+    with caplog.at_level(logging.INFO, logger=g.logger.name):
+        guard = g.EntityTypeGuard.from_env("api-gateway")
+    assert guard.accepted is not None
+    lines = [r for r in caplog.records if r.levelno == logging.INFO]
+    assert len(lines) == 1
+    payload = json.loads(lines[0].getMessage().split(" ", 1)[1])
+    assert payload == {
+        "enforced": False,
+        "names": len(guard.accepted.names),
+        "service": "api-gateway",
+        "status": "loaded",
+    }
