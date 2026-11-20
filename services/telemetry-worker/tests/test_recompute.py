@@ -260,7 +260,7 @@ class FakeConn:
             return out
         if tag == "rows":
             assert timeout is not None, "row page fetched without an explicit timeout"
-            tenant, device_id, lo, hi, after_at, after_id, after_attr, limit = args
+            tenant, device_id, lo, hi, after_at, after_id, after_attr, limit, _shape_keys = args
             if after_at is not None:
                 assert lo == after_at, "page lower bound must be the last page's observed_at"
             if self.current_run in db.fail_rows_for:
@@ -702,8 +702,10 @@ def _plan(row, dep=_dep(), prop=PROP, mdef=MDEF):
 @pytest.fixture(autouse=True)
 def _fresh_skip_warnings():
     rc._skip_warnings.reset()
+    rc._skip_info.reset()
     yield
     rc._skip_warnings.reset()
+    rc._skip_info.reset()
 
 
 def test_plan_never_changes_set_quality_value_or_property():
@@ -929,3 +931,25 @@ def test_plan_stale_name_after_rollback_resolves_through_the_profile():
     row = _row(raw_shape=_shape(name="temperature", controlledProperty="temperature",
                                 measurementType="Temperature"))
     assert _plan(row, mdef=MDEF).observed_property == "airTemperature"
+
+
+def test_plan_statistic_gate_logs_at_info_like_ingest(caplog):
+    import logging
+
+    row = _row(
+        attribute_name="airTemperatureMin",
+        entity_id="urn:ngsi-ld:DeviceMeasurement:tenant_a:d1:airTemperatureMin",
+        raw_shape=_shape(name="airTemperatureMin", controlledProperty="airTemperature",
+                         measurementType="min"),
+    )
+    with caplog.at_level(logging.INFO):
+        _plan(row, mdef=MDEF)
+    recs = [r for r in caplog.records if "observation_skipped_statistic" in r.getMessage()]
+    assert len(recs) == 1 and recs[0].levelno == logging.INFO
+
+
+def test_plan_other_skips_keep_context_of_a_row_with_a_property():
+    """No deviceType and no name (not a gate): the row's own observed_property still counts."""
+    row = _row(raw_profile_code=None, raw_shape=None, observed_property="airTemperature")
+    u = _plan(row, mdef=None)
+    assert u.deployment_id == DEP_ID and u.observed_property == "airTemperature"

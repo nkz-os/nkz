@@ -571,9 +571,9 @@ def test_page_query_excludes_earlier_chunks(pg_dsn, su):
         async with pool.acquire() as c:
             # Second page after the Jan row: the bound is the last page's observed_at.
             plan = await c.fetch("EXPLAIN " + rc.ROWS_SQL, d.tenant, d.dev, jan, None,
-                                 jan, jan_event, "temperature", 10)
+                                 jan, jan_event, "temperature", 10, rc.RAW_SHAPE_KEYS)
             later = await c.fetch("EXPLAIN " + rc.ROWS_SQL, d.tenant, d.dev, mar, None,
-                                  mar, jan_event, "temperature", 10)
+                                  mar, jan_event, "temperature", 10, rc.RAW_SHAPE_KEYS)
         return ("\n".join(r[0] for r in plan), "\n".join(r[0] for r in later))
 
     first_page, later_page = _run_as(pg_dsn, "nkz_rls_test", body)
@@ -694,3 +694,43 @@ def test_stale_name_after_rollback_is_legacy(pg_dsn, su):
         "measurementType": "Temperature"})
     dep, row, attrs, _ = _recompute_late_deployment(pg_dsn, d, t0)
     assert row[2] == dep and row[3] == "airTemperature" and attrs == ["temperature"]
+
+
+def test_name_under_schema_org_iri_goes_through_rows_sql(pg_dsn, su):
+    d = Device(su)
+    t0 = datetime(2034, 8, 1, tzinfo=timezone.utc)
+    d.ingest(t0 + timedelta(hours=1), raw_attrs={
+        "name": None, "controlledProperty": "airTemperature",
+        "measurementType": "instant", "https://schema.org/name": "temperature"})
+    dep, row, attrs, _ = _recompute_late_deployment(pg_dsn, d, t0)
+    assert row[2] == dep and row[3] == "airTemperature" and attrs == ["temperature"]
+
+
+def test_legacy_min_channel_is_gated_by_channel_def_expansion(pg_dsn, su):
+    """Flag off, no `name`: the profile's `statistics` expand to a `min` channel entry."""
+    d = Device(su)
+    t0 = datetime(2034, 9, 1, tzinfo=timezone.utc)
+    with su.cursor() as cur:
+        cur.execute(
+            "UPDATE public.sensor_profiles SET mapping = %s::jsonb WHERE tenant_id = %s AND code = %s",
+            (json.dumps({"measurements": [{
+                "sdmAttribute": "temperature", "type": "temperature", "unit": "°C",
+                "observedProperty": "airTemperature", "statistics": ["mean", "min", "max"]}]}), d.tenant, d.profile_code),
+        )
+    d.ingest(t0 + timedelta(hours=1), attr="temperatureMin",
+             raw_attrs={"controlledProperty": "temperatureMin"})
+    d.ingest(t0 + timedelta(hours=2), attr="temperature",
+             raw_attrs={"controlledProperty": "temperature"})
+    dep = d.deploy(t0, height=2.0)
+    d.enqueue(dep, t0)
+
+    async def body(pool):
+        return await _loop(pool).run_once()
+
+    assert _run_as(pg_dsn, "nkz_rls_test", body) == 1
+    with su.cursor() as cur:
+        cur.execute("SELECT attribute_name, deployment_id::text, observed_property "
+                    "FROM public.telemetry_measurements WHERE tenant_id = %s ORDER BY observed_at",
+                    (d.tenant,))
+        assert cur.fetchall() == [("temperatureMin", None, None),
+                                  ("temperature", dep, "airTemperature")]

@@ -54,6 +54,7 @@ from common.observation_context import MEDIA, entity_id_conforms
 
 from .device_measurement import (
     GATE_REASONS,
+    NAME_KEYS,
     SKIP_NAME_UNUSABLE,
     SKIP_PROPERTY_MISMATCH,
     SKIP_STATISTIC,
@@ -78,6 +79,8 @@ logger = logging.getLogger(__name__)
 # Same reasons as ingest repeat for every row of a device in a run: logged once per
 # (tenant, device, reason), the rest counted and reported at the end of the run.
 _skip_warnings = ThrottledWarnings(logger)
+# Deliberate statistic gate (same level as ingest): never reads as a fault.
+_skip_info = ThrottledWarnings(logger, level=logging.INFO)
 
 INTERVAL_ENV = "OBSERVATION_RECOMPUTE_INTERVAL_S"
 DEFAULT_INTERVAL_S = 30.0
@@ -238,6 +241,9 @@ DEPLOYMENTS_SQL = "-- recompute:deployments\n" + _DEPLOYMENTS_SQL
 # time column, so chunks before it are excluded. $5..$7 = last key of the previous
 # page (NULL on the first). The raw event is joined on its full primary key; a
 # missing event leaves the raw fields NULL.
+# Raw attributes that decide the shape: `name` in every form, the two that go with it. $9.
+RAW_SHAPE_KEYS = [*NAME_KEYS, "controlledProperty", "measurementType"]
+
 ROWS_SQL = """-- recompute:rows
 SELECT m.observed_at, m.source_event_id, m.attribute_name, m.value,
        m.observed_property, m.feature_of_interest, m.medium,
@@ -250,9 +256,7 @@ SELECT m.observed_at, m.source_event_id, m.attribute_name, m.value,
        CASE WHEN jsonb_typeof(e.payload->'raw') = 'object' THEN
          (SELECT jsonb_object_agg(kv.key, kv.value)
             FROM jsonb_each(e.payload->'raw') AS kv
-           WHERE kv.key IN ('name', 'https://schema.org/name',
-                            'https://smartdatamodels.org/name',
-                            'controlledProperty', 'measurementType'))
+           WHERE kv.key = ANY($9::text[]))
        END AS raw_shape
 FROM public.telemetry_measurements m
 LEFT JOIN public.telemetry_events e
@@ -394,7 +398,8 @@ def _log_gate(
         SKIP_PROPERTY_MISMATCH: "observation_property_mismatch",
         SKIP_NAME_UNUSABLE: "device_measurement_name_unusable",
     }[decision.skip]
-    _skip_warnings.warning(
+    sink = _skip_info if decision.skip == SKIP_STATISTIC else _skip_warnings
+    sink.warning(
         (tenant_id, device_urn, f"{reason}:{row.attribute_name}"),
         f"{reason}: context left NULL: tenant_id={tenant_id} device_urn={device_urn} "
         f"observed_at={row.observed_at.isoformat()} entity_id={row.entity_id} "
@@ -661,7 +666,7 @@ class RecomputeLoop:
         async with self._pool.acquire() as conn:
             rows = await conn.fetch(
                 ROWS_SQL, tenant_id, device_id, lo, hi, after_at, after_id, after_attr,
-                PAGE_ROWS, timeout=PAGE_TIMEOUT_S,
+                PAGE_ROWS, RAW_SHAPE_KEYS, timeout=PAGE_TIMEOUT_S,
             )
         return [StoredRow(**dict(r)) for r in rows]
 
@@ -851,6 +856,7 @@ class RecomputeLoop:
                     f"expire): {ctx}: {error}; {_error_text(mark_exc)}"
                 )
         finally:
+            _skip_info.flush()
             _skip_warnings.flush()  # the run's suppressed counts, whatever its outcome
 
     async def run_once(self) -> int:
