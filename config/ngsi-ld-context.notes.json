@@ -36,7 +36,6 @@
     "LivestockProduction": "Platform extension — no SAREF4AGRI equivalent. Legacy mapping: saref4agri:LivestockProduction.",
     "ManufacturingMachine": "Official SDM. Canonical type for tractors, implements and field robots, discriminated by the category attribute. Already consumed by gis-routing.",
     "PhotovoltaicInstallation": "Platform extension — no SAREF4AGRI equivalent. Legacy mapping: saref4agri:PhotovoltaicInstallation.",
-    "RiskAssessment": "Platform extension — generic risk evaluation result for batch-evaluated risks (robotic, energy, livestock, agronomic). Disease-specific risks use DiseaseRiskAssessment.",
     "SatelliteImageObservation": "Platform extension — no SAREF4AGRI equivalent. Legacy mapping: saref4agri:SatelliteImageObservation.",
     "SoilDerivedRaster": "SDM-004 Proposal: Raster derived from point samples or gridded soil models (COG/NetCDF storage)",
     "SoilSamplingPoint": "SDM-002 Proposal: Point sample location with laboratory analysis results and spatial reference",

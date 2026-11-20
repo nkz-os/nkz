@@ -3,7 +3,7 @@ Orion-LD subscription manager for entity-manager notifications.
 
 Ensures NGSI-LD subscriptions exist per tenant so that entity
 changes are forwarded to the notification handler (/notify).
-Handles: Device (and legacy AgriSensor) registration, RiskAssessment, DeviceCommand
+Handles: Device (and legacy AgriSensor) registration, DeviceCommand
 """
 
 import logging
@@ -74,20 +74,6 @@ SUBSCRIPTIONS = [
         "isActive": True,
     },
     {
-        "description": "Entity Manager - RiskAssessment evaluations",
-        "type": "Subscription",
-        "entities": [{"type": "RiskAssessment"}],
-        "notification": {
-            "endpoint": {
-                "uri": NOTIFICATION_URL,
-                "accept": "application/json",
-            },
-            "format": "normalized",
-        },
-        "throttling": 5,
-        "isActive": True,
-    },
-    {
         "description": "Entity Manager - DeviceCommand tracking",
         "type": "Subscription",
         "entities": [{"type": "DeviceCommand"}],
@@ -102,6 +88,13 @@ SUBSCRIPTIONS = [
         "isActive": True,
     },
 ]
+
+# Subscriptions this service used to declare. Dropping an entry above only stops
+# it being reconciled; the one already registered stays in the broker, per
+# tenant, until it is deleted here.
+RETIRED_DESCRIPTIONS = frozenset({
+    "Entity Manager - RiskAssessment evaluations",
+})
 
 
 INTERNAL_SERVICE_SECRET = os.getenv("INTERNAL_SERVICE_SECRET", "")
@@ -288,6 +281,14 @@ def _ensure_tenant_subscriptions(tenant_id: str):
         by_description: dict = {}
         for existing in existing_subs:
             by_description.setdefault(existing.get("description"), []).append(existing)
+
+        # Before the declared ones, so a failure further down cannot skip it.
+        for retired in existing_subs:
+            if retired.get("description") in RETIRED_DESCRIPTIONS and retired.get("id"):
+                logger.info(
+                    "Removing retired subscription %s for %s", retired.get("id"), tenant_id,
+                )
+                _delete_subscription(headers, retired.get("id"))
 
         for sub_def in SUBSCRIPTIONS:
             sub_id = _subscription_id(sub_def)

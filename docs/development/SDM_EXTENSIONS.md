@@ -136,7 +136,6 @@ fails on it.
 | `relativeHumidityMax` | atributo | extension-declarada | Window statistic of relativeHumidity (DaTaK) |
 | `relativeHumidityMin` | atributo | extension-declarada | Window statistic of relativeHumidity (DaTaK) |
 | `relativeHumidityStdDev` | atributo | extension-declarada | Window statistic of relativeHumidity (DaTaK) |
-| `RiskAssessment` | entidad | extension-declarada | Platform extension — generic risk evaluation result for batch-evaluated risks (robotic, energy, livestock, agr |
 | `rowNumber` | atributo | propuesta-sdm | Attribute of AgriPlant (smart-data-models/incubated#283) |
 | `sampleCode` | atributo | propuesta-sdm | Attribute of AgriPlantSample, AgriSoilSample (smart-data-models/incubated#283) |
 | `sand` | atributo | propuesta-sdm | Attribute of AgriSoilSample (smart-data-models/incubated#283) |
