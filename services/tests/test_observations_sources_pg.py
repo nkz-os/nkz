@@ -217,6 +217,77 @@ def test_datalogger_two_channels_two_trees(pg_dsn, su):
     assert [r.value for r in out[1]] == [20.0]
 
 
+TREE_IN_Z = {"type": "Polygon", "coordinates": [[[-1.5993, 42.8007], [-1.5993, 42.8008],
+                                                  [-1.5992, 42.8008], [-1.5992, 42.8007],
+                                                  [-1.5993, 42.8007]]]}
+
+
+def test_tier2_by_observed_feature_series_and_raw(pg_dsn, su):
+    """8.12: a datalogger located inside zone Z with a channel on tree A (inside Z) and one on
+    tree B (outside Z, both geometries cached): only A is tier 2 for Z, in the series and in the
+    raw endpoint. B is not tier 2 although the logger (and its reading location) is inside Z; it
+    is tier 3 by distance (the reading location is 0 m from Z, within the radius)."""
+    from observations import raw as raw_mod
+
+    tenant = f"t_{uuid.uuid4().hex[:8]}"
+    z = f"urn:ngsi-ld:AgriParcelZone:{tenant}:z1"
+    a = f"urn:ngsi-ld:AgriTree:{tenant}:a"
+    b = f"urn:ngsi-ld:AgriTree:{tenant}:b"
+    urn = f"urn:ngsi-ld:Device:{tenant}:log"
+    with su.cursor() as cur:
+        for u, typ, g in ((z, "AgriParcelZone", ZONE), (a, "AgriTree", TREE_IN_Z),
+                          (b, "AgriTree", TREE2)):
+            cur.execute("INSERT INTO observation_geometry_cache VALUES "
+                        "(%s, %s, %s, ST_GeomFromGeoJSON(%s)::geography, now())",
+                        (tenant, u, typ, json.dumps(g)))
+        cur.execute(
+            "INSERT INTO sensor_profiles (tenant_id, code, name, sdm_entity_type, mapping) "
+            "VALUES (%s, %s, 'p', 'Device', %s::jsonb)",
+            (tenant, f"prof_{tenant}", json.dumps({"measurements": [
+                {"sdmAttribute": "airTemperature", "observedProperty": "airTemperature"},
+                {"sdmAttribute": "airTemperature2", "observedProperty": "airTemperature"}]})))
+        loc = _point_sql(-1.5991, 42.8006)  # inside Z
+        cur.execute(
+            "INSERT INTO device_deployments (tenant_id, device_urn, valid, observation_context,"
+            " channel_overrides, location, created_by) VALUES (%s, %s, tstzrange(%s, NULL),"
+            f" %s::jsonb, %s::jsonb, {loc}, 'test') RETURNING id::text",
+            (tenant, urn, datetime(2026, 1, 1, tzinfo=UTC), json.dumps({"medium": "ambientAir"}),
+             json.dumps({"airTemperature": {"observesFeature": a},
+                         "airTemperature2": {"observesFeature": b}})))
+        dep_id = cur.fetchone()[0]
+        for i, (attr, feat, val) in enumerate((("airTemperature", a, 10.0),
+                                               ("airTemperature2", b, 20.0))):
+            cur.execute(
+                "INSERT INTO telemetry_measurements (tenant_id, observed_at, source_event_id,"
+                " entity_id, entity_type, device_id, attribute_name, value, observed_property,"
+                " medium, deployment_id, source_kind, quality_flag, feature_of_interest, location)"
+                " VALUES (%s, %s, %s, %s, 'DeviceMeasurement', 'log', %s, %s, 'airTemperature',"
+                f" 'ambientAir', %s, 'device', 'valid', %s, {loc})",
+                (tenant, READ_AT, i + 1, _measurement_urn(tenant, "log", attr), attr, val, dep_id,
+                 feat))
+
+    out = _run(pg_dsn, tenant, z, None)
+    assert out[1] == []
+    assert [r.value for r in out[2]] == [10.0]
+    assert [(r.value, r.distance_m) for r in out[3]] == [(20.0, 0.0)]
+
+    import psycopg2
+    conn = psycopg2.connect(pg_dsn)
+    try:
+        with conn.cursor() as c:
+            c.execute('SET ROLE "nkz_rls_test"')
+        conn.commit()
+        req = raw_mod.parse_raw({"feature": z, "property": "airTemperature",
+                                 "from": "2026-11-01T00:00:00Z",
+                                 "to": "2026-11-02T00:00:00Z"}).base
+        plan = raw_mod.make_plan(conn, tenant, req,
+                                 fetch=lambda t, u: ("ok", {"id": u, "type": "AgriParcelZone"}))
+        items, _ = raw_mod.raw_page(conn, tenant, plan, limit=100)
+    finally:
+        conn.close()
+    assert sorted((i["tier"], i["value"]) for i in items) == [(2, 10.0), (3, 20.0)]
+
+
 def _weather_event(cur, tenant, entity_id, lon, lat, temp, i):
     cur.execute(
         "INSERT INTO telemetry_events (tenant_id, observed_at, entity_id, entity_type, payload)"

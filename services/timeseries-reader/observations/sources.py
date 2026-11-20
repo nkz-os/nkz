@@ -169,11 +169,11 @@ WHERE d.tenant_id = %s
 """
 
 _COVERED_SQL = """-- obs:covered
-SELECT g.entity_urn
+SELECT g.entity_urn,
+       COALESCE(ST_Covers(ST_GeomFromGeoJSON(%s::text)::geography, g.geom), false) AS covered
 FROM observation_geometry_cache g
 WHERE g.tenant_id = %s
   AND g.entity_urn = ANY(%s)
-  AND ST_Covers(ST_GeomFromGeoJSON(%s::text)::geography, g.geom)
 """
 
 _VALUE_COLUMNS = """m.observed_at, m.device_id, m.attribute_name, m.value,
@@ -456,18 +456,22 @@ def _property_attrs(cur, tenant_id: str, prop_name: str) -> List[str]:
 
 # --------------------------------------------------------- tier planning
 
-def _covered_features(cur, tenant_id: str, features: List[str], area_json: str) -> Set[str]:
-    """Subset of `features` whose cached geometry is covered by the area."""
+def _covered_features(cur, tenant_id: str, features: List[str], area_json: str
+                      ) -> Tuple[Set[str], Set[str]]:
+    """(cached, covered) among `features`: those with a cached geometry, and the subset of those
+    whose geometry is covered by the area (covered <= cached). One query."""
     if not features:
-        return set()
-    cur.execute(_COVERED_SQL, (tenant_id, features, area_json))
-    return {r["entity_urn"] for r in cur.fetchall()}
+        return set(), set()
+    cur.execute(_COVERED_SQL, (area_json, tenant_id, features))
+    rows = cur.fetchall()
+    return ({r["entity_urn"] for r in rows},
+            {r["entity_urn"] for r in rows if r["covered"]})
 
 
 def _candidate_deployments(cur, tenant_id: str, req: BestRequest, prop: dict, medium: str,
                            attrs: List[str], area_geom: Optional[dict], lo, hi
-                           ) -> Tuple[Dict[str, str], Set[str], Set[str]]:
-    """({deployment id: device URN}, probed features, covered features).
+                           ) -> Tuple[Dict[str, str], Set[str], Set[str], Set[str]]:
+    """({deployment id: device URN}, probed features, cached features, covered features).
 
     Preselection only (bounds the device ids of the values query). A deployment is kept when it
     observes the request feature, any of its channel features is covered by the area, its
@@ -494,10 +498,11 @@ def _candidate_deployments(cur, tenant_id: str, req: BestRequest, prop: dict, me
             cands.append((dep, feats))
 
     probed: Set[str] = set()
+    cached: Set[str] = set()
     covered: Set[str] = set()
     if area_geom is not None:
         probed = {f for _, feats in cands for f in feats if f != req.feature}
-        covered = _covered_features(cur, tenant_id, sorted(probed), area_json)
+        cached, covered = _covered_features(cur, tenant_id, sorted(probed), area_json)
 
     keep: Dict[str, str] = {}
     for dep, feats in cands:
@@ -511,18 +516,27 @@ def _candidate_deployments(cur, tenant_id: str, req: BestRequest, prop: dict, me
                           and float(dep["dist_m"]) <= radius))
         if ok:
             keep[dep["id"]] = dep["device_urn"]
-    return keep, probed, covered
+    return keep, probed, cached, covered
 
 
 def _row_tier(req: BestRequest, row: dict, area_geom: Optional[dict], covered: Set[str],
-              radius: float) -> Tuple[Optional[int], Optional[float]]:
-    """(tier, distance_m) of one stored row: first tier it qualifies for, from its own columns."""
+              radius: float, *, cached: Set[str]) -> Tuple[Optional[int], Optional[float]]:
+    """(tier, distance_m) of one stored row: first tier it qualifies for, from its own columns.
+
+    Tier 2 is decided by what is observed (contract 8.12): a feature with a cached geometry is
+    tier 2 iff that geometry is covered (the row location is ignored); only a row without a
+    feature, or whose feature has no cached geometry, falls back to the row location. A row
+    excluded from tier 2 can still be tier 3 by the distance of its location."""
     feature = row.get("feature_of_interest")
     if req.feature is not None and feature == req.feature:
         return 1, None
     if area_geom is None:
         return None, None
-    if row.get("r_in_area") or (feature and feature in covered):
+    if feature and feature in cached:
+        in_tier2 = feature in covered
+    else:
+        in_tier2 = bool(row.get("r_in_area"))
+    if in_tier2:
         return 2, None
     dist = row.get("r_dist_m")
     if radius > 0 and dist is not None and float(dist) <= radius:
@@ -558,8 +572,8 @@ def observed_tiers(cur, tenant_id: str, req: BestRequest, prop: dict, medium: st
     `latest` with the request window = the max_age window). False forces the raw-row fetch.
 
     Tier is decided per stored row (resolved columns): 1 iff feature_of_interest == feature;
-    2 iff the cached geometry of feature_of_interest is covered by the area or the row's
-    location is inside it; 3 iff the row's location is within nearby_radius_m of the area
+    2 iff the cached geometry of feature_of_interest is covered by the area, or, when the row
+    has no feature or its feature has no cached geometry, the row's location is inside it; 3 iff the row's location is within nearby_radius_m of the area
     (distance_m set). `area_geom` is the GeoJSON of the request feature (geometry_of, resolved
     beforehand) or `req.geometry`; with no area only tier 1 can be populated.
     `cur` is a tenant_cursor.
@@ -573,7 +587,7 @@ def observed_tiers(cur, tenant_id: str, req: BestRequest, prop: dict, medium: st
     if not attrs:
         return out
     prior_lo = w0 - PRIOR_LOOKBACK
-    urns, probed, covered = _candidate_deployments(
+    urns, probed, cached, covered = _candidate_deployments(
         cur, tenant_id, req, prop, medium, attrs, area_geom, prior_lo if cumulative else w0, w1)
     if not urns:
         return out
@@ -615,17 +629,18 @@ def observed_tiers(cur, tenant_id: str, req: BestRequest, prop: dict, medium: st
                         if r.get("feature_of_interest")
                         and r["feature_of_interest"] not in probed
                         and r["feature_of_interest"] != req.feature})
-        covered = covered | _covered_features(cur, tenant_id, extra, area_json)
+        x_cached, x_covered = _covered_features(cur, tenant_id, extra, area_json)
+        cached, covered = cached | x_cached, covered | x_covered
 
     radius = _num(prop.get("nearby_radius_m")) or 0.0
     if plan != "raw":
-        _append_aggregated(out, plan, rows, urns, req, prop, area_geom, covered, radius)
+        _append_aggregated(out, plan, rows, urns, req, prop, area_geom, covered, radius, cached)
         return out
     for row in rows:
         urn = urns.get(row["deployment_id"])
         if urn is None:
             continue
-        tier, dist = _row_tier(req, row, area_geom, covered, radius)
+        tier, dist = _row_tier(req, row, area_geom, covered, radius, cached=cached)
         if tier is None:
             continue
         sub = _sub_context(row)
@@ -647,7 +662,8 @@ def observed_tiers(cur, tenant_id: str, req: BestRequest, prop: dict, medium: st
 
 def _append_aggregated(out: Dict[int, List[Reading]], plan: str, rows: List[dict],
                        urns: Dict[str, str], req: BestRequest, prop: dict,
-                       area_geom: Optional[dict], covered: Set[str], radius: float) -> None:
+                       area_geom: Optional[dict], covered: Set[str], radius: float,
+                       cached: Set[str]) -> None:
     """Folded (series) / newest (latest) readings of the SQL-aggregated rows, per tier.
 
     Each tier list is ordered by the reading's first in-range instant (the raw path's row order),
@@ -659,7 +675,7 @@ def _append_aggregated(out: Dict[int, List[Reading]], plan: str, rows: List[dict
         urn = urns.get(row["deployment_id"])
         if urn is None:
             continue
-        tier, dist = _row_tier(req, row, area_geom, covered, radius)
+        tier, dist = _row_tier(req, row, area_geom, covered, radius, cached=cached)
         if tier is None:
             continue
         sub = _sub_context(row)

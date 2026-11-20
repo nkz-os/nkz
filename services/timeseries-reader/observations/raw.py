@@ -129,6 +129,7 @@ class RawPlan:
     device_ids: List[str]
     radius: float
     covered: Set[str] = field(default_factory=set)
+    cached: Set[str] = field(default_factory=set)    # features with a cached geometry
     checked: Set[str] = field(default_factory=set)   # features whose coverage is already known
 
     @property
@@ -152,9 +153,10 @@ def make_plan(conn, tenant_id: str, req: BestRequest, fetch=None) -> RawPlan:
             attrs = _property_attrs(cur, tenant_id, req.property)
             urns: Dict[str, str] = {}
             probed: Set[str] = set()
+            cached: Set[str] = set()
             covered: Set[str] = set()
             if attrs:
-                urns, probed, covered = _candidate_deployments(
+                urns, probed, cached, covered = _candidate_deployments(
                     cur, tenant_id, req, prop, medium, attrs, area, req.start, req.end)
     finally:
         _rollback(conn)
@@ -163,7 +165,7 @@ def make_plan(conn, tenant_id: str, req: BestRequest, fetch=None) -> RawPlan:
         checked.add(req.feature)
     return RawPlan(req=req, prop=prop, medium=medium, area=area, attrs=attrs, urns=urns,
                    device_ids=sorted({_device_id(u) for u in urns.values()}), radius=radius,
-                   covered=set(covered), checked=checked)
+                   covered=set(covered), cached=set(cached), checked=checked)
 
 
 # ------------------------------------------------------------------- fetch
@@ -269,8 +271,10 @@ def raw_page(conn, tenant_id: str, plan: RawPlan, *, limit: int,
                                     if r.get("feature_of_interest")
                                     and r["feature_of_interest"] not in plan.checked})
                     if extra:
-                        plan.covered |= _covered_features(cur, tenant_id, extra,
-                                                          json.dumps(plan.area))
+                        x_cached, x_covered = _covered_features(cur, tenant_id, extra,
+                                                                json.dumps(plan.area))
+                        plan.cached |= x_cached
+                        plan.covered |= x_covered
                         plan.checked |= set(extra)
         finally:
             _rollback(conn)
@@ -279,7 +283,8 @@ def raw_page(conn, tenant_id: str, plan: RawPlan, *, limit: int,
             after = _position(row)
             if row["deployment_id"] not in plan.urns:
                 continue
-            tier, dist = _row_tier(plan.req, row, plan.area, plan.covered, plan.radius)
+            tier, dist = _row_tier(plan.req, row, plan.area, plan.covered, plan.radius,
+                                cached=plan.cached)
             if tier is None:
                 continue
             if not _matches_request_sub_context(_sub_context(row), plan.req.sub_context, plan.prop):

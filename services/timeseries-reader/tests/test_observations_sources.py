@@ -13,6 +13,7 @@ from observations.sources import (  # noqa: E402
     fetch_plan,
     model_semantics,
     model_tiers,
+    _row_tier,
     observed_tiers,
     parcel_urn_of,
     resolve_medium,
@@ -213,13 +214,13 @@ def test_tier2_by_location_and_by_covered_feature_excluding_tier1(sql_path):
     rows = [value_row("a", "a"),
             value_row("b", "b", feature_of_interest=None, r_in_area=True),
             value_row("c", "c", feature_of_interest=other)]
-    cur = FakeCursor(answers(deployments=deps, values=rows, covered=[{"entity_urn": other}]))
+    cur = FakeCursor(answers(deployments=deps, values=rows, covered=[{"entity_urn": other, "covered": True}]))
     out = observed_tiers(cur, T, req(), prop(), "ambientAir", AREA,
                          aggregate_in_sql=sql_path)
     assert [r.deployment_id for r in out[1]] == ["a"]
     assert sorted(r.deployment_id for r in out[2]) == ["b", "c"]
     assert out[3] == []
-    assert FEATURE not in cur.sql("covered")[0][2][1]  # tier-1 feature not probed
+    assert FEATURE not in cur.sql("covered")[0][2][2]  # tier-1 feature not probed
 
 
 @BOTH_PATHS
@@ -237,7 +238,7 @@ def test_two_channels_one_device_split_per_row(sql_path):
                          aggregate_in_sql=sql_path)
     assert [r.value for r in out[1]] == [10.0]
     assert out[2] == [] and out[3] == []
-    cur = FakeCursor(answers(deployments=[d], values=rows, covered=[{"entity_urn": tree2}], attrs=at))
+    cur = FakeCursor(answers(deployments=[d], values=rows, covered=[{"entity_urn": tree2, "covered": True}], attrs=at))
     out = observed_tiers(cur, T, req(feature=None, geometry=AREA), prop(), "ambientAir", AREA,
                          aggregate_in_sql=sql_path)
     assert [r.value for r in out[2]] == [20.0] and out[1] == []
@@ -374,11 +375,11 @@ def test_preselection_drops_far_deployment_with_uncovered_feature():
     near = "urn:ngsi-ld:AgriParcelZone:tenantA:near"
     deps = [dep("f", "urn:x:Device:t:far", feature=far),
             dep("n", "urn:x:Device:t:near", feature=near)]
-    cur = FakeCursor(answers(deployments=deps, values=[], covered=[{"entity_urn": near}]))
+    cur = FakeCursor(answers(deployments=deps, values=[], covered=[{"entity_urn": near, "covered": True}, {"entity_urn": far, "covered": False}]))
     observed_tiers(cur, T, req(feature=None, geometry=AREA), prop(), "ambientAir", AREA,
                    aggregate_in_sql=False)
     assert cur.sql("values")[0][2][7] == ["near"]
-    assert cur.sql("covered")[0][2][1] == [far, near]
+    assert cur.sql("covered")[0][2][2] == [far, near]
 
 
 # ------------------------------------------------- SQL-aggregated fetch (8.10)
@@ -476,3 +477,64 @@ def test_latest_sql_one_window_pass_per_series_key_and_tier_class():
     a, b = out[1]
     assert (a.t, a.value, a.n, a.calibrated, a.oor_n) == (t, 5.0, 1, True, 2)
     assert (b.n, b.oor_n, b.t, b.sub_context) == (0, 1, t.replace(minute=8), {"heightAboveGround": 5.0})
+
+
+# ------------------------------------------- 8.12: tier 2 by the observed feature's geometry
+
+TREE = "urn:t:tree"
+
+
+def _tier(row_kw, covered=(), cached=(), radius=0.0, area=AREA):
+    row = value_row(**row_kw)
+    return _row_tier(req(feature=None, geometry=AREA), row, area, set(covered), radius,
+                     cached=set(cached))
+
+
+def test_tier2_logger_inside_zone_observing_tree_outside_is_not_tier2():
+    kw = dict(feature_of_interest=TREE, r_in_area=True)
+    assert _tier(kw, covered=(), cached=(TREE,)) == (None, None)
+
+
+def test_tier2_feature_covered_logger_outside():
+    kw = dict(feature_of_interest=TREE, r_in_area=False)
+    assert _tier(kw, covered=(TREE,), cached=(TREE,)) == (2, None)
+
+
+def test_tier2_uncached_feature_falls_back_to_location():
+    kw = dict(feature_of_interest=TREE, r_in_area=True)
+    assert _tier(kw, cached=()) == (2, None)
+    kw = dict(feature_of_interest=TREE, r_in_area=False)
+    assert _tier(kw, cached=()) == (None, None)
+
+
+def test_tier2_no_feature_uses_location():
+    assert _tier(dict(feature_of_interest=None, r_in_area=True), cached=(TREE,)) == (2, None)
+    assert _tier(dict(feature_of_interest=None, r_in_area=False), cached=(TREE,)) == (None, None)
+
+
+def test_excluded_from_tier2_can_be_tier3():
+    kw = dict(feature_of_interest=TREE, r_in_area=True, r_dist_m=0.0)
+    assert _tier(kw, cached=(TREE,), radius=1000.0) == (3, 0.0)
+
+
+def test_tier1_and_no_area_unchanged():
+    r = req()
+    assert _row_tier(r, value_row(), AREA, set(), 0.0, cached=set()) == (1, None)
+    assert _row_tier(req(feature=None), value_row(feature_of_interest=TREE, r_in_area=True),
+                     None, set(), 0.0, cached={TREE}) == (None, None)
+
+
+@BOTH_PATHS
+def test_observed_tiers_logger_inside_tree_outside_not_tier2(sql_path):
+    """Both channels of one logger located in the zone: only the tree inside is tier 2."""
+    a, b = "urn:t:treeA", "urn:t:treeB"
+    d = dep(feature=None, in_area=True, overrides={
+        "temperature": {"observesFeature": a}, "temperature2": {"observesFeature": b}})
+    rows = [value_row(v=10.0, feature_of_interest=a, r_in_area=True),
+            value_row(v=20.0, feature_of_interest=b, r_in_area=True)]
+    at = [{"attr": "temperature"}, {"attr": "temperature2"}]
+    cov = [{"entity_urn": a, "covered": True}, {"entity_urn": b, "covered": False}]
+    cur = FakeCursor(answers(deployments=[d], values=rows, covered=cov, attrs=at))
+    out = observed_tiers(cur, T, req(feature=None, geometry=AREA), prop(nearby_radius_m=0),
+                         "ambientAir", AREA, aggregate_in_sql=sql_path)
+    assert [r.value for r in out[2]] == [10.0] and out[1] == [] and out[3] == []
