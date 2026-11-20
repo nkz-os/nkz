@@ -63,7 +63,7 @@ def _parse(builder: Any, data: Any, what: str) -> Any:
 def _next_cursor(page: Any, seen: set[str]) -> str | None:
     """Validate a raw page and return the next cursor (None = done). Raises on a
     repeated cursor or a runaway page count instead of looping forever."""
-    if not isinstance(page, dict) or not isinstance(page.get("items", []), list):
+    if not isinstance(page, dict) or not isinstance(page.get("items") or [], list):
         raise ObservationsParseError("malformed raw page in reader response")
     cursor = page.get("nextCursor")
     if not cursor:
@@ -92,14 +92,14 @@ def _dt(value: Any) -> datetime | None:
 @dataclass(frozen=True)
 class ObservationSource:
     kind: str
-    id: str
+    id: str | None
     deployment_id: str | None = None
     distance_m: float | None = None
     n: int | None = None
 
     @classmethod
     def from_json(cls, d: dict[str, Any]) -> "ObservationSource":
-        return cls(kind=d["kind"], id=d.get("id", ""), deployment_id=d.get("deploymentId"),
+        return cls(kind=d["kind"], id=d.get("id"), deployment_id=d.get("deploymentId"),
                    distance_m=d.get("distanceM"), n=d.get("n"))
 
 

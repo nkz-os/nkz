@@ -294,4 +294,14 @@ def test_source_without_id_tolerated():
     respx.post(f"{BASE}/api/observations/best").mock(return_value=Response(200, json=body))
     with SyncObservationsClient(BASE, TENANT, SECRET) as c:
         res = c.best(feature=FEATURE, property="p", start=START, end=END)
-    assert res.groups[0].points[1].sources[0].id == ""
+    assert res.groups[0].points[1].sources[0].id is None
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_raw_null_items_page_tolerated():
+    respx.post(f"{BASE}/api/observations").mock(
+        return_value=Response(200, json={"items": None, "nextCursor": None}))
+    async with ObservationsClient(BASE, TENANT, SECRET) as c:
+        got = [o async for o in c.raw(feature=FEATURE, property="p", start=START, end=END)]
+    assert got == []
