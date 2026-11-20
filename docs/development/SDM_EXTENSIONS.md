@@ -48,6 +48,9 @@ fails on it.
 | `AgriculturalRobot` | entidad | extension-declarada | Platform extension — no equivalent in SAREF4AGRI or any SDM catalog |
 | `AgriculturalTractor` | entidad | extension-declarada | Platform extension — no SDM type exists for agricultural tractors |
 | `AgriSoilSample` | entidad | propuesta-sdm | SDM-008 (smart-data-models/incubated#283) |
+| `airTemperatureMax` | atributo | extension-declarada | Window statistic of airTemperature (DaTaK) |
+| `airTemperatureMin` | atributo | extension-declarada | Window statistic of airTemperature (DaTaK) |
+| `airTemperatureStdDev` | atributo | extension-declarada | Window statistic of airTemperature (DaTaK) |
 | `ammoniumN` | atributo | propuesta-sdm | Attribute of AgriSoilSample (smart-data-models/incubated#283) |
 | `analysisMethod` | atributo | propuesta-sdm | Attribute of AgriPlantSample, AgriSoilSample (smart-data-models/incubated#283) |
 | `BaselineScenario` | entidad | sin-revisar | Not yet reviewed |
@@ -126,7 +129,13 @@ fails on it.
 | `potassium` | atributo | propuesta-sdm | Attribute of AgriPlantSample (smart-data-models/incubated#283) |
 | `potassiumExchangeable` | atributo | propuesta-sdm | Attribute of AgriSoilSample (smart-data-models/incubated#283) |
 | `potassiumMethod` | atributo | propuesta-sdm | Attribute of AgriSoilSample (smart-data-models/incubated#283) |
+| `precipitationMax` | atributo | extension-declarada | Window statistic of precipitation (DaTaK) |
+| `precipitationMin` | atributo | extension-declarada | Window statistic of precipitation (DaTaK) |
+| `precipitationStdDev` | atributo | extension-declarada | Window statistic of precipitation (DaTaK) |
 | `ProjectScenario` | entidad | sin-revisar | Not yet reviewed |
+| `relativeHumidityMax` | atributo | extension-declarada | Window statistic of relativeHumidity (DaTaK) |
+| `relativeHumidityMin` | atributo | extension-declarada | Window statistic of relativeHumidity (DaTaK) |
+| `relativeHumidityStdDev` | atributo | extension-declarada | Window statistic of relativeHumidity (DaTaK) |
 | `RiskAssessment` | entidad | extension-declarada | Platform extension — generic risk evaluation result for batch-evaluated risks (robotic, energy, livestock, agr |
 | `rowNumber` | atributo | propuesta-sdm | Attribute of AgriPlant (smart-data-models/incubated#283) |
 | `sampleCode` | atributo | propuesta-sdm | Attribute of AgriPlantSample, AgriSoilSample (smart-data-models/incubated#283) |
@@ -137,8 +146,17 @@ fails on it.
 | `silt` | atributo | propuesta-sdm | Attribute of AgriSoilSample (smart-data-models/incubated#283) |
 | `sodium` | atributo | propuesta-sdm | Attribute of AgriPlantSample (smart-data-models/incubated#283) |
 | `SoilDerivedRaster` | entidad | propuesta-sdm | SDM-004 |
+| `soilMoistureMax` | atributo | extension-declarada | Window statistic of soilMoisture (DaTaK) |
+| `soilMoistureMin` | atributo | extension-declarada | Window statistic of soilMoisture (DaTaK) |
+| `soilMoistureStdDev` | atributo | extension-declarada | Window statistic of soilMoisture (DaTaK) |
 | `SoilSamplingPoint` | entidad | propuesta-sdm | SDM-002 |
 | `SoilSurvey` | entidad | propuesta-sdm | SDM-003 |
+| `soilTemperatureMax` | atributo | extension-declarada | Window statistic of soilTemperature (DaTaK) |
+| `soilTemperatureMin` | atributo | extension-declarada | Window statistic of soilTemperature (DaTaK) |
+| `soilTemperatureStdDev` | atributo | extension-declarada | Window statistic of soilTemperature (DaTaK) |
+| `solarRadiationMax` | atributo | extension-declarada | Window statistic of solarRadiation (DaTaK) |
+| `solarRadiationMin` | atributo | extension-declarada | Window statistic of solarRadiation (DaTaK) |
+| `solarRadiationStdDev` | atributo | extension-declarada | Window statistic of solarRadiation (DaTaK) |
 | `sowingWindowEnd` | atributo | extension-declarada | End of the planned sowing window of a crop cycle; not modelled in SDM |
 | `sowingWindowStart` | atributo | extension-declarada | Start of the planned sowing window of a crop cycle; not modelled in SDM |
 | `sulphur` | atributo | propuesta-sdm | Attribute of AgriPlantSample (smart-data-models/incubated#283) |
