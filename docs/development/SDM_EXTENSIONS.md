@@ -111,7 +111,7 @@ fails on it.
 | `numberOfSubsamples` | atributo | propuesta-sdm | Attribute of AgriPlantSample, AgriSoilSample (smart-data-models/incubated#283) |
 | `observationContext` | atributo | extension-declarada | Medium a device measures (air, soil, plant, water) and where in it; SDM Device has no such property |
 | `observesFeature` | atributo | extension-declarada | SDM Device has no feature-of-interest relation; maps to W3C SOSA sosa:hasFeatureOfInterest |
-| `observedProperty` | atributo | extension-declarada | Catalogue name of the property a DeviceMeasurement observes; maps to W3C SOSA sosa:observedProperty |
+| `observedProperty` | atributo | extension-declarada | Catalogue name (string) of the property a measurement observes; own vocabulary until the SOSA alignment with URN values |
 | `OpenChannelFlow` | entidad | sin-revisar | Not yet reviewed |
 | `organicCarbon` | atributo | propuesta-sdm | Attribute of AgriSoilSample (smart-data-models/incubated#283) |
 | `organicMatter` | atributo | propuesta-sdm | Attribute of AgriSoilSample (smart-data-models/incubated#283) |

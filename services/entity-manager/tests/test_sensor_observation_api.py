@@ -622,7 +622,8 @@ def test_context_declares_new_terms():
     ctx = json.loads((root / "config" / "ngsi-ld-context.json").read_text())["@context"][1]
     assert ctx["observesFeature"] == "http://www.w3.org/ns/sosa/hasFeatureOfInterest"
     assert not isinstance(ctx["observesFeature"], dict) or "@type" not in ctx["observesFeature"]
-    for term in ("observationContext", "channelOverrides", "mobility", "deploymentId"):
+    for term in ("observationContext", "channelOverrides", "mobility", "deploymentId",
+                 "observedProperty", "timeSource"):
         assert ctx[term] == f"nkz:{term}"
 
 
