@@ -173,7 +173,7 @@ class ObservationLookup:
             if not isinstance(item, dict):
                 continue
             name = item.get("sdmAttribute")
-            if isinstance(name, str) and canonical_attribute(name) == attr:
+            if isinstance(name, str) and canonical_attribute(name) == canonical_attribute(attr):
                 return item
         return None
 

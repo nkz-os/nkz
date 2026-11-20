@@ -47,6 +47,16 @@ def test_override_matched_by_canonical_alias():
     assert resolve(d)["featureOfInterest"] == "urn:ngsi-ld:Other:1"
 
 
+def test_override_keyed_by_alias_applies_to_raw_alias_attr():
+    d = dep(FARM, overrides={"temperature": {"observesFeature": "urn:ngsi-ld:Other:1"}})
+    assert resolve(d, attr="temperature")["featureOfInterest"] == "urn:ngsi-ld:Other:1"
+
+
+def test_override_keyed_canonical_applies_to_raw_alias_attr():
+    d = dep(FARM, overrides={"airTemperature": {"observesFeature": "urn:ngsi-ld:Other:1"}})
+    assert resolve(d, attr="temperature")["featureOfInterest"] == "urn:ngsi-ld:Other:1"
+
+
 def test_feature_from_deployment():
     assert resolve(dep(FARM))["featureOfInterest"] == FARM
 

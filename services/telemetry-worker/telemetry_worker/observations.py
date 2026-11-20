@@ -64,7 +64,7 @@ def _override_for(dep: Deployment, attr: str) -> Dict[str, Any]:
     """Channel override for `attr`; keys may be aliases of the canonical name."""
     overrides = dep.channel_overrides or {}
     for key, value in overrides.items():
-        if canonical_attribute(key) == attr and isinstance(value, dict):
+        if canonical_attribute(key) == canonical_attribute(attr) and isinstance(value, dict):
             return value
     return {}
 

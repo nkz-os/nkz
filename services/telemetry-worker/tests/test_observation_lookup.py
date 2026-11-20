@@ -221,6 +221,15 @@ async def test_measurement_def_matches_alias_to_canonical():
 
 
 @_sync
+async def test_measurement_def_raw_alias_attr_matches_either_profile_spelling():
+    for sdm in ("airTemperature", "temperature"):
+        row = {"mapping": {"measurements": [{"sdmAttribute": sdm, "unit": "°C"}]}}
+        lk = ObservationLookup(FakePool([row]))
+        assert await lk.measurement_def(TENANT, "prof", "temperature") == {
+            "sdmAttribute": sdm, "unit": "°C"}
+
+
+@_sync
 async def test_miss_revalidates_after_floor():
     pool = FakePool([])
     clock = Clock()
