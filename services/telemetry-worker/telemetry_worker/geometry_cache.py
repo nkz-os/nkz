@@ -7,7 +7,8 @@ geometry is skipped with a warning and never raised to the caller.
 
 import json
 import logging
-from typing import Any, Dict, Optional
+from datetime import datetime
+from typing import Any, Dict, Optional, Set
 
 logger = logging.getLogger(__name__)
 
@@ -27,6 +28,11 @@ SET geom = EXCLUDED.geom,
 """
 
 _DELETE_SQL = "DELETE FROM observation_geometry_cache WHERE tenant_id = $1 AND entity_urn = $2"
+
+_CACHED_URNS_SQL = """
+SELECT entity_urn FROM observation_geometry_cache
+WHERE tenant_id = $1 AND entity_type = $2 AND updated_at < $3
+"""
 
 
 def _location_geojson(entity: Dict[str, Any]) -> Optional[Dict[str, Any]]:
@@ -78,3 +84,14 @@ async def delete_geometry(pool, tenant_id: str, urn: str) -> bool:
             await conn.execute(_SET_TENANT_SQL, tenant_id)
             status = await conn.execute(_DELETE_SQL, tenant_id, urn)
     return status == "DELETE 1"
+
+
+async def cached_urns(pool, tenant_id: str, entity_type: str, before: datetime) -> Set[str]:
+    """URNs cached for one tenant and entity type, last written before `before`."""
+    if not tenant_id:
+        raise ValueError("tenant_id is required (RLS would hide every row)")
+    async with pool.acquire() as conn:
+        async with conn.transaction():
+            await conn.execute(_SET_TENANT_SQL, tenant_id)
+            rows = await conn.fetch(_CACHED_URNS_SQL, tenant_id, entity_type, before)
+    return {r["entity_urn"] for r in rows}

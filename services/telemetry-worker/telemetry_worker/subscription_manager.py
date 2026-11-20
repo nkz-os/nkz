@@ -34,6 +34,10 @@ GEOMETRY_NOTIFICATION_URL = f"http://{SERVICE_HOST}:{SERVICE_PORT}/notify/geomet
 POSTGRES_URL = os.getenv("POSTGRES_URL", "")
 DEFAULT_TENANT = os.getenv("DEFAULT_TENANT", "platform")
 
+# Entity types whose `location` feeds observation_geometry_cache (contract 1.4):
+# the geometry subscription and the startup backfill (geometry_backfill) share it.
+GEOMETRY_ENTITY_TYPES = ("AgriParcel", "AgriParcelZone", "AgriPlant", "AgriGreenhouse")
+
 # NGSI-LD subscriptions — no watchedAttributes = trigger on ANY attribute change
 SUBSCRIPTIONS = [
     {
@@ -262,12 +266,7 @@ SUBSCRIPTIONS = [
         # (an undefined type expands to the default vocabulary and never matches).
         "description": "Telemetry Worker - Geometry cache (location)",
         "type": "Subscription",
-        "entities": [
-            {"type": "AgriParcel"},
-            {"type": "AgriParcelZone"},
-            {"type": "AgriPlant"},
-            {"type": "AgriGreenhouse"},
-        ],
+        "entities": [{"type": t} for t in GEOMETRY_ENTITY_TYPES],
         "watchedAttributes": ["location"],
         "notification": {
             "endpoint": {
@@ -527,13 +526,19 @@ def _ensure_tenant_subscriptions(tenant_id: str):
         logger.error(f"Error managing subscriptions for {tenant_id}: {e}")
 
 
-@retry(stop=stop_after_attempt(5), wait=wait_fixed(5))
-def ensure_subscriptions_for_all_tenants():
-    """Create NGSI-LD subscriptions for all active tenants."""
+def managed_tenants() -> list:
+    """Tenants this worker reconciles subscriptions for (the default one when the DB has none)."""
     tenants = _get_active_tenants()
     if not tenants:
         tenants = [DEFAULT_TENANT]
         logger.info(f"No tenants from DB, using default: {DEFAULT_TENANT}")
+    return tenants
+
+
+@retry(stop=stop_after_attempt(5), wait=wait_fixed(5))
+def ensure_subscriptions_for_all_tenants():
+    """Create NGSI-LD subscriptions for all active tenants."""
+    tenants = managed_tenants()
 
     logger.info(f"Ensuring subscriptions for {len(tenants)} tenants: {tenants}")
 

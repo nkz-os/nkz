@@ -8,6 +8,7 @@ from telemetry_worker.calibration import CalibrationService
 from telemetry_worker.config import Settings
 from telemetry_worker.dedup import NotificationDedup
 from telemetry_worker.event_sink import PostgreSQLSink
+from telemetry_worker.geometry_backfill import run_geometry_backfill
 from telemetry_worker.health_checker import HealthChecker
 from telemetry_worker.observation_lookup import ObservationLookup
 from telemetry_worker.notification_handler import (
@@ -108,10 +109,21 @@ async def lifespan(app: FastAPI):
 
     periodic_task = asyncio.create_task(_periodic_subscription_check())
 
+    # The geometry subscription only fires on a create or a location change, so
+    # features that already exist are backfilled here, in the background: readiness
+    # does not wait for it. After the subscriptions, so a change made while it runs
+    # is still notified.
+    backfill_task = asyncio.create_task(run_geometry_backfill(sink._pool))
+
     yield
 
     # Shutdown: cancel periodic task and close pool
     periodic_task.cancel()
+    backfill_task.cancel()
+    try:
+        await backfill_task
+    except asyncio.CancelledError:
+        pass
     if recompute_task is not None:
         recompute_task.cancel()
         try:
