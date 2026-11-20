@@ -50,6 +50,7 @@ OFFICIAL = {
     "controlledAsset": "https://smartdatamodels.org/dataModel.Device/controlledAsset",
     "controlledProperty": "https://smartdatamodels.org/dataModel.Device/controlledProperty",
     "measurementType": "https://smartdatamodels.org/dataModel.Device/measurementType",
+    "deviceType": "https://smartdatamodels.org/dataModel.Device/deviceType",
     "WaterQualityObserved": "https://smartdatamodels.org/dataModel.WaterQuality/WaterQualityObserved",
     "NO3": "https://smartdatamodels.org/dataModel.WaterQuality/NO3",
 }
