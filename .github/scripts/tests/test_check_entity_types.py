@@ -390,3 +390,12 @@ def test_ratchet_cli_rejects_an_unknown_base_ref():
 def test_ratchet_cli_clean_against_head():
     result = _run_ratchet_cli("HEAD")
     assert result.returncode == 0, result.stdout + result.stderr
+
+
+def test_parse_legacy_rejects_unknown_block_header():
+    with pytest.raises(ValueError, match="unknown block header"):
+        parse_legacy("## broker\nA\n## other\nB\n")
+
+
+def test_parse_legacy_keeps_plain_comments():
+    assert parse_legacy("## broker\n# note\n# # two\nA\n## code\nB\n") == (["A"], ["B"])
