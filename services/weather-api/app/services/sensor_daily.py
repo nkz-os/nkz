@@ -22,12 +22,18 @@ from datetime import date, datetime, tzinfo
 from statistics import mean
 from typing import Dict, Iterable, List, Optional, Tuple
 
+from common.window_statistics import base_attribute
+
 _W_M2_TO_MJ_M2_DAY = 0.0864
 _MIN_HOURS = {"airTemperature": 20, "relativeHumidity": 20, "precipitation": 24, "solarRadiation": 24}
 _RANGES = {"airTemperature": (-50.0, 60.0), "relativeHumidity": (0.0, 100.0), "precipitation": (0.0, 500.0),
            "solarRadiation": (0.0, 500.0)}  # solarRadiation: daily mean, W m-2
 # A sensor temperature this far from the model of the same day is a fault, not weather.
 _MAX_MODEL_GAP_C = 10.0
+
+# Window extremes published next to the mean: they replace Tmin/Tmax, never enter a mean
+# and never count toward coverage.
+_EXTREMES = ("airTemperatureMin", "airTemperatureMax")
 
 SENSOR_FIELDS = ("tmin_c", "tmax_c", "precip_mm", "radiation_mj_m2", "vapour_pressure_kpa")
 
@@ -53,14 +59,20 @@ def _in(variable: str, value: float) -> bool:
 def _device_day(by_hour: Dict[str, Dict[int, List[float]]]) -> Dict[str, float]:
     """Daily fields of one device for one local day, from {variable: {hour: [values]}}."""
     out: Dict[str, float] = {}
-    covered = {v: hours for v, hours in by_hour.items() if len(hours) >= _MIN_HOURS.get(v, 25)}
+    covered = {v: hours for v, hours in by_hour.items()
+               if v in _MIN_HOURS and len(hours) >= _MIN_HOURS[v]}
 
     temps = covered.get("airTemperature")
     if temps:
         values = [x for vals in temps.values() for x in vals]
-        tmin, tmax = min(values), max(values)
-        if _in("airTemperature", tmin) and _in("airTemperature", tmax):
-            out["tmin_c"], out["tmax_c"] = tmin, tmax
+        mins = [x for vals in by_hour.get("airTemperatureMin", {}).values() for x in vals]
+        maxs = [x for vals in by_hour.get("airTemperatureMax", {}).values() for x in vals]
+        tmin = min(mins) if mins else min(values)
+        tmax = max(maxs) if maxs else max(values)
+        if _in("airTemperature", tmin):
+            out["tmin_c"] = tmin
+        if _in("airTemperature", tmax):
+            out["tmax_c"] = tmax
 
     rain = covered.get("precipitation")
     if rain:
@@ -75,7 +87,7 @@ def _device_day(by_hour: Dict[str, Dict[int, List[float]]]) -> Dict[str, float]:
             out["radiation_mj_m2"] = round(daily_mean * _W_M2_TO_MJ_M2_DAY, 4)
 
     rh = covered.get("relativeHumidity")
-    if rh and "tmin_c" in out:
+    if rh and "tmin_c" in out and "tmax_c" in out:
         rh_mean = mean(mean(vals) for vals in rh.values())
         if _in("relativeHumidity", rh_mean):
             # FAO-56 eq. 19 (mean relative humidity)
@@ -133,7 +145,7 @@ def ambient_air_only(readings: Iterable[Reading], rules: Dict[str, MediumRule]) 
         if rule is None:
             continue
         default, overrides = rule
-        if overrides.get(r.variable, default):
+        if overrides.get(base_attribute(r.variable), default):
             kept.append(r)
     return kept
 
@@ -142,7 +154,7 @@ def aggregate(readings: Iterable[Reading], tz: tzinfo) -> Dict[date, Dict[str, f
     """{local day: {daily field: value}}, averaged over the devices that qualify."""
     grid: Dict[tuple, Dict[str, Dict[int, List[float]]]] = defaultdict(lambda: defaultdict(lambda: defaultdict(list)))
     for r in readings:
-        if r.variable not in _MIN_HOURS or r.value is None:
+        if (r.variable not in _MIN_HOURS and r.variable not in _EXTREMES) or r.value is None:
             continue
         local = r.observed_at.astimezone(tz)
         grid[(r.device, local.date())][r.variable][local.hour].append(float(r.value))

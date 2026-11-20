@@ -146,3 +146,45 @@ def test_ambient_air_only_keeps_allowed_readings():
     rules = {"d1": (True, {"temperature": False}), "d3": (False, {"airTemperature": True})}
     kept = sd.ambient_air_only(readings, rules)
     assert [(r.device, r.variable) for r in kept] == [("d1", "airTemperature"), ("d3", "airTemperature")]
+
+
+def test_real_extremes_win_over_means():
+    readings = (_hourly("d1", "airTemperature", [12.0] * 24)
+                + _hourly("d1", "airTemperatureMin", [9.0] + [None] * 23)
+                + _hourly("d1", "airTemperatureMax", [None] * 14 + [15.0] + [None] * 9))
+    day = sd.aggregate(readings, MADRID)[DAY]
+    assert day["tmin_c"] == 9.0
+    assert day["tmax_c"] == 15.0
+
+
+def test_extremes_without_coverage_use_today_rule():
+    readings = (_hourly("d1", "airTemperature", [12.0] * 10 + [None] * 14)
+                + _hourly("d1", "airTemperatureMin", [9.0] * 24)
+                + _hourly("d1", "airTemperatureMax", [15.0] * 24))
+    assert "tmin_c" not in sd.aggregate(readings, MADRID).get(DAY, {})
+
+
+def test_extremes_out_of_range_are_dropped():
+    readings = (_hourly("d1", "airTemperature", [12.0] * 24)
+                + _hourly("d1", "airTemperatureMax", [75.0] + [None] * 23))
+    day = sd.aggregate(readings, MADRID)[DAY]
+    assert "tmax_c" not in day
+    assert day["tmin_c"] == 12.0
+
+
+def test_only_temperature_extremes_enter_the_aggregate():
+    readings = (_hourly("d1", "airTemperature", [12.0] * 24)
+                + _hourly("d1", "airTemperatureStdDev", [1.0] * 24)
+                + _hourly("d1", "relativeHumidityMax", [99.0] * 24)
+                + _hourly("d1", "precipitationMax", [5.0] * 24))
+    day = sd.aggregate(readings, MADRID)[DAY]
+    assert set(day) == {"tmin_c", "tmax_c"}
+
+
+def test_override_on_base_applies_to_derived():
+    rules = {"d1": (True, {"airTemperature": False})}
+    readings = (_hourly("d1", "airTemperature", [12.0] * 24)
+                + _hourly("d1", "airTemperatureMin", [9.0] * 24))
+    assert sd.ambient_air_only(readings, rules) == []
+    kept = sd.ambient_air_only(readings, {"d1": (True, {})})
+    assert len(kept) == 48
