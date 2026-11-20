@@ -34,7 +34,7 @@ from common.context_aliases import canonical_attribute
 from common.observation_context import validate_channel_overrides, validate_observation_context
 from common.jexl_expressions import validate_jexl_expression
 from common.unit_codes import to_unit_code
-from common.window_statistics import BASE_NAME_STATISTICS, STATISTICS
+from common.window_statistics import BASE_NAME_STATISTICS, STATISTICS, expand_measurements
 
 logger = logging.getLogger(__name__)
 
@@ -1032,6 +1032,19 @@ def _validated_profile(data: dict, tenant_id: str) -> tuple:
         if 'statistics' in m:
             clean['statistics'] = list(statistics)
         measurements.append(clean)
+    published, incoming = set(), set()
+    for e in expand_measurements(measurements):
+        if e['sdmAttribute'] in published:
+            raise dataloggers.ApiError(
+                400, f'Attribute "{e["sdmAttribute"]}" is published more than once '
+                     '(a statistic name collides with another measurement)')
+        published.add(e['sdmAttribute'])
+        key = e.get('incomingKey') or e['type']
+        if key in incoming:
+            raise dataloggers.ApiError(
+                400, f'MQTT key "{key}" is used more than once '
+                     '(a statistic key collides with another measurement)')
+        incoming.add(key)
     if 'windowSeconds' in mapping:
         window = mapping['windowSeconds']
         if (isinstance(window, bool) or not isinstance(window, int)
