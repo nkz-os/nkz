@@ -3,7 +3,8 @@
 # Every repo in this organisation is public and installable, so none of them may
 # name a deployment. The check and its list of permitted hosts live here, in one
 # place: a module repo calls this workflow and inherits every later improvement
-# without a change of its own.
+# without a change of its own. It carries two checks: operational detail in the
+# diff (`hygiene`) and NGSI-LD entity types outside the closed list (`entity-types`).
 #
 # Caller:
 #   jobs:
@@ -97,3 +98,72 @@ jobs:
           echo "::error title=Operational Detail Detected::This diff names a deployment. Addresses and identifiers belong in configuration."
           echo "$RESULTS"
           exit 1
+
+  entity-types:
+    name: Entity Types
+    timeout-minutes: 10
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the calling repository
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      # The checker and the type lists live in nkz; the caller's checkout has neither.
+      - name: Check out the checker and the lists
+        uses: actions/checkout@v7
+        with:
+          repository: nkz-os/nkz
+          ref: main
+          sparse-checkout: |
+            .github
+            config/entity-types
+          path: .hygiene-tooling
+
+      - name: Check entity types in the diff
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PUSH_BEFORE: ${{ github.event.before }}
+        run: |
+          set +e
+          if [ "$EVENT_NAME" = "push" ]; then
+            # A new branch has an all-zero "before"; a shallow or rewritten
+            # history may not contain it. Neither can be compared.
+            if [ -z "$PUSH_BEFORE" ] || [ "$PUSH_BEFORE" = "0000000000000000000000000000000000000000" ]; then
+              echo "::notice title=Entity types not checked::New branch: nothing to compare against."
+              exit 0
+            fi
+            if ! git cat-file -e "$PUSH_BEFORE^{commit}" 2>/dev/null; then
+              echo "::warning title=Entity types not checked::The previous commit of this push is not available."
+              exit 0
+            fi
+            RANGE="$PUSH_BEFORE..HEAD"
+          else
+            BASE="${GITHUB_BASE_REF:-main}"
+            if ! git fetch origin "$BASE" --depth=1 2>/dev/null; then
+              if ! git fetch origin main --depth=1 2>/dev/null; then
+                echo "::warning title=Entity types not checked::Could not fetch the base branch."
+                exit 0
+              fi
+              BASE="main"
+            fi
+            RANGE="origin/$BASE...HEAD"
+          fi
+
+          # The script filters paths itself, so the diff is passed whole.
+          # A checker failure must not block the calling repositories, but it
+          # must not be silent either.
+          DIFF=$(git diff "$RANGE" 2>/dev/null)
+          if [ $? -ne 0 ]; then
+            echo "::warning title=Entity types not checked::Could not compute the diff for this change."
+            exit 0
+          fi
+          printf '%s' "$DIFF" | python3 .hygiene-tooling/.github/scripts/check_entity_types.py diff \
+            --lists .hygiene-tooling/config/entity-types
+          STATUS=$?
+          # 0 clean, 1 findings; anything else is the checker failing, not the caller.
+          if [ $STATUS -le 1 ]; then
+            exit $STATUS
+          fi
+          echo "::warning title=Entity types not checked::The checker could not run."
+          exit 0

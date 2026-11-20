@@ -195,3 +195,46 @@ jobs:
             exit 1
           fi
           echo "OK: No new production domain references."
+
+      - name: Check entity types in the diff
+        run: |
+          set +e
+          BASE="${GITHUB_BASE_REF:-main}"
+          # The checkout has full history: if the fetch fails, use the ref that is already there.
+          git fetch origin "$BASE" --depth=1 2>/dev/null
+          if ! git rev-parse --verify --quiet "origin/$BASE^{commit}" >/dev/null; then
+            BASE="main"
+            if ! git rev-parse --verify --quiet "origin/$BASE^{commit}" >/dev/null; then
+              echo "::warning title=Entity types not checked::Base ref does not resolve."
+              exit 0
+            fi
+          fi
+          # The script filters paths itself, so the diff is passed whole.
+          DIFF=$(git diff "origin/$BASE...HEAD" 2>/dev/null)
+          if [ $? -ne 0 ]; then
+            echo "::error title=Entity types not checked::Could not compute the diff against origin/$BASE."
+            exit 1
+          fi
+          printf '%s' "$DIFF" | python3 .github/scripts/check_entity_types.py diff --lists config/entity-types
+          exit $?
+
+      - name: Entity type list ratchet
+        run: |
+          set +e
+          BASE="${GITHUB_BASE_REF:-main}"
+          # The checkout has full history: if the fetch fails, use the ref that is already there.
+          git fetch origin "$BASE" --depth=1 2>/dev/null
+          if ! git rev-parse --verify --quiet "origin/$BASE^{commit}" >/dev/null; then
+            BASE="main"
+            if ! git rev-parse --verify --quiet "origin/$BASE^{commit}" >/dev/null; then
+              echo "::warning title=Entity type ratchet not run::Base ref does not resolve."
+              exit 0
+            fi
+          fi
+          python3 .github/scripts/check_entity_types.py ratchet \
+            --base "origin/$BASE" --lists config/entity-types
+
+      - name: Entity type checker tests
+        run: |
+          python3 -m pip install --quiet pytest
+          python3 -m pytest .github/scripts/tests/test_check_entity_types.py -q
