@@ -125,3 +125,20 @@ def test_update_device_attributes_puts_and_raises():
     with patch.object(iot_agent.requests, "put", return_value=_resp(404, text="nf")):
         with pytest.raises(iot_agent.IotAgentError):
             iot_agent.update_device_attributes(URL, HDR, "s1", [])
+
+
+def test_statistics_expand_to_derived_iota_attributes():
+    attrs = iot_agent.build_iota_attributes([
+        {"type": "temp", "sdmAttribute": "airTemperature", "unit": "\u00b0C",
+         "statistics": ["mean", "min"]}])
+    assert {"object_id": "tempMin", "name": "airTemperatureMin", "type": "Number"} in attrs
+    assert {"object_id": "temp", "name": "airTemperature", "type": "Number"} in attrs
+    assert [a["object_id"] for a in attrs].count("TimeInstant") == 1
+    assert attrs[-1]["object_id"] == "TimeInstant"
+
+
+def test_no_statistics_leaves_iota_attributes_unchanged():
+    attrs = iot_agent.build_iota_attributes([
+        {"type": "temp", "sdmAttribute": "airTemperature", "unit": "\u00b0C"}])
+    assert attrs == [{"object_id": "temp", "name": "airTemperature", "type": "Number"},
+                     dict(iot_agent.TIME_INSTANT_ATTRIBUTE)]

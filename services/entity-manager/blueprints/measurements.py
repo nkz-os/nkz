@@ -16,6 +16,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from common.context_aliases import canonical_attribute
 from common.unit_codes import to_unit_code
+from common.window_statistics import expand_measurements
 
 # Attributes that are never measurements, regardless of what the profile declares. Device
 # identity/metadata, not a reading. Kept as an explicit allow-list-adjacent skip so a coincidental
@@ -56,8 +57,8 @@ def _measurement_defs_by_attr(profile: Dict[str, Any]) -> Dict[str, Dict[str, An
     measurements = mapping.get("measurements") or []
     return {
         canonical_attribute(m["sdmAttribute"]): m
-        for m in measurements
-        if isinstance(m, dict) and m.get("sdmAttribute")
+        for m in expand_measurements([m for m in measurements if isinstance(m, dict)])
+        if m.get("sdmAttribute")
     }
 
 

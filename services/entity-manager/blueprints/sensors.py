@@ -34,6 +34,7 @@ from common.context_aliases import canonical_attribute
 from common.observation_context import validate_channel_overrides, validate_observation_context
 from common.jexl_expressions import validate_jexl_expression
 from common.unit_codes import to_unit_code
+from common.window_statistics import BASE_NAME_STATISTICS, STATISTICS, expand_measurements
 
 logger = logging.getLogger(__name__)
 
@@ -998,6 +999,24 @@ def _validated_profile(data: dict, tenant_id: str) -> tuple:
             if prop['temporal_semantics'] != 'cumulative':
                 raise dataloggers.ApiError(
                     400, f'counterMax only applies to cumulative properties, "{observed}" is not')
+        statistics = m.get('statistics')
+        if 'statistics' in m:
+            if (not isinstance(statistics, list) or not statistics
+                    or not all(isinstance(s, str) for s in statistics)):
+                raise dataloggers.ApiError(400, 'statistics must be a non-empty list of text')
+            for s in statistics:
+                if s not in STATISTICS:
+                    raise dataloggers.ApiError(400, f'Unknown statistic "{s}"')
+            if len(set(statistics)) != len(statistics):
+                raise dataloggers.ApiError(400, 'statistics must not repeat')
+            if sum(s in BASE_NAME_STATISTICS for s in statistics) > 1:
+                raise dataloggers.ApiError(
+                    400, 'statistics may include only one of mean, last and sum')
+            if 'counterMax' in m and statistics != ['last']:
+                raise dataloggers.ApiError(400, 'counterMax only allows statistics ["last"]')
+            if m.get('expression') and not set(statistics) <= BASE_NAME_STATISTICS:
+                raise dataloggers.ApiError(
+                    400, 'expression only allows the statistics mean, last and sum')
         attribute = canonical_attribute(m['sdmAttribute'].strip())
         if attribute in seen:
             raise dataloggers.ApiError(400, f'Duplicate sdmAttribute "{attribute}"')
@@ -1010,7 +1029,29 @@ def _validated_profile(data: dict, tenant_id: str) -> tuple:
             clean['observedProperty'] = observed
         if 'counterMax' in m:
             clean['counterMax'] = counter_max
+        if 'statistics' in m:
+            clean['statistics'] = list(statistics)
         measurements.append(clean)
+    published, incoming = set(), set()
+    for e in expand_measurements(measurements):
+        if e['sdmAttribute'] in published:
+            raise dataloggers.ApiError(
+                400, f'Attribute "{e["sdmAttribute"]}" is published more than once '
+                     '(a statistic name collides with another measurement)')
+        published.add(e['sdmAttribute'])
+        key = e.get('incomingKey') or e['type']
+        if key in incoming:
+            raise dataloggers.ApiError(
+                400, f'MQTT key "{key}" is used more than once '
+                     '(a statistic key collides with another measurement)')
+        incoming.add(key)
+    if 'windowSeconds' in mapping:
+        window = mapping['windowSeconds']
+        if (isinstance(window, bool) or not isinstance(window, int)
+                or not 60 <= window <= 86400 or 86400 % window):
+            raise dataloggers.ApiError(
+                400, 'windowSeconds must be a whole number of seconds between 60 and 86400 '
+                     'that divides a day')
     return name.strip(), description, {**mapping, 'measurements': measurements}
 
 
