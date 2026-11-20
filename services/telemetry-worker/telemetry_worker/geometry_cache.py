@@ -1,4 +1,4 @@
-"""observation_geometry_cache maintenance (contract 1.4 / migration 116).
+"""observation_geometry_cache maintenance (contract 1.4 / migration 117).
 
 The table is FORCE RLS: every statement runs in a transaction that first sets
 app.current_tenant, and also filters tenant_id explicitly. Invalid or missing

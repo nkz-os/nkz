@@ -1,4 +1,4 @@
-"""pg_integration tests for migration 115 (real TimescaleDB 2.10 + PostGIS)."""
+"""pg_integration tests for migration 116 (real TimescaleDB 2.10 + PostGIS)."""
 import json
 import uuid
 
@@ -13,7 +13,7 @@ NEW_COLUMNS = [
     "depth_to_cm", "height_m", "organ", "context_ref", "deployment_id",
     "source_kind", "location", "time_source", "quality_flag",
 ]
-MIG_115 = MIGRATIONS_DIR / "115_telemetry_measurements_observations.sql"
+MIG_116 = MIGRATIONS_DIR / "116_telemetry_measurements_observations.sql"
 
 
 def _columns(cur):
@@ -78,7 +78,7 @@ def test_add_column_on_compressed_chunk(pg_schema_factory):
             )
             assert cur.fetchone()[0] >= 1
 
-            sql = MIG_115.read_text(encoding="utf-8")
+            sql = MIG_116.read_text(encoding="utf-8")
             cur.execute(sql)
             assert set(NEW_COLUMNS) <= _columns(cur)
             cur.execute(

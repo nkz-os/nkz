@@ -1,11 +1,11 @@
-"""Static checks of migrations 116 (observation geometry cache) and 117 (recompute runs)."""
+"""Static checks of migrations 117 (observation geometry cache) and 118 (recompute runs)."""
 import re
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 MIG_DIR = ROOT / "config" / "timescaledb" / "migrations"
-CACHE_SQL = MIG_DIR / "116_observation_geometry_cache.sql"
-RUNS_SQL = MIG_DIR / "117_observation_recompute_runs.sql"
+CACHE_SQL = MIG_DIR / "117_observation_geometry_cache.sql"
+RUNS_SQL = MIG_DIR / "118_observation_recompute_runs.sql"
 RATCHET = ROOT / "config" / "timescaledb" / "rls_forced_tables.txt"
 
 

@@ -204,7 +204,7 @@ def test_owner_role_nkz_core_is_filtered_and_resolves_with_tenant(pg_dsn, su):
 
 
 def test_telemetry_trigger_works_under_production_role(pg_dsn, su):
-    """Migration 115 trigger (unqualified PostGIS calls) as nkz_core, no search_path set."""
+    """Migration 116 trigger (unqualified PostGIS calls) as nkz_core, no search_path set."""
     tenant = _unique("tt")
     dep_id = str(uuid.uuid4())
     with su.cursor() as cur:

@@ -17,11 +17,11 @@ devices at 5 s on a parcel. Only asserts that the series completes under the 10 
 timeout; prints p50/p95.
 
 Seeding:
-  - tier-1 devices: one telemetry_events row per reading, inserted with the 115 trigger enabled,
+  - tier-1 devices: one telemetry_events row per reading, inserted with the 116 trigger enabled,
     so their telemetry_measurements rows are exactly what production writes. 1 event in
     CAL_EVERY carries `calibration_period_ids` (the reader's calibration LEFT JOIN finds real rows).
   - the 97 other devices (and the dense devices): telemetry_measurements rows inserted directly,
-    with every column the 115 trigger sets. ASSUMPTION: no telemetry_events rows for them; the
+    with every column the 116 trigger sets. ASSUMPTION: no telemetry_events rows for them; the
     reader's event join is bounded by the candidate device ids, so their events are never read.
     `_parity_check` checks one direct row against the trigger's row.
 Disk guard: refuses to start below 8 GB free on '/', aborts and drops the scratch DB below 4 GB.
@@ -103,7 +103,7 @@ WHERE d.idx = ANY(%(idx)s)
 
 # Events as the telemetry-worker writes them for a DeviceMeasurement (payload keys of
 # notification_handler: measurements, raw, calibration_period_ids/raw_measurements, observations
-# plus the event-level deploymentId/sourceKind/timeSource/location); the 115 trigger fills
+# plus the event-level deploymentId/sourceKind/timeSource/location); the 116 trigger fills
 # telemetry_measurements from them.
 _INSERT_EVENTS = f"""
 INSERT INTO telemetry_events (tenant_id, observed_at, device_id, entity_id, entity_type,
@@ -139,7 +139,7 @@ SELECT %(tenant)s, g.t, d.dev, d.meas_urn, 'DeviceMeasurement',
 {_SERIES}
 """
 
-# Direct rows: every column the 115 trigger writes for the event above (minus calibration).
+# Direct rows: every column the 116 trigger writes for the event above (minus calibration).
 _INSERT_DIRECT = f"""
 INSERT INTO telemetry_measurements (
     tenant_id, observed_at, source_event_id, entity_id, entity_type, device_id, sensor_id,
@@ -202,7 +202,7 @@ def _setup_tenant(cur, tenant, n_direct, n_other, step_direct, start):
 def _seed_mobile(su, end):
     """One mobile device at 5 s over 3 h (2160 rows) on its own tenant and parcel P (same scratch
     DB). Wanders inside P (n%3==0), ~400 m east (tier 3), ~5 km east (no tier); every 7th reading
-    out of range. Rows are inserted directly (the shape the 115 trigger writes). Returns
+    out of range. Rows are inserted directly (the shape the 116 trigger writes). Returns
     (tenant, parcel urn, device urn, latest request)."""
     from observations.request import parse_best
 

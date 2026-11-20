@@ -164,7 +164,7 @@ def _seed(su, tenant):
             " source_kind, location, quality_flag) VALUES %s"),
             rows, template="(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s::uuid,%s,%s::geography,%s)",
             page_size=2000)
-        # payload without 'measurements': the 115 trigger writes nothing for these events
+        # payload without 'measurements': the 116 trigger writes nothing for these events
         execute_values(cur, "INSERT INTO telemetry_events (tenant_id, observed_at, id, device_id,"
                        " payload) VALUES %s", events, template="(%s,%s,%s,%s,%s::jsonb)",
                        page_size=2000)

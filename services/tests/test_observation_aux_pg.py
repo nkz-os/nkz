@@ -1,4 +1,4 @@
-"""pg_integration tests for migration 116 (observation geometry cache) under RLS.
+"""pg_integration tests for migration 117 (observation geometry cache) under RLS.
 
 Runs as nkz_rls_test (non-superuser, no BYPASSRLS): the superuser bypasses RLS.
 """

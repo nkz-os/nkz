@@ -1,4 +1,4 @@
-"""Static checks of migration 115 (observation columns + trigger)."""
+"""Static checks of migration 116 (observation columns + trigger)."""
 import re
 from pathlib import Path
 
@@ -9,7 +9,7 @@ from common.observation_context import MEDIA
 MIG = (
     Path(__file__).resolve().parents[2]
     / "config" / "timescaledb" / "migrations"
-    / "115_telemetry_measurements_observations.sql"
+    / "116_telemetry_measurements_observations.sql"
 )
 
 COLUMNS = [

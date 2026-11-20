@@ -1,5 +1,5 @@
 -- =============================================================================
--- Migration 115: observation columns on telemetry_measurements + trigger update
+-- Migration 116: observation columns on telemetry_measurements + trigger update
 -- =============================================================================
 -- Purpose:
 --   - Add nullable observation-context columns (contract 1.1, amendments 8.1/8.3).
@@ -236,5 +236,5 @@ END;
 $$;
 
 -- =============================================================================
--- End of migration 115
+-- End of migration 116
 -- =============================================================================

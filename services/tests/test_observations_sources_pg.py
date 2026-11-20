@@ -33,7 +33,7 @@ ZONE = {"type": "Polygon", "coordinates": [[[-1.5995, 42.8005], [-1.5995, 42.801
 
 
 def _measurement_urn(tenant, device_id, attr):
-    """DeviceMeasurement id as entity-manager build_measurements mints it (what the 115 trigger
+    """DeviceMeasurement id as entity-manager build_measurements mints it (what the 116 trigger
     copies into telemetry_measurements.entity_id)."""
     return f"urn:ngsi-ld:DeviceMeasurement:{tenant}:{device_id}:{attr}"
 

@@ -1,5 +1,5 @@
 -- =============================================================================
--- Migration 116: observation geometry cache (contract 1.4 / 8.5)
+-- Migration 117: observation geometry cache (contract 1.4 / 8.5)
 -- Idempotent, expand-only. Holds the current geometry of the entities a reading
 -- can be located on (AgriParcel, zones, AgriPlant, greenhouses, solar parks).
 -- Filled from Orion subscriptions and a TTL refresh; deleted entities are removed.

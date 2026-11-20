@@ -23,7 +23,7 @@ MIGRATIONS_DIR = (
 
 # (number, file name). 007 is a prerequisite for 010. 087 has two files with the
 # same number; only the telemetry one is relevant (the other is module metadata).
-# 115-117 are discovered by glob when present.
+# 116-118 are discovered by glob when present.
 _FIXED_MIGRATIONS: list[tuple[int, str]] = [
     (7, "007_cadastral_parcels.sql"),
     (10, "010_sensor_ingestion_schema.sql"),
@@ -34,7 +34,7 @@ _FIXED_MIGRATIONS: list[tuple[int, str]] = [
     (113, "113_observation_properties.sql"),
     (114, "114_device_deployments.sql"),
 ]
-_LATE_RANGE = range(115, 118)
+_LATE_RANGE = range(116, 119)
 
 RLS_ROLE = "nkz_rls_test"
 OWNER_ROLE = "nkz_core"

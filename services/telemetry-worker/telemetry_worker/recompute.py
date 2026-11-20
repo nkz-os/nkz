@@ -322,7 +322,7 @@ def _update_sql(n_rows: int) -> str:
 
 
 def _text_or_none(value: Any, field: str, log_ctx: str) -> Optional[str]:
-    """Mirror of the 115 trigger's nkz_obs_text: a non-string becomes NULL + warning."""
+    """Mirror of the 116 trigger's nkz_obs_text: a non-string becomes NULL + warning."""
     if value is None or isinstance(value, str):
         return value
     logger.warning(f"Recompute: {field} rejected (not a string): {log_ctx}")
@@ -332,7 +332,7 @@ def _text_or_none(value: Any, field: str, log_ctx: str) -> Optional[str]:
 def raw_point(raw_location: Any) -> Optional[Tuple[float, float]]:
     """(lon, lat) of the raw reading's own location, as ingest would store it.
 
-    Same shape check as ingest (observations.reading_point) plus the 115 trigger's
+    Same shape check as ingest (observations.reading_point) plus the 116 trigger's
     WGS84 bounds (nkz_obs_point stores NULL outside them).
     """
     try:

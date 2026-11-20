@@ -1,5 +1,5 @@
 -- =============================================================================
--- Migration 117: audit of observation recompute runs (contract 8.6)
+-- Migration 118: audit of observation recompute runs (contract 8.6)
 -- Idempotent, expand-only. One row per recompute of a deployment's time range:
 -- who asked, why, the range (range_to NULL = open), rows changed and the status.
 -- attempts counts failed or abandoned attempts; the worker retries a run up to 5.
