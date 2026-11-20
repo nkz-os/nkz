@@ -163,7 +163,7 @@ fails on it.
 | `sulphur` | atributo | propuesta-sdm | Attribute of AgriPlantSample (smart-data-models/incubated#283) |
 | `terminationDate` | atributo | extension-declarada | Declared end of a crop cycle when a plan segment is closed; not modelled in SDM |
 | `terminationMethod` | atributo | extension-declarada | How a crop cycle ends (harvest, roller crimper, mowing, incorporation, grazing); not modelled in SDM |
-| `timeSource` | atributo | extension-declarada | Provenance of DeviceMeasurement dateObserved: device or server |
+| `timeSource` | atributo | extension-declarada | Provenance of dateObserved: device (reported by the device) or server (receipt time fallback) |
 | `totalNitrogen` | atributo | propuesta-sdm | Attribute of AgriSoilSample (smart-data-models/incubated#283) |
 | `trunkPerimeter` | atributo | propuesta-sdm | Attribute of AgriPlant (smart-data-models/incubated#283) |
 | `trunkPerimeterHeight` | atributo | propuesta-sdm | Attribute of AgriPlant (smart-data-models/incubated#283) |
