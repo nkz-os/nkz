@@ -68,6 +68,15 @@ class Device:
         self.urn = f"urn:ngsi-ld:Device:{self.tenant}:{self.dev}"
         with su.cursor() as cur:
             cur.execute("INSERT INTO tenants (tenant_id) VALUES (%s)", (self.tenant,))
+            # Unit guard: the profile must declare the catalogue unit for the attribute.
+            self.profile_code = _unique("p")
+            cur.execute(
+                """INSERT INTO public.sensor_profiles
+                   (tenant_id, code, name, sdm_entity_type, mapping)
+                   VALUES (%s, %s, 'p', 'Device', %s::jsonb)""",
+                (self.tenant, self.profile_code, json.dumps({"measurements": [
+                    {"sdmAttribute": "temperature", "unit": "°C"}]})),
+            )
 
     def deploy(self, lower, upper=None, height=1.5, mobility="fixed"):
         with self.su.cursor() as cur:
@@ -101,6 +110,7 @@ class Device:
             "type": "DeviceMeasurement",
             "refDevice": {"type": "Relationship", "object": self.urn},
             "observedProperty": {"type": "Property", "value": "airTemperature"},
+            "profileCode": {"type": "Property", "value": self.profile_code},
         }
         if gps is not None:
             raw["location"] = {"type": "GeoProperty",
