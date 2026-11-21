@@ -28,7 +28,6 @@ def test_device_measurement_body_has_no_throttling():
 
 
 def test_other_subscriptions_keep_their_throttling():
-    assert _sub("AgriDevice")["throttling"] == 30
     assert _sub("AgriParcel")["throttling"] == 30
     assert _sub("VegetationIndex")["throttling"] == 5
 

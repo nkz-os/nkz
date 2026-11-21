@@ -132,6 +132,7 @@ fails on it.
 | `precipitationMax` | atributo | extension-declarada | Window statistic of precipitation (DaTaK) |
 | `precipitationMin` | atributo | extension-declarada | Window statistic of precipitation (DaTaK) |
 | `precipitationStdDev` | atributo | extension-declarada | Window statistic of precipitation (DaTaK) |
+
 | `ProjectScenario` | entidad | sin-revisar | Not yet reviewed |
 | `relativeHumidityMax` | atributo | extension-declarada | Window statistic of relativeHumidity (DaTaK) |
 | `relativeHumidityMin` | atributo | extension-declarada | Window statistic of relativeHumidity (DaTaK) |
@@ -161,6 +162,7 @@ fails on it.
 | `sulphur` | atributo | propuesta-sdm | Attribute of AgriPlantSample (smart-data-models/incubated#283) |
 | `terminationDate` | atributo | extension-declarada | Declared end of a crop cycle when a plan segment is closed; not modelled in SDM |
 | `terminationMethod` | atributo | extension-declarada | How a crop cycle ends (harvest, roller crimper, mowing, incorporation, grazing); not modelled in SDM |
+| `timeSource` | atributo | extension-declarada | Provenance of dateObserved: device (reported by the device) or server (receipt time fallback) |
 | `totalNitrogen` | atributo | propuesta-sdm | Attribute of AgriSoilSample (smart-data-models/incubated#283) |
 | `trunkPerimeter` | atributo | propuesta-sdm | Attribute of AgriPlant (smart-data-models/incubated#283) |
 | `trunkPerimeterHeight` | atributo | propuesta-sdm | Attribute of AgriPlant (smart-data-models/incubated#283) |
@@ -396,3 +398,9 @@ Closed value sets of declared extensions, for any module that reads them.
 - **`irrigationRegime`** (AgriParcel and AgriCrop): `rainfed` | `irrigated`. Writers before
   2026-10-13 stored the Spanish words `secano` / `regadío`; readers should still map those to the
   two values above. Translated labels are a UI concern, never stored.
+
+- **`measurementType`** (DeviceMeasurement, official SDM Device term, not an extension):
+  `instant` | `mean` | `min` | `max` | `stddev` | `last` | `sum`. Always written. `instant` is a
+  single reading; the others are window statistics of the channel. In a DeviceMeasurement,
+  `controlledProperty` is the catalogue property name, `name` is the channel (the storage key),
+  and `measurementType` is the statistic.

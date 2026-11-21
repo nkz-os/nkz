@@ -7,7 +7,7 @@ after applying Processing Profiles (throttle, filter, delta).
 
 import logging
 import os
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Request, BackgroundTasks, Header, HTTPException
@@ -19,8 +19,42 @@ from .health_checker import HealthChecker, _severity
 from .profiles import ProfileService
 from .calibration import CalibrationService
 from .dedup import NotificationDedup
+from .observations import reading_point, resolve_observation, units_compatible
+from common.observation_context import entity_id_conforms
+from .geometry_cache import upsert_geometry
+from .device_measurement import (  # noqa: F401  (re-exported: the shape rule lives there)
+    CONTEXT_MEASUREMENT_TYPES,
+    CONTEXT_STATISTICS,
+    NAME_KEYS,
+    SDM_MEASUREMENT_TYPES,
+    SKIP_NO_DEVICE_TYPE,
+    SKIP_PROPERTY_MISMATCH,
+    SKIP_STATISTIC,
+    DeviceMeasurementShape,
+    decide_observation_property,
+    device_measurement_shape,
+    non_empty_str as _non_empty_str,
+    prop_value as _prop_value,
+)
+from .log_throttle import ThrottledWarnings
 
 logger = logging.getLogger(__name__)
+
+# "No observation" reasons that hold for every reading of a device (most devices have
+# no deployment): logged once per (tenant, device, reason), then summarised per window.
+_skip_warnings = ThrottledWarnings(logger)
+# Deliberate, expected skips (spread-statistic channels never carry observation context): same
+# throttling, at INFO so they never read as a fault.
+_skip_info = ThrottledWarnings(logger, level=logging.INFO)
+
+# `refDevice` accepted under the short names or either IRI (design A.5 R1). Precedence is the
+# tuple order; after the R1 remap the old attribute compacts to `hasDevice`.
+REF_DEVICE_KEYS = (
+    "refDevice",
+    "hasDevice",
+    "https://smartdatamodels.org/dataModel.Device/hasDevice",
+    "https://smartdatamodels.org/dataModel.Device/refDevice",
+)
 
 router = APIRouter()
 
@@ -53,6 +87,8 @@ _event_sink: Optional[EventSink] = None
 _health_checker: Optional[HealthChecker] = None
 _calibration_service: Optional[CalibrationService] = None
 _dedup: Optional[NotificationDedup] = None
+_observation_lookup: Optional[Any] = None  # ObservationLookup; None = feature off
+_geometry_pool: Optional[Any] = None  # asyncpg pool for observation_geometry_cache; None = off
 
 
 def init_handler(
@@ -62,15 +98,21 @@ def init_handler(
     health_checker: Optional[HealthChecker] = None,
     calibration_service: Optional[CalibrationService] = None,
     dedup: Optional[NotificationDedup] = None,
+    observation_lookup: Optional[Any] = None,
+    geometry_pool: Optional[Any] = None,
 ) -> None:
     """Wire dependencies from app lifespan."""
-    global _settings, _profile_service, _event_sink, _health_checker, _calibration_service, _dedup
+    global _settings, _profile_service, _event_sink, _health_checker, _calibration_service, _dedup, _observation_lookup, _geometry_pool
     _settings = settings
     _profile_service = profile_service
     _event_sink = event_sink
     _health_checker = health_checker
     _calibration_service = calibration_service
     _dedup = dedup
+    _observation_lookup = observation_lookup
+    _geometry_pool = geometry_pool
+    _skip_warnings.reset()
+    _skip_info.reset()
 
 
 async def process_notification_task(
@@ -106,14 +148,49 @@ async def process_notification_task(
         # Batch persist all events from this notification
         if events and _event_sink:
             if len(events) == 1:
-                await _event_sink.write(events[0])
+                inserted = events if await _event_sink.write(events[0]) is True else []
             else:
-                await _event_sink.write_batch(events)
+                inserted = await _event_sink.write_batch(events)
+                if not isinstance(inserted, list):
+                    inserted = []
 
-            logger.info(f"Persisted {len(events)} events for tenant={tenant_id}")
+            logger.info(
+                f"Persisted {len(inserted)}/{len(events)} events for tenant={tenant_id}"
+            )
+            # Replay records only for events really inserted (never dead-lettered ones).
+            await _record_replay_state(inserted)
 
     except Exception as e:
         logger.error(f"Error processing notification: {e}", exc_info=True)
+
+
+def _replay_fingerprint(entity: Dict[str, Any]) -> Optional[tuple]:
+    """(dateObserved, value) of a DeviceMeasurement as notified (before calibration).
+
+    None when either is missing or dateObserved is unparseable: observed_at would then fall
+    back to now(), so no meaningful record can exist and the replay guard is bypassed.
+    """
+    at = _date_observed(entity)
+    if at is None:
+        return None
+    for value_key in ("numValue", "textValue"):
+        value_attr = entity.get(value_key)
+        if isinstance(value_attr, dict) and "value" in value_attr:
+            return at, value_attr["value"]
+    return None
+
+
+async def _record_replay_state(inserted: List[TelemetryEvent]) -> None:
+    """After a successful insert, remember each DeviceMeasurement's last reading."""
+    if _dedup is None:
+        return
+    for event in inserted:
+        if event.entity_type != "DeviceMeasurement":
+            continue
+        raw = event.payload.get("raw") if isinstance(event.payload, dict) else None
+        fingerprint = _replay_fingerprint(raw) if isinstance(raw, dict) else None
+        if fingerprint is not None:
+            await _dedup.record_processed(event.tenant_id, event.entity_id, *fingerprint)
 
 
 async def _process_entity(
@@ -131,10 +208,30 @@ async def _process_entity(
     if entity_type == "DeviceMeasurement":
         # Inverted shape vs every other entity type (see module docstring on the helper):
         # the device is not the last segment of this entity's own id (that is the
-        # controlledProperty name), and the reading's name/value are not plain attribute
+        # channel name), and the reading's name/value are not plain attribute
         # keys either. A missing refDevice or reading means there is nothing safe to
         # persist, not a device_id of "" — bail out here rather than falling through.
         device_id, measurements = _extract_device_measurement(entity)
+        shape = device_measurement_shape(entity)
+        if shape.has_name and shape.channel is None:
+            # A data problem, not a normal absence: a present but unusable `name` cannot
+            # be keyed (controlledProperty may be the catalogue name, not the channel).
+            _skip_warnings.warning(
+                (tenant_id, entity_id, "device_measurement_name_unusable"),
+                f"device_measurement_name_unusable: reading not stored: tenant_id={tenant_id} "
+                f"entity_id={entity_id}",
+            )
+            return None
+        if shape.ambiguous:
+            # Stored under `name`; context follows the legacy profile rule for that channel.
+            _skip_warnings.warning(
+                (tenant_id, entity_id, "ambiguous_shape"),
+                f"ambiguous_shape: name differs from controlledProperty and measurementType "
+                f"is not in the closed vocabulary; keyed by name, legacy profile rule: "
+                f"tenant_id={tenant_id} entity_id={entity_id} name={shape.channel!r} "
+                f"controlledProperty={shape.controlled_property!r} "
+                f"measurementType={shape.measurement_type!r}",
+            )
         if device_id is None or not measurements:
             logger.debug(
                 f"DeviceMeasurement {entity_id} missing refDevice or a reading, skipping"
@@ -150,6 +247,23 @@ async def _process_entity(
     if not _profile_service or not _settings:
         logger.error("Handler not initialized")
         return None
+
+    # Replay guard (design A.3): a one-off Orion write to a DM re-notifies its current
+    # state long after the short dedup window below. Checked before calibration and the
+    # health check (which writes back to Orion). Fail-open inside `is_replay`.
+    if entity_type == "DeviceMeasurement" and _dedup is not None:
+        fingerprint = _replay_fingerprint(entity)
+        if fingerprint is not None and await _dedup.is_replay(
+            tenant_id, entity_id, *fingerprint
+        ):
+            _skip_info.warning(
+                (tenant_id, entity_id, "device_measurement_replay_skipped"),
+                f"device_measurement_replay_skipped: identical to the last processed "
+                f"reading, not stored: tenant_id={tenant_id} entity_id={entity_id} "
+                f"device_id={device_id} date_observed={fingerprint[0].isoformat()} "
+                f"value={fingerprint[1]!r}",
+            )
+            return None
 
     # Get processing profile
     profile = _profile_service.get_profile(
@@ -179,6 +293,7 @@ async def _process_entity(
 
     # --- Health check on extracted measurements ---
     quality_flag = "valid"
+    health_flags: Dict[str, str] = {}
     if _health_checker and tenant_id:
         health_config = await _health_checker.get_health_config(
             entity_id, tenant_id
@@ -187,6 +302,7 @@ async def _process_entity(
             worst_flag = "valid"
             for var, val in measurements.items():
                 flag = _health_checker.evaluate_measurement(var, val, health_config)
+                health_flags[var] = flag
                 if _severity(flag) > _severity(worst_flag):
                     worst_flag = flag
             quality_flag = worst_flag
@@ -240,6 +356,12 @@ async def _process_entity(
     # Update last values cache for future delta checks
     _profile_service.update_last_values(device_id, measurements)
 
+    observation_payload: Dict[str, Any] = {}
+    if entity_type == "DeviceMeasurement" and _observation_lookup is not None:
+        observation_payload = await _resolve_observation_payload(
+            entity, tenant_id, observed_at, filtered, health_flags
+        )
+
     return TelemetryEvent(
         tenant_id=tenant_id,
         observed_at=observed_at,
@@ -251,9 +373,170 @@ async def _process_entity(
             "raw": entity,
             **({"raw_measurements": raw_measurements} if raw_measurements else {}),
             **({"calibration_period_ids": calibration_period_ids} if calibration_period_ids else {}),
+            **observation_payload,
         },
         quality_flag=quality_flag,
     )
+
+
+def _ref_device_urn(entity: Dict[str, Any]) -> Optional[str]:
+    """The Device URN of a DeviceMeasurement: the first non-empty `object` in REF_DEVICE_KEYS order."""
+    for key in REF_DEVICE_KEYS:
+        rel = entity.get(key)
+        if isinstance(rel, dict):
+            target = rel.get("object")
+            if isinstance(target, str) and target:
+                return target
+    return None
+
+
+def _reading_point(entity: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    """The DeviceMeasurement's own `location` GeoProperty Point, if well-formed."""
+    return reading_point(_prop_value(entity, "location"))
+
+
+async def _resolve_observation_payload(
+    entity: Dict[str, Any],
+    tenant_id: Optional[str],
+    observed_at: datetime,
+    filtered: Dict[str, Any],
+    health_flags: Dict[str, str],
+) -> Dict[str, Any]:
+    """Observation keys for the event payload (contract 1.2); {} when nothing resolves.
+
+    Never raises: any failure is logged and the event is written without observations.
+    """
+    device_urn = _ref_device_urn(entity)
+    at_iso = observed_at.isoformat()
+    log_ctx = f"tenant_id={tenant_id} device_urn={device_urn} observed_at={at_iso}"
+
+    if not tenant_id:
+        logger.warning(f"Observation skipped, tenant missing: {log_ctx}")
+        return {}
+    if not isinstance(device_urn, str) or not device_urn:
+        logger.warning(f"Observation skipped, refDevice URN missing: {log_ctx}")
+        return {}
+
+    try:
+        dep = await _observation_lookup.deployment_at(tenant_id, device_urn, observed_at)
+        if dep is None:
+            _skip_warnings.warning(
+                (tenant_id, device_urn, "no_deployment"),
+                f"Observation skipped, no deployment at observed_at: {log_ctx}",
+            )
+            return {}
+
+        # ASSUMPTION: a DM `observedProperty` attribute is never read. The builder no longer
+        # emits it and it was never deployed; the catalogue name comes only from
+        # controlledProperty (SDM shape) or the profile entry (legacy shape).
+        shape = device_measurement_shape(entity)
+        profile_code = _prop_value(entity, "deviceType")
+        entity_id = entity.get("id")
+        # same short-id rule as _extract_device_measurement (the stored device_id)
+        device_id = device_urn.split(":")[-1]
+        observations: Dict[str, Any] = {}
+        for attr, value in filtered.items():
+            # The reader prunes compressed batches by this entity id rule (common
+            # observation_context.entity_id_conforms, timeseries-reader sources._SERIES_PRUNE):
+            # a row it would skip must not carry observation context at all.
+            # ASSUMPTION: per-attribute reasons key on the attribute too, so each
+            # misconfigured channel of a device is reported once, not only the first.
+            if not entity_id_conforms(entity_id, device_id, attr):
+                _skip_warnings.warning(
+                    (tenant_id, device_urn, f"observation_entity_id_nonconforming:{attr}"),
+                    f"observation_entity_id_nonconforming: no observation written: {log_ctx} "
+                    f"entity_id={entity_id} attribute={attr}",
+                )
+                continue
+            # The profile entry of the PUBLISHED channel (window statistics expanded): the
+            # legacy shape's catalogue name, the new shape's opt-in check, the unit guard
+            # and counterMax all read it.
+            measurement_def: Optional[Dict[str, Any]] = None
+            if isinstance(profile_code, str) and profile_code:
+                measurement_def = (
+                    await _observation_lookup.channel_def(tenant_id, profile_code, attr)
+                ) or None
+            decision = decide_observation_property(shape, profile_code, measurement_def)
+            if decision.skip == SKIP_STATISTIC:
+                # Deliberate gate, not a fault: a spread statistic (min/max/stddev) is not an
+                # observation of the property itself. The reading is still stored.
+                _skip_info.warning(
+                    (tenant_id, device_urn, f"observation_skipped_statistic:{attr}"),
+                    f"observation_skipped_statistic: no observation written: {log_ctx} "
+                    f"entity_id={entity_id} attribute={attr} "
+                    f"measurementType={shape.measurement_type!r} statistic={decision.statistic!r}",
+                )
+                continue
+            if decision.skip == SKIP_PROPERTY_MISMATCH:
+                _skip_warnings.warning(
+                    (tenant_id, device_urn, f"observation_property_mismatch:{attr}"),
+                    f"observation_property_mismatch: no observation written: {log_ctx} "
+                    f"entity_id={entity_id} attribute={attr} "
+                    f"controlledProperty={shape.controlled_property!r} "
+                    f"profile_observedProperty={decision.def_property!r}",
+                )
+                continue
+            if decision.skip == SKIP_NO_DEVICE_TYPE:
+                _skip_warnings.warning(
+                    (tenant_id, device_urn, f"no_device_type:{attr}"),
+                    f"no_device_type: no observation written: {log_ctx} "
+                    f"entity_id={entity_id} attribute={attr}",
+                )
+                continue
+            observed_property = decision.observed_property
+            if not observed_property:
+                _skip_warnings.warning(
+                    (tenant_id, device_urn, f"no_observed_property:{attr}"),
+                    f"Observation skipped for {attr}, no observedProperty: {log_ctx}",
+                )
+                continue
+            if isinstance(value, bool) or not isinstance(value, (int, float)):
+                continue
+            prop = await _observation_lookup.property(tenant_id, observed_property)
+            if prop is None:
+                logger.warning(
+                    f"Observation skipped for {attr}, observedProperty "
+                    f"{observed_property!r} unknown or deprecated: {log_ctx}"
+                )
+                continue
+            profile_unit = measurement_def.get("unit") if measurement_def else None
+            if not units_compatible(profile_unit, prop.unit):
+                _skip_warnings.warning(
+                    (tenant_id, device_urn, f"observation_unit_mismatch:{attr}"),
+                    f"observation_unit_mismatch: no observation written: {log_ctx} "
+                    f"attribute={attr} profile_unit={profile_unit!r} catalogue_unit={prop.unit!r}",
+                )
+                continue
+            observations[attr] = resolve_observation(
+                attr, value, device_urn, dep, measurement_def, prop, health_flags.get(attr)
+            )
+        if not observations:
+            return {}
+
+        out: Dict[str, Any] = {
+            "observations": observations,
+            "deploymentId": dep.id,
+            "sourceKind": "device",
+        }
+        time_source = _prop_value(entity, "timeSource")
+        if time_source in ("device", "server"):
+            out["timeSource"] = time_source
+        if dep.mobility == "mobile":
+            point = _reading_point(entity)
+        elif dep.location is not None:
+            point = {"type": "Point", "coordinates": [dep.location[0], dep.location[1]]}
+        else:
+            point = None
+        if point is not None:
+            out["location"] = point
+        return out
+    except Exception as e:
+        logger.error(
+            f"Observation resolution failed, writing event without observations: "
+            f"{log_ctx}: {e}",
+            exc_info=True,
+        )
+        return {}
 
 
 _ENTITY_METADATA_KEYS = frozenset(
@@ -313,38 +596,41 @@ def _extract_device_measurement(entity: Dict[str, Any]) -> tuple[Optional[str], 
     """Pull (device_id, {measurement_name: value}) out of a `DeviceMeasurement` entity.
 
     `DeviceMeasurement` inverts the shape every other entity type uses here: its own id
-    ends in the controlledProperty name, not the device (see
+    ends in the CHANNEL name, not the device (see
     entity-manager/blueprints/measurements.py:build_measurements — the id scheme is
-    `urn:ngsi-ld:DeviceMeasurement:{tenant}:{externalId}:{controlledProperty}`), so
+    `urn:ngsi-ld:DeviceMeasurement:{tenant}:{externalId}:{channel}`), so
     `entity_id.split(":")[-1]` — the extraction every other type uses — would yield the
     reading's name instead of the device. The device lives on the `refDevice`
-    Relationship instead; the reading's name is the VALUE of `controlledProperty`, not an
-    attribute key, and its value is in `numValue` or `textValue` (never both).
+    Relationship (any REF_DEVICE_KEYS form) instead; the reading's name is the channel
+    (`name` in the SDM shape, `controlledProperty` in the legacy shape, see
+    `device_measurement_shape`), not an attribute key, and its value is in `numValue` or
+    `textValue` (never both). The channel is the storage key in both shapes.
 
-    Returns (None, {}) when `refDevice` or a value are missing so the caller can treat
-    that as "nothing safe to persist" rather than writing a row with a null/guessed
-    device_id.
+    Returns (None, {}) when `refDevice` is missing and (device_id, {}) when the channel or a
+    value is missing, so the caller can treat that as "nothing safe to persist" rather than
+    writing a row with a null/guessed device_id or channel.
     """
     device_id = None
-    ref_device = entity.get("refDevice")
-    if isinstance(ref_device, dict):
-        target = ref_device.get("object")
-        if isinstance(target, str) and target:
-            # Same short-id convention as every other entity type here: last URN segment.
-            device_id = target.split(":")[-1] if ":" in target else target
+    target = _ref_device_urn(entity)
+    if target is not None:
+        # Same short-id convention as every other entity type here: last URN segment.
+        device_id = target.split(":")[-1] if ":" in target else target
 
     measurements: Dict[str, Any] = {}
-    controlled_property = entity.get("controlledProperty")
-    if isinstance(controlled_property, dict):
-        name = controlled_property.get("value")
-        if name:
-            for value_key in ("numValue", "textValue"):
-                value_attr = entity.get(value_key)
-                if isinstance(value_attr, dict) and "value" in value_attr:
-                    measurements = {name: value_attr["value"]}
-                    break
+    channel = device_measurement_shape(entity).channel
+    if channel:
+        for value_key in ("numValue", "textValue"):
+            value_attr = entity.get(value_key)
+            if isinstance(value_attr, dict) and "value" in value_attr:
+                measurements = {channel: value_attr["value"]}
+                break
 
     return device_id, measurements
+
+
+def _as_aware_utc(dt: datetime) -> datetime:
+    """Naive timestamps are UTC by platform convention; the lookup rejects naive ones."""
+    return dt.replace(tzinfo=timezone.utc) if dt.tzinfo is None else dt
 
 
 def _extract_device_measurement_observed_at(entity: Dict[str, Any]) -> datetime:
@@ -353,15 +639,21 @@ def _extract_device_measurement_observed_at(entity: Dict[str, Any]) -> datetime:
     `_extract_observed_at` below would never find it there and would silently fall back
     to utcnow(). Same ISO-8601 parsing, dedicated lookup key.
     """
+    at = _date_observed(entity)
+    return at if at is not None else datetime.now(timezone.utc)
+
+
+def _date_observed(entity: Dict[str, Any]) -> Optional[datetime]:
+    """The parsed, timezone-aware `dateObserved` of a DeviceMeasurement, else None."""
     date_observed = entity.get("dateObserved")
     if isinstance(date_observed, dict):
         value = date_observed.get("value")
         if value:
             try:
-                return datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+                return _as_aware_utc(datetime.fromisoformat(str(value).replace("Z", "+00:00")))
             except (ValueError, TypeError):
                 pass
-    return datetime.utcnow()
+    return None
 
 
 def _extract_observed_at(entity: Dict[str, Any]) -> datetime:
@@ -369,10 +661,12 @@ def _extract_observed_at(entity: Dict[str, Any]) -> datetime:
     for attr in entity.values():
         if isinstance(attr, dict) and "observedAt" in attr:
             try:
-                return datetime.fromisoformat(attr["observedAt"].replace("Z", "+00:00"))
-            except ValueError:
+                return _as_aware_utc(
+                    datetime.fromisoformat(attr["observedAt"].replace("Z", "+00:00"))
+                )
+            except (ValueError, TypeError, AttributeError):
                 pass
-    return datetime.utcnow()
+    return datetime.now(timezone.utc)
 
 
 @router.post("/notify", status_code=204)
@@ -423,6 +717,49 @@ async def receive_notification(
     except Exception as e:
         logger.error(f"Failed to accept notification: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="notification processing error")
+
+
+async def process_geometry_notification_task(data: Dict[str, Any], tenant_id: Optional[str]):
+    """Upsert the location of every notified entity into observation_geometry_cache.
+
+    One bad entity never blocks the others; nothing is raised out of the task.
+    """
+    if _geometry_pool is None:
+        logger.warning("geometry notification dropped, no pool wired: tenant_id=%s", tenant_id)
+        return
+    for entity in data.get("data", []) or []:
+        try:
+            await upsert_geometry(_geometry_pool, tenant_id, entity)
+        except Exception as e:
+            logger.error(
+                "geometry upsert failed: tenant_id=%s entity_urn=%s error=%s",
+                tenant_id, entity.get("id") if isinstance(entity, dict) else None, e,
+                exc_info=True,
+            )
+
+
+@router.post("/notify/geometry", status_code=204)
+async def receive_geometry_notification(
+    request: Request,
+    background_tasks: BackgroundTasks,
+    ngsild_tenant: Optional[str] = Header(None, alias="NGSILD-Tenant"),
+    fiware_service: Optional[str] = Header(None, alias="Fiware-Service"),
+):
+    """Orion-LD `location` notifications for the geometry cache (same auth and
+    tenant headers as /notify; 204 for the reason documented there)."""
+    reject = _reject_unauthenticated_notify(request.headers)
+    if reject:
+        raise reject
+    try:
+        body = await request.json()
+    except ValueError as e:
+        logger.error(f"Malformed geometry notification body: {e}")
+        raise HTTPException(status_code=400, detail="malformed notification payload")
+    if not isinstance(body, dict):
+        raise HTTPException(status_code=400, detail="malformed notification payload")
+    tenant_id = ngsild_tenant or fiware_service
+    background_tasks.add_task(process_geometry_notification_task, body, tenant_id)
+    return None
 
 
 @router.post("/v2/notify", status_code=204)

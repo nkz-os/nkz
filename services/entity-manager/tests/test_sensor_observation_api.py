@@ -622,5 +622,25 @@ def test_context_declares_new_terms():
     ctx = json.loads((root / "config" / "ngsi-ld-context.json").read_text())["@context"][1]
     assert ctx["observesFeature"] == "http://www.w3.org/ns/sosa/hasFeatureOfInterest"
     assert not isinstance(ctx["observesFeature"], dict) or "@type" not in ctx["observesFeature"]
-    for term in ("observationContext", "channelOverrides", "mobility", "deploymentId"):
+    for term in ("observationContext", "channelOverrides", "mobility", "deploymentId",
+                 "timeSource"):
         assert ctx[term] == f"nkz:{term}"
+    # DeviceMeasurement uses the SDM controlledProperty / measurementType; no own observedProperty.
+    assert "observedProperty" not in ctx
+    for term in ("controlledProperty", "measurementType"):
+        assert ctx[term] == f"https://smartdatamodels.org/dataModel.Device/{term}"
+
+
+def test_context_maps_device_type_to_the_sdm_iri():
+    # DeviceMeasurement carries the profile code as the SDM-standard Device.deviceType.
+    root = pathlib.Path(__file__).resolve().parents[3]
+    ctx = json.loads((root / "config" / "ngsi-ld-context.json").read_text())["@context"][1]
+    assert ctx["deviceType"] == "https://smartdatamodels.org/dataModel.Device/deviceType"
+
+
+def test_context_leaves_profile_code_in_the_default_vocabulary():
+    # Contract 8.14: existing Devices carry profileCode under the default vocab;
+    # mapping it would change its expanded IRI and break bare-name queries.
+    root = pathlib.Path(__file__).resolve().parents[3]
+    ctx = json.loads((root / "config" / "ngsi-ld-context.json").read_text())["@context"][1]
+    assert "profileCode" not in ctx

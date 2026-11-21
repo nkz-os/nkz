@@ -7,6 +7,8 @@ Provides:
 - OrionClient: Typed NGSI-LD async client with automatic tenant header injection
 - SyncOrionClient: Synchronous NGSI-LD client (for sync codebases)
 - TimescaleClient: Typed timeseries reader, tenant headers auto-injected
+- ObservationsClient / SyncObservationsClient: timeseries-reader observation
+  endpoints (best / latest / raw / properties), HMAC-signed, typed results
 - ModuleLifecycle: Base class for install/uninstall/enable/disable hooks
 - installed_tenants / lifecycle_hint_router: where this module is installed
   (entity-manager internal API) and the receiver for its enable/disable hint
@@ -27,6 +29,18 @@ from nkz_platform_sdk.auth import require_auth, AuthContext
 from nkz_platform_sdk.module_app import ModuleApp
 from nkz_platform_sdk.orion import OrionClient, SyncOrionClient
 from nkz_platform_sdk.timescale import TimescaleClient
+from nkz_platform_sdk.observations import (
+    BestResult,
+    ObservableProperty,
+    Observation,
+    ObservationGroup,
+    ObservationPoint,
+    ObservationSource,
+    ObservationsClient,
+    ObservationsError,
+    ObservationsParseError,
+    SyncObservationsClient,
+)
 from nkz_platform_sdk.lifecycle import ModuleLifecycle, LifecycleResult, lifecycle_hint_router
 from nkz_platform_sdk.installations import (
     InstalledTenantsUnavailable,
@@ -68,6 +82,16 @@ from nkz_platform_sdk.crop_cycles import (
 )
 
 __all__ = [
+    "ObservationsClient",
+    "SyncObservationsClient",
+    "ObservationsError",
+    "ObservationsParseError",
+    "BestResult",
+    "ObservationGroup",
+    "ObservationPoint",
+    "ObservationSource",
+    "Observation",
+    "ObservableProperty",
     "ModuleApp",
     "require_auth",
     "AuthContext",

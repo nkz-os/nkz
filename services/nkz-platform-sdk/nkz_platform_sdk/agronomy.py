@@ -12,7 +12,9 @@ from typing import Literal
 from pydantic import BaseModel, Field
 
 Confidence = Literal["high", "medium", "low"]
-Fidelity = Literal["iot_sensor", "parcel_weather", "regional_proxy", "unavailable"]
+Fidelity = Literal[
+    "iot_sensor", "manual_observation", "parcel_weather", "regional_proxy", "unavailable"
+]
 
 _RANK: dict[str, int] = {"low": 0, "medium": 1, "high": 2}
 _BY_RANK: dict[int, Confidence] = {0: "low", 1: "medium", 2: "high"}
@@ -59,6 +61,7 @@ def confidence_from_match(match_level: str, is_default: bool) -> Confidence:
 # regional_proxy/modeled_opendata) map onto the same three confidence tiers.
 _FIDELITY_CONF: dict[str, Confidence] = {
     "iot_sensor": "high",
+    "manual_observation": "high",
     "onsite_calibrated": "high",
     "parcel_weather": "medium",
     "local_proxy": "medium",

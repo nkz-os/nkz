@@ -17,6 +17,9 @@ from unittest.mock import patch, MagicMock
 import jwt as pyjwt
 import pytest
 
+# Shared real-Postgres fixtures (skip unless POSTGRES_URL is set)
+from tests.conftest_pg import pg_schema_factory, pg_dsn, pg_conn  # noqa: F401
+
 # ---------------------------------------------------------------------------
 # Ensure the common/ and api-gateway/ directories are importable
 # ---------------------------------------------------------------------------

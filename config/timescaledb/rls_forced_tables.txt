@@ -6,3 +6,5 @@ public.iot_datalogger_devices
 public.observation_properties
 public.device_deployments
 public.device_deployment_changes
+public.observation_geometry_cache
+public.observation_recompute_runs

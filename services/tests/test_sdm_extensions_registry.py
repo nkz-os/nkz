@@ -8,6 +8,7 @@ invente términos que el contexto no define.
 import json
 import pathlib
 import re
+import sys
 
 import pytest
 
@@ -16,6 +17,10 @@ CONTEXT_FILE = SERVICES_DIR.parent / "config" / "ngsi-ld-context.json"
 REGISTRY_FILE = SERVICES_DIR.parent / "docs" / "development" / "SDM_EXTENSIONS.md"
 
 ROW = re.compile(r"^\|\s*`([^`]+)`\s*\|\s*([^|]+?)\s*\|\s*([^|]+?)\s*\|")
+RATIONALE_ROW = re.compile(
+    r"^\|\s*`([^`]+)`\s*\|\s*atributo\s*\|\s*extension-declarada\s*\|\s*(.*?)\s*\|\s*$"
+)
+NOTES_FILE = SERVICES_DIR.parent / "config" / "ngsi-ld-context.notes.json"
 
 
 @pytest.fixture(scope="module")
@@ -95,3 +100,37 @@ def test_proposal_numbers_are_unique():
     )
     dupes = sorted({n for n in numbers if numbers.count(n) > 1})
     assert not dupes, f"SDM proposal numbers used twice: {dupes}"
+
+
+def _norm(text: str) -> str:
+    return text.strip().rstrip(".").strip()
+
+
+def test_declared_rationale_is_verbatim_from_the_note():
+    """The registry says the rationale is copied from the term's note, never invented.
+
+    Attributes only: entity rows are deliberately shortened to the first sentence.
+    """
+    notes = json.loads(NOTES_FILE.read_text(encoding="utf-8"))["notes"]
+    mismatches = {}
+    for line in REGISTRY_FILE.read_text(encoding="utf-8").splitlines():
+        m = RATIONALE_ROW.match(line)
+        if not m or m.group(1) not in notes:
+            continue
+        if _norm(m.group(2)) != _norm(notes[m.group(1)]):
+            mismatches[m.group(1)] = (m.group(2), notes[m.group(1)])
+    assert not mismatches, f"rationale differs from its note: {mismatches}"
+
+
+def test_documented_measurement_type_vocabulary_matches_code():
+    """The `measurementType` value set in the registry is the one the worker accepts."""
+    for p in (SERVICES_DIR, SERVICES_DIR / "telemetry-worker"):
+        if str(p) not in sys.path:
+            sys.path.insert(0, str(p))
+    from telemetry_worker.device_measurement import SDM_MEASUREMENT_TYPES
+
+    text = REGISTRY_FILE.read_text(encoding="utf-8")
+    m = re.search(r"- \*\*`measurementType`\*\*.*?\n\s+((?:`[a-z]+`(?: \| )?)+)", text, re.S)
+    assert m, "falta la entrada measurementType en 'Value vocabularies'"
+    documented = set(re.findall(r"`([a-z]+)`", m.group(1)))
+    assert documented == set(SDM_MEASUREMENT_TYPES)

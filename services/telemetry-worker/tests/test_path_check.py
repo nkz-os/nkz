@@ -16,7 +16,7 @@ def test_the_reading_changes_between_runs():
     """A constant value is dropped by the delta filter and reads as a break."""
     a = path_check.build_entity("t1", _now())
     b = path_check.build_entity("t1", _now() + timedelta(minutes=10))
-    assert a["batteryLevel"]["value"] != b["batteryLevel"]["value"]
+    assert a["numValue"]["value"] != b["numValue"]["value"]
 
 
 def test_the_entity_id_is_stable():
@@ -30,8 +30,86 @@ def test_the_entity_id_is_stable():
 def test_the_entity_carries_a_numeric_property():
     """No measurement means no row, whatever the pipeline does."""
     entity = path_check.build_entity("t1", _now())
-    assert entity["batteryLevel"]["type"] == "Property"
-    assert isinstance(entity["batteryLevel"]["value"], (int, float))
+    assert entity["numValue"]["type"] == "Property"
+    assert isinstance(entity["numValue"]["value"], (int, float))
+
+
+def test_the_probe_uses_a_type_the_worker_still_subscribes_to():
+    """The AgriDevice subscription was retired; probing it would always fail."""
+    from telemetry_worker import subscription_manager as sm
+
+    entity = path_check.build_entity("t1", _now())
+    subscribed = {e["type"] for s in sm.SUBSCRIPTIONS for e in s["entities"]
+                  if "watchedAttributes" not in s}
+    assert entity["type"] == path_check.ENTITY_TYPE == "DeviceMeasurement"
+    assert entity["type"] in subscribed
+
+
+def test_the_probe_is_the_sdm_device_measurement_shape():
+    """name is the channel, controlledProperty the catalogue property, and they differ."""
+    from common.unit_codes import to_unit_code
+
+    entity = path_check.build_entity("t1", _now())
+    assert entity["name"] == {"type": "Property", "value": path_check.CHANNEL}
+    assert entity["controlledProperty"] == {
+        "type": "Property", "value": path_check.MEASUREMENT}
+    assert path_check.CHANNEL != path_check.MEASUREMENT, (
+        "equal values would pass even if the worker collapsed the channel")
+    assert entity["measurementType"] == {"type": "Property", "value": "instant"}
+    # batteryLevel is a percentage; the code comes from the single source of truth.
+    assert entity["numValue"]["unitCode"] == to_unit_code("%") == "P1"
+    # refDevice is unchanged (still dangling, see path_check docstring).
+    assert entity["refDevice"] == {
+        "type": "Relationship", "object": path_check.device_urn_for("t1")}
+
+
+def test_the_worker_reads_the_probe_as_a_reading():
+    """Shape drift between the probe and the worker's DeviceMeasurement branch fails here."""
+    from common.observation_context import entity_id_conforms
+    from telemetry_worker import notification_handler as nh
+
+    entity = path_check.build_entity("t1", _now())
+    device_id, measurements = nh._extract_device_measurement(entity)
+    assert device_id == path_check.SYNTHETIC_DEVICE
+    # The stored channel is `name`, not controlledProperty.
+    assert measurements == {path_check.CHANNEL: entity["numValue"]["value"]}
+    assert nh._extract_device_measurement_observed_at(entity) == _now()
+    assert entity_id_conforms(entity["id"], device_id, path_check.CHANNEL)
+    # The stored row's entity_id is the one wait_for_row polls for.
+    assert entity["id"] == path_check.entity_id_for("t1")
+    assert entity["id"].endswith(f":{path_check.CHANNEL}")
+
+
+def test_wait_for_channel_asserts_attribute_name_on_the_measurement_row():
+    conn, cur = _cursor_returning([(path_check.CHANNEL,)])
+    with patch.object(path_check.psycopg2, "connect", return_value=conn):
+        assert path_check.wait_for_channel(
+            "dsn", "urn:x", _now(), path_check.CHANNEL, timeout_s=1) is True
+    args = cur.execute.call_args[0]
+    assert "telemetry_measurements" in args[0]
+    assert "attribute_name" in args[0]
+    # observed_property is deliberately NOT queried: the synthetic device has no
+    # deployment, so it is NULL by design.
+    assert "observed_property" not in args[0]
+    assert args[1] == ("urn:x", _now())
+
+
+def test_a_collapsed_channel_fails():
+    """attribute_name = controlledProperty means the worker used the wrong key."""
+    conn, _ = _cursor_returning([(path_check.MEASUREMENT,)] * 4)
+    with patch.object(path_check.psycopg2, "connect", return_value=conn), \
+         patch.object(path_check.time, "sleep"):
+        assert path_check.wait_for_channel(
+            "dsn", "urn:x", _now(), path_check.CHANNEL, timeout_s=0) is False
+
+
+def test_main_fails_when_the_row_arrives_under_the_wrong_channel(monkeypatch):
+    monkeypatch.setenv("POSTGRES_URL", "postgresql://x/y")
+    monkeypatch.setattr(path_check, "_headers", lambda t: {})
+    monkeypatch.setattr(path_check, "publish", MagicMock())
+    monkeypatch.setattr(path_check, "wait_for_row", MagicMock(return_value=True))
+    monkeypatch.setattr(path_check, "wait_for_channel", MagicMock(return_value=False))
+    assert path_check.main() == 1
 
 
 def _cursor_returning(rows):
@@ -91,6 +169,7 @@ def test_exit_code_reports_the_path(monkeypatch, found, expected):
     monkeypatch.setattr(path_check, "_headers", lambda t: {})
     monkeypatch.setattr(path_check, "publish", MagicMock())
     monkeypatch.setattr(path_check, "wait_for_row", MagicMock(return_value=found))
+    monkeypatch.setattr(path_check, "wait_for_channel", MagicMock(return_value=True))
     assert path_check.main() == expected
 
 

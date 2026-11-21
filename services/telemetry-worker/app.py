@@ -8,12 +8,15 @@ from telemetry_worker.calibration import CalibrationService
 from telemetry_worker.config import Settings
 from telemetry_worker.dedup import NotificationDedup
 from telemetry_worker.event_sink import PostgreSQLSink
+from telemetry_worker.geometry_backfill import run_geometry_backfill
 from telemetry_worker.health_checker import HealthChecker
+from telemetry_worker.observation_lookup import ObservationLookup
 from telemetry_worker.notification_handler import (
     init_handler,
     router as notification_router,
 )
 from telemetry_worker.profiles import ProfileService
+from telemetry_worker.recompute import RecomputeLoop, recompute_interval_from_env
 from telemetry_worker.routers import health
 from telemetry_worker.subscription_manager import ensure_subscriptions_for_all_tenants
 
@@ -69,7 +72,21 @@ async def lifespan(app: FastAPI):
     await dedup.start()
 
     # Wire dependencies into notification handler
-    init_handler(settings, profile_service, sink, health_checker, calibration_service, dedup)
+    observation_lookup = ObservationLookup(sink._pool)
+    init_handler(
+        settings, profile_service, sink, health_checker, calibration_service, dedup,
+        observation_lookup=observation_lookup,
+        geometry_pool=sink._pool,
+    )
+
+    # Audited recompute of stored observation context (contract 8.6); only with
+    # the observation lookup wired. A bad interval value fails startup loudly.
+    recompute_task = None
+    if observation_lookup is not None:
+        recompute = RecomputeLoop(
+            sink._pool, observation_lookup, interval_s=recompute_interval_from_env()
+        )
+        recompute_task = asyncio.create_task(recompute.run())
 
     # Check/create NGSI-LD subscriptions for all tenants (sync, run in executor)
     try:
@@ -92,10 +109,27 @@ async def lifespan(app: FastAPI):
 
     periodic_task = asyncio.create_task(_periodic_subscription_check())
 
+    # The geometry subscription only fires on a create or a location change, so
+    # features that already exist are backfilled here, in the background: readiness
+    # does not wait for it. After the subscriptions, so a change made while it runs
+    # is still notified.
+    backfill_task = asyncio.create_task(run_geometry_backfill(sink._pool))
+
     yield
 
     # Shutdown: cancel periodic task and close pool
     periodic_task.cancel()
+    backfill_task.cancel()
+    try:
+        await backfill_task
+    except asyncio.CancelledError:
+        pass
+    if recompute_task is not None:
+        recompute_task.cancel()
+        try:
+            await recompute_task
+        except asyncio.CancelledError:
+            pass
     await dedup.stop()
     await calibration_service.stop()
     await health_checker.stop()

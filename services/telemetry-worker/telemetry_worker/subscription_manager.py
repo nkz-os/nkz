@@ -30,43 +30,20 @@ ORION_URL = os.getenv("ORION_URL", "http://orion-ld-service:1026")
 SERVICE_HOST = os.getenv("SERVICE_HOST", "telemetry-worker-service")
 SERVICE_PORT = os.getenv("SERVICE_PORT", "80")
 NOTIFICATION_URL = f"http://{SERVICE_HOST}:{SERVICE_PORT}/notify"
+GEOMETRY_NOTIFICATION_URL = f"http://{SERVICE_HOST}:{SERVICE_PORT}/notify/geometry"
 POSTGRES_URL = os.getenv("POSTGRES_URL", "")
 DEFAULT_TENANT = os.getenv("DEFAULT_TENANT", "platform")
 
+# Entity types whose `location` feeds observation_geometry_cache (contract 1.4):
+# the geometry subscription and the startup backfill (geometry_backfill) share it.
+# This tuple is the only place the types are listed: adding one is a one-line change.
+# Nothing here depends on the AgriParcelZone name or its id pattern. The per-type plan
+# (sheet 12) may migrate AgriParcelZone to AgriManagementZone, which has no @context
+# term yet; the entry is then replaced or extended here, with no logic touched.
+GEOMETRY_ENTITY_TYPES = ("AgriParcel", "AgriParcelZone", "AgriPlant", "AgriGreenhouse")
+
 # NGSI-LD subscriptions — no watchedAttributes = trigger on ANY attribute change
 SUBSCRIPTIONS = [
-    {
-        "description": "Telemetry Worker - AgriSensor updates",
-        "type": "Subscription",
-        "entities": [{"type": "AgriSensor"}],
-        "notification": {
-            "endpoint": {
-                "uri": NOTIFICATION_URL,
-                "accept": "application/json",
-            },
-            "format": "normalized",
-        },
-        "throttling": 30,
-        "isActive": True,
-    },
-    {
-        # Hardware provisioned through DaTaK is created as "AgriDevice", not "Device" —
-        # this subscription exists for that provisioning path. "Device" itself IS a term
-        # of the platform @context (has been since an earlier plan) and is what
-        # DeviceMeasurement.refDevice points at; the subscription below covers it.
-        "description": "Telemetry Worker - AgriDevice updates",
-        "type": "Subscription",
-        "entities": [{"type": "AgriDevice"}],
-        "notification": {
-            "endpoint": {
-                "uri": NOTIFICATION_URL,
-                "accept": "application/json",
-            },
-            "format": "normalized",
-        },
-        "throttling": 30,
-        "isActive": True,
-    },
     {
         # DeviceMeasurement is what entity-manager writes from Device/ManufacturingMachine
         # attribute updates (one entity per device+controlledProperty, overwritten in
@@ -286,7 +263,33 @@ SUBSCRIPTIONS = [
         },
         "isActive": True,
     },
+    {
+        # Keeps observation_geometry_cache current (contract 1.4). No "throttling": a
+        # bulk parcel import must not drop zones. Greenhouse and AgriSolarPark are not
+        # terms of the platform @context, so they are left out until they are defined
+        # (an undefined type expands to the default vocabulary and never matches).
+        "description": "Telemetry Worker - Geometry cache (location)",
+        "type": "Subscription",
+        "entities": [{"type": t} for t in GEOMETRY_ENTITY_TYPES],
+        "watchedAttributes": ["location"],
+        "notification": {
+            "endpoint": {
+                "uri": GEOMETRY_NOTIFICATION_URL,
+                "accept": "application/json",
+            },
+            "format": "normalized",
+        },
+        "isActive": True,
+    },
 ]
+
+# Subscriptions this worker used to declare. Dropping an entry above only stops it
+# being reconciled; the one already registered stays in the broker, per tenant,
+# until it is deleted here. Exact descriptions only: never a prefix, never a type.
+RETIRED_DESCRIPTIONS = frozenset({
+    "Telemetry Worker - AgriSensor updates",
+    "Telemetry Worker - AgriDevice updates",
+})
 
 
 INTERNAL_SERVICE_SECRET = os.getenv("INTERNAL_SERVICE_SECRET", "")
@@ -497,6 +500,16 @@ def _ensure_tenant_subscriptions(tenant_id: str):
         for existing in existing_subs:
             by_description.setdefault(existing.get("description"), []).append(existing)
 
+        # Before the declared ones, so a failure further down cannot skip it.
+        # _delete_subscription counts a 404 as done and logs any other failure
+        # without raising, so one bad delete never blocks the reconciliation.
+        for retired in existing_subs:
+            if retired.get("description") in RETIRED_DESCRIPTIONS and retired.get("id"):
+                logger.info(
+                    "Removing retired subscription %s for %s", retired.get("id"), tenant_id,
+                )
+                _delete_subscription(headers, retired.get("id"))
+
         for sub in SUBSCRIPTIONS:
             sub_id = _subscription_id(sub)
             canonical = by_id.get(sub_id)
@@ -535,13 +548,19 @@ def _ensure_tenant_subscriptions(tenant_id: str):
         logger.error(f"Error managing subscriptions for {tenant_id}: {e}")
 
 
-@retry(stop=stop_after_attempt(5), wait=wait_fixed(5))
-def ensure_subscriptions_for_all_tenants():
-    """Create NGSI-LD subscriptions for all active tenants."""
+def managed_tenants() -> list:
+    """Tenants this worker reconciles subscriptions for (the default one when the DB has none)."""
     tenants = _get_active_tenants()
     if not tenants:
         tenants = [DEFAULT_TENANT]
         logger.info(f"No tenants from DB, using default: {DEFAULT_TENANT}")
+    return tenants
+
+
+@retry(stop=stop_after_attempt(5), wait=wait_fixed(5))
+def ensure_subscriptions_for_all_tenants():
+    """Create NGSI-LD subscriptions for all active tenants."""
+    tenants = managed_tenants()
 
     logger.info(f"Ensuring subscriptions for {len(tenants)} tenants: {tenants}")
 

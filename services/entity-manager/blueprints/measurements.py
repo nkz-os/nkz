@@ -11,17 +11,45 @@ this into `blueprints/notifications.py` and the actual Orion write.
 
 from __future__ import annotations
 
+import logging
+import os
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Tuple
 
 from common.context_aliases import canonical_attribute
 from common.unit_codes import to_unit_code
-from common.window_statistics import expand_measurements
+from common.window_statistics import INSTANT, expand_measurements
 
 # Attributes that are never measurements, regardless of what the profile declares. Device
 # identity/metadata, not a reading. Kept as an explicit allow-list-adjacent skip so a coincidental
 # profile entry can never turn identity data into a bogus DeviceMeasurement.
 _NON_MEASUREMENT_KEYS = frozenset({"id", "type", "@context"})
+
+logger = logging.getLogger(__name__)
+
+SDM_SHAPE_FLAG = "DEVICE_MEASUREMENT_SDM_SHAPE_ENABLED"
+# Closed `measurementType` vocabulary of the SDM shape: `common.window_statistics.STATISTICS`
+# map 1:1, and a reading with no window is `common.window_statistics.INSTANT`.
+
+
+def sdm_shape_enabled() -> bool:
+    """Effective value of `DEVICE_MEASUREMENT_SDM_SHAPE_ENABLED` (default off).
+
+    Parsed like `RECONCILE_BACKSTOP_ENABLED`: only `.lower() == "true"` is on, any other value
+    (including unparseable ones) is off. Read on every call so the effective value is never stale.
+    """
+    return os.getenv(SDM_SHAPE_FLAG, "false").lower() == "true"
+
+
+def log_sdm_shape_flag() -> None:
+    """Log the effective flag value once at startup, as a structured field."""
+    enabled = sdm_shape_enabled()
+    logger.info(
+        "device_measurement_sdm_shape_flag %s=%s",
+        SDM_SHAPE_FLAG,
+        enabled,
+        extra={"flag": SDM_SHAPE_FLAG, "enabled": enabled},
+    )
 
 
 class DeviceIdShapeError(ValueError):
@@ -62,8 +90,11 @@ def _measurement_defs_by_attr(profile: Dict[str, Any]) -> Dict[str, Dict[str, An
     }
 
 
-def _resolve_observed_at(attr_value: Dict[str, Any], entity: Dict[str, Any]) -> str:
-    """Pick the DateTime value for `dateObserved`.
+def _resolve_observed_at(attr_value: Dict[str, Any], entity: Dict[str, Any]) -> Tuple[str, str]:
+    """Pick the DateTime value for `dateObserved` and say where it came from.
+
+    Returns `(iso_instant, time_source)`; `time_source` is `"device"` when the instant came
+    from the attribute or entity `observedAt`, `"server"` when it is the wall-clock fallback.
 
     Priority: the attribute's own `observedAt` (normalized NGSI-LD Property metadata — the most
     precise, per-reading timestamp) -> the entity-level `observedAt` attribute, if the whole
@@ -76,9 +107,9 @@ def _resolve_observed_at(attr_value: Dict[str, Any], entity: Dict[str, Any]) -> 
         entity_level = entity.get("observedAt")
         if isinstance(entity_level, dict):
             observed_at = entity_level.get("value")
-    if not observed_at:
-        observed_at = datetime.now(timezone.utc).isoformat()
-    return observed_at
+    if observed_at:
+        return observed_at, "device"
+    return datetime.now(timezone.utc).isoformat(), "server"
 
 
 def build_measurements(entity: Dict[str, Any], profile: Dict[str, Any]) -> List[Dict[str, Any]]:
@@ -104,7 +135,10 @@ def build_measurements(entity: Dict[str, Any], profile: Dict[str, Any]) -> List[
     entity_id = entity.get("id", "")
     tenant, external_id = _parse_device_id(entity_id)
     measurement_defs = _measurement_defs_by_attr(profile)
+    profile_code_attr = entity.get("profileCode")
+    profile_code = profile_code_attr.get("value") if isinstance(profile_code_attr, dict) else None
 
+    sdm_shape = sdm_shape_enabled()
     results: List[Dict[str, Any]] = []
     # One reading per canonical name: when the entity carries both aliases, the canonical
     # attribute wins.
@@ -139,18 +173,43 @@ def build_measurements(entity: Dict[str, Any], profile: Dict[str, Any]) -> List[
         else:
             value_key = "textValue"
 
+        observed_at, time_source = _resolve_observed_at(attr_value, entity)
         measurement: Dict[str, Any] = {
             "id": f"urn:ngsi-ld:DeviceMeasurement:{tenant}:{external_id}:{attr_name}",
             "type": "DeviceMeasurement",
             "refDevice": {"type": "Relationship", "object": entity_id},
-            "controlledProperty": {"type": "Property", "value": attr_name},
-            "measurementType": {"type": "Property", "value": measurement_def.get("type")},
             value_key: value_prop,
             "dateObserved": {
                 "type": "Property",
-                "value": _resolve_observed_at(attr_value, entity),
+                "value": observed_at,
             },
+            "timeSource": {"type": "Property", "value": time_source},
         }
+        if sdm_shape:
+            # A.1: `name` = the channel, `controlledProperty` = the catalogue name. Without one,
+            # the BASE attribute (not the expanded `...Min` channel; the statistic now lives in
+            # `measurementType`). Defs that were never expanded carry no `baseAttribute`, so the
+            # channel is already the base.
+            controlled = (
+                measurement_def.get("observedProperty")
+                or measurement_def.get("baseAttribute")
+                or attr_name
+            )
+            measurement["controlledProperty"] = {"type": "Property", "value": controlled}
+            measurement["name"] = {"type": "Property", "value": attr_name}
+            measurement["measurementType"] = {
+                "type": "Property",
+                "value": measurement_def.get("statistic") or INSTANT,
+            }
+        else:
+            # Phase 1 shape, unchanged: channel in `controlledProperty`, profile type.
+            measurement["controlledProperty"] = {"type": "Property", "value": attr_name}
+            measurement["measurementType"] = {
+                "type": "Property",
+                "value": measurement_def.get("type"),
+            }
+        if profile_code is not None:
+            measurement["deviceType"] = {"type": "Property", "value": profile_code}
         results.append(measurement)
 
     return results

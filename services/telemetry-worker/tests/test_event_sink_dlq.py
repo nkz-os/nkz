@@ -231,3 +231,30 @@ def test_write_batch_empty_list_is_noop():
 
     assert conn.inserted_records == []
     assert conn.dlq_records == []
+
+
+class _CopyOkConnection(FakeConnection):
+    async def copy_records_to_table(self, table, records=None, columns=None):
+        self.inserted_records.extend(records)
+
+
+def test_write_batch_returns_only_the_inserted_events():
+    """The caller records replay state only for events really inserted (never dead-lettered)."""
+    events = [_event("good-1"), _event("poison-1"), _event("good-2")]
+    sink = PostgreSQLSink(dsn="postgresql://fake")
+    sink._pool = FakePool(FakeConnection(poison_devices={"poison-1"}))
+    stored = asyncio.run(sink.write_batch(events))
+    assert [e.device_id for e in stored] == ["good-1", "good-2"]
+
+    sink._pool = FakePool(_CopyOkConnection())
+    events = [_event("a"), _event("b")]
+    assert asyncio.run(sink.write_batch(events)) == events
+    assert asyncio.run(sink.write_batch([])) == []
+
+
+def test_write_returns_true_when_inserted_false_when_dead_lettered():
+    sink = PostgreSQLSink(dsn="postgresql://fake")
+    sink._pool = FakePool(FakeConnection())
+    assert asyncio.run(sink.write(_event("good-1"))) is True
+    sink._pool = FakePool(FakeConnection(poison_devices={"poison-1"}))
+    assert asyncio.run(sink.write(_event("poison-1"))) is False

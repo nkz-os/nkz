@@ -249,6 +249,10 @@ app.register_blueprint(calibration_bp)
 app.register_blueprint(diagnostics_bp)
 app.register_blueprint(notify_bp)
 
+from blueprints.measurements import log_sdm_shape_flag  # noqa: E402
+
+log_sdm_shape_flag()
+
 # Register the unified notifications blueprint (Alert subs + channels + config)
 try:
     init_notifications(app)

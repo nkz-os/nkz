@@ -33,6 +33,14 @@ declare global {
      * documented cast to ViewerContextValue.
      */
     __nekazariViewerContextInstance?: Context<unknown>;
+    /**
+     * Runtime environment injected by the host page (index.html). The shape
+     * matches apps/host's own declaration exactly (identical type required
+     * for interface merging); read via api/apiOrigin.ts, which narrows it.
+     */
+    __ENV__?: {
+      [key: string]: unknown;
+    };
   }
 }
 

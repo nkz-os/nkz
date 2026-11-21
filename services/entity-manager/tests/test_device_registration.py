@@ -25,7 +25,13 @@ import subscription_manager as sm  # noqa: E402
 def test_the_device_registration_subscription_exists():
     types = [s["entities"][0]["type"] for s in sm.SUBSCRIPTIONS]
     assert "Device" in types
-    assert "AgriSensor" in types  # legacy kept until the contract phase
+
+
+def test_the_legacy_agrisensor_registration_subscription_is_absent():
+    """Retired (contract 1.5): no real data uses AgriSensor; the bench registers Device."""
+    types = [s["entities"][0]["type"] for s in sm.SUBSCRIPTIONS]
+    assert "AgriSensor" not in types
+    assert not any("AgriSensor" in s["description"] for s in sm.SUBSCRIPTIONS)
 
 
 def test_parcel_from_controlled_asset_then_legacy_parcel_id():

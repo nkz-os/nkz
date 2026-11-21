@@ -113,6 +113,20 @@ def _log_change(cur, tenant_id, deployment_id, actor, reason, before, after) -> 
         (tenant_id, deployment_id, actor, reason, _audit(before), _audit(after)))
 
 
+def _enqueue_recompute(cur, tenant_id, device_urn, deployment_id, range_from, range_to,
+                       actor, reason) -> None:
+    """Queue a recompute of stored observations (contract 8.6) in the caller's transaction.
+
+    `range_to` None means open-ended. Same cursor as the change itself, so tenant RLS
+    applies and a rolled-back change leaves no run behind.
+    """
+    cur.execute(
+        "INSERT INTO observation_recompute_runs "
+        "(tenant_id, device_urn, deployment_id, range_from, range_to, requested_by, reason) "
+        "VALUES (%s, %s, %s, %s, %s, %s, %s)",
+        (tenant_id, device_urn, deployment_id, range_from, range_to, actor, reason))
+
+
 # ---- writes ------------------------------------------------------------------
 
 @dataloggers.in_step('db', 'Database error')
@@ -177,6 +191,8 @@ def open_deployment(tenant_id: str, device_urn: str, spec: DeploymentSpec,
                             previous, _fetch(cur, tenant_id, previous['id']))
             created = _fetch(cur, tenant_id, new_id)
             _log_change(cur, tenant_id, new_id, actor, reason, None, created)
+            # Always: readings around a registration or move may carry missing/stale context.
+            _enqueue_recompute(cur, tenant_id, device_urn, new_id, valid_from, None, actor, reason)
             conn.commit()
         except psycopg2.errors.ExclusionViolation:
             raise ApiError(409, _OVERLAP) from None
@@ -210,9 +226,9 @@ def correct_deployment(tenant_id: str, deployment_id: str, changes: dict,
                 raise ApiError(404, 'Deployment not found')
 
             sets, params = [], []
+            new_from = changes.get('valid_from', before['valid_from'])
+            new_to = changes['valid_to'] if 'valid_to' in changes else before['valid_to']
             if 'valid_from' in changes or 'valid_to' in changes:
-                new_from = changes.get('valid_from', before['valid_from'])
-                new_to = changes['valid_to'] if 'valid_to' in changes else before['valid_to']
                 if new_to is not None and new_to <= new_from:
                     raise ApiError(400, 'valid_to must be after valid_from')
                 sets.append("valid = tstzrange(%s, %s, '[)')")
@@ -237,6 +253,12 @@ def correct_deployment(tenant_id: str, deployment_id: str, changes: dict,
                         (*params, deployment_id, tenant_id))
             after = _fetch(cur, tenant_id, deployment_id)
             _log_change(cur, tenant_id, deployment_id, actor, reason, before, after)
+            # Union of old and new interval; open if either bound is open.
+            run_from = min(before['valid_from'], new_from)
+            run_to = (None if before['valid_to'] is None or new_to is None
+                      else max(before['valid_to'], new_to))
+            _enqueue_recompute(cur, tenant_id, before['device_urn'], deployment_id,
+                               run_from, run_to, actor, reason)
             conn.commit()
         except psycopg2.errors.ExclusionViolation:
             raise ApiError(409, _OVERLAP) from None
@@ -277,15 +299,24 @@ def revert_open(tenant_id: str, new_deployment_id: str, actor: str) -> None:
 
 
 @dataloggers.in_step('db', 'Database error')
-def delete_deployment(tenant_id: str, deployment_id: str) -> None:
-    """Remove one deployment (and its change rows); registration undo only."""
+def delete_deployment(tenant_id: str, deployment_id: str, actor: str = 'system') -> None:
+    """Remove one deployment (and its change rows); registration undo only.
+
+    Queues a recompute of its whole interval, so its observations are re-resolved
+    against whatever deployment is valid (or get NULL context).
+    """
     with get_db_connection_with_tenant(tenant_id) as conn:
-        cur = conn.cursor()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
         try:
+            doomed = _fetch(cur, tenant_id, deployment_id, lock=True)
             cur.execute("DELETE FROM device_deployment_changes WHERE tenant_id = %s "
                         "AND deployment_id = %s", (tenant_id, deployment_id))
             cur.execute("DELETE FROM device_deployments WHERE tenant_id = %s AND id = %s",
                         (tenant_id, deployment_id))
+            if doomed is not None:
+                _enqueue_recompute(cur, tenant_id, doomed['device_urn'], deployment_id,
+                                   doomed['valid_from'], doomed['valid_to'],
+                                   actor, 'deployment deleted')
             conn.commit()
         finally:
             cur.close()
@@ -314,6 +345,7 @@ def close_open_deployment(tenant_id: str, device_urn: str, actor: str, reason: s
                         "WHERE id = %s AND tenant_id = %s", (end, before['id'], tenant_id))
             after = _fetch(cur, tenant_id, before['id'])
             _log_change(cur, tenant_id, before['id'], actor, reason, before, after)
+            _enqueue_recompute(cur, tenant_id, device_urn, before['id'], end, None, actor, reason)
             conn.commit()
         finally:
             cur.close()

@@ -29,6 +29,31 @@ export { useViewerLayer, type UseViewerLayerReturn } from './viewer/useViewerLay
 // API Client exports
 export { NKZClient, type NKZClientOptions } from './api/client';
 
+// Observation model client (timeseries-reader /api/observations)
+export {
+  observations,
+  ObservationsError,
+  ObservationsParseError,
+} from './api/observations';
+export type {
+  BestRequest as ObservationsBestRequest,
+  BestResult,
+  GroupSubContext,
+  Instant,
+  LatestRequest as ObservationsLatestRequest,
+  ObservableProperty,
+  Observation,
+  ObservationFilters,
+  ObservationGroup,
+  ObservationMode,
+  ObservationPoint,
+  ObservationResolution,
+  ObservationSource,
+  ObservationTiers,
+  RawRequest as ObservationsRawRequest,
+  SubContextFilter,
+} from './api/observations';
+
 // NGSI-LD helpers
 export { getEntityDisplayName, getNGSIValue } from './ngsi/helpers';
 
