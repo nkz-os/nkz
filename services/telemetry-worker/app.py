@@ -2,6 +2,7 @@ import logging
 import asyncio
 from contextlib import asynccontextmanager
 
+import asyncpg
 from fastapi import FastAPI
 
 from telemetry_worker.calibration import CalibrationService
@@ -9,6 +10,7 @@ from telemetry_worker.config import Settings
 from telemetry_worker.dedup import NotificationDedup
 from telemetry_worker.event_sink import PostgreSQLSink
 from telemetry_worker.inbox import NotificationInbox
+from telemetry_worker.inbox_consumer import InboxConsumer
 from telemetry_worker.geometry_backfill import run_geometry_backfill
 from telemetry_worker.health_checker import HealthChecker
 from telemetry_worker.observation_lookup import ObservationLookup
@@ -74,12 +76,22 @@ async def lifespan(app: FastAPI):
 
     # Wire dependencies into notification handler
     observation_lookup = ObservationLookup(sink._pool)
+    inbox = NotificationInbox(sink._pool)
     init_handler(
         settings, profile_service, sink, health_checker, calibration_service, dedup,
         observation_lookup=observation_lookup,
         geometry_pool=sink._pool,
-        inbox=NotificationInbox(sink._pool),
+        inbox=inbox,
     )
+
+    # Inbox consumer: only now, with the handler wired and the sink pool started (an
+    # unwired handler would let rows be acknowledged unprocessed). Its advisory lock
+    # lives on a dedicated one-connection pool (no connection until it is first
+    # needed), so the lock's lifetime is independent of the sink pool.
+    lock_pool = await asyncpg.create_pool(
+        dsn=settings.postgres_url, min_size=0, max_size=1, command_timeout=30
+    )
+    consumer_task = asyncio.create_task(InboxConsumer(inbox, lock_pool).run())
 
     # Audited recompute of stored observation context (contract 8.6); only with
     # the observation lookup wired. A bad interval value fails startup loudly.
@@ -119,7 +131,21 @@ async def lifespan(app: FastAPI):
 
     yield
 
-    # Shutdown: cancel periodic task and close pool
+    # Shutdown: stop the inbox consumer first, while what it uses is still up; rows in
+    # flight stay in the inbox and are processed again (dedup covers it). Ending its
+    # lock connection releases the lock for the other replica.
+    consumer_task.cancel()
+    try:
+        await consumer_task
+    except asyncio.CancelledError:
+        pass
+    try:
+        await asyncio.wait_for(lock_pool.close(), 10)
+    except Exception as e:
+        logger.warning(f"Inbox lock pool did not close cleanly: {e!r}")
+        lock_pool.terminate()
+
+    # Cancel periodic task and close pool
     periodic_task.cancel()
     backfill_task.cancel()
     try:

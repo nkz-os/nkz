@@ -102,6 +102,10 @@ class NotificationInbox:
         self._pool = pool
         self._queue = queue
 
+    @property
+    def queue(self) -> str:
+        return self._queue
+
     async def enqueue(
         self, tenant_id: str, entities: List[Dict[str, Any]], notified_at: Optional[datetime]
     ) -> int:
