@@ -13,6 +13,8 @@ Provides:
 - installed_tenants / lifecycle_hint_router: where this module is installed
   (entity-manager internal API) and the receiver for its enable/disable hint
 - ModuleConfig: Per-tenant encrypted configuration storage
+- fetch_eo_observations / parse_eo_entities: satellite observations of a parcel
+  or a zone as numbers, whichever shape the broker stores them in
 - generate_hmac_signature / verify_hmac_signature: canonical platform HMAC
   primitive (payload `{data}|{tenant_id}|{timestamp}`, output
   `{hexdigest}:{timestamp}`), the single source of truth used internally by
@@ -80,6 +82,15 @@ from nkz_platform_sdk.crop_cycles import (
     CropCycleTimeline,
     resolve_crop_cycles,
 )
+from nkz_platform_sdk.eo import (
+    EO_FAMILIES,
+    EO_VALUE_NAMES,
+    EOObservation,
+    EOReadIncomplete,
+    fetch_eo_observations,
+    fetch_eo_observations_sync,
+    parse_eo_entities,
+)
 
 __all__ = [
     "ObservationsClient",
@@ -130,4 +141,11 @@ __all__ = [
     "notification_token",
     "receiver_host_from_url",
     "verify_notification",
+    "EO_FAMILIES",
+    "EO_VALUE_NAMES",
+    "EOObservation",
+    "EOReadIncomplete",
+    "fetch_eo_observations",
+    "fetch_eo_observations_sync",
+    "parse_eo_entities",
 ]
