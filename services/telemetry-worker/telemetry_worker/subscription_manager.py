@@ -452,7 +452,7 @@ def _get_active_tenants() -> list:
 ORION_PAGE_SIZE = 1000
 
 
-def _fetch_all_subscriptions(headers: dict) -> list:
+def _fetch_all_subscriptions(headers: dict, timeout: float = 30) -> list:
     """Return every subscription of a tenant, following Orion's pagination."""
     subs: list = []
     offset = 0
@@ -461,7 +461,7 @@ def _fetch_all_subscriptions(headers: dict) -> list:
             f"{ORION_URL}/ngsi-ld/v1/subscriptions",
             headers=headers,
             params={"limit": ORION_PAGE_SIZE, "offset": offset},
-            timeout=30,
+            timeout=timeout,
         )
         response.raise_for_status()
         page = response.json() or []
