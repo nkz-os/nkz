@@ -10,6 +10,10 @@ entities the platform builds really conform to them.
   whose checksum differs. `gaps` records what the official files are known to lack.
 - `pending.txt` lists the official types that have no validated example yet. It may only lose
   lines.
+- `deviations.json` records, one by one, every official type or attribute that the platform
+  context maps to another IRI than the official one. It is generated (`deviations --write`),
+  checked on every pull request, and may only lose entries. An official attribute the context
+  does not declare at all is not a deviation: it is reported when an example carries it.
 - `../sdm-examples/` holds one example entity per file, written by the builder that produces
   that entity in production. A test next to each builder keeps the file equal to its output.
 
@@ -19,10 +23,14 @@ The checker is `.github/scripts/check_sdm_conformance.py`:
 python3 .github/scripts/check_sdm_conformance.py examples config/sdm-examples
 ```
 
-It reports a type mapped to a non-official IRI, an entity that breaks the official schema, and
-an attribute that is not a term of the platform context (the broker would store it under the
+`examples` reports a type mapped to a non-official IRI, an entity that breaks the official
+schema, and an attribute that is not a term of the platform context (the broker would store it under the
 default vocabulary). Examples must be in the NGSI-LD normalized form. Of the JSON Schema formats
 only `date-time` and `date` are enforced.
+
+`deviations` checks `deviations.json` against the context, and `ratchet --base <ref>` checks that
+neither it nor `pending.txt` grew since that ref. A type that joins `allowed.txt` in the same
+change may bring the deviations of the terms it shares with the other types.
 
 To add an official type: add it to `allowed.txt`, pin its schema in `pins.json`, and either add
 an example or list it in `pending.txt`. To move a pin, change the commit and the checksums in

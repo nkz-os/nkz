@@ -23,8 +23,16 @@ file per entity, or a list of entities). An official type must have an example
 that validates, or be on the pending list; a pending type whose example
 validates must leave the list.
 
-Exit codes: 0 clean, 1 findings, 2 bad arguments, 3 internal error (download,
-checksum, reference outside the pinned set, unexpected exception).
+`deviations` subcommand: every official attribute or type that the platform
+context maps to another IRI than the official one must be recorded, one by one,
+in `config/sdm/deviations.json`; nothing else may be recorded there.
+
+`ratchet` subcommand: against a base git ref, the pending list and the recorded
+deviations may only shrink.
+
+Exit codes: 0 clean, 1 findings, 2 bad arguments or unresolved base ref,
+3 internal error (download, checksum, reference outside the pinned set,
+unexpected exception).
 """
 
 from __future__ import annotations
@@ -33,6 +41,7 @@ import argparse
 import hashlib
 import json
 import re
+import subprocess
 import sys
 import time
 import urllib.request
@@ -320,6 +329,145 @@ class Validator:
         return found
 
 
+# ── deviations ──────────────────────────────────────────────────────────────
+
+
+def schema_properties(schema: dict, shared: dict[str, Any]) -> set[str]:
+    """Attribute names an official schema defines, following `allOf` and pinned `$ref`s."""
+    names: set[str] = set()
+    seen: set[tuple[int, str]] = set()
+
+    def visit(node: Any, document: dict) -> None:
+        if not isinstance(node, dict):
+            return
+        names.update(node.get("properties", {}))
+        for key in ("allOf", "anyOf", "oneOf"):
+            for part in node.get(key, []):
+                visit(part, document)
+        ref = node.get("$ref")
+        if not isinstance(ref, str):
+            return
+        base, _, pointer = ref.partition("#")
+        target_document = shared.get(base) if base else document
+        if target_document is None:
+            raise PinError(f"schema reference outside the pinned set: {base}")
+        marker = (id(target_document), pointer)
+        if marker in seen:
+            return
+        seen.add(marker)
+        target: Any = target_document
+        for token in (part for part in pointer.split("/") if part):
+            target = target.get(token) if isinstance(target, dict) else None
+        visit(target, target_document)
+
+    visit(schema, schema)
+    return names - {"id", "type"}
+
+
+def compute_deviations(pins: dict, files: dict[str, Any], platform_context: Any, allowed: Iterable[str]) -> dict:
+    """Where the platform context departs from the official IRIs, for the allowed official types.
+
+    `types`: type name -> {platform, official}. `attributes`: a sorted list of
+    {term, platform, official, types}: one entry per official IRI of a term,
+    with the types whose official model uses it. A term of the NGSI-LD core
+    context always means the core IRI, whatever the platform context says:
+    that is how the broker stores it (measured on Orion-LD for `status`).
+
+    An official attribute that the platform context does not declare at all is
+    not listed: nothing is mapped. It shows up as `attribute-outside-context`
+    as soon as an entity carries it.
+    """
+    platform = context_terms(platform_context)
+    core = context_terms(files["core"])
+    shared = {ref: files[ref] for ref in pins["shared"]}
+    types: dict[str, dict[str, str]] = {}
+    by_pair: dict[tuple[str, str, str], list[str]] = {}
+    for name in sorted(set(allowed) & set(pins["types"])):
+        subject_terms = context_terms(files[f"context:{pins['types'][name]['subject']}"])
+        official_type = subject_terms.get(name)
+        mapped_type = platform.get(name)
+        if official_type and mapped_type and mapped_type != official_type:
+            types[name] = {"platform": mapped_type, "official": official_type}
+        for term in sorted(schema_properties(files[f"schema:{name}"], shared)):
+            official = subject_terms.get(term)
+            mapped = core.get(term, platform.get(term))
+            if official is None or mapped is None or mapped == official:
+                continue
+            by_pair.setdefault((term, mapped, official), []).append(name)
+    attributes = [
+        {"term": term, "platform": mapped, "official": official, "types": names}
+        for (term, mapped, official), names in sorted(by_pair.items())
+    ]
+    return {"types": types, "attributes": attributes}
+
+
+def deviation_keys(deviations: dict) -> set[tuple[str, str, str, str]]:
+    """Each recorded deviation as (kind, name, type, official IRI)."""
+    keys = {("type", name, name, entry["official"]) for name, entry in deviations.get("types", {}).items()}
+    for entry in deviations.get("attributes", []):
+        keys.update(("attribute", entry["term"], type_name, entry["official"]) for type_name in entry["types"])
+    return keys
+
+
+def check_deviations(computed: dict, recorded: dict) -> list[str]:
+    """Problems between what the context does and what the deviations file records."""
+    errors: list[str] = []
+    now, written = deviation_keys(computed), deviation_keys(recorded)
+    for kind, name, type_name, official in sorted(now - written):
+        errors.append(f"{type_name}: {kind} {name} is not mapped to its official IRI {official} and is not recorded")
+    for kind, name, type_name, official in sorted(written - now):
+        errors.append(f"{type_name}: {kind} {name} is recorded as a deviation but no longer is one; remove it")
+    if not errors and computed != recorded:
+        errors.append("the deviations file does not match the computed one; regenerate it with `deviations --write`")
+    return errors
+
+
+def _at_ref(base: str, path: Path) -> str | None:
+    """A file's content at a git ref; None only when the file did not exist there.
+
+    The path is taken relative to the repository root, so a file outside the
+    repository, or any git failure, is an error and never reads as "new file".
+    """
+    top = subprocess.run(["git", "rev-parse", "--show-toplevel"], capture_output=True, text=True, check=True)
+    inside = path.resolve().relative_to(Path(top.stdout.strip()).resolve()).as_posix()
+    listed = subprocess.run(["git", "ls-tree", "--name-only", base, "--", inside], capture_output=True, text=True, check=True)
+    if not listed.stdout.strip():
+        return None
+    return subprocess.run(["git", "show", f"{base}:{inside}"], capture_output=True, text=True, check=True).stdout
+
+
+def _names(text: str) -> set[str]:
+    return {line.strip() for line in text.splitlines() if line.strip() and not line.lstrip().startswith("#")}
+
+
+def check_ratchet(base: str, pending: Path, deviations: Path, allowed: Path | None = None) -> list[str]:
+    """Names and deviations that exist now and did not exist at the base ref.
+
+    A type that joins the allowed list after the base ref brings the deviations of
+    the terms it shares with the rest; those are accepted, and visible in the diff.
+    An already allowed type may not gain one.
+    """
+    errors: list[str] = []
+    newly_allowed: set[str] = set()
+    if allowed is not None:
+        old_allowed = _at_ref(base, allowed)
+        if old_allowed is not None:
+            newly_allowed = set(read_names(allowed)) - _names(old_allowed)
+    old_pending = _at_ref(base, pending)
+    if old_pending is not None:
+        for name in sorted(set(read_names(pending)) - _names(old_pending) - newly_allowed):
+            errors.append(f"{name}: added to the pending list, which may only shrink")
+    old_deviations = _at_ref(base, deviations)
+    if old_deviations is not None:
+        before_keys = deviation_keys(json.loads(old_deviations))
+        current = deviation_keys(json.loads(deviations.read_text(encoding="utf-8")))
+        for kind, name, type_name, official in sorted(current - before_keys):
+            if type_name in newly_allowed:
+                continue
+            errors.append(f"{type_name}: {kind} {name} added to the recorded deviations, which may only shrink")
+    return errors
+
+
 # ── examples ────────────────────────────────────────────────────────────────
 
 
@@ -380,25 +528,70 @@ def check_examples(
     return errors, notes
 
 
+def _report(errors: list[str], notes: list[str], ok: str) -> int:
+    for note in notes:
+        print(f"note: {note}")
+    for error in errors:
+        print(f"::error title=Smart Data Models conformance::{error}")
+    if errors:
+        print(f"{len(errors)} problem(s).")
+        return 1
+    print(ok)
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.split("\n", 1)[0])
     commands = parser.add_subparsers(dest="command", required=True)
+
+    def common(command: argparse.ArgumentParser) -> None:
+        command.add_argument("--pins", type=Path, default=Path("config/sdm/pins.json"))
+        command.add_argument("--context", type=Path, default=Path("config/ngsi-ld-context.json"))
+        command.add_argument("--allowed", type=Path, default=Path("config/entity-types/allowed.txt"))
+        command.add_argument("--pending", type=Path, default=Path("config/sdm/pending.txt"))
+        command.add_argument("--deviations", type=Path, default=Path("config/sdm/deviations.json"))
+        command.add_argument("--cache", type=Path, default=Path.home() / ".cache" / "sdm-conformance")
+
     examples = commands.add_parser("examples", help="validate the example entities of a directory")
     examples.add_argument("directory", type=Path)
-    examples.add_argument("--pins", type=Path, default=Path("config/sdm/pins.json"))
-    examples.add_argument("--context", type=Path, default=Path("config/ngsi-ld-context.json"))
-    examples.add_argument("--allowed", type=Path, default=Path("config/entity-types/allowed.txt"))
-    examples.add_argument("--pending", type=Path, default=Path("config/sdm/pending.txt"))
-    examples.add_argument("--cache", type=Path, default=Path.home() / ".cache" / "sdm-conformance")
+    common(examples)
+    deviations = commands.add_parser("deviations", help="check the recorded deviations from the official IRIs")
+    deviations.add_argument("--write", action="store_true", help="rewrite the deviations file from the context")
+    common(deviations)
+    ratchet = commands.add_parser("ratchet", help="the pending list and the deviations may only shrink")
+    ratchet.add_argument("--base", required=True, help="git ref to compare with")
+    common(ratchet)
     try:
         args = parser.parse_args(argv)
     except SystemExit as exc:
         return 2 if exc.code else 0
     try:
+        if args.command == "ratchet":
+            resolved = subprocess.run(
+                ["git", "rev-parse", "--verify", "--quiet", f"{args.base}^{{commit}}"], capture_output=True, text=True
+            )
+            if resolved.returncode != 0:
+                print(f"base ref {args.base} does not resolve", file=sys.stderr)
+                return 2
+            return _report(check_ratchet(args.base, args.pending, args.deviations, args.allowed), [],
+                           "OK: the pending list and the deviations did not grow.")
+
         from referencing.exceptions import Unresolvable
 
         pins = load_pins(args.pins)
-        validator = Validator(pins, fetch(pins, args.cache), json.loads(args.context.read_text(encoding="utf-8")))
+        files = fetch(pins, args.cache)
+        platform_context = json.loads(args.context.read_text(encoding="utf-8"))
+        if args.command == "deviations":
+            computed = compute_deviations(pins, files, platform_context, read_names(args.allowed))
+            if args.write:
+                args.deviations.write_text(json.dumps(computed, indent=2) + "\n", encoding="utf-8")
+                print(f"wrote {args.deviations}")
+                return 0
+            recorded = json.loads(args.deviations.read_text(encoding="utf-8"))
+            return _report(check_deviations(computed, recorded), [],
+                           f"OK: {len(deviation_keys(recorded))} recorded deviations, none missing.")
+
+        validator = Validator(pins, files, platform_context)
         examples_found = read_examples(args.directory)
         if not examples_found:
             raise FileNotFoundError(f"no example entities (*.json) in {args.directory}")
@@ -412,15 +605,7 @@ def main(argv: list[str] | None = None) -> int:
     except Exception as exc:  # a broken check must never pass as a clean one
         print(f"internal error: {type(exc).__name__}: {exc}", file=sys.stderr)
         return 3
-    for note in notes:
-        print(f"note: {note}")
-    for error in errors:
-        print(f"::error title=Smart Data Models conformance::{error}")
-    if errors:
-        print(f"{len(errors)} problem(s).")
-        return 1
-    print("OK: every example conforms or is on the pending list.")
-    return 0
+    return _report(errors, notes, "OK: every example conforms or is on the pending list.")
 
 
 if __name__ == "__main__":

@@ -462,3 +462,205 @@ def test_pending_list_names_only_official_types():
     pins = checker.load_pins(REPO_ROOT / "config" / "sdm" / "pins.json")
     pending = checker.read_names(REPO_ROOT / "config" / "sdm" / "pending.txt")
     assert sorted(set(pending) - set(pins["types"])) == [] and len(pending) == len(set(pending))
+
+
+# ── deviations from the official IRIs ────────────────────────────────────────
+
+import subprocess  # noqa: E402
+
+
+def deviation_setup(tmp_path, platform_terms):
+    pins, served = make_pins()
+    files = checker.fetch(pins, tmp_path / "cache", downloader(served))
+    context = {"@context": {"nkz": "https://nkz-os.org/ns/", **platform_terms}}
+    return pins, files, context
+
+
+def test_schema_properties_follow_all_of_and_pinned_refs(tmp_path):
+    shared = {"definitions": {"Common": {"properties": {"id": {}, "address": {}},
+                                          "allOf": [{"$ref": "#/definitions/More"}]},
+                              "More": {"properties": {"seeAlso": {}}, "allOf": [{"$ref": "#/definitions/Common"}]}}}
+    names = checker.schema_properties(SCHEMA, {SHARED_URL: shared})
+    assert names == {"status", "dateIssued", "level", "refOther", "tags", "address", "seeAlso"}
+
+
+@pytest.mark.parametrize("keyword", ["allOf", "anyOf", "oneOf"])
+def test_schema_properties_follow_every_combining_keyword(keyword):
+    schema = {keyword: [{"properties": {"one": {}}}, {"properties": {"two": {}, "type": {}}}]}
+    assert checker.schema_properties(schema, {}) == {"one", "two"}
+
+
+def test_schema_properties_refuse_a_reference_outside_the_pinned_set():
+    with pytest.raises(checker.PinError, match="outside the pinned set"):
+        checker.schema_properties(SCHEMA, {})
+
+
+def test_no_deviation_when_the_context_uses_the_official_iris(tmp_path):
+    pins, files, context = deviation_setup(tmp_path, {"DemoThing": OFFICIAL + "DemoThing", "status": OFFICIAL + "status"})
+    assert checker.compute_deviations(pins, files, context, ["DemoThing"]) == {"types": {}, "attributes": []}
+
+
+def test_type_and_attribute_mapped_elsewhere_are_deviations(tmp_path):
+    pins, files, context = deviation_setup(tmp_path, {"DemoThing": "nkz:DemoThing", "status": "nkz:status",
+                                                      "level": "nkz:level"})
+    assert checker.compute_deviations(pins, files, context, ["DemoThing"]) == {
+        "types": {"DemoThing": {"platform": "https://nkz-os.org/ns/DemoThing", "official": OFFICIAL + "DemoThing"}},
+        "attributes": [{"term": "status", "platform": "https://nkz-os.org/ns/status",
+                        "official": OFFICIAL + "status", "types": ["DemoThing"]}],
+    }
+
+
+def test_terms_the_context_does_not_declare_are_not_deviations(tmp_path):
+    pins, files, context = deviation_setup(tmp_path, {"DemoThing": OFFICIAL + "DemoThing"})
+    assert checker.compute_deviations(pins, files, context, ["DemoThing"])["attributes"] == []
+
+
+def test_a_core_term_means_the_core_iri_whatever_the_platform_says(tmp_path):
+    pins, served = make_pins()
+    core = {"@context": {"status": OFFICIAL + "status"}}
+    served[CORE_URL] = core
+    pins["core_context"]["sha256"] = digest(core)
+    files = checker.fetch(pins, tmp_path / "cache", downloader(served))
+    context = {"@context": {"DemoThing": OFFICIAL + "DemoThing", "status": "https://example.org/other/status"}}
+    assert checker.compute_deviations(pins, files, context, ["DemoThing"])["attributes"] == []
+
+
+def test_types_outside_the_allowed_list_are_not_inspected(tmp_path):
+    pins, files, context = deviation_setup(tmp_path, {"DemoThing": "nkz:DemoThing"})
+    assert checker.compute_deviations(pins, files, context, ["Other"]) == {"types": {}, "attributes": []}
+
+
+RECORDED = {
+    "types": {"DemoThing": {"platform": "p", "official": OFFICIAL + "DemoThing"}},
+    "attributes": [{"term": "status", "platform": "p", "official": OFFICIAL + "status", "types": ["DemoThing"]}],
+}
+
+
+def test_recorded_deviations_matching_the_computed_ones_are_clean():
+    assert checker.check_deviations(RECORDED, json.loads(json.dumps(RECORDED))) == []
+
+
+def test_a_deviation_that_is_not_recorded_is_an_error():
+    recorded = {"types": {}, "attributes": []}
+    errors = checker.check_deviations(RECORDED, recorded)
+    assert len(errors) == 2 and all("is not recorded" in error for error in errors)
+
+
+def test_a_recorded_deviation_that_no_longer_exists_must_be_removed():
+    errors = checker.check_deviations({"types": {}, "attributes": []}, RECORDED)
+    assert len(errors) == 2 and all("remove it" in error for error in errors)
+
+
+def test_same_deviations_written_differently_must_be_regenerated():
+    other = json.loads(json.dumps(RECORDED))
+    other["attributes"][0]["platform"] = "q"
+    assert checker.check_deviations(RECORDED, other) == [
+        "the deviations file does not match the computed one; regenerate it with `deviations --write`"
+    ]
+
+
+# ── ratchet ──────────────────────────────────────────────────────────────────
+
+
+def git(repo, *args):
+    subprocess.run(["git", "-C", str(repo), *args], check=True, capture_output=True,
+                   env={"GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@example.org", "GIT_COMMITTER_NAME": "t",
+                        "GIT_COMMITTER_EMAIL": "t@example.org", "PATH": __import__("os").environ["PATH"],
+                        "HOME": str(repo)})
+
+
+@pytest.fixture
+def repo(tmp_path, monkeypatch):
+    git(tmp_path, "init", "-q", "-b", "main")
+    (tmp_path / "pending.txt").write_text("# may only shrink\nAlert\nDevice\n")
+    (tmp_path / "deviations.json").write_text(json.dumps(RECORDED))
+    (tmp_path / "allowed.txt").write_text("Alert\nDevice\nDemoThing\n")
+    git(tmp_path, "add", ".")
+    git(tmp_path, "commit", "-q", "-m", "base")
+    monkeypatch.chdir(tmp_path)
+    return tmp_path
+
+
+def ratchet(repo):
+    return checker.check_ratchet("main", Path("pending.txt"), Path("deviations.json"))
+
+
+def test_ratchet_accepts_shrinking_lists(repo):
+    (repo / "pending.txt").write_text("# may only shrink\nAlert\n")
+    (repo / "deviations.json").write_text(json.dumps({"types": {}, "attributes": []}))
+    assert ratchet(repo) == []
+
+
+def test_ratchet_refuses_a_new_pending_name(repo):
+    (repo / "pending.txt").write_text("Alert\nDevice\nWeatherForecast\n")
+    assert ratchet(repo) == ["WeatherForecast: added to the pending list, which may only shrink"]
+
+
+def test_ratchet_refuses_a_new_deviation(repo):
+    grown = json.loads(json.dumps(RECORDED))
+    grown["attributes"][0]["types"].append("OtherThing")
+    grown["types"]["Extra"] = {"platform": "p", "official": OFFICIAL + "Extra"}
+    (repo / "deviations.json").write_text(json.dumps(grown))
+    errors = ratchet(repo)
+    assert len(errors) == 2 and all("may only shrink" in error for error in errors)
+
+
+def test_a_newly_allowed_type_may_bring_its_deviations_and_be_pending(repo):
+    (repo / "allowed.txt").write_text("Alert\nDevice\nDemoThing\nNewThing\n")
+    grown = json.loads(json.dumps(RECORDED))
+    grown["attributes"][0]["types"].append("NewThing")
+    grown["types"]["NewThing"] = {"platform": "p", "official": OFFICIAL + "NewThing"}
+    (repo / "deviations.json").write_text(json.dumps(grown))
+    (repo / "pending.txt").write_text("Alert\nDevice\nNewThing\n")
+    assert checker.check_ratchet("main", Path("pending.txt"), Path("deviations.json"), Path("allowed.txt")) == []
+    # the same growth for a type that was already allowed is refused
+    grown["attributes"][0]["types"].append("Alert")
+    (repo / "deviations.json").write_text(json.dumps(grown))
+    errors = checker.check_ratchet("main", Path("pending.txt"), Path("deviations.json"), Path("allowed.txt"))
+    assert errors == ["Alert: attribute status added to the recorded deviations, which may only shrink"]
+    # and without the allowed list nothing is forgiven
+    assert len(checker.check_ratchet("main", Path("pending.txt"), Path("deviations.json"))) == 4
+
+
+def test_ratchet_reads_the_base_list_whatever_its_line_endings(repo):
+    (repo / "pending.txt").write_bytes(b"# header\r\nAlert  \r\n\r\nDevice\r\n")
+    git(repo, "commit", "-q", "-am", "crlf")
+    (repo / "pending.txt").write_text("Alert\nDevice\n")
+    assert ratchet(repo) == []
+
+
+def test_ratchet_refuses_a_file_outside_the_repository(repo, tmp_path_factory):
+    outside = tmp_path_factory.mktemp("outside") / "pending.txt"
+    outside.write_text("Alert\nTank\n")
+    with pytest.raises(ValueError):
+        checker.check_ratchet("main", outside, Path("deviations.json"))
+
+
+def test_ratchet_has_nothing_to_compare_when_the_files_are_new(repo, tmp_path):
+    (repo / "fresh.txt").write_text("Alert\n")
+    (repo / "fresh.json").write_text(json.dumps(RECORDED))
+    assert checker.check_ratchet("main", Path("fresh.txt"), Path("fresh.json")) == []
+
+
+def test_cli_ratchet(repo, capsys):
+    argv = ["ratchet", "--base", "main", "--pending", "pending.txt", "--deviations", "deviations.json",
+            "--allowed", "allowed.txt"]
+    assert checker.main(argv) == 0
+    (repo / "pending.txt").write_text("Alert\nDevice\nTank\n")
+    assert checker.main(argv) == 1
+    assert "Tank: added to the pending list" in capsys.readouterr().out
+    argv[2] = "no-such-ref"
+    assert checker.main(argv) == 2
+
+
+def test_cli_deviations(tmp_path, capsys):
+    argv = cli_files(tmp_path, [thing()])
+    argv = ["deviations"] + argv[2:] + ["--deviations", str(tmp_path / "deviations.json")]
+    assert checker.main(argv + ["--write"]) == 0
+    assert (tmp_path / "deviations.json").read_text() == '{\n  "types": {},\n  "attributes": []\n}\n'
+    assert checker.main(argv) == 0
+    (tmp_path / "deviations.json").write_text(json.dumps(RECORDED))
+    assert checker.main(argv) == 1
+    assert "remove it" in capsys.readouterr().out
+    (tmp_path / "deviations.json").unlink()
+    assert checker.main(argv) == 3
