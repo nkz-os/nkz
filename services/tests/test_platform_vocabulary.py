@@ -59,6 +59,8 @@ OFFICIAL = {
     "storageFormat": "https://smartdatamodels.org/dataModel.SatelliteImagery/storageFormat",
     "contentInformation": "https://smartdatamodels.org/dataModel.SatelliteImagery/contentInformation",
     "analytics": "https://smartdatamodels.org/dataModel.SatelliteImagery/analytics",
+    "sensingDate": "https://smartdatamodels.org/dataModel.SatelliteImagery/sensingDate",
+    "productType": "https://smartdatamodels.org/dataModel.SatelliteImagery/productType",
     "hasAgriParcel": "https://smartdatamodels.org/dataModel.Agrifood/hasAgriParcel",
     "Device": "https://smartdatamodels.org/dataModel.Device/Device",
     "DeviceMeasurement": "https://smartdatamodels.org/dataModel.Device/DeviceMeasurement",
