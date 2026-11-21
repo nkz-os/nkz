@@ -8,6 +8,7 @@ from telemetry_worker.calibration import CalibrationService
 from telemetry_worker.config import Settings
 from telemetry_worker.dedup import NotificationDedup
 from telemetry_worker.event_sink import PostgreSQLSink
+from telemetry_worker.inbox import NotificationInbox
 from telemetry_worker.geometry_backfill import run_geometry_backfill
 from telemetry_worker.health_checker import HealthChecker
 from telemetry_worker.observation_lookup import ObservationLookup
@@ -77,6 +78,7 @@ async def lifespan(app: FastAPI):
         settings, profile_service, sink, health_checker, calibration_service, dedup,
         observation_lookup=observation_lookup,
         geometry_pool=sink._pool,
+        inbox=NotificationInbox(sink._pool),
     )
 
     # Audited recompute of stored observation context (contract 8.6); only with

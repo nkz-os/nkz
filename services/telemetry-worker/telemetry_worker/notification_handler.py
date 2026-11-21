@@ -91,6 +91,7 @@ _calibration_service: Optional[CalibrationService] = None
 _dedup: Optional[NotificationDedup] = None
 _observation_lookup: Optional[Any] = None  # ObservationLookup; None = feature off
 _geometry_pool: Optional[Any] = None  # asyncpg pool for observation_geometry_cache; None = off
+_inbox: Optional[Any] = None  # NotificationInbox (enqueue); None = not wired, receivers answer 503
 
 
 def init_handler(
@@ -102,9 +103,10 @@ def init_handler(
     dedup: Optional[NotificationDedup] = None,
     observation_lookup: Optional[Any] = None,
     geometry_pool: Optional[Any] = None,
+    inbox: Optional[Any] = None,
 ) -> None:
     """Wire dependencies from app lifespan."""
-    global _settings, _profile_service, _event_sink, _health_checker, _calibration_service, _dedup, _observation_lookup, _geometry_pool
+    global _settings, _profile_service, _event_sink, _health_checker, _calibration_service, _dedup, _observation_lookup, _geometry_pool, _inbox
     _settings = settings
     _profile_service = profile_service
     _event_sink = event_sink
@@ -113,6 +115,7 @@ def init_handler(
     _dedup = dedup
     _observation_lookup = observation_lookup
     _geometry_pool = geometry_pool
+    _inbox = inbox
     _skip_warnings.reset()
     _skip_info.reset()
 
@@ -798,18 +801,28 @@ def _extract_observed_at(entity: Dict[str, Any]) -> datetime:
     return datetime.now(timezone.utc)
 
 
+def _parse_notified_at(value: Any) -> Optional[datetime]:
+    """The body's top-level `notifiedAt` as an aware datetime, None when absent or unparseable."""
+    if not isinstance(value, str) or not value:
+        return None
+    try:
+        return _as_aware_utc(datetime.fromisoformat(value.replace("Z", "+00:00")))
+    except ValueError:
+        return None
+
+
 @router.post("/notify", status_code=204)
 async def receive_notification(
     request: Request,
-    background_tasks: BackgroundTasks,
     ngsild_tenant: Optional[str] = Header(None, alias="NGSILD-Tenant"),
     fiware_service: Optional[str] = Header(None, alias="Fiware-Service"),
 ):
     """
     Endpoint for Orion-LD notifications.
 
-    Accepts NGSI-LD subscription notifications and processes them
-    in the background for fast acknowledgment.
+    Stores every notified entity in the durable inbox before answering; the inbox
+    consumer processes them. An inbox failure answers 503 so Orion counts it as a
+    failed delivery. Never processes in memory.
 
     Supports both NGSI-LD (NGSILD-Tenant) and NGSIv2 (Fiware-Service) tenant headers.
 
@@ -824,28 +837,48 @@ async def receive_notification(
 
     try:
         body = await request.json()
-
-        # NGSI-LD uses NGSILD-Tenant header; NGSIv2 uses Fiware-Service
-        tenant_id = ngsild_tenant or fiware_service
-
-        logger.info(
-            f"Notification received for tenant={tenant_id}, "
-            f"entities={len(body.get('data', []))}"
-        )
-
-        # Fast response - process in background
-        background_tasks.add_task(process_notification_task, body, tenant_id)
-
-        return None
-
     except ValueError as e:
         # Malformed JSON body. Must surface as a 4xx: returning a dict here answered
         # 200 (FastAPI serialises the tuple), silently acknowledging a lost notification.
         logger.error(f"Malformed notification body: {e}")
         raise HTTPException(status_code=400, detail="malformed notification payload")
+    if not isinstance(body, dict):
+        logger.error("Malformed notification body: not a JSON object")
+        raise HTTPException(status_code=400, detail="malformed notification payload")
+
+    entities = body.get("data")
+    if entities is None:
+        entities = []
+    if not isinstance(entities, list):
+        logger.error("Malformed notification body: data is not a list")
+        raise HTTPException(status_code=400, detail="malformed notification payload")
+
+    # NGSI-LD uses NGSILD-Tenant header; NGSIv2 uses Fiware-Service
+    tenant_id = ngsild_tenant or fiware_service
+
+    logger.info(f"Notification received for tenant={tenant_id}, entities={len(entities)}")
+
+    if not entities:
+        return None
+    if not tenant_id:
+        # The inbox keys rows by tenant; without one nothing can be stored or processed.
+        logger.error(f"Notification without tenant header rejected: entities={len(entities)}")
+        raise HTTPException(status_code=400, detail="missing tenant header")
+    if _inbox is None:
+        logger.error(
+            f"Notification not stored, inbox not wired: tenant_id={tenant_id} entities={len(entities)}"
+        )
+        raise HTTPException(status_code=503, detail="notification inbox unavailable")
+
+    try:
+        await _inbox.enqueue(tenant_id, entities, _parse_notified_at(body.get("notifiedAt")))
     except Exception as e:
-        logger.error(f"Failed to accept notification: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail="notification processing error")
+        logger.error(
+            f"Notification not stored: tenant_id={tenant_id} entities={len(entities)}: {e}",
+            exc_info=True,
+        )
+        raise HTTPException(status_code=503, detail="notification inbox unavailable")
+    return None
 
 
 async def process_geometry_notification_task(data: Dict[str, Any], tenant_id: Optional[str]):
@@ -894,7 +927,6 @@ async def receive_geometry_notification(
 @router.post("/v2/notify", status_code=204)
 async def receive_notification_v2(
     request: Request,
-    background_tasks: BackgroundTasks,
     fiware_service: Optional[str] = Header(None, alias="Fiware-Service"),
 ):
     """
@@ -903,7 +935,6 @@ async def receive_notification_v2(
     """
     return await receive_notification(
         request,
-        background_tasks,
         ngsild_tenant=None,
         fiware_service=fiware_service,
     )
