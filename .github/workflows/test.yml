@@ -246,3 +246,19 @@ jobs:
           python3 -m pip install --quiet pytest jsonschema==4.26.0
           python3 -m pytest .github/scripts/tests/test_check_sdm_conformance.py -q
           python3 .github/scripts/check_sdm_conformance.py examples config/sdm-examples
+          python3 .github/scripts/check_sdm_conformance.py deviations
+
+      - name: Smart Data Models ratchet
+        run: |
+          set +e
+          BASE="${GITHUB_BASE_REF:-main}"
+          # The checkout has full history: if the fetch fails, use the ref that is already there.
+          git fetch origin "$BASE" --depth=1 2>/dev/null
+          if ! git rev-parse --verify --quiet "origin/$BASE^{commit}" >/dev/null; then
+            BASE="main"
+            if ! git rev-parse --verify --quiet "origin/$BASE^{commit}" >/dev/null; then
+              echo "::warning title=Smart Data Models ratchet not run::Base ref does not resolve."
+              exit 0
+            fi
+          fi
+          python3 .github/scripts/check_sdm_conformance.py ratchet --base "origin/$BASE"

@@ -1,0 +1,343 @@
+{
+  "types": {
+    "AgriParcel": {
+      "platform": "https://saref.etsi.org/saref4agri/AgriParcel",
+      "official": "https://smartdatamodels.org/dataModel.Agrifood/AgriParcel"
+    }
+  },
+  "attributes": [
+    {
+      "term": "application",
+      "platform": "https://smartdatamodels.org/dataModel.Agrifood/application",
+      "official": "https://smartdatamodels.org/dataModel.Battery/application",
+      "types": [
+        "StorageBatteryDevice"
+      ]
+    },
+    {
+      "term": "area",
+      "platform": "https://nkz-os.org/ns/area",
+      "official": "https://smartdatamodels.org/dataModel.Agrifood/area",
+      "types": [
+        "AgriParcel"
+      ]
+    },
+    {
+      "term": "atmosphericPressure",
+      "platform": "https://smartdatamodels.org/dataModel.Weather/atmosphericPressure",
+      "official": "https://smartdatamodels.org/dataModel.Agrifood/atmosphericPressure",
+      "types": [
+        "AgriParcelRecord"
+      ]
+    },
+    {
+      "term": "batteryLevel",
+      "platform": "https://saref.etsi.org/core/BatteryLevel",
+      "official": "https://smartdatamodels.org/dataModel.Device/batteryLevel",
+      "types": [
+        "Device"
+      ]
+    },
+    {
+      "term": "batteryLevel",
+      "platform": "https://saref.etsi.org/core/BatteryLevel",
+      "official": "https://smartdatamodels.org/dataModel.ManufacturingMachine/batteryLevel",
+      "types": [
+        "ManufacturingMachine"
+      ]
+    },
+    {
+      "term": "belongsTo",
+      "platform": "https://nkz-os.org/ns/belongsTo",
+      "official": "https://smartdatamodels.org/dataModel.Agrifood/belongsTo",
+      "types": [
+        "AgriGreenhouse",
+        "AgriParcel"
+      ]
+    },
+    {
+      "term": "category",
+      "platform": "https://smartdatamodels.org/dataModel.Agrifood/category",
+      "official": "https://smartdatamodels.org/dataModel.Alert/category",
+      "types": [
+        "Alert"
+      ]
+    },
+    {
+      "term": "category",
+      "platform": "https://smartdatamodels.org/dataModel.Agrifood/category",
+      "official": "https://smartdatamodels.org/dataModel.Building/category",
+      "types": [
+        "Building"
+      ]
+    },
+    {
+      "term": "category",
+      "platform": "https://smartdatamodels.org/dataModel.Agrifood/category",
+      "official": "https://smartdatamodels.org/dataModel.Device/category",
+      "types": [
+        "Device"
+      ]
+    },
+    {
+      "term": "category",
+      "platform": "https://smartdatamodels.org/dataModel.Agrifood/category",
+      "official": "https://smartdatamodels.org/dataModel.Weather/category",
+      "types": [
+        "WeatherAlert"
+      ]
+    },
+    {
+      "term": "co2",
+      "platform": "https://smartdatamodels.org/dataModel.Environment/co2",
+      "official": "https://smartdatamodels.org/dataModel.Agrifood/co2",
+      "types": [
+        "AgriGreenhouse"
+      ]
+    },
+    {
+      "term": "depth",
+      "platform": "https://smartdatamodels.org/dataModel.Agrifood/depth",
+      "official": "https://smartdatamodels.org/dataModel.Device/depth",
+      "types": [
+        "Device"
+      ]
+    },
+    {
+      "term": "hasDevice",
+      "platform": "https://smartdatamodels.org/dataModel.Device/hasDevice",
+      "official": "https://smartdatamodels.org/dataModel.Agrifood/hasDevice",
+      "types": [
+        "AgriGreenhouse",
+        "AgriParcel",
+        "AgriParcelRecord"
+      ]
+    },
+    {
+      "term": "illuminance",
+      "platform": "https://saref.etsi.org/core/Illuminance",
+      "official": "https://smartdatamodels.org/dataModel.Weather/illuminance",
+      "types": [
+        "WeatherForecast",
+        "WeatherObserved"
+      ]
+    },
+    {
+      "term": "leafWetness",
+      "platform": "https://nkz-os.org/ns/leafWetness",
+      "official": "https://smartdatamodels.org/dataModel.Agrifood/leafWetness",
+      "types": [
+        "AgriParcelRecord"
+      ]
+    },
+    {
+      "term": "locatedAt",
+      "platform": "https://nkz-os.org/ns/locatedAt",
+      "official": "https://smartdatamodels.org/dataModel.Agrifood/locatedAt",
+      "types": [
+        "Animal"
+      ]
+    },
+    {
+      "term": "name",
+      "platform": "https://schema.org/name",
+      "official": "https://smartdatamodels.org/name",
+      "types": [
+        "AgriCrop",
+        "AgriFarm",
+        "AgriGreenhouse",
+        "AgriParcel",
+        "AgriParcelOperation",
+        "AgriParcelRecord",
+        "AgriSoil",
+        "Alert",
+        "Animal",
+        "Building",
+        "Device",
+        "DeviceMeasurement",
+        "EOProduct",
+        "EOSatelliteImagery",
+        "ManufacturingMachine",
+        "StorageBatteryDevice",
+        "Tank",
+        "WaterQualityObserved",
+        "WeatherAlert",
+        "WeatherForecast",
+        "WeatherObserved"
+      ]
+    },
+    {
+      "term": "operationType",
+      "platform": "https://nkz-os.org/ns/operationType",
+      "official": "https://smartdatamodels.org/dataModel.Agrifood/operationType",
+      "types": [
+        "AgriParcelOperation"
+      ]
+    },
+    {
+      "term": "pressure",
+      "platform": "https://saref.etsi.org/core/Pressure",
+      "official": "https://smartdatamodels.org/dataModel.WaterDistributionManagementEPANET/pressure",
+      "types": [
+        "Tank"
+      ]
+    },
+    {
+      "term": "provider",
+      "platform": "https://smartdatamodels.org/dataModel.SatelliteImagery/provider",
+      "official": "https://smartdatamodels.org/dataModel.Device/provider",
+      "types": [
+        "Device"
+      ]
+    },
+    {
+      "term": "refDevice",
+      "platform": "https://smartdatamodels.org/dataModel.Device/hasDevice",
+      "official": "https://smartdatamodels.org/dataModel.Battery/refDevice",
+      "types": [
+        "StorageBatteryDevice"
+      ]
+    },
+    {
+      "term": "refDevice",
+      "platform": "https://smartdatamodels.org/dataModel.Device/hasDevice",
+      "official": "https://smartdatamodels.org/dataModel.Device/refDevice",
+      "types": [
+        "DeviceMeasurement"
+      ]
+    },
+    {
+      "term": "refDevice",
+      "platform": "https://smartdatamodels.org/dataModel.Device/hasDevice",
+      "official": "https://smartdatamodels.org/dataModel.Weather/refDevice",
+      "types": [
+        "WeatherObserved"
+      ]
+    },
+    {
+      "term": "relativeHumidity",
+      "platform": "https://saref.etsi.org/core/Humidity",
+      "official": "https://smartdatamodels.org/dataModel.Agrifood/relativeHumidity",
+      "types": [
+        "AgriGreenhouse",
+        "AgriParcelRecord"
+      ]
+    },
+    {
+      "term": "relativeHumidity",
+      "platform": "https://saref.etsi.org/core/Humidity",
+      "official": "https://smartdatamodels.org/dataModel.Weather/relativeHumidity",
+      "types": [
+        "WeatherForecast",
+        "WeatherObserved"
+      ]
+    },
+    {
+      "term": "serialNumber",
+      "platform": "https://smartdatamodels.org/dataModel.Device/serialNumber",
+      "official": "https://smartdatamodels.org/dataModel.Battery/serialNumber",
+      "types": [
+        "StorageBatteryDevice"
+      ]
+    },
+    {
+      "term": "serialNumber",
+      "platform": "https://smartdatamodels.org/dataModel.Device/serialNumber",
+      "official": "https://smartdatamodels.org/dataModel.ManufacturingMachine/serialNumber",
+      "types": [
+        "ManufacturingMachine"
+      ]
+    },
+    {
+      "term": "severity",
+      "platform": "https://nkz-os.org/ns/severity",
+      "official": "https://smartdatamodels.org/dataModel.Alert/severity",
+      "types": [
+        "Alert"
+      ]
+    },
+    {
+      "term": "severity",
+      "platform": "https://nkz-os.org/ns/severity",
+      "official": "https://smartdatamodels.org/dataModel.Weather/severity",
+      "types": [
+        "WeatherAlert"
+      ]
+    },
+    {
+      "term": "soilTemperature",
+      "platform": "https://smartdatamodels.org/dataModel.Weather/soilTemperature",
+      "official": "https://smartdatamodels.org/dataModel.Agrifood/soilTemperature",
+      "types": [
+        "AgriParcelRecord"
+      ]
+    },
+    {
+      "term": "solarRadiation",
+      "platform": "https://smartdatamodels.org/dataModel.Weather/solarRadiation",
+      "official": "https://smartdatamodels.org/dataModel.Agrifood/solarRadiation",
+      "types": [
+        "AgriParcelRecord"
+      ]
+    },
+    {
+      "term": "temperature",
+      "platform": "https://saref.etsi.org/core/Temperature",
+      "official": "https://smartdatamodels.org/dataModel.WaterQuality/temperature",
+      "types": [
+        "WaterQualityObserved"
+      ]
+    },
+    {
+      "term": "temperature",
+      "platform": "https://saref.etsi.org/core/Temperature",
+      "official": "https://smartdatamodels.org/dataModel.Weather/temperature",
+      "types": [
+        "WeatherForecast",
+        "WeatherObserved"
+      ]
+    },
+    {
+      "term": "unit",
+      "platform": "https://saref.etsi.org/core/Unit",
+      "official": "https://smartdatamodels.org/dataModel.Device/unit",
+      "types": [
+        "DeviceMeasurement"
+      ]
+    },
+    {
+      "term": "validTo",
+      "platform": "https://smartdatamodels.org/validTo",
+      "official": "https://smartdatamodels.org/dataModel.Alert/validTo",
+      "types": [
+        "Alert"
+      ]
+    },
+    {
+      "term": "validTo",
+      "platform": "https://smartdatamodels.org/validTo",
+      "official": "https://smartdatamodels.org/dataModel.Weather/validTo",
+      "types": [
+        "WeatherAlert",
+        "WeatherForecast"
+      ]
+    },
+    {
+      "term": "weight",
+      "platform": "https://smartdatamodels.org/dataModel.Agrifood/weight",
+      "official": "https://smartdatamodels.org/dataModel.Battery/weight",
+      "types": [
+        "StorageBatteryDevice"
+      ]
+    },
+    {
+      "term": "windSpeed",
+      "platform": "https://nkz-os.org/ns/windSpeed",
+      "official": "https://smartdatamodels.org/dataModel.Weather/windSpeed",
+      "types": [
+        "WeatherForecast",
+        "WeatherObserved"
+      ]
+    }
+  ]
+}
