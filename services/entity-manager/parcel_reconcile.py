@@ -287,6 +287,7 @@ def delete_row(tenant_id: str, parcel_id: str, module_id: str) -> None:
 DERIVED_TYPE_REGISTRY = [
     {"type": "VegetationIndex", "ref_keys": ["hasAgriParcel"]},
     {"type": "EOProduct", "ref_keys": ["hasAgriParcel"]},
+    {"type": "EOSatelliteImagery", "ref_keys": ["hasAgriParcel"]},
     {"type": "CropHealthAssessment", "ref_keys": ["hasAgriParcel"]},
     {"type": "CropHealthZoneAssessment", "ref_keys": ["hasAgriParcel"]},
     {"type": "DataProcessingJob", "ref_keys": ["hasAgriParcel", "refAgriParcel"]},

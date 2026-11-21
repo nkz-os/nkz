@@ -50,6 +50,9 @@
     "observationContext": "Medium a device measures (air, soil, plant, water) and where in it; SDM Device has no such property",
     "channelOverrides": "Per-channel feature or context that differs from the device default; SDM Device has no per-channel model",
     "mobility": "Whether a device stays in place (fixed) or moves (mobile); SDM Device has no such property",
-    "deploymentId": "Id of the device's current deployment, linking it to its versioned installation history; not modelled in SDM"
+    "deploymentId": "Id of the device's current deployment, linking it to its versioned installation history; not modelled in SDM",
+    "EOSatelliteImagery": "FIWARE Smart Data Model (dataModel.SatelliteImagery) — the analysis of one satellite acquisition over an area: the product it came from, the area processed, the output layer and the resulting values.",
+    "provider": "Official attribute of SDM EOSatelliteImagery (the provider of the algorithm), mapped to the SatelliteImagery subject IRI. Smart Data Models gives the same name another IRI in the Device subject; a single platform context can hold only one, and no platform entity uses the Device one.",
+    "analytics": "Official attribute of SDM EOSatelliteImagery (list of name/value pairs, value is a string). The model's schema defines it but the subject's published context does not list it yet, so the IRI here follows the Smart Data Models naming convention."
   }
 }
