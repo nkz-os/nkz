@@ -35,3 +35,12 @@ change may bring the deviations of the terms it shares with the other types.
 To add an official type: add it to `allowed.txt`, pin its schema in `pins.json`, and either add
 an example or list it in `pending.txt`. To move a pin, change the commit and the checksums in
 the same pull request and say why.
+
+## Modules
+
+A module repository that calls the shared workflow `_public-repo-hygiene.yml` gets the same
+validation for its own entities: put one example per file in `sdm-examples/` at the root of the
+module, each written by the builder that produces that entity (with a test that keeps the file
+equal to the builder's output). A type whose examples do not conform yet may be listed in
+`sdm-examples/pending.txt`. Findings are reported as warnings and do not fail the module's build
+until the caller sets `sdm_conformance_enforce: true`.

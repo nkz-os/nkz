@@ -23,6 +23,11 @@ file per entity, or a list of entities). An official type must have an example
 that validates, or be on the pending list; a pending type whose example
 validates must leave the list.
 
+`validate` subcommand: the same validation for a repository that only holds the
+examples of its own entities (a module). Every example must conform, or its type
+be listed in `pending.txt` next to the examples; nothing is required about types
+the repository has no example of.
+
 `deviations` subcommand: every official attribute or type that the platform
 context maps to another IRI than the official one must be recorded, one by one,
 in `config/sdm/deviations.json`; nothing else may be recorded there.
@@ -489,11 +494,18 @@ def read_examples(directory: Path) -> list[tuple[str, dict]]:
 
 
 def check_examples(
-    validator: Validator, examples: Iterable[tuple[str, dict]], allowed: Iterable[str], pending: Iterable[str]
+    validator: Validator,
+    examples: Iterable[tuple[str, dict]],
+    allowed: Iterable[str],
+    pending: Iterable[str],
+    complete: bool = True,
 ) -> tuple[list[str], list[str]]:
     """(errors, notes) for a set of example entities.
 
     Errors fail the check; notes report what the pending list still covers.
+    `complete` is for the repository that owns the allowed list: every official
+    type must then have an example or be pending. Without it only the examples
+    given are judged, and any type that has an example may be pending.
     """
     errors: list[str] = []
     notes: list[str] = []
@@ -501,10 +513,11 @@ def check_examples(
     pending = set(pending)
     official = validator.official_types()
 
-    for name in sorted(set(allowed) - official):
-        errors.append(f"{name}: allowed entity type without a pinned official schema")
-    for name in sorted(pending - official):
-        errors.append(f"{name}: on the pending list but not an official type with a pinned schema")
+    if complete:
+        for name in sorted(set(allowed) - official):
+            errors.append(f"{name}: allowed entity type without a pinned official schema")
+        for name in sorted(pending - official):
+            errors.append(f"{name}: on the pending list but not an official type with a pinned schema")
 
     by_type: dict[str, list[tuple[str, list[Finding]]]] = {}
     for file_name, entity in examples:
@@ -522,17 +535,21 @@ def check_examples(
         for file_name, findings in failing:
             errors.extend(f"{file_name}: {finding.line()}" for finding in findings)
 
-    for name in sorted(official & set(allowed)):
-        if name not in by_type and name not in pending:
-            errors.append(f"{name}: official type with no example and not on the pending list")
+    if complete:
+        for name in sorted(official & set(allowed)):
+            if name not in by_type and name not in pending:
+                errors.append(f"{name}: official type with no example and not on the pending list")
+    else:
+        for name in sorted(pending - set(by_type)):
+            errors.append(f"{name}: on the pending list but there is no example of it")
     return errors, notes
 
 
-def _report(errors: list[str], notes: list[str], ok: str) -> int:
+def _report(errors: list[str], notes: list[str], ok: str, level: str = "error") -> int:
     for note in notes:
         print(f"note: {note}")
     for error in errors:
-        print(f"::error title=Smart Data Models conformance::{error}")
+        print(f"::{level} title=Smart Data Models conformance::{error}")
     if errors:
         print(f"{len(errors)} problem(s).")
         return 1
@@ -555,6 +572,11 @@ def main(argv: list[str] | None = None) -> int:
     examples = commands.add_parser("examples", help="validate the example entities of a directory")
     examples.add_argument("directory", type=Path)
     common(examples)
+    validate = commands.add_parser("validate", help="validate a module's own example entities")
+    validate.add_argument("directory", type=Path)
+    validate.add_argument("--annotate", choices=("error", "warning"), default="error",
+                          help="how findings are annotated; the exit code is the same either way")
+    common(validate)
     deviations = commands.add_parser("deviations", help="check the recorded deviations from the official IRIs")
     deviations.add_argument("--write", action="store_true", help="rewrite the deviations file from the context")
     common(deviations)
@@ -595,17 +617,22 @@ def main(argv: list[str] | None = None) -> int:
         examples_found = read_examples(args.directory)
         if not examples_found:
             raise FileNotFoundError(f"no example entities (*.json) in {args.directory}")
+        complete = args.command == "examples"
+        if complete:
+            pending = read_names(args.pending)
+        else:
+            own_pending = args.directory / "pending.txt"
+            pending = read_names(own_pending) if own_pending.exists() else []
         try:
-            errors, notes = check_examples(
-                validator, examples_found, read_names(args.allowed), read_names(args.pending)
-            )
+            errors, notes = check_examples(validator, examples_found, read_names(args.allowed), pending, complete)
         except Unresolvable as exc:
             print(f"internal error: a schema refers to a file outside the pinned set: {exc}", file=sys.stderr)
             return 3
     except Exception as exc:  # a broken check must never pass as a clean one
         print(f"internal error: {type(exc).__name__}: {exc}", file=sys.stderr)
         return 3
-    return _report(errors, notes, "OK: every example conforms or is on the pending list.")
+    return _report(errors, notes, "OK: every example conforms or is on the pending list.",
+                   getattr(args, "annotate", "error"))
 
 
 if __name__ == "__main__":
