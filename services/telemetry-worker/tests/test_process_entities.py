@@ -166,10 +166,31 @@ def test_dead_lettered_record_is_final_and_the_rest_written():
     assert [d for d, _ in profiles.updates] == ["s1", "bad", "s2"]
 
 
-def test_entity_raising_non_infrastructure_error_is_skipped():
+def test_entity_raising_non_infrastructure_error_raises():
+    """A permanent error propagates (the inbox buries the row), it is not skipped and acked."""
+    sink, dedup = Sink(), _dedup()
+    profiles = _wire(sink, dedup, RecordingProfileService(raise_for={"boom": ValueError("bad profile")}))
+    with pytest.raises(ValueError, match="bad profile"):
+        _run([_sensor("boom")])
+    assert sink.inserted == [] and sink.dlq == []
+    assert _dedup_keys(dedup) == [] and profiles.updates == []
+
+
+def test_filtered_entity_returns_normally():
+    """Filtered out (here: duplicate) is a normal outcome: no exception, nothing written."""
+    sink = Sink()
+    _wire(sink, _dedup())
+    _run([_sensor("s1")])
+    _run([_sensor("s1")])  # no exception
+    assert len(sink.inserted) == 1
+
+
+def test_wrapper_skips_failing_entity_and_writes_the_rest():
+    """Skip-and-continue lives in the legacy wrapper: one entity per process_entities call."""
     sink = Sink()
     _wire(sink, profiles=RecordingProfileService(raise_for={"boom": ValueError("bad profile")}))
-    _run([_sensor("s1"), _sensor("boom"), _sensor("s2")])
+    asyncio.run(nh.process_notification_task(
+        {"data": [_sensor("s1"), _sensor("boom"), _sensor("s2")]}, TENANT))
     assert [e.device_id for e in sink.inserted] == ["s1", "s2"]
 
 

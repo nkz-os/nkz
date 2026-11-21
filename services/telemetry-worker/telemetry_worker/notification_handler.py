@@ -144,17 +144,28 @@ async def process_notification_task(
 ):
     """Process one Orion-LD notification body; never raises (kept for existing callers).
 
-    Failures, transient ones included, are logged and the notification is dropped;
-    the inbox consumer calls process_entities instead and retries transient ones.
+    One entity per process_entities call: an entity that fails, transiently or not, is
+    logged and dropped and the others are still processed. The inbox consumer calls
+    process_entities instead, retries transient failures and buries the others.
     """
     try:
         entities = data.get("data", [])
         if not entities:
             logger.debug("Empty notification received")
             return
-        await process_entities(entities, tenant_id)
     except Exception as e:
         logger.error(f"Error processing notification: {e}", exc_info=True)
+        return
+    for entity in entities:
+        try:
+            await process_entities([entity], tenant_id)
+        except Exception as e:
+            entity_id = entity.get("id") if isinstance(entity, dict) else None
+            logger.error(
+                f"Entity dropped, processing failed: tenant_id={tenant_id} "
+                f"entity_id={entity_id}: {e}",
+                exc_info=True,
+            )
 
 
 async def process_entities(
@@ -174,8 +185,11 @@ async def process_entities(
 
     Raises TransientProcessingError when the handler is not ready (not initialised, no
     event sink) and on a database connection failure (is_connection_error), from the sink
-    or while preparing an entity; nothing has been recorded then, so a retry is safe. Any other error from one entity is logged and that entity skipped. Poison
-    records are dead-lettered inside the EventSink (final, recorded like an insert).
+    or while preparing an entity; nothing has been recorded then, so a retry is safe.
+    Any other error preparing an entity propagates as-is (nothing written or recorded):
+    the inbox buries the row instead of acknowledging it. An entity filtered out
+    (throttle, delta, duplicate) is a normal return. Poison records are dead-lettered
+    inside the EventSink (final, recorded like an insert).
 
     NOTE: Does NOT write back to Orion (data comes from Orion subscription)
     """
@@ -202,13 +216,7 @@ async def process_entities(
                 raise TransientProcessingError(
                     f"connection failure preparing entity for tenant={tenant_id}: {e}"
                 ) from e
-            entity_id = entity.get("id") if isinstance(entity, dict) else None
-            logger.error(
-                f"Entity skipped, processing failed: tenant_id={tenant_id} "
-                f"entity_id={entity_id}: {e}",
-                exc_info=True,
-            )
-            continue
+            raise  # permanent: the caller buries (inbox) or logs and drops (wrapper)
         if item is None:
             continue
         # The dedup check is read-only now: an identical entity twice in one call would

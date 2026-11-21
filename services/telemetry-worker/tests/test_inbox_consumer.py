@@ -167,6 +167,39 @@ def test_store_failure_aborts_the_pass():
     assert proc.rows() == [1]
 
 
+def _real_handler(monkeypatch, prepare):
+    """The real process_entities, wired enough to pass its readiness guard."""
+    from telemetry_worker import notification_handler as nh
+
+    monkeypatch.setattr(nh, "_settings", object())
+    monkeypatch.setattr(nh, "_profile_service", object())
+    monkeypatch.setattr(nh, "_event_sink", object())
+    monkeypatch.setattr(nh, "_prepare_entity", prepare)
+    return nh.process_entities
+
+
+def test_real_handler_permanent_prepare_error_is_buried(monkeypatch):
+    async def prepare(entity, tenant_id):
+        raise ValueError("bad reading")
+
+    inbox = FakeInbox([[row(1, "E")], [row(2, "E", minute=1)]])
+    acked = asyncio.run(InboxConsumer(inbox, lock_pool=None,
+                                      process=_real_handler(monkeypatch, prepare)).run_once())
+    assert acked == 0
+    assert inbox.calls == [("bury", 1, repr(ValueError("bad reading")))]
+
+
+def test_real_handler_filtered_entity_is_acked(monkeypatch):
+    async def prepare(entity, tenant_id):
+        return None  # throttled / delta-filtered / duplicate
+
+    inbox = FakeInbox([[row(1, "E")]])
+    acked = asyncio.run(InboxConsumer(inbox, lock_pool=None,
+                                      process=_real_handler(monkeypatch, prepare)).run_once())
+    assert acked == 1
+    assert inbox.calls == [("ack", [1])]
+
+
 # --- run (lock + loop), with a fake lock pool ------------------------------------
 
 
