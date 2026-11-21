@@ -82,6 +82,11 @@ from nkz_platform_sdk.crop_cycles import (
     CropCycleTimeline,
     resolve_crop_cycles,
 )
+from nkz_platform_sdk.device_measurement import (
+    MEASUREMENT_TYPES,
+    DeviceMeasurementReading,
+    read_device_measurement,
+)
 from nkz_platform_sdk.eo import (
     EO_FAMILIES,
     EO_VALUE_NAMES,
@@ -93,6 +98,9 @@ from nkz_platform_sdk.eo import (
 )
 
 __all__ = [
+    "MEASUREMENT_TYPES",
+    "DeviceMeasurementReading",
+    "read_device_measurement",
     "ObservationsClient",
     "SyncObservationsClient",
     "ObservationsError",
