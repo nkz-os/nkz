@@ -464,6 +464,55 @@ def test_pending_list_names_only_official_types():
     assert sorted(set(pending) - set(pins["types"])) == [] and len(pending) == len(set(pending))
 
 
+# ── a module's own examples ───────────────────────────────────────────────────
+
+
+def test_module_mode_judges_only_the_examples_given(validator):
+    examples = [("a.json", thing())]
+    assert checker.check_examples(validator, examples, ["DemoThing", "Unpinned"], [], complete=False) == ([], [])
+    assert checker.check_examples(validator, [], ["DemoThing"], [], complete=False) == ([], [])
+
+
+def test_module_mode_reports_findings_and_honours_its_own_pending_list(validator):
+    bad = [("a.json", thing(status=prop("fine")))]
+    errors, _ = checker.check_examples(validator, bad, [], [], complete=False)
+    assert len(errors) == 1 and errors[0].startswith("a.json: DemoThing")
+    errors, notes = checker.check_examples(validator, bad, [], ["DemoThing"], complete=False)
+    assert errors == [] and notes == ["DemoThing: pending, 1 findings in 1 example(s)"]
+
+
+def test_module_mode_lets_an_own_type_be_pending_and_refuses_idle_entries(validator):
+    own = [("o.json", {"id": "urn:ngsi-ld:OwnThing:a", "type": "OwnThing", "colour": prop("red")})]
+    assert checker.check_examples(validator, own, [], ["OwnThing"], complete=False)[0] == []
+    errors, _ = checker.check_examples(validator, own, [], ["OwnThing", "Ghost"], complete=False)
+    assert errors == ["Ghost: on the pending list but there is no example of it"]
+    errors, _ = checker.check_examples(validator, [("a.json", thing())], [], ["DemoThing"], complete=False)
+    assert errors == ["DemoThing: every example validates; remove it from the pending list"]
+
+
+def test_cli_validate(tmp_path, capsys):
+    argv = cli_files(tmp_path, [thing(status=prop("fine"))])
+    argv[0] = "validate"
+    (tmp_path / "allowed.txt").write_text("DemoThing\nUnpinned\n")
+    assert checker.main(argv) == 1
+    (tmp_path / "examples" / "pending.txt").write_text("DemoThing\n")
+    assert checker.main(argv) == 0
+    assert "note: DemoThing: pending" in capsys.readouterr().out
+    for path in (tmp_path / "examples").glob("*.json"):
+        path.unlink()
+    assert checker.main(argv) == 3
+
+
+def test_cli_validate_can_annotate_findings_as_warnings(tmp_path, capsys):
+    argv = cli_files(tmp_path, [thing(status=prop("fine"))])
+    argv[0] = "validate"
+    assert checker.main(argv) == 1
+    assert "::error title=Smart Data Models conformance::" in capsys.readouterr().out
+    assert checker.main(argv + ["--annotate", "warning"]) == 1
+    out = capsys.readouterr().out
+    assert "::warning title=Smart Data Models conformance::" in out and "::error" not in out
+
+
 # ── deviations from the official IRIs ────────────────────────────────────────
 
 import subprocess  # noqa: E402

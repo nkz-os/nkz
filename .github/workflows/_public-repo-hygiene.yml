@@ -3,8 +3,10 @@
 # Every repo in this organisation is public and installable, so none of them may
 # name a deployment. The check and its list of permitted hosts live here, in one
 # place: a module repo calls this workflow and inherits every later improvement
-# without a change of its own. It carries two checks: operational detail in the
-# diff (`hygiene`) and NGSI-LD entity types outside the closed list (`entity-types`).
+# without a change of its own. It carries three checks: operational detail in the
+# diff (`hygiene`), NGSI-LD entity types outside the closed list (`entity-types`)
+# and the caller's example entities against the official Smart Data Models
+# (`sdm-conformance`, for repositories that keep examples in `sdm-examples/`).
 #
 # Caller:
 #   jobs:
@@ -21,6 +23,14 @@ on:
         description: Commit-message marker that acknowledges a deliberate addition.
         type: string
         default: "[prod-refs-ack]"
+      sdm_conformance_enforce:
+        description: Fail the caller when its example entities do not conform (default, report only).
+        type: boolean
+        default: false
+      sdm_conformance_ref:
+        description: Git ref of nkz-os/nkz to take the conformance checker and its lists from.
+        type: string
+        default: main
     secrets:
       HYGIENE_PRIVATE_TERMS:
         description: Comma-separated private terms (organisation secret).
@@ -166,4 +176,63 @@ jobs:
             exit $STATUS
           fi
           echo "::warning title=Entity types not checked::The checker could not run."
+          exit 0
+
+  sdm-conformance:
+    name: Smart Data Models Conformance
+    timeout-minutes: 10
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the calling repository
+        uses: actions/checkout@v7
+
+      # The checker, the pinned official schemas, the type list and the platform
+      # context live in nkz; the caller's checkout has none of them.
+      - name: Check out the checker and its lists
+        uses: actions/checkout@v7
+        with:
+          repository: nkz-os/nkz
+          ref: ${{ inputs.sdm_conformance_ref }}
+          sparse-checkout: |
+            .github
+            config
+          path: .hygiene-tooling
+
+      - name: Validate the example entities
+        env:
+          ENFORCE: ${{ inputs.sdm_conformance_enforce }}
+        run: |
+          set +e
+          # One example per file, written by the builder that produces the entity.
+          if [ ! -d sdm-examples ]; then
+            echo "::notice title=Smart Data Models conformance not checked::This repository has no sdm-examples directory."
+            exit 0
+          fi
+          TOOLING=.hygiene-tooling
+          if ! python3 -m pip install --quiet jsonschema==4.26.0; then
+            echo "::warning title=Smart Data Models conformance not checked::Could not install the checker's dependency."
+            exit 0
+          fi
+          ANNOTATE=warning
+          if [ "$ENFORCE" = "true" ]; then
+            ANNOTATE=error
+          fi
+          python3 "$TOOLING/.github/scripts/check_sdm_conformance.py" validate sdm-examples \
+            --annotate "$ANNOTATE" \
+            --pins "$TOOLING/config/sdm/pins.json" \
+            --context "$TOOLING/config/ngsi-ld-context.json" \
+            --allowed "$TOOLING/config/entity-types/allowed.txt"
+          STATUS=$?
+          if [ $STATUS -eq 0 ]; then
+            exit 0
+          fi
+          # 1 = the examples do not conform; anything else is the checker failing, not the caller.
+          if [ $STATUS -eq 1 ]; then
+            if [ "$ENFORCE" = "true" ]; then
+              exit 1
+            fi
+            echo "::warning title=Smart Data Models conformance::Example entities do not conform to the official models. Reported only; this does not fail the build yet."
+            exit 0
+          fi
+          echo "::warning title=Smart Data Models conformance not checked::The checker could not run."
           exit 0
