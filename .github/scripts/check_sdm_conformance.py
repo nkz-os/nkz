@@ -37,7 +37,7 @@ import sys
 import time
 import urllib.request
 from dataclasses import dataclass
-from datetime import date, datetime
+from datetime import date
 from pathlib import Path
 from typing import Any, Callable, Iterable
 
@@ -55,8 +55,10 @@ ATTRIBUTE_MEMBER = {
 }
 ATTRIBUTE_TYPES = frozenset(ATTRIBUTE_MEMBER)
 # RFC 3339, as the official schemas mean by `date-time` and `date`.
-_DATE_TIME = re.compile(r"^\d{4}-\d{2}-\d{2}[Tt]\d{2}:\d{2}:(\d{2})(\.\d+)?([Zz]|[+-]\d{2}:\d{2})$")
-_DATE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+_DATE_TIME = re.compile(
+    r"^(\d{4})-(\d{2})-(\d{2})[Tt](\d{2}):(\d{2}):(\d{2})(?:\.\d+)?(?:[Zz]|[+-](\d{2}):(\d{2}))$"
+)
+_DATE = re.compile(r"^(\d{4})-(\d{2})-(\d{2})$")
 
 
 class PinError(RuntimeError):
@@ -220,17 +222,23 @@ def _format_checker():
         match = _DATE_TIME.match(value)
         if not match:
             raise ValueError("not an RFC 3339 date-time")
-        # A leap second is valid RFC 3339; the calendar check is done on second 59.
-        text = value if match.group(1) != "60" else value[:17] + "59" + value[19:]
-        datetime.fromisoformat(text.upper().replace("Z", "+00:00"))
+        year, month, day, hour, minute, second = (int(part) for part in match.groups()[:6])
+        date(year, month, day)  # a real calendar day
+        # Ranges are checked here, not left to the standard library: what it accepts
+        # (hour 24, for one) changes between Python versions. Second 60 is a leap second.
+        if hour > 23 or minute > 59 or second > 60:
+            raise ValueError("time out of range")
+        if match.group(7) is not None and (int(match.group(7)) > 23 or int(match.group(8)) > 59):
+            raise ValueError("offset out of range")
         return True
 
     @checker.checks("date", raises=ValueError)
     def _date(value: Any) -> bool:
         if isinstance(value, str):
-            if not _DATE.match(value):
+            match = _DATE.match(value)
+            if not match:
                 raise ValueError("not an RFC 3339 full-date")
-            date.fromisoformat(value)
+            date(*(int(part) for part in match.groups()))
         return True
 
     return checker

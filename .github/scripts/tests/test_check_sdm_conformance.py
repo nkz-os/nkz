@@ -170,7 +170,8 @@ def test_value_outside_the_enumeration(validator):
 @pytest.mark.parametrize("bad", [
     "2026-05-01", "yesterday", "2026-13-01T00:00:00Z", "2026-10-07T00:00:00", "2026-10-07T00:00:00+0100",
     "2026-10-07T00:00Z", "20261007T000000Z", "2026-10-07 00:00:00Z", "2026-10-07T00:00:00 +01:00",
-    "2026-10-07T24:00:00Z", "2026-02-30T10:00:00Z",
+    "2026-10-07T24:00:00Z", "2026-02-30T10:00:00Z", "2026-10-07T23:60:00Z", "2026-10-07T23:59:61Z",
+    "2026-10-07T10:00:00+24:00", "2026-10-07T10:00:00+01:60", "2026-00-10T10:00:00Z",
 ])
 def test_date_time_format_is_enforced(validator, bad):
     findings = validator.check_entity(thing(dateIssued=prop(bad)))
