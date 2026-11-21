@@ -13,6 +13,7 @@ Building
 Device
 DeviceMeasurement
 EOProduct
+EOSatelliteImagery
 ManufacturingMachine
 StorageBatteryDevice
 Tank

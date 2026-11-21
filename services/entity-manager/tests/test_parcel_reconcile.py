@@ -170,6 +170,16 @@ def test_registry_includes_zone_assessment():
     assert "hasAgriParcel" in spec["ref_keys"]
 
 
+def test_registry_includes_satellite_imagery():
+    # Satellite analyses of a deleted parcel are swept with it; zone-level ones carry
+    # hasAgriParcel too, so one entry covers both.
+    spec = next(s for s in pr.DERIVED_TYPE_REGISTRY if s["type"] == "EOSatelliteImagery")
+    assert spec["ref_keys"] == ["hasAgriParcel"]
+    entity = {"id": "urn:ngsi-ld:EOSatelliteImagery:tenant-a:zone:z1:s2-indices:2026-01-01",
+              "hasAgriParcel": {"object": "urn:ngsi-ld:AgriParcel:aaa"}}
+    assert pr.resolve_parcel_ref(entity, spec) == "urn:ngsi-ld:AgriParcel:aaa"
+
+
 def test_resolve_parcel_ref_risk_requires_target_type():
     spec = {"type": "RiskAssessment", "ref_keys": ["targetEntityId"],
             "require_target_type": "AgriParcel"}

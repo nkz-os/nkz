@@ -322,6 +322,10 @@
         "@id": "https://smartdatamodels.org/dataModel.SatelliteImagery/EOProduct",
         "@type": "@id"
       },
+      "EOSatelliteImagery": {
+        "@id": "https://smartdatamodels.org/dataModel.SatelliteImagery/EOSatelliteImagery",
+        "@type": "@id"
+      },
       "LivestockAnimal": {
         "@id": "nkz:LivestockAnimal",
         "@type": "@id"
@@ -890,7 +894,22 @@
       "twiMean": "https://nkz-os.org/ns/twiMean",
       "areaHa": "https://nkz-os.org/ns/areaHa",
       "centroid": "https://nkz-os.org/ns/centroid",
-      "sensorNearby": "https://nkz-os.org/ns/sensorNearby"
+      "sensorNearby": "https://nkz-os.org/ns/sensorNearby",
+      "analysisType": "https://smartdatamodels.org/dataModel.SatelliteImagery/analysisType",
+      "provider": "https://smartdatamodels.org/dataModel.SatelliteImagery/provider",
+      "productID": "https://smartdatamodels.org/dataModel.SatelliteImagery/productID",
+      "productURL": "https://smartdatamodels.org/dataModel.SatelliteImagery/productURL",
+      "productFormat": "https://smartdatamodels.org/dataModel.SatelliteImagery/productFormat",
+      "platformName": "https://smartdatamodels.org/dataModel.SatelliteImagery/platformName",
+      "orbitNumber": "https://smartdatamodels.org/dataModel.SatelliteImagery/orbitNumber",
+      "operationalMode": "https://smartdatamodels.org/dataModel.SatelliteImagery/operationalMode",
+      "productBbox": "https://smartdatamodels.org/dataModel.SatelliteImagery/productBbox",
+      "processedBbox": "https://smartdatamodels.org/dataModel.SatelliteImagery/processedBbox",
+      "resultDescription": "https://smartdatamodels.org/dataModel.SatelliteImagery/resultDescription",
+      "localServerPath": "https://smartdatamodels.org/dataModel.SatelliteImagery/localServerPath",
+      "storageFormat": "https://smartdatamodels.org/dataModel.SatelliteImagery/storageFormat",
+      "contentInformation": "https://smartdatamodels.org/dataModel.SatelliteImagery/contentInformation",
+      "analytics": "https://smartdatamodels.org/dataModel.SatelliteImagery/analytics"
     }
   ]
 }
