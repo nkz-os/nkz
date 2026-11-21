@@ -35,6 +35,13 @@ _COLUMNS = (
 )
 
 
+def _is_data_error(exc: BaseException) -> bool:
+    """Data-caused failure (bad value), as opposed to connection/infrastructure."""
+    if isinstance(exc, asyncpg.DataError):
+        return True
+    return isinstance(exc, asyncpg.PostgresError) and str(exc.sqlstate or "").startswith("22")
+
+
 @dataclass(frozen=True)
 class InboxRow:
     id: int
@@ -133,18 +140,49 @@ class NotificationInbox:
         if not ids:
             return 0
         async with self._pool.acquire() as conn:
-            async with conn.transaction():
-                status = await conn.execute(
-                    """
-                    INSERT INTO notification_inbox
-                        (queue, tenant_id, entity_id, entity_type, notified_at,
-                         received_at, observed_at, payload)
-                    SELECT $1, $2, u.entity_id, u.entity_type, $3, $4, u.observed_at, u.payload::jsonb
-                    FROM unnest($5::text[], $6::text[], $7::timestamptz[], $8::text[])
-                        AS u(entity_id, entity_type, observed_at, payload)
-                    """,
-                    self._queue, tenant_id, notified_at, received_at, ids, types, observed, payloads,
+            try:
+                async with conn.transaction():
+                    return await self._insert(
+                        conn, tenant_id, notified_at, received_at, ids, types, observed, payloads)
+            except Exception as exc:
+                if not _is_data_error(exc):
+                    raise
+                logger.warning(
+                    "inbox_enqueue_batch_data_error_isolating",
+                    extra={"tenant_id": tenant_id, "queue": self._queue, "error": repr(exc)},
                 )
+            # Safety net: a value Postgres cannot store (e.g. a lone surrogate) must
+            # not fail the other entities. Retry one by one, a savepoint each.
+            stored = 0
+            async with conn.transaction():
+                for i, eid in enumerate(ids):
+                    try:
+                        async with conn.transaction():
+                            stored += await self._insert(
+                                conn, tenant_id, notified_at, received_at,
+                                ids[i:i + 1], types[i:i + 1], observed[i:i + 1], payloads[i:i + 1])
+                    except Exception as exc:
+                        if not _is_data_error(exc):
+                            raise
+                        logger.warning(
+                            "inbox_enqueue_dropped_unstorable",
+                            extra={"tenant_id": tenant_id, "queue": self._queue,
+                                   "entity_id": eid, "error": repr(exc)},
+                        )
+            return stored
+
+    async def _insert(self, conn, tenant_id, notified_at, received_at, ids, types, observed, payloads) -> int:
+        status = await conn.execute(
+            """
+            INSERT INTO notification_inbox
+                (queue, tenant_id, entity_id, entity_type, notified_at,
+                 received_at, observed_at, payload)
+            SELECT $1, $2, u.entity_id, u.entity_type, $3, $4, u.observed_at, u.payload::jsonb
+            FROM unnest($5::text[], $6::text[], $7::timestamptz[], $8::text[])
+                AS u(entity_id, entity_type, observed_at, payload)
+            """,
+            self._queue, tenant_id, notified_at, received_at, ids, types, observed, payloads,
+        )
         return int(status.split()[-1])
 
     async def claim_round(self, limit: int) -> List[List[InboxRow]]:

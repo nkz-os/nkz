@@ -166,6 +166,18 @@ def test_enqueue_drops_unstorable_keeps_rest(dbname):
 
 
 @db
+def test_enqueue_isolates_lone_surrogate(dbname):
+    async def s(inbox, pool):
+        sur = {"id": "s", "type": "T", "v": {"type": "Property", "value": "\ud800"}}
+        n = await inbox.enqueue("acme", [dm("ok1", T1), sur, dm("ok2", T2)], None)
+        ids = [r["entity_id"] for r in await pool.fetch(
+            "SELECT entity_id FROM notification_inbox ORDER BY id")]
+        return n, ids
+
+    assert run(dbname, s) == (2, ["ok1", "ok2"])
+
+
+@db
 def test_enqueue_empty_and_all_bad_insert_nothing(dbname):
     async def s(inbox, pool):
         return await inbox.enqueue("acme", [], None), await inbox.enqueue("acme", [{}], None)
