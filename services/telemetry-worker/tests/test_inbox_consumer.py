@@ -59,13 +59,15 @@ class Recorder:
 
     def __init__(self, raises=None, delay=0.0):
         self.calls = []
+        self.fallbacks = []
         self.raises = raises or {}
         self.delay = delay
         self.in_flight = 0
         self.max_in_flight = 0
 
-    async def __call__(self, entities, tenant_id):
+    async def __call__(self, entities, tenant_id, fallback_observed_at=None):
         self.calls.append((entities, tenant_id))
+        self.fallbacks.append(fallback_observed_at)
         self.in_flight += 1
         self.max_in_flight = max(self.max_in_flight, self.in_flight)
         try:
@@ -125,6 +127,15 @@ def test_one_entity_per_process_call_with_its_tenant():
         (1, 1, "acme"), (2, 1, "tenant-a")]
 
 
+def test_row_observed_at_is_the_fallback_instant():
+    """An entity without its own timestamp is stored at the row's observed_at (notifiedAt,
+    else receive time), not at processing time."""
+    inbox = FakeInbox([[row(1, "E", minute=7)]])
+    proc = Recorder()
+    asyncio.run(consumer(inbox, proc).run_once())
+    assert proc.fallbacks == [T0 + timedelta(minutes=7)]
+
+
 def test_same_entity_id_in_two_tenants_does_not_block_each_other():
     inbox = FakeInbox([[row(1, "E", tenant="acme"), row(2, "E", tenant="tenant-a")],
                        [row(3, "E", tenant="acme", minute=1), row(4, "E", tenant="tenant-a", minute=1)]])
@@ -144,6 +155,13 @@ def test_distinct_entities_run_concurrently_bounded():
     acked = asyncio.run(consumer(FakeInbox([batch]), proc, concurrency=3).run_once())
     assert acked == 10
     assert proc.max_in_flight == 3
+
+
+def test_default_concurrency_leaves_pool_headroom_for_notify():
+    """The sink pool (max 20) is shared with /notify: the consumer takes at most 8."""
+    import inspect
+
+    assert inspect.signature(InboxConsumer).parameters["concurrency"].default == 8
 
 
 def test_cancellation_neither_retries_nor_buries():
@@ -182,7 +200,7 @@ def _real_handler(monkeypatch, prepare):
 
 
 def test_real_handler_permanent_prepare_error_is_buried(monkeypatch):
-    async def prepare(entity, tenant_id):
+    async def prepare(entity, tenant_id, fallback_observed_at=None):
         raise ValueError("bad reading")
 
     inbox = FakeInbox([[row(1, "E")], [row(2, "E", minute=1)]])
@@ -193,7 +211,7 @@ def test_real_handler_permanent_prepare_error_is_buried(monkeypatch):
 
 
 def test_real_handler_filtered_entity_is_acked(monkeypatch):
-    async def prepare(entity, tenant_id):
+    async def prepare(entity, tenant_id, fallback_observed_at=None):
         return None  # throttled / delta-filtered / duplicate
 
     inbox = FakeInbox([[row(1, "E")]])

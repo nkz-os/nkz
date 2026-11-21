@@ -33,7 +33,7 @@ import logging
 import math
 import time
 from dataclasses import dataclass
-from typing import Any, Awaitable, Callable, Dict, List, Optional, Set, Tuple
+from typing import Any, Awaitable, Callable, Dict, List, Set, Tuple
 
 from prometheus_client import Counter, Gauge
 
@@ -65,7 +65,8 @@ INBOX_OLDEST_AGE = Gauge(
 INBOX_STATS_FAILED = Counter(
     "inbox_stats_failed_total", "Failed inbox stats refreshes (gauges are NaN meanwhile).", ["queue"])
 
-ProcessFn = Callable[[List[Dict[str, Any]], Optional[str]], Awaitable[None]]
+# process(entities, tenant_id, fallback_observed_at=...): see process_entities.
+ProcessFn = Callable[..., Awaitable[None]]
 
 
 @dataclass(frozen=True)
@@ -90,7 +91,7 @@ class InboxConsumer:
         lock_pool: Any,  # asyncpg.Pool; one connection is held for the lock tenure
         process: ProcessFn = process_entities,
         claim_limit: int = 500,
-        concurrency: int = 16,
+        concurrency: int = 8,  # the sink pool (max 20) also serves /notify
         idle_s: float = 0.5,
     ):
         self._inbox = inbox
@@ -171,7 +172,10 @@ class InboxConsumer:
         }
         async with self._semaphore:
             try:
-                await self._process([row.payload], row.tenant_id)
+                # The row's observed_at stands in for an entity without its own instant:
+                # reprocessing (backoff, crash before the ack, redrive) keeps the same time.
+                await self._process(
+                    [row.payload], row.tenant_id, fallback_observed_at=row.observed_at)
             except TransientProcessingError as exc:
                 logger.warning(
                     f"inbox_row_transient_failure {_fmt(context)} error={exc}",

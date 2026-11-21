@@ -109,7 +109,7 @@ def test_enqueue_failure_counter_and_enqueued():
     q = "t-enqueue"
 
     class Boom:
-        def acquire(self):
+        def acquire(self, timeout=None):
             raise OSError("db down")
 
     e0, f0 = val(inbox_mod.INBOX_ENQUEUED, q), val(inbox_mod.INBOX_ENQUEUE_FAILED, q)
@@ -163,7 +163,7 @@ def test_consumer_refreshes_gauges_while_idle_and_survives_stats_failure():
     inbox = StatsInbox(q)
 
     async def main():
-        async def noop(*a):
+        async def noop(*a, **kw):
             return None
 
         c = InboxConsumer(inbox, OkPool(), process=noop, idle_s=0.01)

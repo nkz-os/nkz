@@ -33,9 +33,17 @@ INBOX_RETRIED = Counter(
     "inbox_retried_total", "Rows put back with backoff after an infrastructure failure.", ["queue"])
 INBOX_DEAD = Counter(
     "inbox_dead_total", "Rows moved to the dead table (12th attempt or permanent failure).", ["queue"])
+INBOX_ENQUEUE_DROPPED = Counter(
+    "inbox_enqueue_dropped_total",
+    "Notified entities not stored by a successful enqueue (malformed: no string id/type; "
+    "unstorable: a value JSON/Postgres cannot hold).",
+    ["queue", "reason"])
 
 MAX_ATTEMPTS = 12
 BACKOFF_CAP_SECONDS = 300
+# The receiver shares the sink pool with the consumer: when the pool is exhausted,
+# give up after this and answer 503 (Orion retries) instead of hanging.
+ENQUEUE_ACQUIRE_TIMEOUT_SECONDS = 5
 
 # A NUL escape in the serialized JSON (jsonb rejects it); an even run of
 # backslashes before `u0000` is an escaped literal backslash, not a NUL.
@@ -121,22 +129,45 @@ class NotificationInbox:
     async def enqueue(
         self, tenant_id: str, entities: List[Dict[str, Any]], notified_at: Optional[datetime]
     ) -> int:
-        """Insert one row per entity (see `_enqueue`); counts rows stored and failures."""
+        """Insert one row per entity (see `_enqueue`); counts rows stored, drops and failures.
+
+        Drops are counted only when the enqueue succeeds: after a failure (503) Orion
+        redelivers, and the drop is counted on the attempt that stores the rest.
+        """
+        drops: List[str] = []
         try:
-            stored = await self._enqueue(tenant_id, entities, notified_at)
+            stored = await self._enqueue(tenant_id, entities, notified_at, drops)
         except Exception:
             INBOX_ENQUEUE_FAILED.labels(queue=self._queue).inc()
             raise
         if stored:
             INBOX_ENQUEUED.labels(queue=self._queue).inc(stored)
+        for reason in drops:
+            INBOX_ENQUEUE_DROPPED.labels(queue=self._queue, reason=reason).inc()
         return stored
 
+    def _log_drop(self, reason: str, tenant_id: str, entity_id: Any, error: str = "") -> None:
+        """Details in the message text: the log format does not render `extra`."""
+        suffix = f" error={error}" if error else ""
+        logger.warning(
+            f"inbox_enqueue_dropped_{reason} tenant_id={tenant_id} queue={self._queue} "
+            f"entity_id={entity_id!r} reason={reason}{suffix}",
+            extra={"tenant_id": tenant_id, "queue": self._queue, "entity_id": entity_id,
+                   "reason": reason, **({"error": error} if error else {})},
+        )
+
     async def _enqueue(
-        self, tenant_id: str, entities: List[Dict[str, Any]], notified_at: Optional[datetime]
+        self,
+        tenant_id: str,
+        entities: List[Dict[str, Any]],
+        notified_at: Optional[datetime],
+        drops: List[str],
     ) -> int:
         """Insert one row per entity in one transaction; raises on DB failure.
 
-        Entities without a string id/type can never be processed: logged, dropped.
+        Entities without a string id/type can never be processed: logged, dropped (the
+        reason appended to `drops`). The connection is acquired with a timeout
+        (ENQUEUE_ACQUIRE_TIMEOUT_SECONDS); a timeout raises.
         """
         received_at = datetime.now(timezone.utc)
         ids: List[str] = []
@@ -147,20 +178,16 @@ class NotificationInbox:
             eid = entity.get("id") if isinstance(entity, dict) else None
             etype = entity.get("type") if isinstance(entity, dict) else None
             if not isinstance(eid, str) or not eid or not isinstance(etype, str) or not etype:
-                logger.warning(
-                    "inbox_enqueue_dropped_malformed",
-                    extra={"tenant_id": tenant_id, "queue": self._queue, "has_id": bool(eid)},
-                )
+                self._log_drop("malformed", tenant_id, eid)
+                drops.append("malformed")
                 continue
             try:
                 text = json.dumps(entity, allow_nan=False)
             except (ValueError, TypeError):
                 text = None
             if text is None or _NUL_ESCAPE.search(text):
-                logger.warning(
-                    "inbox_enqueue_dropped_unstorable",
-                    extra={"tenant_id": tenant_id, "queue": self._queue, "entity_id": eid},
-                )
+                self._log_drop("unstorable", tenant_id, eid)
+                drops.append("unstorable")
                 continue
             ids.append(eid)
             types.append(etype)
@@ -168,7 +195,7 @@ class NotificationInbox:
             payloads.append(text)
         if not ids:
             return 0
-        async with self._pool.acquire() as conn:
+        async with self._pool.acquire(timeout=ENQUEUE_ACQUIRE_TIMEOUT_SECONDS) as conn:
             try:
                 async with conn.transaction():
                     return await self._insert(
@@ -193,11 +220,8 @@ class NotificationInbox:
                     except Exception as exc:
                         if not _is_data_error(exc):
                             raise
-                        logger.warning(
-                            "inbox_enqueue_dropped_unstorable",
-                            extra={"tenant_id": tenant_id, "queue": self._queue,
-                                   "entity_id": eid, "error": repr(exc)},
-                        )
+                        self._log_drop("unstorable", tenant_id, eid, repr(exc))
+                        drops.append("unstorable")
             return stored
 
     async def _insert(self, conn, tenant_id, notified_at, received_at, ids, types, observed, payloads) -> int:

@@ -32,6 +32,26 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
+def _on_consumer_task_done(task: asyncio.Task, shutting_down: bool) -> None:
+    """Done-callback of the inbox consumer task: it only ends at shutdown.
+
+    Ending any other way (an exception, a return, a cancel) leaves this replica storing
+    notifications that nobody processes: logged CRITICAL with the error.
+    """
+    if shutting_down:
+        return
+    if task.cancelled():
+        reason, exc = "cancelled", None
+    else:
+        exc = task.exception()
+        reason = "exception" if exc is not None else "returned"
+    logger.critical(
+        f"inbox_consumer_task_ended reason={reason} error={exc!r} - notifications are "
+        f"stored in the inbox but no longer processed by this replica",
+        exc_info=exc,
+    )
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup
@@ -92,7 +112,11 @@ async def lifespan(app: FastAPI):
     lock_pool = await asyncpg.create_pool(
         dsn=settings.postgres_url, min_size=0, max_size=1, command_timeout=30
     )
+    consumer_stopping = asyncio.Event()
     consumer_task = asyncio.create_task(InboxConsumer(inbox, lock_pool).run())
+    consumer_task.add_done_callback(
+        lambda task: _on_consumer_task_done(task, shutting_down=consumer_stopping.is_set())
+    )
 
     # Audited recompute of stored observation context (contract 8.6); only with
     # the observation lookup wired. A bad interval value fails startup loudly.
@@ -135,6 +159,7 @@ async def lifespan(app: FastAPI):
     # Shutdown: stop the inbox consumer first, while what it uses is still up; rows in
     # flight stay in the inbox and are processed again (dedup covers it). Ending its
     # lock connection releases the lock for the other replica.
+    consumer_stopping.set()
     consumer_task.cancel()
     try:
         await consumer_task

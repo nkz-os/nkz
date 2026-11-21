@@ -314,3 +314,85 @@ def test_postgres_startup_and_shutdown_errors_are_transient(err):
     with pytest.raises(nh.TransientProcessingError) as exc:
         _run([_sensor("s1")])
     assert exc.value.__cause__ is err
+
+
+# ── Fallback instant: an entity without its own timestamp (inbox row observed_at) ──
+
+
+def _parcel(area=3.2):
+    """No observedAt on any attribute: the instant must come from outside the entity."""
+    return {
+        "id": "urn:ngsi-ld:AgriParcel:acme:p1",
+        "type": "AgriParcel",
+        "area": {"type": "Property", "value": area},
+    }
+
+
+def _dm_without_date():
+    entity = _dm()
+    del entity["dateObserved"]
+    return entity
+
+
+@pytest.mark.parametrize("entity", [_parcel(), _dm_without_date()], ids=["AgriParcel", "DeviceMeasurement"])
+def test_fallback_instant_is_stored_and_reprocessing_writes_one_row(entity):
+    """Inbox row processed twice (killed before the ack, or redriven later): one row, at
+    the row's observed_at, not at processing time."""
+    from datetime import datetime, timezone
+
+    fallback = datetime(2026, 11, 1, 10, 0, tzinfo=timezone.utc)
+    sink = Sink()
+    _wire(sink, _dedup())
+    asyncio.run(nh.process_entities([dict(entity)], TENANT, fallback_observed_at=fallback))
+    asyncio.run(nh.process_entities([dict(entity)], TENANT, fallback_observed_at=fallback))
+    assert len(sink.inserted) == 1
+    assert sink.inserted[0].observed_at == fallback
+
+
+def test_own_timestamp_wins_over_the_fallback():
+    from datetime import datetime, timezone
+
+    sink = Sink()
+    _wire(sink)
+    asyncio.run(nh.process_entities(
+        [_sensor("s1", at="2026-08-29T10:00:00Z")], TENANT,
+        fallback_observed_at=datetime(2026, 11, 1, tzinfo=timezone.utc)))
+    assert sink.inserted[0].observed_at == datetime(2026, 8, 29, 10, 0, tzinfo=timezone.utc)
+
+
+def test_without_fallback_the_instant_is_processing_time():
+    """Legacy callers (no fallback) keep today's behaviour: now()."""
+    from datetime import datetime, timezone
+
+    sink = Sink()
+    _wire(sink)
+    before = datetime.now(timezone.utc)
+    _run([_parcel()])
+    assert before <= sink.inserted[0].observed_at <= datetime.now(timezone.utc)
+
+
+# ── A record stored nowhere (insert and dead-letter both fail) is not acknowledged ──
+
+
+@pytest.mark.parametrize("missing", [True, False], ids=["dlq_table_missing", "dlq_insert_fails"])
+def test_dead_letter_failure_raises_and_records_nothing(missing):
+    """Real PostgreSQLSink: the insert fails (poison), then the DLQ insert fails too. The
+    reading exists nowhere, so process_entities raises a non-transient error (the inbox
+    buries the row) and records no dedup key, no replay state, no delta-filter value."""
+    from telemetry_worker.event_sink import PostgreSQLSink
+    from test_event_sink_dlq import FakeConnection, FakePool
+
+    conn = FakeConnection(
+        poison_devices={"sensor-001"}, dlq_table_missing=missing, dlq_should_fail=not missing)
+    sink = PostgreSQLSink(dsn="postgresql://fake")
+    sink._pool = FakePool(conn)
+    dedup = _dedup()
+    profiles = _wire(sink, dedup)
+
+    with pytest.raises(Exception) as exc:
+        _run([_dm()])
+    assert not isinstance(exc.value, nh.TransientProcessingError)
+    assert conn.inserted_records == [] and conn.dlq_records == []
+    assert _dedup_keys(dedup) == []
+    assert not [k for k in dedup._redis.store if k.startswith("telemetry:dm_last:")]
+    assert profiles.updates == []

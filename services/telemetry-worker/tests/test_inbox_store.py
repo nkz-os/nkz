@@ -68,6 +68,105 @@ def test_inbox_row_is_frozen():
         row.attempts = 3  # type: ignore[misc]
 
 
+# --- enqueue without Postgres: dropped entities, acquire timeout ---------------
+
+
+class _Tx:
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, *exc):
+        return False
+
+
+class FakeEnqueueConn:
+    def transaction(self):
+        return _Tx()
+
+    async def execute(self, sql, *args):
+        return f"INSERT 0 {len(args[4])}"  # $5 = entity ids
+
+
+class _Acquire:
+    def __init__(self, conn, error):
+        self.conn, self.error = conn, error
+
+    async def __aenter__(self):
+        if self.error is not None:
+            raise self.error
+        return self.conn
+
+    async def __aexit__(self, *exc):
+        return False
+
+
+class FakeEnqueuePool:
+    """`acquire(timeout=...)` records the timeout; raises `error` on enter when set."""
+
+    def __init__(self, error=None):
+        self.error = error
+        self.timeouts = []
+
+    def acquire(self, timeout=None):
+        self.timeouts.append(timeout)
+        return _Acquire(FakeEnqueueConn(), self.error)
+
+
+def _sample(name, **labels):
+    from prometheus_client import REGISTRY
+
+    return REGISTRY.get_sample_value(name, labels) or 0.0
+
+
+def _drop_logs(caplog):
+    return [r.getMessage() for r in caplog.records if "inbox_enqueue_dropped" in r.getMessage()]
+
+
+def test_dropped_malformed_entity_is_named_in_the_log_and_counted(caplog):
+    inbox = NotificationInbox(FakeEnqueuePool(), queue="q-drop-malformed")
+    with caplog.at_level("WARNING"):
+        n = asyncio.run(inbox.enqueue("acme", [{"type": "T"}, dm("ok", T1)], None))
+    assert n == 1
+    [msg] = _drop_logs(caplog)
+    for part in ("tenant_id=acme", "queue=q-drop-malformed", "entity_id=None", "reason=malformed"):
+        assert part in msg
+    assert _sample("inbox_enqueue_dropped_total", queue="q-drop-malformed", reason="malformed") == 1
+
+
+def test_dropped_unstorable_entity_is_named_in_the_log_and_counted(caplog):
+    inbox = NotificationInbox(FakeEnqueuePool(), queue="q-drop-unstorable")
+    nan = {"id": "urn:ngsi-ld:T:acme:nan1", "type": "T",
+           "v": {"type": "Property", "value": float("nan")}}
+    with caplog.at_level("WARNING"):
+        n = asyncio.run(inbox.enqueue("acme", [nan, dm("ok", T1)], None))
+    assert n == 1
+    [msg] = _drop_logs(caplog)
+    for part in ("tenant_id=acme", "queue=q-drop-unstorable",
+                 "entity_id='urn:ngsi-ld:T:acme:nan1'", "reason=unstorable"):
+        assert part in msg
+    assert _sample("inbox_enqueue_dropped_total", queue="q-drop-unstorable", reason="unstorable") == 1
+
+
+def test_drop_not_counted_when_the_enqueue_fails():
+    """Orion redelivers after the 503: the drop is counted on the attempt that stores."""
+    inbox = NotificationInbox(FakeEnqueuePool(error=OSError("db down")), queue="q-drop-failed")
+    with pytest.raises(OSError):
+        asyncio.run(inbox.enqueue("acme", [{"type": "T"}, dm("ok", T1)], None))
+    assert _sample("inbox_enqueue_dropped_total", queue="q-drop-failed", reason="malformed") == 0
+
+
+def test_enqueue_acquires_with_a_timeout_and_raises_on_it():
+    """A saturated pool must not hang the receiver until Orion's own timeout."""
+    from telemetry_worker.inbox import ENQUEUE_ACQUIRE_TIMEOUT_SECONDS
+
+    pool = FakeEnqueuePool(error=asyncio.TimeoutError())
+    inbox = NotificationInbox(pool, queue="q-acquire-timeout")
+    with pytest.raises(asyncio.TimeoutError):
+        asyncio.run(inbox.enqueue("acme", [dm("ok", T1)], None))
+    assert pool.timeouts == [ENQUEUE_ACQUIRE_TIMEOUT_SECONDS] == [5]
+    assert _sample("inbox_enqueue_failed_total", queue="q-acquire-timeout") == 1
+
+
 # --- Postgres ---------------------------------------------------------------
 
 DSN = os.getenv("INBOX_TEST_DSN")
@@ -175,6 +274,24 @@ def test_enqueue_isolates_lone_surrogate(dbname):
         return n, ids
 
     assert run(dbname, s) == (2, ["ok1", "ok2"])
+
+
+@db
+def test_enqueue_isolated_drop_is_named_in_the_log_and_counted(dbname, caplog):
+    before = _sample("inbox_enqueue_dropped_total", queue="telemetry", reason="unstorable")
+
+    async def s(inbox, pool):
+        sur = {"id": "urn:ngsi-ld:T:acme:sur1", "type": "T",
+               "v": {"type": "Property", "value": "\ud800"}}
+        return await inbox.enqueue("acme", [dm("ok1", T1), sur], None)
+
+    with caplog.at_level("WARNING"):
+        assert run(dbname, s) == 1
+    [msg] = _drop_logs(caplog)
+    for part in ("tenant_id=acme", "queue=telemetry",
+                 "entity_id='urn:ngsi-ld:T:acme:sur1'", "reason=unstorable"):
+        assert part in msg
+    assert _sample("inbox_enqueue_dropped_total", queue="telemetry", reason="unstorable") == before + 1
 
 
 @db

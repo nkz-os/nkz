@@ -148,3 +148,22 @@ def test_v2_notify_failure_is_503(client, monkeypatch):
     monkeypatch.setattr(nh, "_inbox", FakeInbox(fail=True))
     r = client.post("/v2/notify", json={"data": [_entity("a")]}, headers={"Fiware-Service": TENANT})
     assert r.status_code == 503
+
+
+def test_inbox_pool_acquire_timeout_answers_503_promptly(monkeypatch):
+    """Real NotificationInbox over a saturated pool: acquire gives up after 5 s (here: at
+    once) and the receiver answers 503 instead of hanging until Orion's timeout."""
+    import asyncio
+
+    from telemetry_worker.inbox import NotificationInbox
+    from test_inbox_store import FakeEnqueuePool
+
+    monkeypatch.delenv("NOTIFY_REQUIRE_INTERNAL_SECRET", raising=False)
+    pool = FakeEnqueuePool(error=asyncio.TimeoutError())
+    monkeypatch.setattr(nh, "_inbox", NotificationInbox(pool))
+    app = FastAPI()
+    app.include_router(nh.router)
+    r = TestClient(app).post("/notify", json={"data": [_entity("a")]},
+                             headers={"NGSILD-Tenant": TENANT})
+    assert r.status_code == 503
+    assert pool.timeouts == [5]

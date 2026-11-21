@@ -230,6 +230,7 @@ class PostgreSQLSink(EventSink):
 
         Returns True when the event was inserted, False when it was dead-lettered.
         Connection failures (is_connection_error) propagate as-is, never dead-lettered.
+        A failed dead-letter insert propagates too (see _dead_letter).
         """
         if not self._pool:
             raise SinkNotStartedError("PostgreSQLSink not started")
@@ -285,7 +286,9 @@ class PostgreSQLSink(EventSink):
         violation — must not roll back the other, valid records in the same
         batch. A record whose individual insert still fails is dead-lettered
         into telemetry_events_dlq (see _dead_letter()) and processing
-        continues with the rest of the batch.
+        continues with the rest of the batch. If its dead-letter insert fails
+        too, the record is stored nowhere: that error propagates and ends the
+        batch (records inserted before it stay inserted).
 
         Connection failures (is_connection_error) from COPY, an individual
         insert or the dead-letter insert propagate as-is: nothing is
@@ -356,13 +359,13 @@ class PostgreSQLSink(EventSink):
         Insert a single poison record into telemetry_events_dlq.
 
         Last-resort path: this record already failed to persist into
-        telemetry_events. Raises only on a connection failure
-        (is_connection_error), so the record is retried instead of dropped;
-        any other failure here is logged and must not take down the rest of
-        the batch. Handles the pre-migration case where
-        telemetry_events_dlq doesn't exist yet (deploy landed before
-        migration 098) by logging a clear warning instead of crashing
-        ingestion.
+        telemetry_events. If this insert fails as well, the record would exist
+        nowhere, so the error is logged and re-raised, never swallowed: a
+        connection failure (is_connection_error) is retried by the caller; any
+        other one (including a missing telemetry_events_dlq table, migration
+        098 not applied) reaches the caller as a permanent failure, and the
+        inbox buries the row (notification_inbox_dead), from where it can be
+        redriven.
         """
         try:
             await conn.execute(self.INSERT_DLQ_SQL, *record, error_message)
@@ -371,21 +374,26 @@ class PostgreSQLSink(EventSink):
                 entity_type=event.entity_type or "unknown",
             ).inc()
         except asyncpg.exceptions.UndefinedTableError:
-            logger.warning(
-                "telemetry_events_dlq table does not exist yet (pending migration "
-                "098_telemetry_events_dlq.sql) - poison record for entity_id=%s "
-                "dropped (original error: %s)",
+            logger.error(
+                "telemetry_events_dlq table does not exist (pending migration "
+                "098_telemetry_events_dlq.sql) - poison record not stored, raising "
+                "(entity_id=%s, device_id=%s, tenant_id=%s, original error: %s)",
                 event.entity_id,
+                event.device_id,
+                event.tenant_id,
                 error_message,
             )
+            raise
         except Exception as dlq_err:
             if is_connection_error(dlq_err):
                 raise
             logger.error(
-                "Failed to dead-letter poison record (entity_id=%s, device_id=%s): "
-                "%s (original error: %s)",
+                "Failed to dead-letter poison record, raising (entity_id=%s, device_id=%s, "
+                "tenant_id=%s): %s (original error: %s)",
                 event.entity_id,
                 event.device_id,
+                event.tenant_id,
                 dlq_err,
                 error_message,
             )
+            raise

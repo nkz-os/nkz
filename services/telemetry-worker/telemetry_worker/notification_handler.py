@@ -171,6 +171,7 @@ async def process_notification_task(
 async def process_entities(
     entities: List[Dict[str, Any]],
     tenant_id: Optional[str],
+    fallback_observed_at: Optional[datetime] = None,
 ) -> None:
     """
     Process notified NGSI-LD entities and persist them to TimescaleDB.
@@ -189,7 +190,13 @@ async def process_entities(
     Any other error preparing an entity propagates as-is (nothing written or recorded):
     the inbox buries the row instead of acknowledging it. An entity filtered out
     (throttle, delta, duplicate) is a normal return. Poison records are dead-lettered
-    inside the EventSink (final, recorded like an insert).
+    inside the EventSink (final, recorded like an insert); a record the sink could
+    neither insert nor dead-letter raises (nothing recorded, the inbox buries the row).
+
+    `fallback_observed_at` is the instant of an entity that carries none of its own
+    (no `observedAt`, no `dateObserved`): the inbox passes the row's `observed_at`, so a
+    row processed again (after a backoff, a crash before the ack, a redrive) gets the
+    same instant and the same dedup key. None (legacy callers): processing time.
 
     NOTE: Does NOT write back to Orion (data comes from Orion subscription)
     """
@@ -208,7 +215,7 @@ async def process_entities(
 
     for entity in entities:
         try:
-            item = await _prepare_entity(entity, tenant_id)
+            item = await _prepare_entity(entity, tenant_id, fallback_observed_at)
         except TransientProcessingError:
             raise
         except Exception as e:
@@ -333,8 +340,12 @@ async def _process_entity(
 async def _prepare_entity(
     entity: Dict[str, Any],
     tenant_id: Optional[str],
+    fallback_observed_at: Optional[datetime] = None,
 ) -> Optional[_PreparedEvent]:
-    """Build the event of one entity, or None when it is skipped. Writes no state."""
+    """Build the event of one entity, or None when it is skipped. Writes no state.
+
+    `fallback_observed_at`: instant used when the entity carries none (see process_entities).
+    """
     entity_id = entity.get("id", "")
     entity_type = entity.get("type", "")
 
@@ -469,9 +480,9 @@ async def _prepare_entity(
     # (a plain Property value), not in per-attribute observedAt metadata — the generic
     # extractor below would never find it there and would silently fall back to utcnow().
     observed_at = (
-        _extract_device_measurement_observed_at(entity)
+        _extract_device_measurement_observed_at(entity, fallback_observed_at)
         if entity_type == "DeviceMeasurement"
-        else _extract_observed_at(entity)
+        else _extract_observed_at(entity, fallback_observed_at)
     )
 
     # Deduplicate against Orion-LD notification redelivery (network retries,
@@ -773,14 +784,19 @@ def _as_aware_utc(dt: datetime) -> datetime:
     return dt.replace(tzinfo=timezone.utc) if dt.tzinfo is None else dt
 
 
-def _extract_device_measurement_observed_at(entity: Dict[str, Any]) -> datetime:
+def _extract_device_measurement_observed_at(
+    entity: Dict[str, Any], fallback: Optional[datetime] = None
+) -> datetime:
     """`DeviceMeasurement` carries its instant in `dateObserved`, a plain Property value
     (see build_measurements), not in per-attribute `observedAt` metadata — the generic
     `_extract_observed_at` below would never find it there and would silently fall back
-    to utcnow(). Same ISO-8601 parsing, dedicated lookup key.
+    to utcnow(). Same ISO-8601 parsing, dedicated lookup key. Without a `dateObserved`:
+    `fallback`, else utcnow().
     """
     at = _date_observed(entity)
-    return at if at is not None else datetime.now(timezone.utc)
+    if at is not None:
+        return at
+    return fallback if fallback is not None else datetime.now(timezone.utc)
 
 
 def _date_observed(entity: Dict[str, Any]) -> Optional[datetime]:
@@ -796,8 +812,8 @@ def _date_observed(entity: Dict[str, Any]) -> Optional[datetime]:
     return None
 
 
-def _extract_observed_at(entity: Dict[str, Any]) -> datetime:
-    """Extract observedAt from any entity attribute, fallback to utcnow."""
+def _extract_observed_at(entity: Dict[str, Any], fallback: Optional[datetime] = None) -> datetime:
+    """Extract observedAt from any entity attribute; else `fallback`, else utcnow."""
     for attr in entity.values():
         if isinstance(attr, dict) and "observedAt" in attr:
             try:
@@ -806,7 +822,7 @@ def _extract_observed_at(entity: Dict[str, Any]) -> datetime:
                 )
             except (ValueError, TypeError, AttributeError):
                 pass
-    return datetime.now(timezone.utc)
+    return fallback if fallback is not None else datetime.now(timezone.utc)
 
 
 def _parse_notified_at(value: Any) -> Optional[datetime]:

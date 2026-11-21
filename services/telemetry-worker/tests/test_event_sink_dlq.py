@@ -180,38 +180,39 @@ def test_all_good_fallback_no_dlq_writes():
     assert conn.dlq_records == []
 
 
-def test_dlq_table_missing_pre_migration_does_not_crash():
+@pytest.mark.parametrize("missing", [True, False], ids=["table_missing", "insert_fails"])
+def test_dead_letter_failure_raises_from_write_batch(missing):
     """
-    If telemetry_events_dlq doesn't exist yet (deploy landed before migration
-    098), the DLQ insert itself raises UndefinedTableError. write_batch()
-    must still not raise, and the good record must still persist.
-    """
-    events = [_event("good-1"), _event("poison-1")]
-    conn = FakeConnection(poison_devices={"poison-1"}, dlq_table_missing=True)
-    sink = PostgreSQLSink(dsn="postgresql://fake")
-    sink._pool = FakePool(conn)
-
-    asyncio.run(sink.write_batch(events))  # must not raise even without the DLQ table
-
-    assert {r[2] for r in conn.inserted_records} == {"good-1"}
-    assert conn.dlq_records == []  # DLQ insert never landed (table missing)
-
-
-def test_dlq_insert_itself_failing_does_not_crash_batch():
-    """
-    Last-resort safety: if the DLQ insert raises for some other reason
-    (e.g. transient DB error), write_batch() must still not raise and must
-    still persist the other good records in the batch.
+    A poison record whose dead-letter insert also fails (DLQ table missing, or any
+    other non-connection error) is stored nowhere: write_batch() raises instead of
+    dropping it, so the caller (inbox) keeps the reading. Records before it stay
+    inserted (per-record fallback, no wrapping transaction).
     """
     events = [_event("good-1"), _event("poison-1"), _event("good-2")]
-    conn = FakeConnection(poison_devices={"poison-1"}, dlq_should_fail=True)
+    conn = FakeConnection(
+        poison_devices={"poison-1"}, dlq_table_missing=missing, dlq_should_fail=not missing)
     sink = PostgreSQLSink(dsn="postgresql://fake")
     sink._pool = FakePool(conn)
 
-    asyncio.run(sink.write_batch(events))  # must not raise
+    expected = asyncpg.exceptions.UndefinedTableError if missing else RuntimeError
+    with pytest.raises(expected):
+        asyncio.run(sink.write_batch(events))
 
-    assert {r[2] for r in conn.inserted_records} == {"good-1", "good-2"}
-    assert conn.dlq_records == []  # attempted, but failed silently (logged)
+    assert {r[2] for r in conn.inserted_records} == {"good-1"}
+    assert conn.dlq_records == []
+
+
+@pytest.mark.parametrize("missing", [True, False], ids=["table_missing", "insert_fails"])
+def test_dead_letter_failure_raises_from_write(missing):
+    conn = FakeConnection(
+        poison_devices={"poison-1"}, dlq_table_missing=missing, dlq_should_fail=not missing)
+    sink = PostgreSQLSink(dsn="postgresql://fake")
+    sink._pool = FakePool(conn)
+
+    expected = asyncpg.exceptions.UndefinedTableError if missing else RuntimeError
+    with pytest.raises(expected):
+        asyncio.run(sink.write(_event("poison-1")))
+    assert conn.dlq_records == []
 
 
 def test_write_batch_raises_if_pool_not_started():
