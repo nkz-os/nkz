@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Tuple
@@ -23,6 +24,10 @@ logger = logging.getLogger(__name__)
 
 MAX_ATTEMPTS = 12
 BACKOFF_CAP_SECONDS = 300
+
+# A NUL escape in the serialized JSON (jsonb rejects it); an even run of
+# backslashes before `u0000` is an escaped literal backslash, not a NUL.
+_NUL_ESCAPE = re.compile(r"(?<!\\)(?:\\\\)*\\u0000")
 
 _COLUMNS = (
     "id, queue, tenant_id, entity_id, entity_type, notified_at, received_at, "
@@ -111,10 +116,20 @@ class NotificationInbox:
                     extra={"tenant_id": tenant_id, "queue": self._queue, "has_id": bool(eid)},
                 )
                 continue
+            try:
+                text = json.dumps(entity, allow_nan=False)
+            except (ValueError, TypeError):
+                text = None
+            if text is None or _NUL_ESCAPE.search(text):
+                logger.warning(
+                    "inbox_enqueue_dropped_unstorable",
+                    extra={"tenant_id": tenant_id, "queue": self._queue, "entity_id": eid},
+                )
+                continue
             ids.append(eid)
             types.append(etype)
             observed.append(observed_at_for(entity, notified_at, received_at))
-            payloads.append(json.dumps(entity))
+            payloads.append(text)
         if not ids:
             return 0
         async with self._pool.acquire() as conn:
@@ -239,11 +254,11 @@ class NotificationInbox:
         return len(rows)
 
     async def stats(self) -> Tuple[int, float]:
-        """(ready depth, age in seconds of the oldest ready row; 0.0 if empty)."""
+        """(depth, age in seconds of the oldest row) over ALL rows of the queue, backed-off ones included; (0, 0.0) if empty."""
         rec = await self._pool.fetchrow(
             "SELECT count(*) AS depth, "
             "COALESCE(EXTRACT(EPOCH FROM now() - min(received_at)), 0)::float8 AS age "
-            "FROM notification_inbox WHERE queue = $1 AND available_at <= now()",
+            "FROM notification_inbox WHERE queue = $1",
             self._queue,
         )
         return int(rec["depth"]), float(rec["age"])

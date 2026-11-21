@@ -150,6 +150,22 @@ def test_enqueue_skips_malformed(dbname):
 
 
 @db
+def test_enqueue_drops_unstorable_keeps_rest(dbname):
+    async def s(inbox, pool):
+        nan = {"id": "n", "type": "T", "v": {"type": "Property", "value": float("nan")}}
+        inf = {"id": "i", "type": "T", "v": {"type": "Property", "value": float("inf")}}
+        nul = {"id": "u", "type": "T", "v": {"type": "Property", "value": "a\x00b"}}
+        nulkey = {"id": "k", "type": "T", "a\x00b": 1}
+        backslash = {"id": "b", "type": "T", "v": {"type": "Property", "value": "\\u0000"}}
+        n = await inbox.enqueue("acme", [dm("ok", T1), nan, inf, nul, nulkey, backslash], None)
+        ids = [r["entity_id"] for r in await pool.fetch(
+            "SELECT entity_id FROM notification_inbox ORDER BY id")]
+        return n, ids
+
+    assert run(dbname, s) == (2, ["ok", "b"])
+
+
+@db
 def test_enqueue_empty_and_all_bad_insert_nothing(dbname):
     async def s(inbox, pool):
         return await inbox.enqueue("acme", [], None), await inbox.enqueue("acme", [{}], None)
@@ -364,6 +380,19 @@ def test_stats_empty_and_with_rows(dbname):
     empty, (depth, age) = run(dbname, s)
     assert empty == (0, 0.0)
     assert depth == 2 and 29 <= age < 40
+
+
+@db
+def test_stats_counts_backed_off_rows(dbname):
+    async def s(inbox, pool):
+        await inbox.enqueue("acme", [dm("E", T1)], None)
+        row = (await inbox.claim_round(10))[0][0]
+        await inbox.retry(row, "x")
+        await pool.execute("UPDATE notification_inbox SET received_at = now() - interval '60 seconds'")
+        return await inbox.stats()
+
+    depth, age = run(dbname, s)
+    assert depth == 1 and 59 <= age < 70
 
 
 @db
