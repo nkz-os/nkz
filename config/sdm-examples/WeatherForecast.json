@@ -1,0 +1,51 @@
+{
+  "id": "urn:ngsi-ld:WeatherForecast:tenant-a:parcel-abc-123",
+  "type": "WeatherForecast",
+  "location": {
+    "type": "GeoProperty",
+    "value": {
+      "type": "Point",
+      "coordinates": [
+        -1.6,
+        42.8
+      ]
+    }
+  },
+  "locatedAt": {
+    "type": "Relationship",
+    "object": "urn:ngsi-ld:AgriParcel:abc-123"
+  },
+  "validFrom": {
+    "type": "Property",
+    "value": {
+      "@type": "DateTime",
+      "@value": "2026-10-08T00:00:00Z"
+    }
+  },
+  "validTo": {
+    "type": "Property",
+    "value": {
+      "@type": "DateTime",
+      "@value": "2026-10-09T00:00:00Z"
+    }
+  },
+  "dayMinimum": {
+    "type": "Property",
+    "value": {
+      "temperature": 11.2,
+      "relativeHumidity": 62.0
+    }
+  },
+  "dayMaximum": {
+    "type": "Property",
+    "value": {
+      "temperature": 24.5,
+      "relativeHumidity": 62.0
+    }
+  },
+  "precipitationProbability": {
+    "type": "Property",
+    "value": 35.0,
+    "unitCode": "P1"
+  }
+}

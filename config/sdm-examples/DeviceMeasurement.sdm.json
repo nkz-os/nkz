@@ -1,0 +1,37 @@
+{
+  "id": "urn:ngsi-ld:DeviceMeasurement:acmefarm:sensor-001:airTemperatureMin",
+  "type": "DeviceMeasurement",
+  "refDevice": {
+    "type": "Relationship",
+    "object": "urn:ngsi-ld:Device:acmefarm:sensor-001"
+  },
+  "numValue": {
+    "type": "Property",
+    "value": 1.5,
+    "unitCode": "CEL"
+  },
+  "dateObserved": {
+    "type": "Property",
+    "value": "2026-08-29T10:00:00Z"
+  },
+  "timeSource": {
+    "type": "Property",
+    "value": "device"
+  },
+  "controlledProperty": {
+    "type": "Property",
+    "value": "airTemperature"
+  },
+  "name": {
+    "type": "Property",
+    "value": "airTemperatureMin"
+  },
+  "measurementType": {
+    "type": "Property",
+    "value": "min"
+  },
+  "deviceType": {
+    "type": "Property",
+    "value": "bench-x"
+  }
+}

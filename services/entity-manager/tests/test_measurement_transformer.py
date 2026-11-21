@@ -411,3 +411,36 @@ class TestStartupLog:
         with caplog.at_level(logging.INFO, logger="blueprints.measurements"):
             log_sdm_shape_flag()
         assert f"{FLAG}={shown}" in caplog.text
+
+
+# ── Smart Data Models conformance examples ──────────────────────────────────
+# `config/sdm-examples/` holds one entity per file exactly as this builder emits it; CI validates
+# those files against the official schema (`.github/scripts/check_sdm_conformance.py`). The tests
+# below keep the files equal to the builder's output. To refresh them after a deliberate change:
+# SDM_EXAMPLES_WRITE=1 python -m pytest tests/test_measurement_transformer.py -k ConformanceExamples
+
+import json  # noqa: E402
+
+_EXAMPLES_DIR = os.path.normpath(os.path.join(_services_dir, "..", "config", "sdm-examples"))
+
+
+def _assert_example(file_name, entity):
+    path = os.path.join(_EXAMPLES_DIR, file_name)
+    if os.environ.get("SDM_EXAMPLES_WRITE") == "1":
+        with open(path, "w", encoding="utf-8") as handle:
+            json.dump(entity, handle, indent=2, ensure_ascii=False)
+            handle.write("\n")
+    with open(path, encoding="utf-8") as handle:
+        assert json.load(handle) == entity, f"{file_name} no longer matches what the builder emits"
+
+
+class TestConformanceExamples:
+    def test_legacy_shape_example(self, monkeypatch):
+        monkeypatch.delenv(FLAG, raising=False)
+        result = build_measurements(_stat_entity(), STAT_PROFILE)
+        _assert_example("DeviceMeasurement.legacy.json", _by_id_channel(result, "airTemperatureMin"))
+
+    def test_sdm_shape_example(self, monkeypatch):
+        monkeypatch.setenv(FLAG, "true")
+        result = build_measurements(_stat_entity(), STAT_PROFILE)
+        _assert_example("DeviceMeasurement.sdm.json", _by_id_channel(result, "airTemperatureMin"))

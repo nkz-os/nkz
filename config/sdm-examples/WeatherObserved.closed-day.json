@@ -1,0 +1,77 @@
+{
+  "id": "urn:ngsi-ld:WeatherObserved:tenant-a:parcel-abc-123-daily",
+  "type": "WeatherObserved",
+  "location": {
+    "type": "GeoProperty",
+    "value": {
+      "type": "Point",
+      "coordinates": [
+        -1.6,
+        42.8
+      ]
+    }
+  },
+  "locatedAt": {
+    "type": "Relationship",
+    "object": "urn:ngsi-ld:AgriParcel:abc-123"
+  },
+  "dailySummary": {
+    "type": "Property",
+    "value": true
+  },
+  "dateObserved": {
+    "type": "Property",
+    "value": {
+      "@type": "DateTime",
+      "@value": "2026-10-07T00:00:00Z"
+    }
+  },
+  "tempMin": {
+    "type": "Property",
+    "value": 11.2,
+    "unitCode": "CEL",
+    "observedAt": "2026-10-07T23:59:59Z"
+  },
+  "tempMax": {
+    "type": "Property",
+    "value": 24.5,
+    "unitCode": "CEL",
+    "observedAt": "2026-10-07T23:59:59Z"
+  },
+  "precipitation": {
+    "type": "Property",
+    "value": 3.4,
+    "unitCode": "MMT",
+    "observedAt": "2026-10-07T23:59:59Z"
+  },
+  "et0": {
+    "type": "Property",
+    "value": 3.9,
+    "unitCode": "MMT",
+    "observedAt": "2026-10-07T23:59:59Z"
+  },
+  "solarRadiation": {
+    "type": "Property",
+    "value": 179.39814814814815,
+    "unitCode": "D54",
+    "observedAt": "2026-10-07T23:59:59Z"
+  },
+  "vapourPressure": {
+    "type": "Property",
+    "value": 1.2,
+    "unitCode": "KPA",
+    "observedAt": "2026-10-07T23:59:59Z"
+  },
+  "windSpeed2m": {
+    "type": "Property",
+    "value": 3.7,
+    "unitCode": "MTS",
+    "observedAt": "2026-10-07T23:59:59Z"
+  },
+  "frostHours": {
+    "type": "Property",
+    "value": 0.0,
+    "unitCode": "HUR",
+    "observedAt": "2026-10-07T23:59:59Z"
+  }
+}
