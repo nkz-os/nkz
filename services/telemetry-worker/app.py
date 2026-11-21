@@ -2,12 +2,16 @@ import logging
 import asyncio
 from contextlib import asynccontextmanager
 
+import asyncpg
 from fastapi import FastAPI
+from prometheus_client import make_asgi_app
 
 from telemetry_worker.calibration import CalibrationService
 from telemetry_worker.config import Settings
 from telemetry_worker.dedup import NotificationDedup
 from telemetry_worker.event_sink import PostgreSQLSink
+from telemetry_worker.inbox import NotificationInbox
+from telemetry_worker.inbox_consumer import InboxConsumer
 from telemetry_worker.geometry_backfill import run_geometry_backfill
 from telemetry_worker.health_checker import HealthChecker
 from telemetry_worker.observation_lookup import ObservationLookup
@@ -26,6 +30,26 @@ logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
 )
 logger = logging.getLogger(__name__)
+
+
+def _on_consumer_task_done(task: asyncio.Task, shutting_down: bool) -> None:
+    """Done-callback of the inbox consumer task: it only ends at shutdown.
+
+    Ending any other way (an exception, a return, a cancel) leaves this replica storing
+    notifications that nobody processes: logged CRITICAL with the error.
+    """
+    if shutting_down:
+        return
+    if task.cancelled():
+        reason, exc = "cancelled", None
+    else:
+        exc = task.exception()
+        reason = "exception" if exc is not None else "returned"
+    logger.critical(
+        f"inbox_consumer_task_ended reason={reason} error={exc!r} - notifications are "
+        f"stored in the inbox but no longer processed by this replica",
+        exc_info=exc,
+    )
 
 
 @asynccontextmanager
@@ -73,10 +97,25 @@ async def lifespan(app: FastAPI):
 
     # Wire dependencies into notification handler
     observation_lookup = ObservationLookup(sink._pool)
+    inbox = NotificationInbox(sink._pool)
     init_handler(
         settings, profile_service, sink, health_checker, calibration_service, dedup,
         observation_lookup=observation_lookup,
         geometry_pool=sink._pool,
+        inbox=inbox,
+    )
+
+    # Inbox consumer: only now, with the handler wired and the sink pool started (an
+    # unwired handler would let rows be acknowledged unprocessed). Its advisory lock
+    # lives on a dedicated one-connection pool (no connection until it is first
+    # needed), so the lock's lifetime is independent of the sink pool.
+    lock_pool = await asyncpg.create_pool(
+        dsn=settings.postgres_url, min_size=0, max_size=1, command_timeout=30
+    )
+    consumer_stopping = asyncio.Event()
+    consumer_task = asyncio.create_task(InboxConsumer(inbox, lock_pool).run())
+    consumer_task.add_done_callback(
+        lambda task: _on_consumer_task_done(task, shutting_down=consumer_stopping.is_set())
     )
 
     # Audited recompute of stored observation context (contract 8.6); only with
@@ -117,7 +156,22 @@ async def lifespan(app: FastAPI):
 
     yield
 
-    # Shutdown: cancel periodic task and close pool
+    # Shutdown: stop the inbox consumer first, while what it uses is still up; rows in
+    # flight stay in the inbox and are processed again (dedup covers it). Ending its
+    # lock connection releases the lock for the other replica.
+    consumer_stopping.set()
+    consumer_task.cancel()
+    try:
+        await consumer_task
+    except asyncio.CancelledError:
+        pass
+    try:
+        await asyncio.wait_for(lock_pool.close(), 10)
+    except Exception as e:
+        logger.warning(f"Inbox lock pool did not close cleanly: {e!r}")
+        lock_pool.terminate()
+
+    # Cancel periodic task and close pool
     periodic_task.cancel()
     backfill_task.cancel()
     try:
@@ -145,6 +199,7 @@ app = FastAPI(
 
 app.include_router(health.health_router)
 app.include_router(notification_router)
+app.mount("/metrics", make_asgi_app())
 
 if __name__ == "__main__":
     import uvicorn

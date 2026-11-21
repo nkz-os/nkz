@@ -169,6 +169,55 @@ class NotificationDedup:
             )
             return False
 
+    # ── Read/mark split (retry-safe, used by the notification handler) ──────
+    # is_duplicate() marks the key at check time: a reading whose write then fails
+    # would be skipped as a duplicate when retried. The handler checks with seen()
+    # before the write and calls mark() only once the sink has returned (inserted
+    # or dead-lettered). No SET NX atomicity needed: one inbox consumer, never two
+    # rows of one entity at once.
+
+    async def seen(
+        self,
+        tenant_id: Optional[str],
+        entity_id: str,
+        observed_at: datetime,
+        measurements: Dict[str, Any],
+    ) -> bool:
+        """True if this exact event was marked within the TTL window. Read-only.
+
+        FAIL OPEN: disabled, never connected or any Redis error means False.
+        """
+        if not self.enabled or not self._redis:
+            return False
+        key = self._build_key(tenant_id, entity_id, observed_at, measurements)
+        try:
+            return await self._redis.get(key) is not None
+        except Exception as e:
+            logger.warning(
+                f"Redis error during dedup check for entity={entity_id}, "
+                f"failing open (treating as new event): {e}"
+            )
+            return False
+
+    async def mark(
+        self,
+        tenant_id: Optional[str],
+        entity_id: str,
+        observed_at: datetime,
+        measurements: Dict[str, Any],
+    ) -> None:
+        """Remember this event for the TTL window, after it was stored. Never raises."""
+        if not self.enabled or not self._redis:
+            return
+        key = self._build_key(tenant_id, entity_id, observed_at, measurements)
+        try:
+            await self._redis.set(key, "1", ex=self._ttl)
+        except Exception as e:
+            logger.warning(
+                f"Redis error marking dedup key for entity={entity_id}, "
+                f"a redelivery may be stored twice: {e}"
+            )
+
     # ── DeviceMeasurement replay guard ──────────────────────────────────────
     # ASSUMPTION: the guard shares this instance's Redis connection and its enable flag
     # (TELEMETRY_DEDUP_ENABLED=false turns the replay guard off too), so it follows the

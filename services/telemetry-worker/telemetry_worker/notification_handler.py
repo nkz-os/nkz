@@ -5,8 +5,10 @@ Receives NGSI-LD entity updates and persists to TimescaleDB
 after applying Processing Profiles (throttle, filter, delta).
 """
 
+import json
 import logging
 import os
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
@@ -14,7 +16,7 @@ from fastapi import APIRouter, Request, BackgroundTasks, Header, HTTPException
 from nkz_platform_sdk.notify_auth import accept_master_from_env, verify_notification
 
 from .config import Settings
-from .event_sink import EventSink, TelemetryEvent
+from .event_sink import EventSink, TelemetryEvent, is_connection_error
 from .health_checker import HealthChecker, _severity
 from .profiles import ProfileService
 from .calibration import CalibrationService
@@ -89,6 +91,7 @@ _calibration_service: Optional[CalibrationService] = None
 _dedup: Optional[NotificationDedup] = None
 _observation_lookup: Optional[Any] = None  # ObservationLookup; None = feature off
 _geometry_pool: Optional[Any] = None  # asyncpg pool for observation_geometry_cache; None = off
+_inbox: Optional[Any] = None  # NotificationInbox (enqueue); None = not wired, receivers answer 503
 
 
 def init_handler(
@@ -100,9 +103,10 @@ def init_handler(
     dedup: Optional[NotificationDedup] = None,
     observation_lookup: Optional[Any] = None,
     geometry_pool: Optional[Any] = None,
+    inbox: Optional[Any] = None,
 ) -> None:
     """Wire dependencies from app lifespan."""
-    global _settings, _profile_service, _event_sink, _health_checker, _calibration_service, _dedup, _observation_lookup, _geometry_pool
+    global _settings, _profile_service, _event_sink, _health_checker, _calibration_service, _dedup, _observation_lookup, _geometry_pool, _inbox
     _settings = settings
     _profile_service = profile_service
     _event_sink = event_sink
@@ -111,57 +115,184 @@ def init_handler(
     _dedup = dedup
     _observation_lookup = observation_lookup
     _geometry_pool = geometry_pool
+    _inbox = inbox
     _skip_warnings.reset()
     _skip_info.reset()
+
+
+class TransientProcessingError(Exception):
+    """Infrastructure failure or handler not ready (database unavailable, not wired): retry later.
+
+    Raised by process_entities with the original error as __cause__. The failed attempt
+    left no dedup key and no delta-filter state, so a retry stores the reading.
+    """
+
+
+@dataclass(frozen=True)
+class _PreparedEvent:
+    """An event plus what is recorded once the sink has taken it (see _after_write)."""
+
+    event: TelemetryEvent
+    device_id: str
+    measurements: Dict[str, Any]  # calibrated, before filtering: the delta-filter state
+    filtered: Dict[str, Any]  # what is stored: the dedup key
 
 
 async def process_notification_task(
     data: Dict[str, Any],
     tenant_id: Optional[str] = None,
 ):
-    """
-    Background task to process Orion-LD notification.
+    """Process one Orion-LD notification body; never raises (kept for existing callers).
 
-    Flow:
-    1. Extract entity info (id, type, attributes)
-    2. Get processing profile for device type
-    3. Apply throttle/delta checks
-    4. Filter attributes
-    5. Persist to TimescaleDB via EventSink
-
-    NOTE: Does NOT write back to Orion (data comes from Orion subscription)
+    One entity per process_entities call: an entity that fails, transiently or not, is
+    logged and dropped and the others are still processed. The inbox consumer calls
+    process_entities instead, retries transient failures and buries the others.
     """
     try:
         entities = data.get("data", [])
         if not entities:
             logger.debug("Empty notification received")
             return
-
-        # Collect events for batch insert
-        events: List[TelemetryEvent] = []
-
-        for entity in entities:
-            event = await _process_entity(entity, tenant_id)
-            if event:
-                events.append(event)
-
-        # Batch persist all events from this notification
-        if events and _event_sink:
-            if len(events) == 1:
-                inserted = events if await _event_sink.write(events[0]) is True else []
-            else:
-                inserted = await _event_sink.write_batch(events)
-                if not isinstance(inserted, list):
-                    inserted = []
-
-            logger.info(
-                f"Persisted {len(inserted)}/{len(events)} events for tenant={tenant_id}"
-            )
-            # Replay records only for events really inserted (never dead-lettered ones).
-            await _record_replay_state(inserted)
-
     except Exception as e:
         logger.error(f"Error processing notification: {e}", exc_info=True)
+        return
+    for entity in entities:
+        try:
+            await process_entities([entity], tenant_id)
+        except Exception as e:
+            entity_id = entity.get("id") if isinstance(entity, dict) else None
+            logger.error(
+                f"Entity dropped, processing failed: tenant_id={tenant_id} "
+                f"entity_id={entity_id}: {e}",
+                exc_info=True,
+            )
+
+
+async def process_entities(
+    entities: List[Dict[str, Any]],
+    tenant_id: Optional[str],
+    fallback_observed_at: Optional[datetime] = None,
+) -> None:
+    """
+    Process notified NGSI-LD entities and persist them to TimescaleDB.
+
+    Flow:
+    1. Extract entity info (id, type, attributes)
+    2. Get processing profile for device type
+    3. Apply throttle/delta checks and the read-only dedup check
+    4. Filter attributes
+    5. Persist to TimescaleDB via EventSink
+    6. Only then record dedup keys, delta-filter last values and replay state
+
+    Raises TransientProcessingError when the handler is not ready (not initialised, no
+    event sink) and on a database connection failure (is_connection_error), from the sink
+    or while preparing an entity; nothing has been recorded then, so a retry is safe.
+    Any other error preparing an entity propagates as-is (nothing written or recorded):
+    the inbox buries the row instead of acknowledging it. An entity filtered out
+    (throttle, delta, duplicate) is a normal return. Poison records are dead-lettered
+    inside the EventSink (final, recorded like an insert); a record the sink could
+    neither insert nor dead-letter raises (nothing recorded, the inbox buries the row).
+
+    `fallback_observed_at` is the instant of an entity that carries none of its own
+    (no `observedAt`, no `dateObserved`): the inbox passes the row's `observed_at`, so a
+    row processed again (after a backoff, a crash before the ack, a redrive) gets the
+    same instant and the same dedup key. None (legacy callers): processing time.
+
+    NOTE: Does NOT write back to Orion (data comes from Orion subscription)
+    """
+    if not entities:
+        return
+    # Not ready (startup, or wiring missing): a normal return would let the inbox delete
+    # the rows, so the readings would be lost. Raise and let them be retried.
+    if _settings is None or _profile_service is None or _event_sink is None:
+        raise TransientProcessingError(
+            f"handler not ready (settings, profile service or event sink missing): "
+            f"tenant_id={tenant_id} entities={len(entities)}"
+        )
+
+    prepared: List[_PreparedEvent] = []
+    keys_in_call: set = set()
+
+    for entity in entities:
+        try:
+            item = await _prepare_entity(entity, tenant_id, fallback_observed_at)
+        except TransientProcessingError:
+            raise
+        except Exception as e:
+            if is_connection_error(e):
+                raise TransientProcessingError(
+                    f"connection failure preparing entity for tenant={tenant_id}: {e}"
+                ) from e
+            raise  # permanent: the caller buries (inbox) or logs and drops (wrapper)
+        if item is None:
+            continue
+        # The dedup check is read-only now: an identical entity twice in one call would
+        # pass it both times, so repeats inside the call are dropped here.
+        key = _call_dedup_key(item)
+        if key is not None:
+            if key in keys_in_call:
+                logger.debug(
+                    f"Duplicate entity in one call skipped: entity={item.event.entity_id} "
+                    f"observed_at={item.event.observed_at.isoformat()}"
+                )
+                continue
+            keys_in_call.add(key)
+        prepared.append(item)
+
+    if not prepared:
+        return
+
+    events = [item.event for item in prepared]
+    try:
+        if len(events) == 1:
+            inserted = events if await _event_sink.write(events[0]) is True else []
+        else:
+            inserted = await _event_sink.write_batch(events)
+            if not isinstance(inserted, list):
+                inserted = []
+    except Exception as e:
+        if is_connection_error(e):
+            raise TransientProcessingError(
+                f"connection failure writing {len(events)} events for tenant={tenant_id}: {e}"
+            ) from e
+        raise
+
+    logger.info(
+        f"Persisted {len(inserted)}/{len(events)} events for tenant={tenant_id}"
+    )
+    # Replay records only for events really inserted (never dead-lettered ones).
+    await _record_replay_state(inserted)
+    # Dedup and delta-filter state for every event the sink took (inserted or
+    # dead-lettered, both final); never before, so a failed attempt can be retried.
+    await _after_write(prepared)
+
+
+def _call_dedup_key(item: _PreparedEvent) -> Optional[tuple]:
+    """Same identity as the Redis dedup key; None when dedup is off (today's behaviour)."""
+    if _dedup is None or not _dedup.enabled:
+        return None
+    event = item.event
+    return (
+        event.tenant_id,
+        event.entity_id,
+        event.observed_at.isoformat(),
+        json.dumps(item.filtered, sort_keys=True, default=str),
+    )
+
+
+async def _after_write(prepared: List[_PreparedEvent]) -> None:
+    """Record dedup keys and delta-filter last values once the sink has taken the events."""
+    for item in prepared:
+        event = item.event
+        if _dedup is not None:
+            await _dedup.mark(
+                tenant_id=event.tenant_id,
+                entity_id=event.entity_id,
+                observed_at=event.observed_at,
+                measurements=item.filtered,
+            )
+        if _profile_service is not None:
+            _profile_service.update_last_values(item.device_id, item.measurements)
 
 
 def _replay_fingerprint(entity: Dict[str, Any]) -> Optional[tuple]:
@@ -197,7 +328,24 @@ async def _process_entity(
     entity: Dict[str, Any],
     tenant_id: Optional[str],
 ) -> Optional[TelemetryEvent]:
-    """Process a single NGSI-LD entity. Returns event or None."""
+    """Process a single NGSI-LD entity. Returns event or None.
+
+    Records no dedup key and no delta-filter state: process_entities does that after
+    the write (see _after_write).
+    """
+    item = await _prepare_entity(entity, tenant_id)
+    return item.event if item is not None else None
+
+
+async def _prepare_entity(
+    entity: Dict[str, Any],
+    tenant_id: Optional[str],
+    fallback_observed_at: Optional[datetime] = None,
+) -> Optional[_PreparedEvent]:
+    """Build the event of one entity, or None when it is skipped. Writes no state.
+
+    `fallback_observed_at`: instant used when the entity carries none (see process_entities).
+    """
     entity_id = entity.get("id", "")
     entity_type = entity.get("type", "")
 
@@ -245,8 +393,10 @@ async def _process_entity(
     logger.debug(f"Processing entity: {entity_type}/{device_id}")
 
     if not _profile_service or not _settings:
-        logger.error("Handler not initialized")
-        return None
+        # Raised, not skipped: dropping the entity here would lose the reading.
+        raise TransientProcessingError(
+            f"handler not initialised: tenant_id={tenant_id} entity_id={entity_id}"
+        )
 
     # Replay guard (design A.3): a one-off Orion write to a DM re-notifies its current
     # state long after the short dedup window below. Checked before calibration and the
@@ -330,17 +480,18 @@ async def _process_entity(
     # (a plain Property value), not in per-attribute observedAt metadata — the generic
     # extractor below would never find it there and would silently fall back to utcnow().
     observed_at = (
-        _extract_device_measurement_observed_at(entity)
+        _extract_device_measurement_observed_at(entity, fallback_observed_at)
         if entity_type == "DeviceMeasurement"
-        else _extract_observed_at(entity)
+        else _extract_observed_at(entity, fallback_observed_at)
     )
 
     # Deduplicate against Orion-LD notification redelivery (network retries,
-    # subscription replay). Per-event check so a batch with some new +
-    # some duplicate events keeps only the new ones. Fail-open: if Redis is
-    # unavailable, _dedup.is_duplicate() returns False and the write proceeds.
+    # subscription replay, inbox rows processed again). Per-event, read-only check:
+    # the key is marked only after the write (_after_write), so a failed attempt is
+    # retried, not skipped. Fail-open: if Redis is unavailable, seen() returns False.
+    # The delta-filter last values are likewise updated only after the write.
     if _dedup is not None:
-        is_dup = await _dedup.is_duplicate(
+        is_dup = await _dedup.seen(
             tenant_id=tenant_id,
             entity_id=entity_id,
             observed_at=observed_at,
@@ -353,16 +504,13 @@ async def _process_entity(
             )
             return None
 
-    # Update last values cache for future delta checks
-    _profile_service.update_last_values(device_id, measurements)
-
     observation_payload: Dict[str, Any] = {}
     if entity_type == "DeviceMeasurement" and _observation_lookup is not None:
         observation_payload = await _resolve_observation_payload(
             entity, tenant_id, observed_at, filtered, health_flags
         )
 
-    return TelemetryEvent(
+    event = TelemetryEvent(
         tenant_id=tenant_id,
         observed_at=observed_at,
         device_id=device_id,
@@ -376,6 +524,9 @@ async def _process_entity(
             **observation_payload,
         },
         quality_flag=quality_flag,
+    )
+    return _PreparedEvent(
+        event=event, device_id=device_id, measurements=measurements, filtered=filtered
     )
 
 
@@ -633,14 +784,19 @@ def _as_aware_utc(dt: datetime) -> datetime:
     return dt.replace(tzinfo=timezone.utc) if dt.tzinfo is None else dt
 
 
-def _extract_device_measurement_observed_at(entity: Dict[str, Any]) -> datetime:
+def _extract_device_measurement_observed_at(
+    entity: Dict[str, Any], fallback: Optional[datetime] = None
+) -> datetime:
     """`DeviceMeasurement` carries its instant in `dateObserved`, a plain Property value
     (see build_measurements), not in per-attribute `observedAt` metadata — the generic
     `_extract_observed_at` below would never find it there and would silently fall back
-    to utcnow(). Same ISO-8601 parsing, dedicated lookup key.
+    to utcnow(). Same ISO-8601 parsing, dedicated lookup key. Without a `dateObserved`:
+    `fallback`, else utcnow().
     """
     at = _date_observed(entity)
-    return at if at is not None else datetime.now(timezone.utc)
+    if at is not None:
+        return at
+    return fallback if fallback is not None else datetime.now(timezone.utc)
 
 
 def _date_observed(entity: Dict[str, Any]) -> Optional[datetime]:
@@ -656,8 +812,8 @@ def _date_observed(entity: Dict[str, Any]) -> Optional[datetime]:
     return None
 
 
-def _extract_observed_at(entity: Dict[str, Any]) -> datetime:
-    """Extract observedAt from any entity attribute, fallback to utcnow."""
+def _extract_observed_at(entity: Dict[str, Any], fallback: Optional[datetime] = None) -> datetime:
+    """Extract observedAt from any entity attribute; else `fallback`, else utcnow."""
     for attr in entity.values():
         if isinstance(attr, dict) and "observedAt" in attr:
             try:
@@ -666,21 +822,31 @@ def _extract_observed_at(entity: Dict[str, Any]) -> datetime:
                 )
             except (ValueError, TypeError, AttributeError):
                 pass
-    return datetime.now(timezone.utc)
+    return fallback if fallback is not None else datetime.now(timezone.utc)
+
+
+def _parse_notified_at(value: Any) -> Optional[datetime]:
+    """The body's top-level `notifiedAt` as an aware datetime, None when absent or unparseable."""
+    if not isinstance(value, str) or not value:
+        return None
+    try:
+        return _as_aware_utc(datetime.fromisoformat(value.replace("Z", "+00:00")))
+    except ValueError:
+        return None
 
 
 @router.post("/notify", status_code=204)
 async def receive_notification(
     request: Request,
-    background_tasks: BackgroundTasks,
     ngsild_tenant: Optional[str] = Header(None, alias="NGSILD-Tenant"),
     fiware_service: Optional[str] = Header(None, alias="Fiware-Service"),
 ):
     """
     Endpoint for Orion-LD notifications.
 
-    Accepts NGSI-LD subscription notifications and processes them
-    in the background for fast acknowledgment.
+    Stores every notified entity in the durable inbox before answering; the inbox
+    consumer processes them. An inbox failure answers 503 so Orion counts it as a
+    failed delivery. Never processes in memory.
 
     Supports both NGSI-LD (NGSILD-Tenant) and NGSIv2 (Fiware-Service) tenant headers.
 
@@ -695,28 +861,48 @@ async def receive_notification(
 
     try:
         body = await request.json()
-
-        # NGSI-LD uses NGSILD-Tenant header; NGSIv2 uses Fiware-Service
-        tenant_id = ngsild_tenant or fiware_service
-
-        logger.info(
-            f"Notification received for tenant={tenant_id}, "
-            f"entities={len(body.get('data', []))}"
-        )
-
-        # Fast response - process in background
-        background_tasks.add_task(process_notification_task, body, tenant_id)
-
-        return None
-
     except ValueError as e:
         # Malformed JSON body. Must surface as a 4xx: returning a dict here answered
         # 200 (FastAPI serialises the tuple), silently acknowledging a lost notification.
         logger.error(f"Malformed notification body: {e}")
         raise HTTPException(status_code=400, detail="malformed notification payload")
+    if not isinstance(body, dict):
+        logger.error("Malformed notification body: not a JSON object")
+        raise HTTPException(status_code=400, detail="malformed notification payload")
+
+    entities = body.get("data")
+    if entities is None:
+        entities = []
+    if not isinstance(entities, list):
+        logger.error("Malformed notification body: data is not a list")
+        raise HTTPException(status_code=400, detail="malformed notification payload")
+
+    # NGSI-LD uses NGSILD-Tenant header; NGSIv2 uses Fiware-Service
+    tenant_id = ngsild_tenant or fiware_service
+
+    logger.info(f"Notification received for tenant={tenant_id}, entities={len(entities)}")
+
+    if not entities:
+        return None
+    if not tenant_id:
+        # The inbox keys rows by tenant; without one nothing can be stored or processed.
+        logger.error(f"Notification without tenant header rejected: entities={len(entities)}")
+        raise HTTPException(status_code=400, detail="missing tenant header")
+    if _inbox is None:
+        logger.error(
+            f"Notification not stored, inbox not wired: tenant_id={tenant_id} entities={len(entities)}"
+        )
+        raise HTTPException(status_code=503, detail="notification inbox unavailable")
+
+    try:
+        await _inbox.enqueue(tenant_id, entities, _parse_notified_at(body.get("notifiedAt")))
     except Exception as e:
-        logger.error(f"Failed to accept notification: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail="notification processing error")
+        logger.error(
+            f"Notification not stored: tenant_id={tenant_id} entities={len(entities)}: {e}",
+            exc_info=True,
+        )
+        raise HTTPException(status_code=503, detail="notification inbox unavailable")
+    return None
 
 
 async def process_geometry_notification_task(data: Dict[str, Any], tenant_id: Optional[str]):
@@ -765,7 +951,6 @@ async def receive_geometry_notification(
 @router.post("/v2/notify", status_code=204)
 async def receive_notification_v2(
     request: Request,
-    background_tasks: BackgroundTasks,
     fiware_service: Optional[str] = Header(None, alias="Fiware-Service"),
 ):
     """
@@ -774,7 +959,6 @@ async def receive_notification_v2(
     """
     return await receive_notification(
         request,
-        background_tasks,
         ngsild_tenant=None,
         fiware_service=fiware_service,
     )

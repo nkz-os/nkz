@@ -7,6 +7,7 @@ Future: swap in KafkaSink when scale demands it (>2000 devices).
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 from abc import ABC, abstractmethod
@@ -26,6 +27,56 @@ TELEMETRY_DLQ_TOTAL = Counter(
     "Total telemetry records dead-lettered after failing individual insert",
     ["tenant_id", "entity_type"],
 )
+
+# InterfaceError subclasses that report bad input or a client/server capability, not a
+# lost connection: they keep the per-record dead-letter path. ValueError covers the
+# InterfaceError-based DataError of asyncpg.exceptions._base (shadowed by the public,
+# PostgresError-based asyncpg.DataError, which is a data error anyway).
+_INTERFACE_NON_CONNECTION_ERRORS = (
+    ValueError,
+    asyncpg.exceptions.ClientConfigurationError,
+    asyncpg.exceptions.UnsupportedClientFeatureError,
+    asyncpg.exceptions.UnsupportedServerFeatureError,
+)
+
+
+# Server states that refuse or end the connection without saying anything about the
+# record: starting up / in recovery (57P03), out of connection slots (53300), shut down
+# by an administrator (57P01) or after a crash of another backend (57P02).
+_SERVER_STATE_ERRORS = (
+    asyncpg.exceptions.CannotConnectNowError,
+    asyncpg.exceptions.TooManyConnectionsError,
+    asyncpg.exceptions.AdminShutdownError,
+    asyncpg.exceptions.CrashShutdownError,
+)
+
+
+class SinkNotStartedError(RuntimeError):
+    """The sink's pool does not exist yet (or any more): nothing can be written now."""
+
+
+def is_connection_error(err: BaseException) -> bool:
+    """True when `err` means the database cannot take writes now, not that the record is bad.
+
+    These propagate out of write()/write_batch() instead of being dead-lettered: a
+    dead connection says nothing about the record, and dead-lettering on it would
+    drop the record silently. The caller retries.
+    ASSUMPTION: an InterfaceError counts unless it is one of the bad-input/capability
+    subclasses above (precaution; asyncpg raises plain InterfaceError for a closed
+    connection).
+    """
+    if isinstance(err, asyncpg.exceptions.InterfaceError):
+        return not isinstance(err, _INTERFACE_NON_CONNECTION_ERRORS)
+    return isinstance(
+        err,
+        (
+            asyncpg.PostgresConnectionError,
+            OSError,
+            asyncio.TimeoutError,
+            SinkNotStartedError,
+            *_SERVER_STATE_ERRORS,
+        ),
+    )
 
 
 class TelemetryEvent:
@@ -178,15 +229,19 @@ class PostgreSQLSink(EventSink):
         """Persist a single event; a record that cannot be stored is dead-lettered.
 
         Returns True when the event was inserted, False when it was dead-lettered.
+        Connection failures (is_connection_error) propagate as-is, never dead-lettered.
+        A failed dead-letter insert propagates too (see _dead_letter).
         """
         if not self._pool:
-            raise RuntimeError("PostgreSQLSink not started")
+            raise SinkNotStartedError("PostgreSQLSink not started")
 
         record = event.as_tuple()
         async with self._pool.acquire() as conn:
             try:
                 await self._insert_one(conn, record, event)
             except Exception as insert_err:
+                if is_connection_error(insert_err):
+                    raise
                 logger.warning(
                     "Telemetry record not stored (entity_id=%s, device_id=%s, tenant_id=%s): %s - dead-lettering",
                     event.entity_id, event.device_id, event.tenant_id, insert_err,
@@ -231,13 +286,19 @@ class PostgreSQLSink(EventSink):
         violation — must not roll back the other, valid records in the same
         batch. A record whose individual insert still fails is dead-lettered
         into telemetry_events_dlq (see _dead_letter()) and processing
-        continues with the rest of the batch.
+        continues with the rest of the batch. If its dead-letter insert fails
+        too, the record is stored nowhere: that error propagates and ends the
+        batch (records inserted before it stay inserted).
+
+        Connection failures (is_connection_error) from COPY, an individual
+        insert or the dead-letter insert propagate as-is: nothing is
+        dead-lettered for them and the caller retries the batch.
 
         Returns the events actually inserted (every event when COPY succeeds; the
         non-dead-lettered ones after the fallback).
         """
         if not self._pool:
-            raise RuntimeError("PostgreSQLSink not started")
+            raise SinkNotStartedError("PostgreSQLSink not started")
 
         if not events:
             return []
@@ -253,6 +314,8 @@ class PostgreSQLSink(EventSink):
                     columns=self.COLUMNS,
                 )
             except Exception as e:
+                if is_connection_error(e):
+                    raise
                 logger.warning(f"COPY failed ({e}), falling back to per-record inserts")
                 stored = []
                 dlq_count = 0
@@ -261,6 +324,8 @@ class PostgreSQLSink(EventSink):
                         await self._insert_one(conn, record, event)
                         stored.append(event)
                     except Exception as insert_err:
+                        if is_connection_error(insert_err):
+                            raise
                         logger.warning(
                             "Poison telemetry record (entity_id=%s, device_id=%s, "
                             "tenant_id=%s): %s - dead-lettering",
@@ -294,11 +359,13 @@ class PostgreSQLSink(EventSink):
         Insert a single poison record into telemetry_events_dlq.
 
         Last-resort path: this record already failed to persist into
-        telemetry_events. Never raises — a failure here must not take down
-        the rest of the batch. Handles the pre-migration case where
-        telemetry_events_dlq doesn't exist yet (deploy landed before
-        migration 098) by logging a clear warning instead of crashing
-        ingestion.
+        telemetry_events. If this insert fails as well, the record would exist
+        nowhere, so the error is logged and re-raised, never swallowed: a
+        connection failure (is_connection_error) is retried by the caller; any
+        other one (including a missing telemetry_events_dlq table, migration
+        098 not applied) reaches the caller as a permanent failure, and the
+        inbox buries the row (notification_inbox_dead), from where it can be
+        redriven.
         """
         try:
             await conn.execute(self.INSERT_DLQ_SQL, *record, error_message)
@@ -307,19 +374,26 @@ class PostgreSQLSink(EventSink):
                 entity_type=event.entity_type or "unknown",
             ).inc()
         except asyncpg.exceptions.UndefinedTableError:
-            logger.warning(
-                "telemetry_events_dlq table does not exist yet (pending migration "
-                "098_telemetry_events_dlq.sql) - poison record for entity_id=%s "
-                "dropped (original error: %s)",
-                event.entity_id,
-                error_message,
-            )
-        except Exception as dlq_err:
             logger.error(
-                "Failed to dead-letter poison record (entity_id=%s, device_id=%s): "
-                "%s (original error: %s)",
+                "telemetry_events_dlq table does not exist (pending migration "
+                "098_telemetry_events_dlq.sql) - poison record not stored, raising "
+                "(entity_id=%s, device_id=%s, tenant_id=%s, original error: %s)",
                 event.entity_id,
                 event.device_id,
+                event.tenant_id,
+                error_message,
+            )
+            raise
+        except Exception as dlq_err:
+            if is_connection_error(dlq_err):
+                raise
+            logger.error(
+                "Failed to dead-letter poison record, raising (entity_id=%s, device_id=%s, "
+                "tenant_id=%s): %s (original error: %s)",
+                event.entity_id,
+                event.device_id,
+                event.tenant_id,
                 dlq_err,
                 error_message,
             )
+            raise

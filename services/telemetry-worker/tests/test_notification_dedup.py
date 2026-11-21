@@ -326,3 +326,52 @@ def test_replay_disabled_bypasses_redis_and_logs_nothing(caplog):
         assert _replay(dedup, T1, 21.5) is False
     assert dedup._redis.store == {}
     assert not [r for r in caplog.records if "replay_guard" in r.getMessage()]
+
+
+# ── seen / mark split (retry safety: mark only after the write) ─────────────
+
+
+def test_seen_is_read_only():
+    """seen() never writes: a reading whose write then fails must not be marked."""
+    dedup = _dedup_with_fake_redis()
+    m = {"temperature": 21.5}
+    assert asyncio.run(dedup.seen(TENANT_ID, ENTITY_ID, OBSERVED_AT, m)) is False
+    assert asyncio.run(dedup.seen(TENANT_ID, ENTITY_ID, OBSERVED_AT, m)) is False
+    assert dedup._redis.set_calls == []
+
+
+def test_mark_then_seen_is_true_with_ttl():
+    dedup = _dedup_with_fake_redis()
+    m = {"temperature": 21.5}
+    asyncio.run(dedup.mark(TENANT_ID, ENTITY_ID, OBSERVED_AT, m))
+    assert asyncio.run(dedup.seen(TENANT_ID, ENTITY_ID, OBSERVED_AT, m)) is True
+    assert asyncio.run(dedup.seen(TENANT_ID, ENTITY_ID, OBSERVED_AT, {"temperature": 30.0})) is False
+    (_key, _value, _nx, ex), = dedup._redis.set_calls
+    assert ex == dedup_module.DEFAULT_TTL_SECONDS
+
+
+def test_mark_shares_the_is_duplicate_key():
+    """A reading marked by mark() is a duplicate for is_duplicate() and vice versa."""
+    dedup = _dedup_with_fake_redis()
+    m = {"temperature": 21.5}
+    asyncio.run(dedup.mark(TENANT_ID, ENTITY_ID, OBSERVED_AT, m))
+    assert asyncio.run(dedup.is_duplicate(TENANT_ID, ENTITY_ID, OBSERVED_AT, m)) is True
+
+
+def test_seen_and_mark_fail_open():
+    dedup = NotificationDedup(redis_url="redis://localhost:6379/0", enabled=True)
+    dedup._redis = BrokenRedis()
+    m = {"temperature": 21.5}
+    assert asyncio.run(dedup.seen(TENANT_ID, ENTITY_ID, OBSERVED_AT, m)) is False
+    asyncio.run(dedup.mark(TENANT_ID, ENTITY_ID, OBSERVED_AT, m))  # must not raise
+    never = NotificationDedup(redis_url="redis://localhost:6379/0", enabled=True)
+    assert asyncio.run(never.seen(TENANT_ID, ENTITY_ID, OBSERVED_AT, m)) is False
+    asyncio.run(never.mark(TENANT_ID, ENTITY_ID, OBSERVED_AT, m))
+
+
+def test_seen_and_mark_disabled_do_not_touch_redis():
+    dedup = NotificationDedup(redis_url="redis://localhost:6379/0", enabled=False)
+    dedup._redis = BrokenRedis()
+    m = {"temperature": 21.5}
+    assert asyncio.run(dedup.seen(TENANT_ID, ENTITY_ID, OBSERVED_AT, m)) is False
+    asyncio.run(dedup.mark(TENANT_ID, ENTITY_ID, OBSERVED_AT, m))
