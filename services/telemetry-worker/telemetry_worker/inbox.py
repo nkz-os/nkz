@@ -17,10 +17,22 @@ from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Tuple
 
 import asyncpg
+from prometheus_client import Counter
 
 from telemetry_worker.notification_handler import _date_observed, _extract_observed_at
 
 logger = logging.getLogger(__name__)
+
+INBOX_ENQUEUED = Counter(
+    "inbox_enqueued_total", "Rows inserted into the inbox.", ["queue"])
+INBOX_ENQUEUE_FAILED = Counter(
+    "inbox_enqueue_failed_total", "Enqueue calls that raised (receiver answers 503).", ["queue"])
+INBOX_ACKED = Counter(
+    "inbox_acked_total", "Rows processed and deleted from the inbox.", ["queue"])
+INBOX_RETRIED = Counter(
+    "inbox_retried_total", "Rows put back with backoff after an infrastructure failure.", ["queue"])
+INBOX_DEAD = Counter(
+    "inbox_dead_total", "Rows moved to the dead table (12th attempt or permanent failure).", ["queue"])
 
 MAX_ATTEMPTS = 12
 BACKOFF_CAP_SECONDS = 300
@@ -107,6 +119,19 @@ class NotificationInbox:
         return self._queue
 
     async def enqueue(
+        self, tenant_id: str, entities: List[Dict[str, Any]], notified_at: Optional[datetime]
+    ) -> int:
+        """Insert one row per entity (see `_enqueue`); counts rows stored and failures."""
+        try:
+            stored = await self._enqueue(tenant_id, entities, notified_at)
+        except Exception:
+            INBOX_ENQUEUE_FAILED.labels(queue=self._queue).inc()
+            raise
+        if stored:
+            INBOX_ENQUEUED.labels(queue=self._queue).inc(stored)
+        return stored
+
+    async def _enqueue(
         self, tenant_id: str, entities: List[Dict[str, Any]], notified_at: Optional[datetime]
     ) -> int:
         """Insert one row per entity in one transaction; raises on DB failure.
@@ -233,9 +258,11 @@ class NotificationInbox:
             "DELETE FROM notification_inbox WHERE queue = $1 AND id = ANY($2::bigint[])",
             self._queue, ids,
         )
+        INBOX_ACKED.labels(queue=self._queue).inc(len(ids))
 
     async def retry(self, row: InboxRow, error: str) -> None:
         """attempts+1 and back off `min(2^attempts, 300)` s; at MAX_ATTEMPTS bury."""
+        buried = False
         async with self._pool.acquire() as conn:
             async with conn.transaction():
                 attempts = await conn.fetchval(
@@ -247,13 +274,16 @@ class NotificationInbox:
                     return
                 if attempts >= MAX_ATTEMPTS:
                     await self._bury(conn, row.id, error)
-                    return
-                delay = min(2 ** attempts, BACKOFF_CAP_SECONDS)
-                await conn.execute(
-                    "UPDATE notification_inbox SET available_at = now() + make_interval(secs => $2) "
-                    "WHERE id = $1",
-                    row.id, float(delay),
-                )
+                    buried = True
+                else:
+                    delay = min(2 ** attempts, BACKOFF_CAP_SECONDS)
+                    await conn.execute(
+                        "UPDATE notification_inbox SET available_at = now() + make_interval(secs => $2) "
+                        "WHERE id = $1",
+                        row.id, float(delay),
+                    )
+        # Counted after the transaction commits; a buried row is dead, not retried.
+        (INBOX_DEAD if buried else INBOX_RETRIED).labels(queue=self._queue).inc()
 
     async def _bury(self, conn: asyncpg.Connection, row_id: int, error: str) -> None:
         await conn.execute(
@@ -272,6 +302,7 @@ class NotificationInbox:
         async with self._pool.acquire() as conn:
             async with conn.transaction():
                 await self._bury(conn, row.id, error)
+        INBOX_DEAD.labels(queue=self._queue).inc()
 
     async def redrive(self, since: Optional[datetime], entity_id: Optional[str]) -> int:
         """Move dead rows (optionally died since / of one entity) back, attempts 0."""

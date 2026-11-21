@@ -4,6 +4,7 @@ from contextlib import asynccontextmanager
 
 import asyncpg
 from fastapi import FastAPI
+from prometheus_client import make_asgi_app
 
 from telemetry_worker.calibration import CalibrationService
 from telemetry_worker.config import Settings
@@ -173,6 +174,7 @@ app = FastAPI(
 
 app.include_router(health.health_router)
 app.include_router(notification_router)
+app.mount("/metrics", make_asgi_app())
 
 if __name__ == "__main__":
     import uvicorn

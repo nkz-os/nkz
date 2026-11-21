@@ -45,6 +45,8 @@ LOCK_RETRY_SECONDS = 5.0  # without the lock (or after losing it), try again aft
 ERROR_SLEEP_SECONDS = 5.0  # after a failed pass (store unavailable)
 LOCK_CHECK_SECONDS = 5.0  # ping the lock connection at most this often
 LOCK_PING_TIMEOUT_SECONDS = 5.0
+STATS_REFRESH_SECONDS = 15.0  # inbox_depth / inbox_oldest_age_seconds refresh period
+STATS_TIMEOUT_SECONDS = 5.0
 
 _LOCK_SQL = "SELECT pg_try_advisory_lock(hashtext('inbox:' || $1::text))"
 
@@ -53,6 +55,11 @@ CONSUMER_ACTIVE = Gauge(
     "1 while this replica holds the inbox consumer lock for the queue, else 0.",
     ["queue"],
 )
+
+INBOX_DEPTH = Gauge(
+    "inbox_depth", "Rows in the inbox, backed-off ones included.", ["queue"])
+INBOX_OLDEST_AGE = Gauge(
+    "inbox_oldest_age_seconds", "Age of the oldest row in the inbox (0 when empty).", ["queue"])
 
 ProcessFn = Callable[[List[Dict[str, Any]], Optional[str]], Awaitable[None]]
 
@@ -92,6 +99,7 @@ class InboxConsumer:
         self._lock_retry_s = LOCK_RETRY_SECONDS
         self._error_sleep_s = ERROR_SLEEP_SECONDS
         self._lock_check_s = LOCK_CHECK_SECONDS
+        self._stats_refresh_s = STATS_REFRESH_SECONDS
         self._holds_lock = False
 
     @property
@@ -221,9 +229,26 @@ class InboxConsumer:
                     extra={"queue": self._queue, "error": repr(exc)},
                 )
 
+    async def _refresh_stats(self) -> None:
+        """Set the depth/age gauges; a failure is logged and never ends the loop."""
+        try:
+            depth, age = await asyncio.wait_for(self._inbox.stats(), STATS_TIMEOUT_SECONDS)
+        except Exception as exc:  # CancelledError is not an Exception: it propagates
+            logger.warning(
+                f"inbox_stats_failed queue={self._queue} error={exc!r}",
+                extra={"queue": self._queue, "error": repr(exc)},
+            )
+            return
+        INBOX_DEPTH.labels(queue=self._queue).set(depth)
+        INBOX_OLDEST_AGE.labels(queue=self._queue).set(age)
+
     async def _drain(self, conn: Any) -> None:
         last_check = float("-inf")
+        last_stats = float("-inf")
         while True:
+            if time.monotonic() - last_stats >= self._stats_refresh_s:
+                last_stats = time.monotonic()
+                await self._refresh_stats()
             if time.monotonic() - last_check >= self._lock_check_s:
                 if not await self._lock_alive(conn):
                     return
