@@ -5,8 +5,10 @@ Receives NGSI-LD entity updates and persists to TimescaleDB
 after applying Processing Profiles (throttle, filter, delta).
 """
 
+import json
 import logging
 import os
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
@@ -14,7 +16,7 @@ from fastapi import APIRouter, Request, BackgroundTasks, Header, HTTPException
 from nkz_platform_sdk.notify_auth import accept_master_from_env, verify_notification
 
 from .config import Settings
-from .event_sink import EventSink, TelemetryEvent
+from .event_sink import EventSink, TelemetryEvent, is_connection_error
 from .health_checker import HealthChecker, _severity
 from .profiles import ProfileService
 from .calibration import CalibrationService
@@ -115,53 +117,155 @@ def init_handler(
     _skip_info.reset()
 
 
+class TransientProcessingError(Exception):
+    """Infrastructure failure (database connection lost or unavailable): retry later.
+
+    Raised by process_entities with the original error as __cause__. The failed attempt
+    left no dedup key and no delta-filter state, so a retry stores the reading.
+    """
+
+
+@dataclass(frozen=True)
+class _PreparedEvent:
+    """An event plus what is recorded once the sink has taken it (see _after_write)."""
+
+    event: TelemetryEvent
+    device_id: str
+    measurements: Dict[str, Any]  # calibrated, before filtering: the delta-filter state
+    filtered: Dict[str, Any]  # what is stored: the dedup key
+
+
 async def process_notification_task(
     data: Dict[str, Any],
     tenant_id: Optional[str] = None,
 ):
-    """
-    Background task to process Orion-LD notification.
+    """Process one Orion-LD notification body; never raises (kept for existing callers).
 
-    Flow:
-    1. Extract entity info (id, type, attributes)
-    2. Get processing profile for device type
-    3. Apply throttle/delta checks
-    4. Filter attributes
-    5. Persist to TimescaleDB via EventSink
-
-    NOTE: Does NOT write back to Orion (data comes from Orion subscription)
+    Failures, transient ones included, are logged and the notification is dropped;
+    the inbox consumer calls process_entities instead and retries transient ones.
     """
     try:
         entities = data.get("data", [])
         if not entities:
             logger.debug("Empty notification received")
             return
-
-        # Collect events for batch insert
-        events: List[TelemetryEvent] = []
-
-        for entity in entities:
-            event = await _process_entity(entity, tenant_id)
-            if event:
-                events.append(event)
-
-        # Batch persist all events from this notification
-        if events and _event_sink:
-            if len(events) == 1:
-                inserted = events if await _event_sink.write(events[0]) is True else []
-            else:
-                inserted = await _event_sink.write_batch(events)
-                if not isinstance(inserted, list):
-                    inserted = []
-
-            logger.info(
-                f"Persisted {len(inserted)}/{len(events)} events for tenant={tenant_id}"
-            )
-            # Replay records only for events really inserted (never dead-lettered ones).
-            await _record_replay_state(inserted)
-
+        await process_entities(entities, tenant_id)
     except Exception as e:
         logger.error(f"Error processing notification: {e}", exc_info=True)
+
+
+async def process_entities(
+    entities: List[Dict[str, Any]],
+    tenant_id: Optional[str],
+) -> None:
+    """
+    Process notified NGSI-LD entities and persist them to TimescaleDB.
+
+    Flow:
+    1. Extract entity info (id, type, attributes)
+    2. Get processing profile for device type
+    3. Apply throttle/delta checks and the read-only dedup check
+    4. Filter attributes
+    5. Persist to TimescaleDB via EventSink
+    6. Only then record dedup keys, delta-filter last values and replay state
+
+    Raises TransientProcessingError on a database connection failure (is_connection_error),
+    from the sink or while preparing an entity; nothing has been recorded then, so a retry
+    is safe. Any other error from one entity is logged and that entity skipped. Poison
+    records are dead-lettered inside the EventSink (final, recorded like an insert).
+
+    NOTE: Does NOT write back to Orion (data comes from Orion subscription)
+    """
+    if not entities:
+        return
+
+    prepared: List[_PreparedEvent] = []
+    keys_in_call: set = set()
+
+    for entity in entities:
+        try:
+            item = await _prepare_entity(entity, tenant_id)
+        except Exception as e:
+            if is_connection_error(e):
+                raise TransientProcessingError(
+                    f"connection failure preparing entity for tenant={tenant_id}: {e}"
+                ) from e
+            entity_id = entity.get("id") if isinstance(entity, dict) else None
+            logger.error(
+                f"Entity skipped, processing failed: tenant_id={tenant_id} "
+                f"entity_id={entity_id}: {e}",
+                exc_info=True,
+            )
+            continue
+        if item is None:
+            continue
+        # The dedup check is read-only now: an identical entity twice in one call would
+        # pass it both times, so repeats inside the call are dropped here.
+        key = _call_dedup_key(item)
+        if key is not None:
+            if key in keys_in_call:
+                logger.debug(
+                    f"Duplicate entity in one call skipped: entity={item.event.entity_id} "
+                    f"observed_at={item.event.observed_at.isoformat()}"
+                )
+                continue
+            keys_in_call.add(key)
+        prepared.append(item)
+
+    if not prepared or not _event_sink:
+        return
+
+    events = [item.event for item in prepared]
+    try:
+        if len(events) == 1:
+            inserted = events if await _event_sink.write(events[0]) is True else []
+        else:
+            inserted = await _event_sink.write_batch(events)
+            if not isinstance(inserted, list):
+                inserted = []
+    except Exception as e:
+        if is_connection_error(e):
+            raise TransientProcessingError(
+                f"connection failure writing {len(events)} events for tenant={tenant_id}: {e}"
+            ) from e
+        raise
+
+    logger.info(
+        f"Persisted {len(inserted)}/{len(events)} events for tenant={tenant_id}"
+    )
+    # Replay records only for events really inserted (never dead-lettered ones).
+    await _record_replay_state(inserted)
+    # Dedup and delta-filter state for every event the sink took (inserted or
+    # dead-lettered, both final); never before, so a failed attempt can be retried.
+    await _after_write(prepared)
+
+
+def _call_dedup_key(item: _PreparedEvent) -> Optional[tuple]:
+    """Same identity as the Redis dedup key; None when dedup is off (today's behaviour)."""
+    if _dedup is None or not _dedup.enabled:
+        return None
+    event = item.event
+    return (
+        event.tenant_id,
+        event.entity_id,
+        event.observed_at.isoformat(),
+        json.dumps(item.filtered, sort_keys=True, default=str),
+    )
+
+
+async def _after_write(prepared: List[_PreparedEvent]) -> None:
+    """Record dedup keys and delta-filter last values once the sink has taken the events."""
+    for item in prepared:
+        event = item.event
+        if _dedup is not None:
+            await _dedup.mark(
+                tenant_id=event.tenant_id,
+                entity_id=event.entity_id,
+                observed_at=event.observed_at,
+                measurements=item.filtered,
+            )
+        if _profile_service is not None:
+            _profile_service.update_last_values(item.device_id, item.measurements)
 
 
 def _replay_fingerprint(entity: Dict[str, Any]) -> Optional[tuple]:
@@ -197,7 +301,20 @@ async def _process_entity(
     entity: Dict[str, Any],
     tenant_id: Optional[str],
 ) -> Optional[TelemetryEvent]:
-    """Process a single NGSI-LD entity. Returns event or None."""
+    """Process a single NGSI-LD entity. Returns event or None.
+
+    Records no dedup key and no delta-filter state: process_entities does that after
+    the write (see _after_write).
+    """
+    item = await _prepare_entity(entity, tenant_id)
+    return item.event if item is not None else None
+
+
+async def _prepare_entity(
+    entity: Dict[str, Any],
+    tenant_id: Optional[str],
+) -> Optional[_PreparedEvent]:
+    """Build the event of one entity, or None when it is skipped. Writes no state."""
     entity_id = entity.get("id", "")
     entity_type = entity.get("type", "")
 
@@ -336,11 +453,12 @@ async def _process_entity(
     )
 
     # Deduplicate against Orion-LD notification redelivery (network retries,
-    # subscription replay). Per-event check so a batch with some new +
-    # some duplicate events keeps only the new ones. Fail-open: if Redis is
-    # unavailable, _dedup.is_duplicate() returns False and the write proceeds.
+    # subscription replay, inbox rows processed again). Per-event, read-only check:
+    # the key is marked only after the write (_after_write), so a failed attempt is
+    # retried, not skipped. Fail-open: if Redis is unavailable, seen() returns False.
+    # The delta-filter last values are likewise updated only after the write.
     if _dedup is not None:
-        is_dup = await _dedup.is_duplicate(
+        is_dup = await _dedup.seen(
             tenant_id=tenant_id,
             entity_id=entity_id,
             observed_at=observed_at,
@@ -353,16 +471,13 @@ async def _process_entity(
             )
             return None
 
-    # Update last values cache for future delta checks
-    _profile_service.update_last_values(device_id, measurements)
-
     observation_payload: Dict[str, Any] = {}
     if entity_type == "DeviceMeasurement" and _observation_lookup is not None:
         observation_payload = await _resolve_observation_payload(
             entity, tenant_id, observed_at, filtered, health_flags
         )
 
-    return TelemetryEvent(
+    event = TelemetryEvent(
         tenant_id=tenant_id,
         observed_at=observed_at,
         device_id=device_id,
@@ -376,6 +491,9 @@ async def _process_entity(
             **observation_payload,
         },
         quality_flag=quality_flag,
+    )
+    return _PreparedEvent(
+        event=event, device_id=device_id, measurements=measurements, filtered=filtered
     )
 
 

@@ -7,6 +7,7 @@ Future: swap in KafkaSink when scale demands it (>2000 devices).
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 from abc import ABC, abstractmethod
@@ -26,6 +27,32 @@ TELEMETRY_DLQ_TOTAL = Counter(
     "Total telemetry records dead-lettered after failing individual insert",
     ["tenant_id", "entity_type"],
 )
+
+# InterfaceError subclasses raised for bad input or client/server capabilities, not for
+# a lost connection. asyncpg.DataError (invalid query argument) is the one that matters:
+# it is a poison record and keeps going to telemetry_events_dlq.
+_INTERFACE_DATA_ERRORS = (
+    asyncpg.exceptions._base.DataError,
+    asyncpg.exceptions._base.ClientConfigurationError,
+    asyncpg.exceptions._base.UnsupportedClientFeatureError,
+    asyncpg.exceptions._base.UnsupportedServerFeatureError,
+)
+
+
+def is_connection_error(err: BaseException) -> bool:
+    """True when `err` means the database connection failed, not the record.
+
+    These propagate out of write()/write_batch() instead of being dead-lettered: a
+    dead connection says nothing about the record, and dead-lettering on it would
+    drop the record silently. The caller retries.
+    ASSUMPTION: InterfaceError counts only without the data/capability subclasses
+    above (asyncpg.DataError is an InterfaceError and a ValueError).
+    """
+    if isinstance(err, asyncpg.exceptions.InterfaceError):
+        return not isinstance(err, _INTERFACE_DATA_ERRORS)
+    return isinstance(
+        err, (asyncpg.PostgresConnectionError, OSError, asyncio.TimeoutError)
+    )
 
 
 class TelemetryEvent:
@@ -178,6 +205,7 @@ class PostgreSQLSink(EventSink):
         """Persist a single event; a record that cannot be stored is dead-lettered.
 
         Returns True when the event was inserted, False when it was dead-lettered.
+        Connection failures (is_connection_error) propagate as-is, never dead-lettered.
         """
         if not self._pool:
             raise RuntimeError("PostgreSQLSink not started")
@@ -187,6 +215,8 @@ class PostgreSQLSink(EventSink):
             try:
                 await self._insert_one(conn, record, event)
             except Exception as insert_err:
+                if is_connection_error(insert_err):
+                    raise
                 logger.warning(
                     "Telemetry record not stored (entity_id=%s, device_id=%s, tenant_id=%s): %s - dead-lettering",
                     event.entity_id, event.device_id, event.tenant_id, insert_err,
@@ -233,6 +263,10 @@ class PostgreSQLSink(EventSink):
         into telemetry_events_dlq (see _dead_letter()) and processing
         continues with the rest of the batch.
 
+        Connection failures (is_connection_error) from COPY, an individual
+        insert or the dead-letter insert propagate as-is: nothing is
+        dead-lettered for them and the caller retries the batch.
+
         Returns the events actually inserted (every event when COPY succeeds; the
         non-dead-lettered ones after the fallback).
         """
@@ -253,6 +287,8 @@ class PostgreSQLSink(EventSink):
                     columns=self.COLUMNS,
                 )
             except Exception as e:
+                if is_connection_error(e):
+                    raise
                 logger.warning(f"COPY failed ({e}), falling back to per-record inserts")
                 stored = []
                 dlq_count = 0
@@ -261,6 +297,8 @@ class PostgreSQLSink(EventSink):
                         await self._insert_one(conn, record, event)
                         stored.append(event)
                     except Exception as insert_err:
+                        if is_connection_error(insert_err):
+                            raise
                         logger.warning(
                             "Poison telemetry record (entity_id=%s, device_id=%s, "
                             "tenant_id=%s): %s - dead-lettering",
@@ -294,8 +332,10 @@ class PostgreSQLSink(EventSink):
         Insert a single poison record into telemetry_events_dlq.
 
         Last-resort path: this record already failed to persist into
-        telemetry_events. Never raises — a failure here must not take down
-        the rest of the batch. Handles the pre-migration case where
+        telemetry_events. Raises only on a connection failure
+        (is_connection_error), so the record is retried instead of dropped;
+        any other failure here is logged and must not take down the rest of
+        the batch. Handles the pre-migration case where
         telemetry_events_dlq doesn't exist yet (deploy landed before
         migration 098) by logging a clear warning instead of crashing
         ingestion.
@@ -315,6 +355,8 @@ class PostgreSQLSink(EventSink):
                 error_message,
             )
         except Exception as dlq_err:
+            if is_connection_error(dlq_err):
+                raise
             logger.error(
                 "Failed to dead-letter poison record (entity_id=%s, device_id=%s): "
                 "%s (original error: %s)",

@@ -28,6 +28,7 @@ for _p in [_SVC_DIR, _SERVICES_DIR, _COMMON_DIR]:
         sys.path.insert(0, _p)
 
 import asyncpg
+import pytest
 
 from telemetry_worker.event_sink import (
     PostgreSQLSink,
@@ -258,3 +259,110 @@ def test_write_returns_true_when_inserted_false_when_dead_lettered():
     assert asyncio.run(sink.write(_event("good-1"))) is True
     sink._pool = FakePool(FakeConnection(poison_devices={"poison-1"}))
     assert asyncio.run(sink.write(_event("poison-1"))) is False
+
+
+# ── Connection-class errors propagate, never dead-lettered (retry by the inbox) ──
+
+
+class ConnDropConnection(FakeConnection):
+    """COPY fails with `copy_error`; per-record inserts of `drop_devices` raise `insert_error`."""
+
+    def __init__(self, copy_error=None, insert_error=None, drop_devices=(), dlq_error=None, **kw):
+        super().__init__(**kw)
+        self.copy_error = copy_error or RuntimeError("simulated COPY failure (schema mismatch)")
+        self.insert_error = insert_error
+        self.drop_devices = set(drop_devices)
+        self.dlq_error = dlq_error
+        self.copy_calls = 0
+
+    async def copy_records_to_table(self, table, records=None, columns=None):
+        self.copy_calls += 1
+        raise self.copy_error
+
+    async def execute(self, sql, *args):
+        if "telemetry_events_dlq" in sql and self.dlq_error is not None:
+            raise self.dlq_error
+        if "telemetry_events_dlq" not in sql and args[2] in self.drop_devices:
+            raise self.insert_error
+        return await super().execute(sql, *args)
+
+
+class _BrokenPool:
+    def __init__(self, error):
+        self.error = error
+
+    def acquire(self):
+        raise self.error
+
+
+def _sink_on(conn):
+    sink = PostgreSQLSink(dsn="postgresql://fake")
+    sink._pool = FakePool(conn)
+    return sink
+
+
+
+CONNECTION_ERRORS = [
+    asyncpg.exceptions.ConnectionDoesNotExistError("connection was closed in the middle of operation"),
+    asyncpg.PostgresConnectionError("connection failure"),
+    asyncpg.exceptions.InterfaceError("connection is closed"),
+    ConnectionResetError("reset by peer"),
+    asyncio.TimeoutError(),
+]
+
+
+@pytest.mark.parametrize("err", CONNECTION_ERRORS, ids=lambda e: type(e).__name__)
+def test_copy_connection_error_propagates_without_fallback(err):
+    conn = ConnDropConnection(copy_error=err)
+    with pytest.raises(type(err)):
+        asyncio.run(_sink_on(conn).write_batch([_event("good-1"), _event("good-2")]))
+    assert conn.inserted_records == [] and conn.dlq_records == []
+
+
+@pytest.mark.parametrize("err", CONNECTION_ERRORS, ids=lambda e: type(e).__name__)
+def test_fallback_insert_connection_error_propagates_not_dead_lettered(err):
+    conn = ConnDropConnection(insert_error=err, drop_devices={"good-2"})
+    with pytest.raises(type(err)):
+        asyncio.run(_sink_on(conn).write_batch([_event("good-1"), _event("good-2")]))
+    assert conn.dlq_records == []
+
+
+@pytest.mark.parametrize("err", CONNECTION_ERRORS, ids=lambda e: type(e).__name__)
+def test_write_connection_error_propagates_not_dead_lettered(err):
+    conn = ConnDropConnection(insert_error=err, drop_devices={"good-1"})
+    with pytest.raises(type(err)):
+        asyncio.run(_sink_on(conn).write(_event("good-1")))
+    assert conn.dlq_records == []
+
+
+@pytest.mark.parametrize("err", CONNECTION_ERRORS, ids=lambda e: type(e).__name__)
+def test_dead_letter_connection_error_propagates(err):
+    """A poison record whose DLQ insert hits a dead connection is not silently dropped."""
+    conn = ConnDropConnection(poison_devices={"poison-1"}, dlq_error=err)
+    with pytest.raises(type(err)):
+        asyncio.run(_sink_on(conn).write_batch([_event("good-1"), _event("poison-1")]))
+    conn = ConnDropConnection(poison_devices={"poison-1"}, dlq_error=err)
+    with pytest.raises(type(err)):
+        asyncio.run(_sink_on(conn).write(_event("poison-1")))
+
+
+def test_pool_acquire_error_propagates():
+    sink = PostgreSQLSink(dsn="postgresql://fake")
+    sink._pool = _BrokenPool(ConnectionRefusedError("refused"))
+    with pytest.raises(ConnectionRefusedError):
+        asyncio.run(sink.write(_event("good-1")))
+    with pytest.raises(ConnectionRefusedError):
+        asyncio.run(sink.write_batch([_event("good-1"), _event("good-2")]))
+
+
+def test_client_side_data_error_is_still_dead_lettered():
+    """asyncpg.DataError (invalid query argument) subclasses InterfaceError but is a data
+    error: it is dead-lettered, not propagated as a connection failure."""
+    bad = asyncpg.DataError("invalid input for query argument $6")
+    conn = ConnDropConnection(insert_error=bad, drop_devices={"poison-1"})
+    stored = asyncio.run(_sink_on(conn).write_batch([_event("good-1"), _event("poison-1")]))
+    assert [e.device_id for e in stored] == ["good-1"]
+    assert [r[2] for r in conn.dlq_records] == ["poison-1"]
+    conn = ConnDropConnection(insert_error=bad, drop_devices={"poison-1"})
+    assert asyncio.run(_sink_on(conn).write(_event("poison-1"))) is False
+    assert [r[2] for r in conn.dlq_records] == ["poison-1"]
