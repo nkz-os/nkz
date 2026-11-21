@@ -118,7 +118,7 @@ def init_handler(
 
 
 class TransientProcessingError(Exception):
-    """Infrastructure failure (database connection lost or unavailable): retry later.
+    """Infrastructure failure or handler not ready (database unavailable, not wired): retry later.
 
     Raised by process_entities with the original error as __cause__. The failed attempt
     left no dedup key and no delta-filter state, so a retry stores the reading.
@@ -169,15 +169,22 @@ async def process_entities(
     5. Persist to TimescaleDB via EventSink
     6. Only then record dedup keys, delta-filter last values and replay state
 
-    Raises TransientProcessingError on a database connection failure (is_connection_error),
-    from the sink or while preparing an entity; nothing has been recorded then, so a retry
-    is safe. Any other error from one entity is logged and that entity skipped. Poison
+    Raises TransientProcessingError when the handler is not ready (not initialised, no
+    event sink) and on a database connection failure (is_connection_error), from the sink
+    or while preparing an entity; nothing has been recorded then, so a retry is safe. Any other error from one entity is logged and that entity skipped. Poison
     records are dead-lettered inside the EventSink (final, recorded like an insert).
 
     NOTE: Does NOT write back to Orion (data comes from Orion subscription)
     """
     if not entities:
         return
+    # Not ready (startup, or wiring missing): a normal return would let the inbox delete
+    # the rows, so the readings would be lost. Raise and let them be retried.
+    if _settings is None or _profile_service is None or _event_sink is None:
+        raise TransientProcessingError(
+            f"handler not ready (settings, profile service or event sink missing): "
+            f"tenant_id={tenant_id} entities={len(entities)}"
+        )
 
     prepared: List[_PreparedEvent] = []
     keys_in_call: set = set()
@@ -185,6 +192,8 @@ async def process_entities(
     for entity in entities:
         try:
             item = await _prepare_entity(entity, tenant_id)
+        except TransientProcessingError:
+            raise
         except Exception as e:
             if is_connection_error(e):
                 raise TransientProcessingError(
@@ -212,7 +221,7 @@ async def process_entities(
             keys_in_call.add(key)
         prepared.append(item)
 
-    if not prepared or not _event_sink:
+    if not prepared:
         return
 
     events = [item.event for item in prepared]
@@ -362,8 +371,10 @@ async def _prepare_entity(
     logger.debug(f"Processing entity: {entity_type}/{device_id}")
 
     if not _profile_service or not _settings:
-        logger.error("Handler not initialized")
-        return None
+        # Raised, not skipped: dropping the entity here would lose the reading.
+        raise TransientProcessingError(
+            f"handler not initialised: tenant_id={tenant_id} entity_id={entity_id}"
+        )
 
     # Replay guard (design A.3): a one-off Orion write to a DM re-notifies its current
     # state long after the short dedup window below. Checked before calibration and the

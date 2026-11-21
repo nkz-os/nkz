@@ -245,3 +245,51 @@ def test_wrapper_still_swallows_failures():
     asyncio.run(nh.process_notification_task({"data": [_sensor("s1")]}, TENANT))
     asyncio.run(nh.process_notification_task({"data": [_sensor("s1")]}, TENANT))
     assert len(sink.inserted) == 1
+
+
+# ── Not ready: a normal return would let the inbox delete the row ───────────
+
+
+def test_sink_not_wired_is_transient():
+    _wire(None, _dedup())
+    with pytest.raises(nh.TransientProcessingError):
+        _run([_sensor("s1")])
+
+
+def test_handler_not_initialised_is_transient(monkeypatch):
+    _wire(Sink())
+    monkeypatch.setattr(nh, "_profile_service", None)
+    with pytest.raises(nh.TransientProcessingError):
+        _run([_sensor("s1")])
+    monkeypatch.setattr(nh, "_settings", None)
+    with pytest.raises(nh.TransientProcessingError):
+        _run([_sensor("s1")])
+
+
+def test_prepare_raises_when_not_initialised(monkeypatch):
+    """The per-entity guard raises too, so it is never logged and skipped."""
+    _wire(Sink())
+    monkeypatch.setattr(nh, "_settings", None)
+    with pytest.raises(nh.TransientProcessingError):
+        asyncio.run(nh._prepare_entity(_sensor("s1"), TENANT))
+
+
+def test_wrapper_never_raises_when_not_ready(monkeypatch):
+    _wire(None)
+    asyncio.run(nh.process_notification_task({"data": [_sensor("s1")]}, TENANT))
+    _wire(Sink())
+    monkeypatch.setattr(nh, "_settings", None)
+    asyncio.run(nh.process_notification_task({"data": [_sensor("s1")]}, TENANT))
+
+
+@pytest.mark.parametrize("err", [
+    asyncpg.exceptions.CannotConnectNowError("the database system is starting up"),
+    asyncpg.exceptions.TooManyConnectionsError("too many clients already"),
+    asyncpg.exceptions.AdminShutdownError("terminating connection due to administrator command"),
+    asyncpg.exceptions.CrashShutdownError("terminating connection due to crash of another process"),
+], ids=lambda e: type(e).__name__)
+def test_postgres_startup_and_shutdown_errors_are_transient(err):
+    _wire(Sink(fail=err))
+    with pytest.raises(nh.TransientProcessingError) as exc:
+        _run([_sensor("s1")])
+    assert exc.value.__cause__ is err

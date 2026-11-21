@@ -40,8 +40,23 @@ _INTERFACE_NON_CONNECTION_ERRORS = (
 )
 
 
+# Server states that refuse or end the connection without saying anything about the
+# record: starting up / in recovery (57P03), out of connection slots (53300), shut down
+# by an administrator (57P01) or after a crash of another backend (57P02).
+_SERVER_STATE_ERRORS = (
+    asyncpg.exceptions.CannotConnectNowError,
+    asyncpg.exceptions.TooManyConnectionsError,
+    asyncpg.exceptions.AdminShutdownError,
+    asyncpg.exceptions.CrashShutdownError,
+)
+
+
+class SinkNotStartedError(RuntimeError):
+    """The sink's pool does not exist yet (or any more): nothing can be written now."""
+
+
 def is_connection_error(err: BaseException) -> bool:
-    """True when `err` means the database connection failed, not the record.
+    """True when `err` means the database cannot take writes now, not that the record is bad.
 
     These propagate out of write()/write_batch() instead of being dead-lettered: a
     dead connection says nothing about the record, and dead-lettering on it would
@@ -53,7 +68,14 @@ def is_connection_error(err: BaseException) -> bool:
     if isinstance(err, asyncpg.exceptions.InterfaceError):
         return not isinstance(err, _INTERFACE_NON_CONNECTION_ERRORS)
     return isinstance(
-        err, (asyncpg.PostgresConnectionError, OSError, asyncio.TimeoutError)
+        err,
+        (
+            asyncpg.PostgresConnectionError,
+            OSError,
+            asyncio.TimeoutError,
+            SinkNotStartedError,
+            *_SERVER_STATE_ERRORS,
+        ),
     )
 
 
@@ -210,7 +232,7 @@ class PostgreSQLSink(EventSink):
         Connection failures (is_connection_error) propagate as-is, never dead-lettered.
         """
         if not self._pool:
-            raise RuntimeError("PostgreSQLSink not started")
+            raise SinkNotStartedError("PostgreSQLSink not started")
 
         record = event.as_tuple()
         async with self._pool.acquire() as conn:
@@ -273,7 +295,7 @@ class PostgreSQLSink(EventSink):
         non-dead-lettered ones after the fallback).
         """
         if not self._pool:
-            raise RuntimeError("PostgreSQLSink not started")
+            raise SinkNotStartedError("PostgreSQLSink not started")
 
         if not events:
             return []

@@ -370,3 +370,39 @@ def test_data_and_client_errors_are_still_dead_lettered(bad):
     conn = ConnDropConnection(insert_error=bad, drop_devices={"poison-1"})
     assert asyncio.run(_sink_on(conn).write(_event("poison-1"))) is False
     assert [r[2] for r in conn.dlq_records] == ["poison-1"]
+
+
+SERVER_STATE_ERRORS = [
+    asyncpg.exceptions.CannotConnectNowError("the database system is starting up"),
+    asyncpg.exceptions.TooManyConnectionsError("too many clients already"),
+    asyncpg.exceptions.AdminShutdownError("terminating connection due to administrator command"),
+    asyncpg.exceptions.CrashShutdownError("terminating connection due to crash of another process"),
+]
+
+
+@pytest.mark.parametrize("err", SERVER_STATE_ERRORS, ids=lambda e: type(e).__name__)
+def test_server_state_errors_are_connection_errors(err):
+    """Postgres restarting, full or shutting down: retry, never dead-letter."""
+    from telemetry_worker.event_sink import is_connection_error
+
+    assert is_connection_error(err)
+    sink = PostgreSQLSink(dsn="postgresql://fake")
+    sink._pool = _BrokenPool(err)
+    with pytest.raises(type(err)):
+        asyncio.run(sink.write(_event("good-1")))
+    conn = ConnDropConnection(insert_error=err, drop_devices={"good-1"})
+    with pytest.raises(type(err)):
+        asyncio.run(_sink_on(conn).write(_event("good-1")))
+    assert conn.dlq_records == []
+
+
+def test_sink_not_started_is_a_connection_error():
+    from telemetry_worker.event_sink import SinkNotStartedError, is_connection_error
+
+    sink = PostgreSQLSink(dsn="postgresql://fake")
+    for call in (lambda: sink.write(_event("x")), lambda: sink.write_batch([_event("x")])):
+        with pytest.raises(SinkNotStartedError) as exc:
+            asyncio.run(call())
+        assert isinstance(exc.value, RuntimeError)  # existing callers catching RuntimeError
+        assert is_connection_error(exc.value)
+    assert not is_connection_error(RuntimeError("PostgreSQLSink not started"))
