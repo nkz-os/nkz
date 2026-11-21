@@ -38,6 +38,9 @@ class FakeInbox:
             raise OSError("db down")
         return self.batches.pop(0) if self.batches else []
 
+    async def stats(self):
+        return 0, 0.0
+
     async def ack(self, ids):
         if self.fail_ack:
             self.fail_ack -= 1

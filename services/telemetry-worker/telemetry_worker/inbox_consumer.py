@@ -30,11 +30,12 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import math
 import time
 from dataclasses import dataclass
 from typing import Any, Awaitable, Callable, Dict, List, Optional, Set, Tuple
 
-from prometheus_client import Gauge
+from prometheus_client import Counter, Gauge
 
 from telemetry_worker.inbox import InboxRow, NotificationInbox
 from telemetry_worker.notification_handler import TransientProcessingError, process_entities
@@ -60,6 +61,9 @@ INBOX_DEPTH = Gauge(
     "inbox_depth", "Rows in the inbox, backed-off ones included.", ["queue"])
 INBOX_OLDEST_AGE = Gauge(
     "inbox_oldest_age_seconds", "Age of the oldest row in the inbox (0 when empty).", ["queue"])
+
+INBOX_STATS_FAILED = Counter(
+    "inbox_stats_failed_total", "Failed inbox stats refreshes (gauges are NaN meanwhile).", ["queue"])
 
 ProcessFn = Callable[[List[Dict[str, Any]], Optional[str]], Awaitable[None]]
 
@@ -109,6 +113,16 @@ class InboxConsumer:
     def _set_active(self, active: bool) -> None:
         self._holds_lock = active
         CONSUMER_ACTIVE.labels(queue=self._queue).set(1 if active else 0)
+        if not active:
+            self._clear_stats_gauges()
+
+    def _clear_stats_gauges(self) -> None:
+        """Without the lock this replica knows nothing about the queue: no series."""
+        for gauge in (INBOX_DEPTH, INBOX_OLDEST_AGE):
+            try:
+                gauge.remove(self._queue)
+            except KeyError:
+                pass
 
     # --- one pass -----------------------------------------------------------------
 
@@ -238,6 +252,9 @@ class InboxConsumer:
                 f"inbox_stats_failed queue={self._queue} error={exc!r}",
                 extra={"queue": self._queue, "error": repr(exc)},
             )
+            INBOX_STATS_FAILED.labels(queue=self._queue).inc()
+            INBOX_DEPTH.labels(queue=self._queue).set(math.nan)
+            INBOX_OLDEST_AGE.labels(queue=self._queue).set(math.nan)
             return
         INBOX_DEPTH.labels(queue=self._queue).set(depth)
         INBOX_OLDEST_AGE.labels(queue=self._queue).set(age)

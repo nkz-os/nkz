@@ -1,6 +1,7 @@
 """/metrics endpoint and the inbox counters/gauges."""
 
 import asyncio
+import math
 from datetime import datetime, timedelta, timezone
 
 import pytest
@@ -8,7 +9,9 @@ from fastapi.testclient import TestClient
 
 import telemetry_worker.inbox as inbox_mod
 from telemetry_worker.inbox import InboxRow, NotificationInbox
-from telemetry_worker.inbox_consumer import INBOX_DEPTH, INBOX_OLDEST_AGE, InboxConsumer
+from telemetry_worker.inbox_consumer import (
+    INBOX_DEPTH, INBOX_OLDEST_AGE, INBOX_STATS_FAILED, InboxConsumer)
+from prometheus_client import generate_latest
 
 T0 = datetime(2026, 11, 1, 10, 0, tzinfo=timezone.utc)
 
@@ -181,5 +184,46 @@ def test_consumer_refreshes_gauges_while_idle_and_survives_stats_failure():
         task.cancel()
         with pytest.raises(asyncio.CancelledError):
             await task
+
+    asyncio.run(main())
+
+
+def test_failed_stats_gives_nan_and_counter_then_recovers():
+    q = "t-nan"
+    inbox = StatsInbox(q)
+
+    async def main():
+        c = InboxConsumer(inbox, OkPool(), idle_s=0.01)
+        f0 = INBOX_STATS_FAILED.labels(queue=q)._value.get()
+        await c._refresh_stats()
+        assert INBOX_DEPTH.labels(queue=q)._value.get() == 7
+        inbox.fail = True
+        await c._refresh_stats()
+        assert math.isnan(INBOX_DEPTH.labels(queue=q)._value.get())
+        assert math.isnan(INBOX_OLDEST_AGE.labels(queue=q)._value.get())
+        assert INBOX_STATS_FAILED.labels(queue=q)._value.get() == f0 + 1
+        inbox.fail = False
+        await c._refresh_stats()
+        assert INBOX_DEPTH.labels(queue=q)._value.get() == 7
+        assert INBOX_OLDEST_AGE.labels(queue=q)._value.get() == 42.5
+
+    asyncio.run(main())
+
+
+def test_lock_loss_removes_the_gauge_series():
+    q = "t-lockloss"
+    inbox = StatsInbox(q)
+
+    async def main():
+        c = InboxConsumer(inbox, OkPool(), idle_s=0.01)
+        c._set_active(True)
+        await c._refresh_stats()
+        out = generate_latest().decode()
+        assert f'inbox_depth{{queue="{q}"}}' in out
+        c._set_active(False)
+        out = generate_latest().decode()
+        assert f'inbox_depth{{queue="{q}"}}' not in out
+        assert f'inbox_oldest_age_seconds{{queue="{q}"}}' not in out
+        c._set_active(False)  # idempotent: nothing to remove
 
     asyncio.run(main())
