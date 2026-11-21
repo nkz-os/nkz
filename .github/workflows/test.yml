@@ -238,3 +238,11 @@ jobs:
         run: |
           python3 -m pip install --quiet pytest
           python3 -m pytest .github/scripts/tests/test_check_entity_types.py -q
+
+      # Example entities produced by the builders, checked against the official
+      # Smart Data Models schemas pinned in config/sdm/pins.json.
+      - name: Smart Data Models conformance
+        run: |
+          python3 -m pip install --quiet pytest jsonschema==4.26.0
+          python3 -m pytest .github/scripts/tests/test_check_sdm_conformance.py -q
+          python3 .github/scripts/check_sdm_conformance.py examples config/sdm-examples

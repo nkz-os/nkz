@@ -1,0 +1,289 @@
+{
+  "subjects": {
+    "Agrifood": {
+      "repo": "smart-data-models/dataModel.Agrifood",
+      "commit": "e5eabb59258192e2a01d89fb5b56a7aa9dfdb1b1",
+      "context": {
+        "path": "context.jsonld",
+        "sha256": "3156903dc885e6742aab548a9535154ba29613a654fafb3481a91a7cfc783bc6"
+      }
+    },
+    "Alert": {
+      "repo": "smart-data-models/dataModel.Alert",
+      "commit": "7e0d072ffdbd5843308718c93f40494afd891b61",
+      "context": {
+        "path": "context.jsonld",
+        "sha256": "762c45a3eb79bd434aab46483dcf85e0ed5230a90635583f143e02a001bcc4e1"
+      }
+    },
+    "Battery": {
+      "repo": "smart-data-models/dataModel.Battery",
+      "commit": "bbb912274121dd67b2d439e5f82ad1e4dad6718f",
+      "context": {
+        "path": "context.jsonld",
+        "sha256": "d569ec96963b3ae9720f9b53cbc1eb9a12fa67a079a265b52dc4f516a3efc71a"
+      }
+    },
+    "Building": {
+      "repo": "smart-data-models/dataModel.Building",
+      "commit": "92aca4467cd5b9196c390335c9bb742236c278b2",
+      "context": {
+        "path": "context.jsonld",
+        "sha256": "ce3d84c0d63baaaa1732b4711b132d57c570818d22231bce15babaec71b641d0"
+      }
+    },
+    "Device": {
+      "repo": "smart-data-models/dataModel.Device",
+      "commit": "eb22fd87a9d89cf68099b0eef1c796969eae5bbf",
+      "context": {
+        "path": "context.jsonld",
+        "sha256": "f297d67e98fc72c46d06277d22c9c08524b8f2ec41391066370f96cacd529e7a"
+      }
+    },
+    "ManufacturingMachine": {
+      "repo": "smart-data-models/dataModel.ManufacturingMachine",
+      "commit": "bacbb53da309886b27f71db70115100caf61a1b8",
+      "context": {
+        "path": "context.jsonld",
+        "sha256": "666a94a3dce4c29e001f67eb5e1cd8b0309b76fee1f359d24a30c25aaa220a44"
+      }
+    },
+    "SatelliteImagery": {
+      "repo": "smart-data-models/dataModel.SatelliteImagery",
+      "commit": "a99534a5959b5d312fbf6cbebcb7459a7abe51a4",
+      "context": {
+        "path": "context.jsonld",
+        "sha256": "c51054d448df9b28dfb6b9119bd9956745f50c75f922935f18e815df44eda3e2"
+      }
+    },
+    "WaterDistributionManagementEPANET": {
+      "repo": "smart-data-models/dataModel.WaterDistributionManagementEPANET",
+      "commit": "890ba2a90ddd72a8ff61bb829a071db9687cadd2",
+      "context": {
+        "path": "context.jsonld",
+        "sha256": "b776e388f0b32b8a3b3c1dfa627818f2d5ab400a25ffb8da992307efac2e767a"
+      }
+    },
+    "WaterQuality": {
+      "repo": "smart-data-models/dataModel.WaterQuality",
+      "commit": "30ebc231866fb0811836a1e7d49605b4bf0a425a",
+      "context": {
+        "path": "context.jsonld",
+        "sha256": "456ba739028f3df35535e0b45b37ade174709fac233d9fa1c29c1cd2f62dd105"
+      }
+    },
+    "Weather": {
+      "repo": "smart-data-models/dataModel.Weather",
+      "commit": "803fec05b20cef20abda29cd70f54c3b88e08e3a",
+      "context": {
+        "path": "context.jsonld",
+        "sha256": "ee62450436d3ce6510c618a70ea17fee707683f37ee35cb0b8573238d0cedbf7"
+      }
+    }
+  },
+  "types": {
+    "AgriCrop": {
+      "subject": "Agrifood",
+      "schema": {
+        "path": "AgriCrop/schema.json",
+        "sha256": "0f9a351664c0d6d77b649d296a0cc1579c4cf83b91f167811ce887dd55bf01be"
+      }
+    },
+    "AgriFarm": {
+      "subject": "Agrifood",
+      "schema": {
+        "path": "AgriFarm/schema.json",
+        "sha256": "eb020f4b7fbb2016750296b8b9cadc2e09f1dc6e1c6f2b0e4d90a23b40c37afe"
+      }
+    },
+    "AgriGreenhouse": {
+      "subject": "Agrifood",
+      "schema": {
+        "path": "AgriGreenhouse/schema.json",
+        "sha256": "4459a5464a08db789918616f3c8d2d9a872dcbab3b8f211abb6bf65e09118839"
+      }
+    },
+    "AgriParcel": {
+      "subject": "Agrifood",
+      "schema": {
+        "path": "AgriParcel/schema.json",
+        "sha256": "9566f15bc3db954dc69d4067880c07966a2d0a1738f75d4a59079e828cbabf93"
+      }
+    },
+    "AgriParcelOperation": {
+      "subject": "Agrifood",
+      "schema": {
+        "path": "AgriParcelOperation/schema.json",
+        "sha256": "5e288cdf26b2678269550a8dcfb21034c879fb3013951111501920ab48639538"
+      }
+    },
+    "AgriParcelRecord": {
+      "subject": "Agrifood",
+      "schema": {
+        "path": "AgriParcelRecord/schema.json",
+        "sha256": "0d3dd773fd2b30ed2702448f83fea5229cf9bac3a9911bfa692a2f468e62bc5f"
+      }
+    },
+    "AgriSoil": {
+      "subject": "Agrifood",
+      "schema": {
+        "path": "AgriSoil/schema.json",
+        "sha256": "7c4e57012fac5abea424103f201700b8cb6c9d844d6502b40f7c7c993025d51b"
+      }
+    },
+    "Alert": {
+      "subject": "Alert",
+      "schema": {
+        "path": "Alert/schema.json",
+        "sha256": "a8d6c87b4ea44bf1450d7f87db913473bee744bf913e981d8fab2ac3ab80e33f"
+      }
+    },
+    "Animal": {
+      "subject": "Agrifood",
+      "schema": {
+        "path": "Animal/schema.json",
+        "sha256": "8c2cc01a245679d95baffe6e2bf0582e9a6674341379bf14b5651f7ab8fd82f8"
+      }
+    },
+    "Building": {
+      "subject": "Building",
+      "schema": {
+        "path": "Building/schema.json",
+        "sha256": "c856fd1b7c49287c2316e98108edf06cdecd6c83f2746838ffc233e6ab34a442"
+      }
+    },
+    "Device": {
+      "subject": "Device",
+      "schema": {
+        "path": "Device/schema.json",
+        "sha256": "b0c0232e7c66af361ac6da8cc532dc5f3cb8b758ed1b91407db405b983be4093"
+      }
+    },
+    "DeviceMeasurement": {
+      "subject": "Device",
+      "schema": {
+        "path": "DeviceMeasurement/schema.json",
+        "sha256": "3d028d3e18038d5fec4b7232ca1c0fdf7cffb8f7b7e47203389bab8ce7aa61d7"
+      }
+    },
+    "EOProduct": {
+      "subject": "SatelliteImagery",
+      "schema": {
+        "path": "EOProduct/schema.json",
+        "sha256": "f29ac8d687df26ebe7ec0561105c98cbebc651ba393864bb23bb3d45ce0da0ee"
+      }
+    },
+    "EOSatelliteImagery": {
+      "subject": "SatelliteImagery",
+      "schema": {
+        "path": "EOSatelliteImagery/schema.json",
+        "sha256": "5089e16f9beaefe9e9f1376880783c5a447f178c0d56fb0cf58efdc6d04536ff"
+      }
+    },
+    "ManufacturingMachine": {
+      "subject": "ManufacturingMachine",
+      "schema": {
+        "path": "ManufacturingMachine/schema.json",
+        "sha256": "4f43c08719c2b170c9e1087a4f3a941cc540f7846b23f5719bd66b88401e0b31"
+      }
+    },
+    "StorageBatteryDevice": {
+      "subject": "Battery",
+      "schema": {
+        "path": "StorageBatteryDevice/schema.json",
+        "sha256": "4a5a485e7db7d78da57d0077fab8e3783b5623f4636199e78710c2d5c688c9c3"
+      }
+    },
+    "Tank": {
+      "subject": "WaterDistributionManagementEPANET",
+      "schema": {
+        "path": "Tank/schema.json",
+        "sha256": "48c9cefc05ddbd269605e4586936cf006995eab4c628adaadcdaae693d76b5b8"
+      }
+    },
+    "WaterQualityObserved": {
+      "subject": "WaterQuality",
+      "schema": {
+        "path": "WaterQualityObserved/schema.json",
+        "sha256": "9562fdedf6c52d5a562748021ddff8ec79945ee58a1f5fb70947a2a956a038f5"
+      }
+    },
+    "WeatherAlert": {
+      "subject": "Weather",
+      "schema": {
+        "path": "WeatherAlert/schema.json",
+        "sha256": "e5b12c0dbc0159684c9050044216a11305419550e7ebde13153e58abd3502c3d"
+      }
+    },
+    "WeatherForecast": {
+      "subject": "Weather",
+      "schema": {
+        "path": "WeatherForecast/schema.json",
+        "sha256": "1948e2a124e090b409c524beed989bc0a88b10439a01220b4b51d2da88550207"
+      }
+    },
+    "WeatherObserved": {
+      "subject": "Weather",
+      "schema": {
+        "path": "WeatherObserved/schema.json",
+        "sha256": "417ade80d66a05337ea084339c9fc1b891c79bee895bd5f4a89ca16f1b7f9ee1"
+      }
+    }
+  },
+  "shared": {
+    "https://raw.githubusercontent.com/smart-data-models/dataModel.WaterDistributionManagementEPANET/master/WaterNetworkManagement-schema.json": {
+      "repo": "smart-data-models/dataModel.WaterDistributionManagementEPANET",
+      "commit": "890ba2a90ddd72a8ff61bb829a071db9687cadd2",
+      "path": "WaterNetworkManagement-schema.json",
+      "sha256": "3400c41a8907e42ad46e20b221ddc6d2f1ab2ecbb7c209247c522c63d4d30e1c"
+    },
+    "https://smart-data-models.github.io/data-models/common-schema.json": {
+      "repo": "smart-data-models/data-models",
+      "commit": "325ea7069e4c3bd73d1000339ff0ecdf0310365b",
+      "path": "common-schema.json",
+      "sha256": "fdeb3bd55b8fe0a13ca57a5565fb6595f20ae3a658cc7247cc365d6868dc0075"
+    },
+    "https://smart-data-models.github.io/dataModel.Agrifood/agrifood-schema.json": {
+      "repo": "smart-data-models/dataModel.Agrifood",
+      "commit": "e5eabb59258192e2a01d89fb5b56a7aa9dfdb1b1",
+      "path": "agrifood-schema.json",
+      "sha256": "31cfe99ef53d8ff8739744f4d23c9855fef2917577001bb46b0b5b0837c08a03"
+    },
+    "https://smart-data-models.github.io/dataModel.Alert/alert-schema.json": {
+      "repo": "smart-data-models/dataModel.Alert",
+      "commit": "7e0d072ffdbd5843308718c93f40494afd891b61",
+      "path": "alert-schema.json",
+      "sha256": "9b1e9158b17438259ba9b73729e0645a0086a24191911cfb70771e0a81d8fe52"
+    },
+    "https://smart-data-models.github.io/dataModel.Device/device-schema.json": {
+      "repo": "smart-data-models/dataModel.Device",
+      "commit": "eb22fd87a9d89cf68099b0eef1c796969eae5bbf",
+      "path": "device-schema.json",
+      "sha256": "ee45f3510a213765acb9e852aa1f1b90f0e2ba2fc4a419d7c4ebca30cdbb05db"
+    },
+    "https://smart-data-models.github.io/dataModel.Environment/Environment-schema.json": {
+      "repo": "smart-data-models/dataModel.Environment",
+      "commit": "2f048407ccc243df67aee7e1b1ca5470092d743e",
+      "path": "Environment-schema.json",
+      "sha256": "2334da5042dbdb87c8f0059febac5adcb4e545f1e7366d071a2b8100f32e0aa3"
+    },
+    "https://smart-data-models.github.io/dataModel.Weather/weather-schema.json": {
+      "repo": "smart-data-models/dataModel.Weather",
+      "commit": "803fec05b20cef20abda29cd70f54c3b88e08e3a",
+      "path": "weather-schema.json",
+      "sha256": "508829a45524e3c10981f768479f949a32a67c15ad7758a9958a36026c9b34c8"
+    }
+  },
+  "core_context": {
+    "url": "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.6.jsonld",
+    "sha256": "b43a8fbdf3e2bf1f889d75cfe4f31239fe72e02dab20967f08ff1c7c69b6eb75"
+  },
+  "gaps": {
+    "EOSatelliteImagery": {
+      "terms_missing_from_published_context": [
+        "analytics"
+      ],
+      "note": "In the schema since 2025-02; the subject context does not publish it yet."
+    }
+  }
+}
