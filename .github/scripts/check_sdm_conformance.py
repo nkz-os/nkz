@@ -436,19 +436,34 @@ def _at_ref(base: str, path: Path) -> str | None:
     return subprocess.run(["git", "show", f"{base}:{inside}"], capture_output=True, text=True, check=True).stdout
 
 
-def check_ratchet(base: str, pending: Path, deviations: Path) -> list[str]:
-    """Names and deviations that exist now and did not exist at the base ref."""
+def _names(text: str) -> set[str]:
+    return {line.strip() for line in text.splitlines() if line.strip() and not line.lstrip().startswith("#")}
+
+
+def check_ratchet(base: str, pending: Path, deviations: Path, allowed: Path | None = None) -> list[str]:
+    """Names and deviations that exist now and did not exist at the base ref.
+
+    A type that joins the allowed list after the base ref brings the deviations of
+    the terms it shares with the rest; those are accepted, and visible in the diff.
+    An already allowed type may not gain one.
+    """
     errors: list[str] = []
+    newly_allowed: set[str] = set()
+    if allowed is not None:
+        old_allowed = _at_ref(base, allowed)
+        if old_allowed is not None:
+            newly_allowed = set(read_names(allowed)) - _names(old_allowed)
     old_pending = _at_ref(base, pending)
     if old_pending is not None:
-        before = {line.strip() for line in old_pending.splitlines() if line.strip() and not line.lstrip().startswith("#")}
-        for name in sorted(set(read_names(pending)) - before):
+        for name in sorted(set(read_names(pending)) - _names(old_pending) - newly_allowed):
             errors.append(f"{name}: added to the pending list, which may only shrink")
     old_deviations = _at_ref(base, deviations)
     if old_deviations is not None:
         before_keys = deviation_keys(json.loads(old_deviations))
         current = deviation_keys(json.loads(deviations.read_text(encoding="utf-8")))
         for kind, name, type_name, official in sorted(current - before_keys):
+            if type_name in newly_allowed:
+                continue
             errors.append(f"{type_name}: {kind} {name} added to the recorded deviations, which may only shrink")
     return errors
 
@@ -558,7 +573,7 @@ def main(argv: list[str] | None = None) -> int:
             if resolved.returncode != 0:
                 print(f"base ref {args.base} does not resolve", file=sys.stderr)
                 return 2
-            return _report(check_ratchet(args.base, args.pending, args.deviations), [],
+            return _report(check_ratchet(args.base, args.pending, args.deviations, args.allowed), [],
                            "OK: the pending list and the deviations did not grow.")
 
         from referencing.exceptions import Unresolvable

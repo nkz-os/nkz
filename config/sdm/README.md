@@ -29,7 +29,8 @@ default vocabulary). Examples must be in the NGSI-LD normalized form. Of the JSO
 only `date-time` and `date` are enforced.
 
 `deviations` checks `deviations.json` against the context, and `ratchet --base <ref>` checks that
-neither it nor `pending.txt` grew since that ref.
+neither it nor `pending.txt` grew since that ref. A type that joins `allowed.txt` in the same
+change may bring the deviations of the terms it shares with the other types.
 
 To add an official type: add it to `allowed.txt`, pin its schema in `pins.json`, and either add
 an example or list it in `pending.txt`. To move a pin, change the commit and the checksums in

@@ -574,6 +574,7 @@ def repo(tmp_path, monkeypatch):
     git(tmp_path, "init", "-q", "-b", "main")
     (tmp_path / "pending.txt").write_text("# may only shrink\nAlert\nDevice\n")
     (tmp_path / "deviations.json").write_text(json.dumps(RECORDED))
+    (tmp_path / "allowed.txt").write_text("Alert\nDevice\nDemoThing\n")
     git(tmp_path, "add", ".")
     git(tmp_path, "commit", "-q", "-m", "base")
     monkeypatch.chdir(tmp_path)
@@ -604,6 +605,23 @@ def test_ratchet_refuses_a_new_deviation(repo):
     assert len(errors) == 2 and all("may only shrink" in error for error in errors)
 
 
+def test_a_newly_allowed_type_may_bring_its_deviations_and_be_pending(repo):
+    (repo / "allowed.txt").write_text("Alert\nDevice\nDemoThing\nNewThing\n")
+    grown = json.loads(json.dumps(RECORDED))
+    grown["attributes"][0]["types"].append("NewThing")
+    grown["types"]["NewThing"] = {"platform": "p", "official": OFFICIAL + "NewThing"}
+    (repo / "deviations.json").write_text(json.dumps(grown))
+    (repo / "pending.txt").write_text("Alert\nDevice\nNewThing\n")
+    assert checker.check_ratchet("main", Path("pending.txt"), Path("deviations.json"), Path("allowed.txt")) == []
+    # the same growth for a type that was already allowed is refused
+    grown["attributes"][0]["types"].append("Alert")
+    (repo / "deviations.json").write_text(json.dumps(grown))
+    errors = checker.check_ratchet("main", Path("pending.txt"), Path("deviations.json"), Path("allowed.txt"))
+    assert errors == ["Alert: attribute status added to the recorded deviations, which may only shrink"]
+    # and without the allowed list nothing is forgiven
+    assert len(checker.check_ratchet("main", Path("pending.txt"), Path("deviations.json"))) == 4
+
+
 def test_ratchet_reads_the_base_list_whatever_its_line_endings(repo):
     (repo / "pending.txt").write_bytes(b"# header\r\nAlert  \r\n\r\nDevice\r\n")
     git(repo, "commit", "-q", "-am", "crlf")
@@ -625,7 +643,8 @@ def test_ratchet_has_nothing_to_compare_when_the_files_are_new(repo, tmp_path):
 
 
 def test_cli_ratchet(repo, capsys):
-    argv = ["ratchet", "--base", "main", "--pending", "pending.txt", "--deviations", "deviations.json"]
+    argv = ["ratchet", "--base", "main", "--pending", "pending.txt", "--deviations", "deviations.json",
+            "--allowed", "allowed.txt"]
     assert checker.main(argv) == 0
     (repo / "pending.txt").write_text("Alert\nDevice\nTank\n")
     assert checker.main(argv) == 1
