@@ -1,0 +1,1164 @@
+[
+ {
+  "@context": [
+   "https://example.org/ngsi-ld-context.json",
+   "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.6.jsonld"
+  ],
+  "id": "urn:ngsi-ld:EOProduct:tenant-a:00000001-0:2025-12-08",
+  "type": "EOProduct",
+  "ndvi": {
+   "type": "Property",
+   "value": 0.303142,
+   "observedAt": "2025-12-08T10:50:00.000Z",
+   "min": {
+    "type": "Property",
+    "value": 0.150943
+   },
+   "max": {
+    "type": "Property",
+    "value": 0.791638
+   },
+   "std": {
+    "type": "Property",
+    "value": 0.100639
+   },
+   "rasterUrl": {
+    "type": "Property",
+    "value": "s3://example-bucket/tenant-a/entities/urn:ngsi-ld:AgriParcel:00000001-0000-4000-8000-000000000001/scenes/00000002-0000-4000-8000-000000000002/NDVI.tif"
+   },
+   "previewUrl": {
+    "type": "Property",
+    "value": "s3://example-bucket/tenant-a/entities/urn:ngsi-ld:AgriParcel:00000001-0000-4000-8000-000000000001/scenes/00000002-0000-4000-8000-000000000002/NDVI.png"
+   },
+   "interiorValidFraction": {
+    "type": "Property",
+    "value": 1
+   },
+   "interiorPixelCount": {
+    "type": "Property",
+    "value": 874
+   },
+   "interiorMask": {
+    "type": "Property",
+    "value": "core"
+   },
+   "interiorMedian": {
+    "type": "Property",
+    "value": 0.271118
+   },
+   "interiorMean": {
+    "type": "Property",
+    "value": 0.284618
+   },
+   "interiorP10": {
+    "type": "Property",
+    "value": 0.20006
+   },
+   "interiorP90": {
+    "type": "Property",
+    "value": 0.401392
+   }
+  },
+  "evi": {
+   "type": "Property",
+   "value": 0.158414,
+   "observedAt": "2025-12-08T10:50:00.000Z",
+   "min": {
+    "type": "Property",
+    "value": 0.064657
+   },
+   "max": {
+    "type": "Property",
+    "value": 0.443021
+   },
+   "std": {
+    "type": "Property",
+    "value": 0.048547
+   },
+   "rasterUrl": {
+    "type": "Property",
+    "value": "s3://example-bucket/tenant-a/entities/urn:ngsi-ld:AgriParcel:00000001-0000-4000-8000-000000000001/scenes/00000002-0000-4000-8000-000000000002/EVI.tif"
+   },
+   "previewUrl": {
+    "type": "Property",
+    "value": "s3://example-bucket/tenant-a/entities/urn:ngsi-ld:AgriParcel:00000001-0000-4000-8000-000000000001/scenes/00000002-0000-4000-8000-000000000002/EVI.png"
+   },
+   "interiorValidFraction": {
+    "type": "Property",
+    "value": 1
+   },
+   "interiorPixelCount": {
+    "type": "Property",
+    "value": 874
+   },
+   "interiorMask": {
+    "type": "Property",
+    "value": "core"
+   },
+   "interiorMedian": {
+    "type": "Property",
+    "value": 0.143328
+   },
+   "interiorMean": {
+    "type": "Property",
+    "value": 0.150475
+   },
+   "interiorP10": {
+    "type": "Property",
+    "value": 0.109621
+   },
+   "interiorP90": {
+    "type": "Property",
+    "value": 0.200823
+   }
+  },
+  "savi": {
+   "type": "Property",
+   "value": 0.171303,
+   "observedAt": "2025-12-08T10:50:00.000Z",
+   "min": {
+    "type": "Property",
+    "value": 0.074181
+   },
+   "max": {
+    "type": "Property",
+    "value": 0.437611
+   },
+   "std": {
+    "type": "Property",
+    "value": 0.047833
+   },
+   "rasterUrl": {
+    "type": "Property",
+    "value": "s3://example-bucket/tenant-a/entities/urn:ngsi-ld:AgriParcel:00000001-0000-4000-8000-000000000001/scenes/00000002-0000-4000-8000-000000000002/SAVI.tif"
+   },
+   "previewUrl": {
+    "type": "Property",
+    "value": "s3://example-bucket/tenant-a/entities/urn:ngsi-ld:AgriParcel:00000001-0000-4000-8000-000000000001/scenes/00000002-0000-4000-8000-000000000002/SAVI.png"
+   },
+   "interiorValidFraction": {
+    "type": "Property",
+    "value": 1
+   },
+   "interiorPixelCount": {
+    "type": "Property",
+    "value": 874
+   },
+   "interiorMask": {
+    "type": "Property",
+    "value": "core"
+   },
+   "interiorMedian": {
+    "type": "Property",
+    "value": 0.156274
+   },
+   "interiorMean": {
+    "type": "Property",
+    "value": 0.162958
+   },
+   "interiorP10": {
+    "type": "Property",
+    "value": 0.121468
+   },
+   "interiorP90": {
+    "type": "Property",
+    "value": 0.214651
+   }
+  },
+  "ndre": {
+   "type": "Property",
+   "value": 0.200964,
+   "observedAt": "2025-12-08T10:50:00.000Z",
+   "min": {
+    "type": "Property",
+    "value": 0.077242
+   },
+   "max": {
+    "type": "Property",
+    "value": 0.470569
+   },
+   "std": {
+    "type": "Property",
+    "value": 0.065509
+   },
+   "rasterUrl": {
+    "type": "Property",
+    "value": "s3://example-bucket/tenant-a/entities/urn:ngsi-ld:AgriParcel:00000001-0000-4000-8000-000000000001/scenes/00000002-0000-4000-8000-000000000002/NDRE.tif"
+   },
+   "previewUrl": {
+    "type": "Property",
+    "value": "s3://example-bucket/tenant-a/entities/urn:ngsi-ld:AgriParcel:00000001-0000-4000-8000-000000000001/scenes/00000002-0000-4000-8000-000000000002/NDRE.png"
+   },
+   "interiorValidFraction": {
+    "type": "Property",
+    "value": 1
+   },
+   "interiorPixelCount": {
+    "type": "Property",
+    "value": 228
+   },
+   "interiorMask": {
+    "type": "Property",
+    "value": "core"
+   },
+   "interiorMedian": {
+    "type": "Property",
+    "value": 0.183497
+   },
+   "interiorMean": {
+    "type": "Property",
+    "value": 0.189695
+   },
+   "interiorP10": {
+    "type": "Property",
+    "value": 0.126678
+   },
+   "interiorP90": {
+    "type": "Property",
+    "value": 0.258794
+   }
+  },
+  "refAgriParcel": {
+   "type": "Relationship",
+   "object": "urn:ngsi-ld:AgriParcel:00000001-0000-4000-8000-000000000001"
+  },
+  "sensingDate": {
+   "type": "Property",
+   "value": "2025-12-08"
+  },
+  "pixelCount": {
+   "type": "Property",
+   "value": 1134
+  },
+  "source": {
+   "type": "Property",
+   "value": "vegetation_health"
+  },
+  "gndvi": {
+   "type": "Property",
+   "value": 0.433425,
+   "observedAt": "2025-12-08T10:50:00.000Z",
+   "min": {
+    "type": "Property",
+    "value": 0.260847
+   },
+   "max": {
+    "type": "Property",
+    "value": 0.753774
+   },
+   "std": {
+    "type": "Property",
+    "value": 0.075858
+   },
+   "rasterUrl": {
+    "type": "Property",
+    "value": "s3://example-bucket/tenant-a/entities/urn:ngsi-ld:AgriParcel:00000001-0000-4000-8000-000000000001/scenes/00000002-0000-4000-8000-000000000002/GNDVI.tif"
+   },
+   "previewUrl": {
+    "type": "Property",
+    "value": "s3://example-bucket/tenant-a/entities/urn:ngsi-ld:AgriParcel:00000001-0000-4000-8000-000000000001/scenes/00000002-0000-4000-8000-000000000002/GNDVI.png"
+   },
+   "interiorValidFraction": {
+    "type": "Property",
+    "value": 1
+   },
+   "interiorPixelCount": {
+    "type": "Property",
+    "value": 874
+   },
+   "interiorMask": {
+    "type": "Property",
+    "value": "core"
+   },
+   "interiorMedian": {
+    "type": "Property",
+    "value": 0.407202
+   },
+   "interiorMean": {
+    "type": "Property",
+    "value": 0.417892
+   },
+   "interiorP10": {
+    "type": "Property",
+    "value": 0.352131
+   },
+   "interiorP90": {
+    "type": "Property",
+    "value": 0.500918
+   }
+  },
+  "cloudCoverPercentage": {
+   "type": "Property",
+   "value": 22.25
+  },
+  "parcelCloudFraction": {
+   "type": "Property",
+   "value": 0
+  }
+ },
+ {
+  "@context": [
+   "https://example.org/ngsi-ld-context.json",
+   "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.6.jsonld"
+  ],
+  "id": "urn:ngsi-ld:EOProduct:tenant-a:00000001-0:2026-10-31",
+  "type": "EOProduct",
+  "cloudCoverPercentage": {
+   "type": "Property",
+   "value": 2.06
+  },
+  "evi": {
+   "type": "Property",
+   "value": 0.20382,
+   "observedAt": "2026-10-31T10:50:00.000Z",
+   "min": {
+    "type": "Property",
+    "value": 0.083755
+   },
+   "max": {
+    "type": "Property",
+    "value": 0.421487
+   },
+   "std": {
+    "type": "Property",
+    "value": 0.052278
+   },
+   "rasterUrl": {
+    "type": "Property",
+    "value": "s3://example-bucket/tenant-a/entities/urn:ngsi-ld:AgriParcel:00000001-0000-4000-8000-000000000001/scenes/00000003-0000-4000-8000-000000000003/EVI.tif"
+   },
+   "previewUrl": {
+    "type": "Property",
+    "value": "s3://example-bucket/tenant-a/entities/urn:ngsi-ld:AgriParcel:00000001-0000-4000-8000-000000000001/scenes/00000003-0000-4000-8000-000000000003/EVI.png"
+   },
+   "interiorValidFraction": {
+    "type": "Property",
+    "value": 1
+   },
+   "interiorPixelCount": {
+    "type": "Property",
+    "value": 874
+   },
+   "interiorMask": {
+    "type": "Property",
+    "value": "core"
+   },
+   "interiorMedian": {
+    "type": "Property",
+    "value": 0.193869
+   },
+   "interiorMean": {
+    "type": "Property",
+    "value": 0.195479
+   },
+   "interiorP10": {
+    "type": "Property",
+    "value": 0.1354
+   },
+   "interiorP90": {
+    "type": "Property",
+    "value": 0.257031
+   }
+  },
+  "gndvi": {
+   "type": "Property",
+   "value": 0.447465,
+   "observedAt": "2026-10-31T10:50:00.000Z",
+   "min": {
+    "type": "Property",
+    "value": 0.209289
+   },
+   "max": {
+    "type": "Property",
+    "value": 0.744767
+   },
+   "std": {
+    "type": "Property",
+    "value": 0.082094
+   },
+   "rasterUrl": {
+    "type": "Property",
+    "value": "s3://example-bucket/tenant-a/entities/urn:ngsi-ld:AgriParcel:00000001-0000-4000-8000-000000000001/scenes/00000003-0000-4000-8000-000000000003/GNDVI.tif"
+   },
+   "previewUrl": {
+    "type": "Property",
+    "value": "s3://example-bucket/tenant-a/entities/urn:ngsi-ld:AgriParcel:00000001-0000-4000-8000-000000000001/scenes/00000003-0000-4000-8000-000000000003/GNDVI.png"
+   },
+   "interiorValidFraction": {
+    "type": "Property",
+    "value": 1
+   },
+   "interiorPixelCount": {
+    "type": "Property",
+    "value": 874
+   },
+   "interiorMask": {
+    "type": "Property",
+    "value": "core"
+   },
+   "interiorMedian": {
+    "type": "Property",
+    "value": 0.421658
+   },
+   "interiorMean": {
+    "type": "Property",
+    "value": 0.432933
+   },
+   "interiorP10": {
+    "type": "Property",
+    "value": 0.352384
+   },
+   "interiorP90": {
+    "type": "Property",
+    "value": 0.537568
+   }
+  },
+  "ndre": {
+   "type": "Property",
+   "value": 0.207643,
+   "observedAt": "2026-10-31T10:50:00.000Z",
+   "min": {
+    "type": "Property",
+    "value": 0.09782
+   },
+   "max": {
+    "type": "Property",
+    "value": 0.451663
+   },
+   "std": {
+    "type": "Property",
+    "value": 0.063321
+   },
+   "rasterUrl": {
+    "type": "Property",
+    "value": "s3://example-bucket/tenant-a/entities/urn:ngsi-ld:AgriParcel:00000001-0000-4000-8000-000000000001/scenes/00000003-0000-4000-8000-000000000003/NDRE.tif"
+   },
+   "previewUrl": {
+    "type": "Property",
+    "value": "s3://example-bucket/tenant-a/entities/urn:ngsi-ld:AgriParcel:00000001-0000-4000-8000-000000000001/scenes/00000003-0000-4000-8000-000000000003/NDRE.png"
+   },
+   "interiorValidFraction": {
+    "type": "Property",
+    "value": 1
+   },
+   "interiorPixelCount": {
+    "type": "Property",
+    "value": 228
+   },
+   "interiorMask": {
+    "type": "Property",
+    "value": "core"
+   },
+   "interiorMedian": {
+    "type": "Property",
+    "value": 0.184934
+   },
+   "interiorMean": {
+    "type": "Property",
+    "value": 0.198641
+   },
+   "interiorP10": {
+    "type": "Property",
+    "value": 0.137847
+   },
+   "interiorP90": {
+    "type": "Property",
+    "value": 0.274955
+   }
+  },
+  "ndvi": {
+   "type": "Property",
+   "value": 0.328145,
+   "observedAt": "2026-10-31T10:50:00.000Z",
+   "min": {
+    "type": "Property",
+    "value": 0.095887
+   },
+   "max": {
+    "type": "Property",
+    "value": 0.745356
+   },
+   "std": {
+    "type": "Property",
+    "value": 0.102746
+   },
+   "rasterUrl": {
+    "type": "Property",
+    "value": "s3://example-bucket/tenant-a/entities/urn:ngsi-ld:AgriParcel:00000001-0000-4000-8000-000000000001/scenes/00000003-0000-4000-8000-000000000003/NDVI.tif"
+   },
+   "previewUrl": {
+    "type": "Property",
+    "value": "s3://example-bucket/tenant-a/entities/urn:ngsi-ld:AgriParcel:00000001-0000-4000-8000-000000000001/scenes/00000003-0000-4000-8000-000000000003/NDVI.png"
+   },
+   "interiorValidFraction": {
+    "type": "Property",
+    "value": 1
+   },
+   "interiorPixelCount": {
+    "type": "Property",
+    "value": 874
+   },
+   "interiorMask": {
+    "type": "Property",
+    "value": "core"
+   },
+   "interiorMedian": {
+    "type": "Property",
+    "value": 0.293163
+   },
+   "interiorMean": {
+    "type": "Property",
+    "value": 0.310869
+   },
+   "interiorP10": {
+    "type": "Property",
+    "value": 0.215578
+   },
+   "interiorP90": {
+    "type": "Property",
+    "value": 0.441651
+   }
+  },
+  "refAgriParcel": {
+   "type": "Relationship",
+   "object": "urn:ngsi-ld:AgriParcel:00000001-0000-4000-8000-000000000001"
+  },
+  "sensingDate": {
+   "type": "Property",
+   "value": "2026-10-31"
+  },
+  "pixelCount": {
+   "type": "Property",
+   "value": 1134
+  },
+  "source": {
+   "type": "Property",
+   "value": "vegetation_health"
+  },
+  "savi": {
+   "type": "Property",
+   "value": 0.219465,
+   "observedAt": "2026-10-31T10:50:00.000Z",
+   "min": {
+    "type": "Property",
+    "value": 0.085904
+   },
+   "max": {
+    "type": "Property",
+    "value": 0.428749
+   },
+   "std": {
+    "type": "Property",
+    "value": 0.052719
+   },
+   "rasterUrl": {
+    "type": "Property",
+    "value": "s3://example-bucket/tenant-a/entities/urn:ngsi-ld:AgriParcel:00000001-0000-4000-8000-000000000001/scenes/00000003-0000-4000-8000-000000000003/SAVI.tif"
+   },
+   "previewUrl": {
+    "type": "Property",
+    "value": "s3://example-bucket/tenant-a/entities/urn:ngsi-ld:AgriParcel:00000001-0000-4000-8000-000000000001/scenes/00000003-0000-4000-8000-000000000003/SAVI.png"
+   },
+   "interiorValidFraction": {
+    "type": "Property",
+    "value": 1
+   },
+   "interiorPixelCount": {
+    "type": "Property",
+    "value": 874
+   },
+   "interiorMask": {
+    "type": "Property",
+    "value": "core"
+   },
+   "interiorMedian": {
+    "type": "Property",
+    "value": 0.208984
+   },
+   "interiorMean": {
+    "type": "Property",
+    "value": 0.210764
+   },
+   "interiorP10": {
+    "type": "Property",
+    "value": 0.15033
+   },
+   "interiorP90": {
+    "type": "Property",
+    "value": 0.273582
+   }
+  }
+ },
+ {
+  "@context": [
+   "https://example.org/ngsi-ld-context.json",
+   "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.6.jsonld"
+  ],
+  "id": "urn:ngsi-ld:EOProduct:tenant-a:00000001-0:2026-10-21",
+  "type": "EOProduct",
+  "sarMoisture": {
+   "type": "Property",
+   "value": 0.48,
+   "observedAt": "2026-10-21T06:00:00.000Z",
+   "min": {
+    "type": "Property",
+    "value": 0.0154
+   },
+   "max": {
+    "type": "Property",
+    "value": 0.9312
+   },
+   "std": {
+    "type": "Property",
+    "value": 0.2376
+   }
+  },
+  "sarSceneId": {
+   "type": "Property",
+   "value": "S1X_IW_GRDH_1SDV_20261021T000000_20261021T000025_000001_000001_0001_COG"
+  },
+  "cloudCoverPercentage": {
+   "type": "Property",
+   "value": 49.81
+  },
+  "evi": {
+   "type": "Property",
+   "value": 0.230675,
+   "observedAt": "2026-10-21T10:50:00.000Z",
+   "min": {
+    "type": "Property",
+    "value": 0.104042
+   },
+   "max": {
+    "type": "Property",
+    "value": 0.464905
+   },
+   "std": {
+    "type": "Property",
+    "value": 0.06077
+   },
+   "rasterUrl": {
+    "type": "Property",
+    "value": "s3://example-bucket/tenant-a/entities/urn:ngsi-ld:AgriParcel:00000001-0000-4000-8000-000000000001/scenes/00000004-0000-4000-8000-000000000004/EVI.tif"
+   },
+   "previewUrl": {
+    "type": "Property",
+    "value": "s3://example-bucket/tenant-a/entities/urn:ngsi-ld:AgriParcel:00000001-0000-4000-8000-000000000001/scenes/00000004-0000-4000-8000-000000000004/EVI.png"
+   },
+   "interiorValidFraction": {
+    "type": "Property",
+    "value": 0.6178
+   },
+   "interiorPixelCount": {
+    "type": "Property",
+    "value": 540
+   },
+   "interiorMask": {
+    "type": "Property",
+    "value": "core"
+   },
+   "interiorMedian": {
+    "type": "Property",
+    "value": 0.23369
+   },
+   "interiorMean": {
+    "type": "Property",
+    "value": 0.220615
+   },
+   "interiorP10": {
+    "type": "Property",
+    "value": 0.130922
+   },
+   "interiorP90": {
+    "type": "Property",
+    "value": 0.284527
+   }
+  },
+  "gndvi": {
+   "type": "Property",
+   "value": 0.374733,
+   "observedAt": "2026-10-21T10:50:00.000Z",
+   "min": {
+    "type": "Property",
+    "value": 0.216056
+   },
+   "max": {
+    "type": "Property",
+    "value": 0.676657
+   },
+   "std": {
+    "type": "Property",
+    "value": 0.068163
+   },
+   "rasterUrl": {
+    "type": "Property",
+    "value": "s3://example-bucket/tenant-a/entities/urn:ngsi-ld:AgriParcel:00000001-0000-4000-8000-000000000001/scenes/00000004-0000-4000-8000-000000000004/GNDVI.tif"
+   },
+   "previewUrl": {
+    "type": "Property",
+    "value": "s3://example-bucket/tenant-a/entities/urn:ngsi-ld:AgriParcel:00000001-0000-4000-8000-000000000001/scenes/00000004-0000-4000-8000-000000000004/GNDVI.png"
+   },
+   "interiorValidFraction": {
+    "type": "Property",
+    "value": 0.6178
+   },
+   "interiorPixelCount": {
+    "type": "Property",
+    "value": 540
+   },
+   "interiorMask": {
+    "type": "Property",
+    "value": "core"
+   },
+   "interiorMedian": {
+    "type": "Property",
+    "value": 0.351813
+   },
+   "interiorMean": {
+    "type": "Property",
+    "value": 0.361574
+   },
+   "interiorP10": {
+    "type": "Property",
+    "value": 0.298412
+   },
+   "interiorP90": {
+    "type": "Property",
+    "value": 0.444168
+   }
+  },
+  "ndre": {
+   "type": "Property",
+   "value": 0.190453,
+   "observedAt": "2026-10-21T10:50:00.000Z",
+   "min": {
+    "type": "Property",
+    "value": 0.091049
+   },
+   "max": {
+    "type": "Property",
+    "value": 0.409733
+   },
+   "std": {
+    "type": "Property",
+    "value": 0.054193
+   },
+   "rasterUrl": {
+    "type": "Property",
+    "value": "s3://example-bucket/tenant-a/entities/urn:ngsi-ld:AgriParcel:00000001-0000-4000-8000-000000000001/scenes/00000004-0000-4000-8000-000000000004/NDRE.tif"
+   },
+   "previewUrl": {
+    "type": "Property",
+    "value": "s3://example-bucket/tenant-a/entities/urn:ngsi-ld:AgriParcel:00000001-0000-4000-8000-000000000001/scenes/00000004-0000-4000-8000-000000000004/NDRE.png"
+   },
+   "interiorValidFraction": {
+    "type": "Property",
+    "value": 0.6053
+   },
+   "interiorPixelCount": {
+    "type": "Property",
+    "value": 138
+   },
+   "interiorMask": {
+    "type": "Property",
+    "value": "core"
+   },
+   "interiorMedian": {
+    "type": "Property",
+    "value": 0.172932
+   },
+   "interiorMean": {
+    "type": "Property",
+    "value": 0.180292
+   },
+   "interiorP10": {
+    "type": "Property",
+    "value": 0.132576
+   },
+   "interiorP90": {
+    "type": "Property",
+    "value": 0.241542
+   }
+  },
+  "ndvi": {
+   "type": "Property",
+   "value": 0.288581,
+   "observedAt": "2026-10-21T10:50:00.000Z",
+   "min": {
+    "type": "Property",
+    "value": 0.132582
+   },
+   "max": {
+    "type": "Property",
+    "value": 0.697189
+   },
+   "std": {
+    "type": "Property",
+    "value": 0.084013
+   },
+   "rasterUrl": {
+    "type": "Property",
+    "value": "s3://example-bucket/tenant-a/entities/urn:ngsi-ld:AgriParcel:00000001-0000-4000-8000-000000000001/scenes/00000004-0000-4000-8000-000000000004/NDVI.tif"
+   },
+   "previewUrl": {
+    "type": "Property",
+    "value": "s3://example-bucket/tenant-a/entities/urn:ngsi-ld:AgriParcel:00000001-0000-4000-8000-000000000001/scenes/00000004-0000-4000-8000-000000000004/NDVI.png"
+   },
+   "interiorValidFraction": {
+    "type": "Property",
+    "value": 0.6178
+   },
+   "interiorPixelCount": {
+    "type": "Property",
+    "value": 540
+   },
+   "interiorMask": {
+    "type": "Property",
+    "value": "core"
+   },
+   "interiorMedian": {
+    "type": "Property",
+    "value": 0.269062
+   },
+   "interiorMean": {
+    "type": "Property",
+    "value": 0.271408
+   },
+   "interiorP10": {
+    "type": "Property",
+    "value": 0.186171
+   },
+   "interiorP90": {
+    "type": "Property",
+    "value": 0.364204
+   }
+  },
+  "refAgriParcel": {
+   "type": "Relationship",
+   "object": "urn:ngsi-ld:AgriParcel:00000001-0000-4000-8000-000000000001"
+  },
+  "sensingDate": {
+   "type": "Property",
+   "value": "2026-10-21"
+  },
+  "pixelCount": {
+   "type": "Property",
+   "value": 730
+  },
+  "source": {
+   "type": "Property",
+   "value": "vegetation_health"
+  },
+  "savi": {
+   "type": "Property",
+   "value": 0.217092,
+   "observedAt": "2026-10-21T10:50:00.000Z",
+   "min": {
+    "type": "Property",
+    "value": 0.110615
+   },
+   "max": {
+    "type": "Property",
+    "value": 0.437275
+   },
+   "std": {
+    "type": "Property",
+    "value": 0.049684
+   },
+   "rasterUrl": {
+    "type": "Property",
+    "value": "s3://example-bucket/tenant-a/entities/urn:ngsi-ld:AgriParcel:00000001-0000-4000-8000-000000000001/scenes/00000004-0000-4000-8000-000000000004/SAVI.tif"
+   },
+   "previewUrl": {
+    "type": "Property",
+    "value": "s3://example-bucket/tenant-a/entities/urn:ngsi-ld:AgriParcel:00000001-0000-4000-8000-000000000001/scenes/00000004-0000-4000-8000-000000000004/SAVI.png"
+   },
+   "interiorValidFraction": {
+    "type": "Property",
+    "value": 0.6178
+   },
+   "interiorPixelCount": {
+    "type": "Property",
+    "value": 540
+   },
+   "interiorMask": {
+    "type": "Property",
+    "value": "core"
+   },
+   "interiorMedian": {
+    "type": "Property",
+    "value": 0.21629
+   },
+   "interiorMean": {
+    "type": "Property",
+    "value": 0.207261
+   },
+   "interiorP10": {
+    "type": "Property",
+    "value": 0.137619
+   },
+   "interiorP90": {
+    "type": "Property",
+    "value": 0.257264
+   }
+  }
+ },
+ {
+  "@context": [
+   "https://example.org/ngsi-ld-context.json",
+   "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.6.jsonld"
+  ],
+  "id": "urn:ngsi-ld:EOProduct:tenant-a:00000001-0:2026-11-09",
+  "type": "EOProduct",
+  "refAgriParcel": {
+   "type": "Relationship",
+   "object": "urn:ngsi-ld:AgriParcel:00000001-0000-4000-8000-000000000001"
+  },
+  "sensingDate": {
+   "type": "Property",
+   "value": "2026-11-09"
+  },
+  "source": {
+   "type": "Property",
+   "value": "vegetation_health"
+  },
+  "sarMoisture": {
+   "type": "Property",
+   "value": 0.5644,
+   "observedAt": "2026-11-09T06:00:00.000Z",
+   "min": {
+    "type": "Property",
+    "value": 0
+   },
+   "max": {
+    "type": "Property",
+    "value": 1
+   },
+   "std": {
+    "type": "Property",
+    "value": 0.2073
+   }
+  },
+  "sarSceneId": {
+   "type": "Property",
+   "value": "S1X_IW_GRDH_1SDV_20261109T000000_20261109T000025_000001_000001_0001_COG"
+  }
+ },
+ {
+  "@context": [
+   "https://example.org/ngsi-ld-context.json",
+   "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.6.jsonld"
+  ],
+  "id": "urn:ngsi-ld:EOProduct:tenant-a:00000001-0000-4000-8000-000000000001:GRD:2026-11-09",
+  "type": "EOProduct",
+  "productType": {
+   "type": "Property",
+   "value": "GRD"
+  },
+  "processingLevel": {
+   "type": "Property",
+   "value": "L1"
+  },
+  "refAgriParcel": {
+   "type": "Relationship",
+   "object": "urn:ngsi-ld:AgriParcel:00000001-0000-4000-8000-000000000001"
+  },
+  "source": {
+   "type": "Property",
+   "value": "vegetation_health"
+  },
+  "backscatterVV": {
+   "type": "Property",
+   "value": -9.0721,
+   "observedAt": "2026-11-09T00:00:00.000Z"
+  },
+  "backscatterVH": {
+   "type": "Property",
+   "value": -16.2495,
+   "observedAt": "2026-11-09T00:00:00.000Z"
+  },
+  "acquisitionDate": {
+   "type": "Property",
+   "value": "2026-11-09T00:00:00Z"
+  }
+ },
+ {
+  "@context": [
+   "https://example.org/ngsi-ld-context.json",
+   "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.6.jsonld"
+  ],
+  "id": "urn:ngsi-ld:EOProduct:tenant-a:zone:00000001-0:zn000001-e11-flat:GRD:2026-11-09",
+  "type": "EOProduct",
+  "hasAgriParcelZone": {
+   "type": "Relationship",
+   "object": "urn:ngsi-ld:AgriParcelZone:tenant-a:00000001-0000-4000-8000-000000000001:zn000001-e11-flat"
+  },
+  "zoneId": {
+   "type": "Property",
+   "value": "zn000001-e11-flat"
+  },
+  "pixelCount": {
+   "type": "Property",
+   "value": 165
+  },
+  "validPixelFraction": {
+   "type": "Property",
+   "value": 0.873
+  },
+  "source": {
+   "type": "Property",
+   "value": "vegetation_health"
+  },
+  "zoneVersion": {
+   "type": "Property",
+   "value": "00000001"
+  },
+  "productType": {
+   "type": "Property",
+   "value": "GRD"
+  },
+  "processingLevel": {
+   "type": "Property",
+   "value": "L1"
+  },
+  "backscatterVV": {
+   "type": "Property",
+   "value": -8.3774,
+   "observedAt": "2026-11-09T00:00:00.000Z"
+  },
+  "backscatterVH": {
+   "type": "Property",
+   "value": -16.1936,
+   "observedAt": "2026-11-09T00:00:00.000Z"
+  },
+  "acquisitionDate": {
+   "type": "Property",
+   "value": "2026-11-09T00:00:00Z"
+  }
+ },
+ {
+  "@context": [
+   "https://example.org/ngsi-ld-context.json",
+   "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.6.jsonld"
+  ],
+  "id": "urn:ngsi-ld:EOProduct:tenant-a:zone:00000001-0:zn000001-e11-flat:2026-10-31",
+  "type": "EOProduct",
+  "ndvi": {
+   "type": "Property",
+   "value": 0.359237,
+   "observedAt": "2026-10-31T10:50:00.000Z",
+   "min": {
+    "type": "Property",
+    "value": 0.164188
+   },
+   "max": {
+    "type": "Property",
+    "value": 0.745356
+   },
+   "std": {
+    "type": "Property",
+    "value": 0.115046
+   }
+  },
+  "evi": {
+   "type": "Property",
+   "value": 0.219174,
+   "observedAt": "2026-10-31T10:50:00.000Z",
+   "min": {
+    "type": "Property",
+    "value": 0.089798
+   },
+   "max": {
+    "type": "Property",
+    "value": 0.421487
+   },
+   "std": {
+    "type": "Property",
+    "value": 0.056993
+   }
+  },
+  "savi": {
+   "type": "Property",
+   "value": 0.236993,
+   "observedAt": "2026-10-31T10:50:00.000Z",
+   "min": {
+    "type": "Property",
+    "value": 0.10019
+   },
+   "max": {
+    "type": "Property",
+    "value": 0.428749
+   },
+   "std": {
+    "type": "Property",
+    "value": 0.05583
+   }
+  },
+  "ndre": {
+   "type": "Property",
+   "value": 0.226583,
+   "observedAt": "2026-10-31T10:50:00.000Z",
+   "min": {
+    "type": "Property",
+    "value": 0.112392
+   },
+   "max": {
+    "type": "Property",
+    "value": 0.451663
+   },
+   "std": {
+    "type": "Property",
+    "value": 0.07297
+   }
+  },
+  "hasAgriParcelZone": {
+   "type": "Relationship",
+   "object": "urn:ngsi-ld:AgriParcelZone:tenant-a:00000001-0000-4000-8000-000000000001:zn000001-e11-flat"
+  },
+  "zoneId": {
+   "type": "Property",
+   "value": "zn000001-e11-flat"
+  },
+  "pixelCount": {
+   "type": "Property",
+   "value": 379
+  },
+  "validPixelFraction": {
+   "type": "Property",
+   "value": 1
+  },
+  "source": {
+   "type": "Property",
+   "value": "vegetation_health"
+  },
+  "zoneVersion": {
+   "type": "Property",
+   "value": "00000001"
+  },
+  "sensingDate": {
+   "type": "Property",
+   "value": "2026-10-31"
+  },
+  "gndvi": {
+   "type": "Property",
+   "value": 0.476203,
+   "observedAt": "2026-10-31T10:50:00.000Z",
+   "min": {
+    "type": "Property",
+    "value": 0.272364
+   },
+   "max": {
+    "type": "Property",
+    "value": 0.744767
+   },
+   "std": {
+    "type": "Property",
+    "value": 0.086015
+   }
+  },
+  "cloudCoverPercentage": {
+   "type": "Property",
+   "value": 2.06
+  }
+ }
+]
