@@ -28,14 +28,15 @@ TELEMETRY_DLQ_TOTAL = Counter(
     ["tenant_id", "entity_type"],
 )
 
-# InterfaceError subclasses raised for bad input or client/server capabilities, not for
-# a lost connection. asyncpg.DataError (invalid query argument) is the one that matters:
-# it is a poison record and keeps going to telemetry_events_dlq.
-_INTERFACE_DATA_ERRORS = (
-    asyncpg.exceptions._base.DataError,
-    asyncpg.exceptions._base.ClientConfigurationError,
-    asyncpg.exceptions._base.UnsupportedClientFeatureError,
-    asyncpg.exceptions._base.UnsupportedServerFeatureError,
+# InterfaceError subclasses that report bad input or a client/server capability, not a
+# lost connection: they keep the per-record dead-letter path. ValueError covers the
+# InterfaceError-based DataError of asyncpg.exceptions._base (shadowed by the public,
+# PostgresError-based asyncpg.DataError, which is a data error anyway).
+_INTERFACE_NON_CONNECTION_ERRORS = (
+    ValueError,
+    asyncpg.exceptions.ClientConfigurationError,
+    asyncpg.exceptions.UnsupportedClientFeatureError,
+    asyncpg.exceptions.UnsupportedServerFeatureError,
 )
 
 
@@ -45,11 +46,12 @@ def is_connection_error(err: BaseException) -> bool:
     These propagate out of write()/write_batch() instead of being dead-lettered: a
     dead connection says nothing about the record, and dead-lettering on it would
     drop the record silently. The caller retries.
-    ASSUMPTION: InterfaceError counts only without the data/capability subclasses
-    above (asyncpg.DataError is an InterfaceError and a ValueError).
+    ASSUMPTION: an InterfaceError counts unless it is one of the bad-input/capability
+    subclasses above (precaution; asyncpg raises plain InterfaceError for a closed
+    connection).
     """
     if isinstance(err, asyncpg.exceptions.InterfaceError):
-        return not isinstance(err, _INTERFACE_DATA_ERRORS)
+        return not isinstance(err, _INTERFACE_NON_CONNECTION_ERRORS)
     return isinstance(
         err, (asyncpg.PostgresConnectionError, OSError, asyncio.TimeoutError)
     )

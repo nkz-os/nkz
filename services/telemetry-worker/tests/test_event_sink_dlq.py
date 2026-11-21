@@ -355,10 +355,14 @@ def test_pool_acquire_error_propagates():
         asyncio.run(sink.write_batch([_event("good-1"), _event("good-2")]))
 
 
-def test_client_side_data_error_is_still_dead_lettered():
-    """asyncpg.DataError (invalid query argument) subclasses InterfaceError but is a data
-    error: it is dead-lettered, not propagated as a connection failure."""
-    bad = asyncpg.DataError("invalid input for query argument $6")
+@pytest.mark.parametrize("bad", [
+    asyncpg.DataError("invalid input for query argument $6"),
+    asyncpg.exceptions._base.DataError("invalid input"),  # an InterfaceError + ValueError
+    asyncpg.exceptions.ClientConfigurationError("bad client configuration"),
+], ids=["DataError", "InterfaceDataError", "ClientConfigurationError"])
+def test_data_and_client_errors_are_still_dead_lettered(bad):
+    """Bad input is a poison record even when its class is an InterfaceError: it is
+    dead-lettered, not propagated as a connection failure."""
     conn = ConnDropConnection(insert_error=bad, drop_devices={"poison-1"})
     stored = asyncio.run(_sink_on(conn).write_batch([_event("good-1"), _event("poison-1")]))
     assert [e.device_id for e in stored] == ["good-1"]
