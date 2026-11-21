@@ -327,7 +327,6 @@ fails on it.
 | `saviMin` | atributo | sin-revisar | Not yet reviewed |
 | `saviStdDev` | atributo | sin-revisar | Not yet reviewed |
 | `seedingRate` | atributo | sin-revisar | Not yet reviewed |
-| `sensingDate` | atributo | sin-revisar | Not yet reviewed |
 | `sensorsinsolation` | atributo | sin-revisar | Not yet reviewed |
 | `sentAt` | atributo | sin-revisar | Not yet reviewed |
 | `severity` | atributo | sin-revisar | Not yet reviewed |
