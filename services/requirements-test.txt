@@ -19,7 +19,7 @@ pydantic-settings>=2.15.0
 asyncpg>=0.30.0
 # weather-api verifies X-Auth-Signature with the SDK's canonical HMAC helper.
 nkz-platform-sdk>=0.10.0
-paho-mqtt==1.6.1
+paho-mqtt==2.2.0
 # telemetry-worker's entity-id contract test imports the timeseries-reader
 # observations package (dateutil isoparse). A range, not a pin: weather-api pins 2.9.0, the reader 2.9.0.post0.
 python-dateutil>=2.9.0
