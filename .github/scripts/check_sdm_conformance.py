@@ -35,6 +35,10 @@ in `config/sdm/deviations.json`; nothing else may be recorded there.
 `ratchet` subcommand: against a base git ref, the pending list and the recorded
 deviations may only shrink.
 
+`upstream` subcommand: every pinned file is compared with the one its repository
+serves today at its default branch. A difference is not an error of this
+repository: it says the official model moved on and the pin is due a review.
+
 Exit codes: 0 clean, 1 findings, 2 bad arguments or unresolved base ref,
 3 internal error (download, checksum, reference outside the pinned set,
 unexpected exception).
@@ -49,6 +53,7 @@ import re
 import subprocess
 import sys
 import time
+import urllib.error
 import urllib.request
 from dataclasses import dataclass
 from datetime import date
@@ -56,6 +61,8 @@ from pathlib import Path
 from typing import Any, Callable, Iterable
 
 RAW = "https://raw.githubusercontent.com/{repo}/{commit}/{path}"
+COMPARE = "https://github.com/{repo}/compare/{commit}...{ref}"
+UPSTREAM_REF = "HEAD"  # the default branch, whatever each repository calls it
 NGSI_MEMBERS = frozenset({
     "type", "value", "object", "observedAt", "unitCode", "datasetId", "createdAt", "modifiedAt",
     "deletedAt", "instanceId", "languageMap", "previousValue", "previousObject", "objectType",
@@ -135,6 +142,52 @@ def pinned_files(pins: dict) -> dict[str, tuple[str, str]]:
         files[ref] = (RAW.format(repo=entry["repo"], commit=entry["commit"], path=entry["path"]), entry["sha256"])
     files["core"] = (pins["core_context"]["url"], pins["core_context"]["sha256"])
     return files
+
+
+def upstream_files(pins: dict) -> dict[str, tuple[str, str, str]]:
+    """Every pinned repository file as key -> (URL at the default branch, pinned sha256, where to see the changes).
+
+    The core context is left out: its URL carries no commit, so every `fetch` already checks it.
+    """
+    files: dict[str, tuple[str, str, str]] = {}
+
+    def add(key: str, repo: str, commit: str, path: str, digest: str) -> None:
+        url = RAW.format(repo=repo, commit=UPSTREAM_REF, path=path)
+        files[key] = (url, digest, COMPARE.format(repo=repo, commit=commit, ref=UPSTREAM_REF))
+
+    for subject, entry in pins["subjects"].items():
+        add(f"context:{subject}", entry["repo"], entry["commit"], entry["context"]["path"], entry["context"]["sha256"])
+    for name, entry in pins["types"].items():
+        subject = pins["subjects"].get(entry["subject"])
+        if subject is None:
+            raise PinError(f"type {name}: unknown subject {entry['subject']}")
+        add(f"schema:{name}", subject["repo"], subject["commit"], entry["schema"]["path"], entry["schema"]["sha256"])
+    for ref, entry in pins["shared"].items():
+        add(ref, entry["repo"], entry["commit"], entry["path"], entry["sha256"])
+    return files
+
+
+def check_upstream(pins: dict, download: Callable[[str], bytes] | None = None) -> list[str]:
+    """One line per pinned file that its repository no longer serves unchanged.
+
+    A download that fails for any reason other than the file being gone raises
+    `PinError`: an unreachable repository must not read as "nothing changed".
+    """
+    download = download or _download
+    findings = []
+    for key, (url, digest, compare) in upstream_files(pins).items():
+        try:
+            data = download(url)
+        except urllib.error.HTTPError as exc:
+            if exc.code != 404:
+                raise PinError(f"{key}: could not fetch {url}: {exc}") from exc
+            findings.append(f"{key}: no longer at its pinned path in the official repository ({compare})")
+            continue
+        except Exception as exc:
+            raise PinError(f"{key}: could not fetch {url}: {exc}") from exc
+        if hashlib.sha256(data).hexdigest() != digest:
+            findings.append(f"{key}: the official file changed since the pinned commit ({compare})")
+    return findings
 
 
 def fetch(pins: dict, cache_dir: Path, download: Callable[[str], bytes] = _download) -> dict[str, Any]:
@@ -545,11 +598,11 @@ def check_examples(
     return errors, notes
 
 
-def _report(errors: list[str], notes: list[str], ok: str, level: str = "error") -> int:
+def _report(errors: list[str], notes: list[str], ok: str, level: str = "error", title: str = "conformance") -> int:
     for note in notes:
         print(f"note: {note}")
     for error in errors:
-        print(f"::{level} title=Smart Data Models conformance::{error}")
+        print(f"::{level} title=Smart Data Models {title}::{error}")
     if errors:
         print(f"{len(errors)} problem(s).")
         return 1
@@ -583,6 +636,8 @@ def main(argv: list[str] | None = None) -> int:
     ratchet = commands.add_parser("ratchet", help="the pending list and the deviations may only shrink")
     ratchet.add_argument("--base", required=True, help="git ref to compare with")
     common(ratchet)
+    upstream = commands.add_parser("upstream", help="compare the pinned files with the official repositories today")
+    common(upstream)
     try:
         args = parser.parse_args(argv)
     except SystemExit as exc:
@@ -597,6 +652,12 @@ def main(argv: list[str] | None = None) -> int:
                 return 2
             return _report(check_ratchet(args.base, args.pending, args.deviations, args.allowed), [],
                            "OK: the pending list and the deviations did not grow.")
+
+        if args.command == "upstream":
+            pins = load_pins(args.pins)
+            return _report(check_upstream(pins), [],
+                           f"OK: the {len(upstream_files(pins))} pinned files are the ones served upstream today.",
+                           level="warning", title="upstream")
 
         from referencing.exceptions import Unresolvable
 

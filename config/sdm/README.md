@@ -36,6 +36,12 @@ To add an official type: add it to `allowed.txt`, pin its schema in `pins.json`,
 an example or list it in `pending.txt`. To move a pin, change the commit and the checksums in
 the same pull request and say why.
 
+`upstream` compares every pinned file with the one its repository serves today. It runs weekly
+(`.github/workflows/sdm-upstream-watch.yml`) and on demand. A failed run that lists files means
+an official model changed since its pin, not that anything here broke: read the change it links
+to, then move the pin (a new official attribute may replace one of the platform's own terms). A
+failed run with an internal error means the official repositories could not be read; run it again.
+
 ## Modules
 
 A module repository that calls the shared workflow `_public-repo-hygiene.yml` gets the same
