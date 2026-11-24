@@ -754,3 +754,139 @@ def test_command_prints_no_secrets(world, capsys):
     run(*BASE, "--to", "iota", "--shape", "legacy", "--apply")
     out = capsys.readouterr()
     assert "apikey" not in (out.out + out.err).lower()
+
+
+# -- verify, round 1 ----------------------------------------------------------------------
+
+OFFICIAL_EXTRA = {DEV + "weird": {"type": "Property", "value": 1}}
+
+
+def test_orphan_dm_with_an_extra_official_key_fails_and_is_listed(world, http, capsys):
+    iota_world(world)
+    http(Http([dm("S1", "airTemperature"),
+               dm("S1", "gone", extra=OFFICIAL_EXTRA)]))
+    assert run(*BASE, "--verify") == 1
+    out = capsys.readouterr().out
+    assert "no channel in the current profile" in out and DEV + "weird" in out
+
+
+def test_orphan_dm_missing_a_required_key_fails(world, http):
+    iota_world(world)
+    http(Http([dm("S1", "airTemperature"),
+               dm("S1", "gone", drop=(DEV + "hasDevice",))]))
+    assert run(*BASE, "--verify") == 1
+
+
+def test_orphan_dm_without_any_value_fails_b(world, http):
+    iota_world(world)
+    http(Http([dm("S1", "airTemperature"), dm("S1", "gone", value="none")]))
+    assert run(*BASE, "--verify") == 1
+
+
+def test_clean_orphan_passes_and_is_listed(world, http, capsys):
+    iota_world(world)
+    http(Http([dm("S1", "airTemperature"), dm("S1", "gone", mtype=None, value="both")]))
+    assert run(*BASE, "--verify") == 0
+    assert "no channel in the current profile" in capsys.readouterr().out
+
+
+def test_orphan_name_only_allowed_in_sdm(world, http):
+    iota_world(world, shape="sdm")
+    http(Http([dm("S1", "airTemperature", shape="sdm", mtype="instant"),
+               dm("S1", "gone", shape="sdm")]))
+    assert run(*BASE, "--verify") == 0
+    world.rows[urn_of("S1")]["dm_shape"] = "legacy"
+    http(Http([dm("S1", "airTemperature", mtype="instant"), dm("S1", "gone", shape="sdm")]))
+    assert run(*BASE, "--verify") == 1
+
+
+def test_no_iota_device_means_check_b_not_run(world, http, capsys):
+    world.add("S1", writer="em")
+    http(Http([dm("S1", "airTemperature")]))
+    assert run(*BASE, "--verify") == 0
+    assert "check (b): NOT RUN (no iota devices)" in capsys.readouterr().out
+
+
+def test_no_iota_device_still_fails_on_check_a(world, http):
+    world.add("S1", writer="em")
+    http(Http([dm("S1", "airTemperature", value="none")]))
+    assert run(*BASE, "--verify") == 1
+
+
+def test_iota_device_without_any_dm_fails(world, http, capsys):
+    iota_world(world)
+    world.add("S2", writer="iota", shape="legacy", code="p", ms=ONE_MS)
+    http(Http([dm("S1", "airTemperature")]))
+    assert run(*BASE, "--verify") == 1
+    out = capsys.readouterr().out
+    assert urn_of("S2") in out and "no DeviceMeasurement" in out
+
+
+def test_zero_dms_with_iota_devices_fails(world, http, capsys):
+    iota_world(world)
+    http(Http([]))
+    assert run(*BASE, "--verify") == 1
+    assert urn_of("S1") in capsys.readouterr().out
+
+
+def test_dm_ids_match_by_prefix_with_colon_in_external_id(world, http):
+    world.add("S:1", writer="iota", shape="legacy", code="p", ms=ONE_MS)
+    world.add("S", writer="iota", shape="legacy", code="p", ms=ONE_MS)
+    http(Http([dm("S:1", "airTemperature", extra=OFFICIAL_EXTRA),
+               dm("S", "airTemperature")]))
+    assert run(*BASE, "--verify") == 1       # the extra key is on the S:1 entity
+
+
+def test_dm_of_no_linked_device_is_counted_not_judged(world, http, capsys):
+    iota_world(world)
+    http(Http([dm("S1", "airTemperature"),
+               dm("ZZ", "airTemperature", extra=OFFICIAL_EXTRA)]))
+    assert run(*BASE, "--verify") == 0
+    assert "1 entities matching no linked device" in capsys.readouterr().out
+
+
+def test_verify_non_existing_tenant_404_exits_1(world, http):
+    iota_world(world)
+    h = Http([])
+    orig = h.get
+
+    def get(url, **kw):
+        r = orig(url, **kw)
+        if url != CTX_URL:
+            r.status_code = 404
+            r.json.return_value = {"type": "https://uri.etsi.org/ngsi-ld/errors/NonExistingTenant"}
+        return r
+
+    h.get = get
+    http(h)
+    assert run(*BASE, "--verify") == 1
+
+
+def test_restore_rebuilds_from_a_fresh_profile_read(world):
+    urn = world.add("S1")
+    world.settle_agent()
+
+    def change(n, ext):
+        if n == 1:
+            world.profiles["p"] = copy.deepcopy(ONE_MS)
+
+    world.after_put = change
+    world.update_fail = True
+    assert run(*BASE, "--to", "iota", "--shape", "legacy", "--apply") == 1
+    assert world.agent["S1"] == dataloggers._attributes_for_state(("em", None), TENANT, urn, "S1", "p", ONE_MS)
+
+
+def test_restore_falls_back_to_plan_time_mappings_and_says_so(world, caplog):
+    urn = world.add("S1")
+    world.settle_agent()
+    before = copy.deepcopy(world.agent["S1"])
+
+    def break_profiles(n, ext):
+        world.orion_fail = True
+
+    world.after_put = break_profiles
+    world.update_fail = True
+    with caplog.at_level(logging.WARNING):
+        assert run(*BASE, "--to", "iota", "--shape", "legacy", "--apply") == 1
+    assert world.agent["S1"] == before
+    assert "plan-time" in caplog.text

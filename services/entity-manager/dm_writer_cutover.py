@@ -11,15 +11,19 @@ tenant from the broker WITHOUT a Link header (full type IRI, `count=true`, pagin
 type name without Link counts zero) and runs two separate checks:
   (a) no entity lacks both `numValue` and `textValue`;
   (b) every entity of an `iota` device has exactly the attribute set its shape and profile
-      call for, nothing under the default vocabulary and no `TimeInstant` attribute.
+      call for, nothing under the default vocabulary and no `TimeInstant` attribute; an entity
+      with no channel in the current profile is judged for the keys any channel may carry. An
+      `iota` device with no entity in the broker fails; with no `iota` device (b) is NOT RUN.
+      Entities are matched to devices by the id prefix (longest wins).
 The term to IRI mapping comes from the platform context document at CONTEXT_URL (required;
 without it, or without a term, the verification fails). `--device` narrows check (b).
 
 Exit codes: 0 done, 1 a validation, device or verification failure, 2 bad arguments.
 
 Order of the writes. A moment where two writers write is acceptable (a reading may appear
-twice; the worker's dedup removes it when the message carries `TimeInstant`); a moment where
-nobody writes is not.
+twice; the worker drops repeated readings only when the message carries its own time
+(`TimeInstant`), without it a duplicate row is possible and accepted); a moment where nobody
+writes is not.
   * to iota: PUT the new mappings, update the row, PUT again. Between the first PUT and the
     commit both write. The second PUT, after the commit, re-reads the profile and rebuilds the
     mappings: a profile change that ran `push_iota_attributes` while the row still said `em`
@@ -288,10 +292,21 @@ def _after_db_failure(tenant: str, item: Item, target, exc: Exception) -> Outcom
                         row.external_id, row.urn, row.state, target)
         return _fail(row, "row update failed and the state could not be confirmed; the new "
                           "mappings were left in the agent; check the row, then rerun")
+    restore_attrs = item.old_attrs
     try:
-        if item.old_attrs is None:
+        entity = dataloggers._orion_devices(tenant, [row.urn]).get(row.urn)
+        code = dataloggers._prop(entity, 'profileCode') if entity else None
+        measurements = dataloggers._profile_measurements(tenant, code) if code else None
+        if measurements is None:
+            raise RuntimeError("profile not readable")
+        restore_attrs = _build(tenant, row, row.state, code, measurements)
+    except Exception as exc3:
+        logger.warning("dm_cutover: fresh profile read for the restore failed (%s); using the "
+                       "plan-time mappings: device=%s", type(exc3).__name__, row.external_id)
+    try:
+        if restore_attrs is None:
             raise RuntimeError("previous mappings not buildable")
-        _put(tenant, row.external_id, item.old_attrs)
+        _put(tenant, row.external_id, restore_attrs)
     except Exception as exc2:
         logger.critical("INCONSISTENCY: row update failed and the previous mappings were not "
                         "restored: device=%s urn=%s previous=%r target=%r error=%s",
@@ -433,6 +448,15 @@ def _expected_keys(channel, shape: str, terms: Dict[str, str]):
     return required, allowed, either
 
 
+def _orphan_keys(shape: str, terms: Dict[str, str]):
+    """(required, allowed) key IRIs of a DM no channel of the profile describes any more."""
+    required = {terms[t] for t in ('refDevice', 'dateObserved', 'timeSource', 'controlledProperty')}
+    allowed = required | {terms[t] for t in ('measurementType', 'deviceType', 'numValue', 'textValue')}
+    if shape == 'sdm':
+        allowed.add(terms['name'])
+    return required, allowed
+
+
 def _is_default_vocabulary(key: str) -> bool:
     return key.startswith(DEFAULT_VOCABULARY) or ':' not in key
 
@@ -460,10 +484,15 @@ def verify(tenant: str, rows: List[Row], only_urn: Optional[str]) -> bool:
     for i in bad_a:
         _say(f"  {i}")
 
-    by_ext = {r.external_id: r for r in rows if r.state[0] == 'iota'
-              and (only_urn is None or r.urn == only_urn)}
+    prefix_of = {f"urn:ngsi-ld:DeviceMeasurement:{tenant}:{r.external_id}:": r for r in rows}
+    prefixes = sorted(prefix_of, key=len, reverse=True)       # longest prefix wins
+    selected = {r.urn for r in rows if r.state[0] == 'iota'
+                and (only_urn is None or r.urn == only_urn)}
+    seen_devices = set()
+    unmatched = 0
     profiles: Dict[str, Optional[Dict[str, Any]]] = {}
     problems: List[str] = []
+    orphans: List[str] = []
     judged = 0
 
     def channels_of(row: Row):
@@ -486,9 +515,13 @@ def verify(tenant: str, rows: List[Row], only_urn: Optional[str]) -> bool:
         return result
 
     for e in dms:
-        parts = str(e.get('id', '')).split(':', 5)
-        row = by_ext.get(parts[4]) if len(parts) == 6 else None
+        dm_id = str(e.get('id', ''))
+        row = next((prefix_of[pre] for pre in prefixes if dm_id.startswith(pre)), None)
         if row is None:
+            unmatched += 1
+            continue
+        seen_devices.add(row.urn)
+        if row.urn not in selected:
             continue
         judged += 1
         keys = {k for k in e if k not in SYSTEM_KEYS}
@@ -504,9 +537,16 @@ def verify(tenant: str, rows: List[Row], only_urn: Optional[str]) -> bool:
         if chans is None:
             issues.append("expected attributes unknown (profile not readable)")
         elif channel is None:
-            issues.append("no channel of the current profile; only forbidden keys judged")
-            if not (offending or ti):
-                issues = []
+            orphans.append(dm_id)
+            required, allowed = _orphan_keys(row.state[1], terms)
+            extra = sorted(k for k in keys - allowed if k not in offending and k not in ti)
+            missing = sorted(required - keys)
+            if not ({terms['numValue'], terms['textValue']} & keys):
+                missing.append(f"{terms['numValue']} or {terms['textValue']}")
+            if extra:
+                issues.append(f"unexpected keys {extra}")
+            if missing:
+                issues.append(f"missing keys {missing}")
         else:
             required, allowed, either = _expected_keys(channel, row.state[1], terms)
             extra = sorted(k for k in keys - allowed if k not in offending and k not in ti)
@@ -519,8 +559,21 @@ def verify(tenant: str, rows: List[Row], only_urn: Optional[str]) -> bool:
                 issues.append(f"missing keys {missing}")
         if issues:
             problems.append(f"  {e['id']}: " + "; ".join(issues))
+    for row in rows:
+        if row.urn in selected and row.urn not in seen_devices:
+            problems.append(f"  {row.urn}: no DeviceMeasurement in the broker (readings lost?)")
+    if unmatched:
+        _say(f"verify: {unmatched} entities matching no linked device (not judged by check (b))")
+    if orphans:
+        _say(f"verify: {len(orphans)} entities with no channel in the current profile "
+             "(judged for the keys any channel may carry)")
+        for i in orphans:
+            _say(f"  {i}")
+    if not selected:
+        _say("check (b): NOT RUN (no iota devices)")
+        return not bad_a
     _say("check (b): ok" + f" ({judged} entities of iota devices judged)" if not problems else
-         f"check (b): FAILED ({len(problems)} of {judged} entities)")
+         f"check (b): FAILED ({len(problems)} problem(s), {judged} entities judged)")
     for line in problems:
         _say(line)
     return not bad_a and not problems
