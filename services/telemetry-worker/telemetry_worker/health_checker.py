@@ -75,8 +75,9 @@ class HealthChecker:
             if client is not None:
                 await client.aclose()
         finally:
-            if self._redis:
-                await self._redis.close()
+            redis, self._redis = self._redis, None
+            if redis:
+                await redis.close()
 
     async def get_health_config(
         self, entity_id: str, tenant_id: str, force_refresh: bool = False
@@ -107,7 +108,8 @@ class HealthChecker:
             "Accept": "application/json",
             "Link": self._link_header(),
         }
-        url = f"{self._orion_url}/ngsi-ld/v1/entities/{quote(entity_id, safe=":")}?attrs=healthConfig"
+        quoted_id = quote(entity_id, safe=":")
+        url = f"{self._orion_url}/ngsi-ld/v1/entities/{quoted_id}?attrs=healthConfig"
         try:
             resp = await self._get_client().get(url, headers=headers, timeout=_HTTP_TIMEOUT)
             if resp.status_code == 200:
@@ -234,7 +236,8 @@ class HealthChecker:
                 "observedAt": datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ"),
             }
         }
-        url = f"{self._orion_url}/ngsi-ld/v1/entities/{quote(entity_id, safe=":")}/attrs"
+        quoted_id = quote(entity_id, safe=":")
+        url = f"{self._orion_url}/ngsi-ld/v1/entities/{quoted_id}/attrs"
         try:
             resp = await self._get_client().patch(
                 url, json=body, headers=headers, timeout=_HTTP_TIMEOUT

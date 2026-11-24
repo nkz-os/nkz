@@ -297,3 +297,22 @@ def test_evaluate_alias_only_when_asked():
     cfg = {"temperature": {"maxValid": 40}}
     assert hc.evaluate_measurement("airTemperature", 99.0, cfg) == "valid"
     assert hc.evaluate_measurement("airTemperature", 99.0, cfg, aliases=True) == "out_of_bounds"
+
+
+def test_evaluate_inf_threshold_is_a_valid_number():
+    hc = _hc(None, None)
+    cfg = {"t": {"minValid": float("-inf"), "maxValid": float("inf")}}
+    assert hc.evaluate_measurement("t", 1e308, cfg) == "valid"
+    assert hc.evaluate_measurement("t", 5.0, {"t": {"maxValid": float("-inf")}}) == "out_of_bounds"
+
+
+def test_evaluate_none_thresholds_are_unset():
+    hc = _hc(None, None)
+    assert hc.evaluate_measurement("t", 1e9, {"t": {"minValid": None, "maxValid": None}}) == "valid"
+    assert hc.evaluate_measurement("t", 50.0, {"t": {"minValid": None, "maxValid": 40}}) == "out_of_bounds"
+
+
+def test_stop_drops_the_redis_reference():
+    hc = _hc(CacheRedis(), FakeClient())
+    asyncio.run(hc.stop())
+    assert hc._redis is None
