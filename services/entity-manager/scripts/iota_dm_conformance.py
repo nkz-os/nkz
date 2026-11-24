@@ -7,7 +7,7 @@ sends a fixed series of southbound messages and, after each one, compares every
 `DeviceMeasurement` the agent wrote with what `build_measurements` (the entity-manager path)
 makes of the Device the agent wrote. Every difference is printed and classified:
 
-  declared    one of the differences of the design (spec 5.6): `observedAt` on the attributes;
+  declared    one of the differences expected of the agent: `observedAt` on the attributes;
               `timeSource` `server` instead of `device` when the message carries no
               `TimeInstant`; `"1e3"` (Device 1, DM 1000); `"0x10"` (Device 16, no DM)
   UNDECLARED  anything else; the run exits 1
@@ -55,10 +55,10 @@ import requests  # noqa: E402
 
 from blueprints.measurements import SDM_SHAPE_FLAG, build_measurements  # noqa: E402
 from common.context_aliases import canonical_attribute  # noqa: E402
-from common.device_measurement_shape import Channel, measurement_channels  # noqa: E402
+from common.device_measurement_shape import SHAPES, Channel, measurement_channels  # noqa: E402
 from common.iot_agent import (  # noqa: E402
     IotAgentError, _check_entity_types, delete_device, get_device, get_or_create_service_group,
-    update_device_attributes)
+    provision_device, update_device_attributes)
 from common.iota_dm_mappings import device_attributes  # noqa: E402
 from common.ngsi_headers import inject_fiware_headers  # noqa: E402
 
@@ -85,6 +85,8 @@ LIVE_MEASUREMENTS: List[Dict[str, Any]] = [
      "expression": "soilMoisture * 10"},
     {"type": "stat", "incomingKey": "stat", "sdmAttribute": "status", "valueType": "Text"},
     {"type": "rt", "incomingKey": "rt", "sdmAttribute": "windSpeed"},
+    # a profile type with a quote and a backslash: the literal of `measurementType` is escaped
+    {"type": "esc'q\\z", "incomingKey": "esc", "sdmAttribute": "leafWetness", "unit": "%"},
 ]
 LIVE_PROFILE = {"mapping": {"measurements": LIVE_MEASUREMENTS}}
 
@@ -109,13 +111,29 @@ def live_channels(tenant: str, device_id: str, shape: str = SHAPE) -> List[Chann
         device_urn=device_urn(tenant, device_id), profile_code=PROFILE_CODE, shape=shape)
 
 
+def companion_id(device_id: str) -> str:
+    """The id of the second temporary device of a run: same prefix and form, derived from the
+    first so that a leftover pair is found from either id."""
+    head, hexpart = device_id[:len(DEVICE_PREFIX)], device_id[len(DEVICE_PREFIX):]
+    return head + f"{int(hexpart, 16) ^ 0xFFFFFFFF:0{len(hexpart)}x}"
+
+
 def generator_hash(common_dir: Optional[Path] = None) -> str:
-    """sha256 of the two generator modules (name and bytes, in a fixed order)."""
+    """sha256 of the two generator modules (name and bytes, line endings normalised) and of the
+    attribute lists they generate, with the code they call, for this script's own profile in
+    every shape: a change anywhere in that chain changes the hash."""
     base = Path(common_dir) if common_dir else Path(inspect.getfile(device_attributes)).parent
     digest = hashlib.sha256()
     for name in ("iota_dm_mappings.py", "device_measurement_shape.py"):
         data = (base / name).read_bytes().replace(b"\r\n", b"\n")   # checkout line endings must not matter
         digest.update(name.encode() + b"\0" + data + b"\0")
+    urn = device_urn("hash-tenant", "hash-device")
+    for shape in SHAPES:
+        channels = measurement_channels(LIVE_MEASUREMENTS, tenant="hash-tenant", external_id="hash-device",
+                                        device_urn=urn, profile_code=PROFILE_CODE, shape=shape)
+        attrs = device_attributes(LIVE_MEASUREMENTS, channels, device_urn=urn)
+        digest.update(shape.encode() + b"\0" + json.dumps(attrs, sort_keys=True, separators=(",", ":"),
+                                                          ensure_ascii=True).encode() + b"\0")
     return digest.hexdigest()
 
 
@@ -136,7 +154,7 @@ def keys_by_dm(channels: Sequence[Channel]) -> Dict[str, Tuple[str, ...]]:
 
 KEY_DM = {"t": "airTemperature", "tMin": "airTemperatureMin", "tMax": "airTemperatureMax",
           "p": "pressure", "humidity": "relativeHumidity", "relativeHumidity": "relativeHumidity",
-          "soilMoisture": "soilMoisture", "stat": "status", "rt": "windSpeed"}
+          "soilMoisture": "soilMoisture", "stat": "status", "rt": "windSpeed", "esc": "leafWetness"}
 
 
 @dataclass(frozen=True)
@@ -190,6 +208,7 @@ def build_cases(ti: Callable[[], str], val: Callable[[], float]) -> List[Case]:
     add("alias-and-canonical", {"humidity": val(), "relativeHumidity": val()})
     add("scaling-key-is-attribute-name", {"soilMoisture": val()})
     add("text", {"stat": f"ok-{val()}"})
+    add("escaped-literals", {"esc": val()})
     # Unusable values write no DM. Without a TimeInstant the agent may still stamp the Device.
     # `""` is refused by the broker as a null attribute: the agent answers 207 (BatchOperationResult).
     for label, bad in (("null", None), ("ERR", "ERR"), ("12abc", "12abc"), ("empty", "")):
@@ -666,6 +685,32 @@ class Conformance:
         return mappings
 
 
+    def put_again(self, mappings: list, label: str) -> bool:
+        """PUT the attribute list; the answer must be 204 (a check, not an abort)."""
+        try:
+            update_device_attributes(self.iota, self._iota_headers(), self.device_id, mappings)
+            status: Optional[int] = 204
+        except IotAgentError as exc:
+            status = exc.status_code
+        except Exception as exc:
+            self.say(f"{label}: {type(exc).__name__}")
+            return False
+        self.say(f"{label}: {status}" + ("" if status == 204 else "   [FAIL]"))
+        return status == 204
+
+    def provision_like_the_entity_manager(self, apikey: str) -> None:
+        """A device provisioned the way `common.iot_agent.provision_device` does it (MQTT
+        transport, no explicit attributes in the body), with the Device-only mappings."""
+        self._apikey = apikey
+        try:
+            provision_device(self.iota, self._iota_headers(), apikey=apikey, device_id=self.device_id,
+                             entity_name=self.urn, entity_type="Device",
+                             attributes=device_attributes(LIVE_MEASUREMENTS))
+        except IotAgentError as exc:
+            raise Abort(f"provision second device: HTTP {exc.status_code} {self._redact(exc.body)}") from None
+        except Exception as exc:
+            raise Abort(f"provision second device: {type(exc).__name__}") from None
+
     # per message ---------------------------------------------------------------------------
     def state(self) -> Tuple[Optional[dict], List[dict]]:
         return self._get_entity(self.urn), self._list_dms(link=True)
@@ -1028,11 +1073,17 @@ def _main(argv: Optional[Sequence[str]] = None, *, http: Any = requests, sleep: 
                       south_url=args.south_url, orion_url=env["ORION_URL"], context_url=env["CONTEXT_URL"],
                       type_iri=type_iri,
                       say=say, sleep=sleep, now=now, quiet_wait=args.quiet_wait, utcnow=utcnow)
+    second_id = companion_id(device_id)   # the second temporary device of the run (same prefix rule)
+    run2 = Conformance(http=http, tenant=args.tenant, device_id=second_id, iota_url=env["IOT_AGENT_URL"],
+                       south_url=None, orion_url=env["ORION_URL"], context_url=env["CONTEXT_URL"],
+                       type_iri=type_iri, say=say, sleep=sleep, now=now, quiet_wait=args.quiet_wait,
+                       utcnow=utcnow)
     if args.cleanup_only:
-        say(f"cleanup-only: {device_id}")
+        say(f"cleanup-only: {device_id} and {second_id}")
         left = run.cleanup()
-        say(json.dumps({"device_id": device_id, "left": left}))
-        return 0 if left["clean"] else 1
+        left2 = run2.cleanup()
+        say(json.dumps({"device_id": device_id, "left": left, "left_second": left2}))
+        return 0 if left["clean"] and left2["clean"] else 1
 
     code_hash = generator_hash()   # the code that runs, read before anything else happens
     started = utcnow()
@@ -1042,8 +1093,10 @@ def _main(argv: Optional[Sequence[str]] = None, *, http: Any = requests, sleep: 
     failure: Optional[str] = None
     version = run.agent_version()
     instants: List[str] = []
+    checks: Dict[str, bool] = {}
     try:
         run.preflight()
+        run2.preflight()
     except Abort as exc:   # nothing was created: nothing to clean up (and nothing that is ours to delete)
         say(f"refused: {exc}")
         return 1
@@ -1064,6 +1117,12 @@ def _main(argv: Optional[Sequence[str]] = None, *, http: Any = requests, sleep: 
         say(f"check agent-document-equal: {agent_eq}")
         if not agent_eq:
             say("   the agent's document differs from the mappings sent (a cutover rerun would push again)")
+        checks["identical_put_http"] = run.put_again(mappings, "identical put")
+        run2.create_entity()
+        run2.provision_like_the_entity_manager(run._apikey)
+        second = device_attributes(LIVE_MEASUREMENTS, run2.channels, device_urn=run2.urn)
+        checks["second_device_put_1"] = run2.put_again(second, "second device put 1")
+        checks["second_device_put_2"] = run2.put_again(second, "second device put 2")
         cases = build_cases(ti=ti, val=val)
         for case in cases:
             if case.message.get("TimeInstant"):
@@ -1078,6 +1137,7 @@ def _main(argv: Optional[Sequence[str]] = None, *, http: Any = requests, sleep: 
         say(f"ABORT: {failure}")
     finally:
         left = run.cleanup()
+        left2 = run2.cleanup()
     finished = utcnow()
 
     flat = [d for r in results for d in r["diffs"]]
@@ -1090,7 +1150,8 @@ def _main(argv: Optional[Sequence[str]] = None, *, http: Any = requests, sleep: 
     say(f"quiet-wait {args.quiet_wait:.0f}s; longest measured latency {max_latency:.1f}s; "
         f"{'ok' if quiet_ok else 'FAIL: quiet-wait is under 3 times the longest latency, rerun with a longer --quiet-wait'}")
     ok = (failure is None and agent_eq is True and not undeclared and not check_failures
-          and quiet_ok and left["clean"] and len(results) > 0)
+          and quiet_ok and left["clean"] and left2["clean"] and len(results) > 0
+          and len(checks) == 3 and all(checks.values()))
     summary_rows = summarize_undeclared(flat)
     say(f"cases: {len(results)}; differences: {len(flat)} ({len(undeclared)} UNDECLARED, "
         f"{len(summary_rows)} distinct); check failures: {check_failures or 'none'}")
@@ -1114,7 +1175,8 @@ def _main(argv: Optional[Sequence[str]] = None, *, http: Any = requests, sleep: 
         "time_instant_first": min(instants) if instants else None,
         "time_instant_last": max(instants) if instants else None,
         "run_started": started.isoformat(), "run_finished": finished.isoformat(),
-        "cases": results, "differences": flat, "left": left,
+        "cases": results, "differences": flat, "left": left, "left_second": left2,
+        "second_device_id": second_id, "checks": checks,
     }
     say(json.dumps(summary, sort_keys=True))
     if ok and args.record:

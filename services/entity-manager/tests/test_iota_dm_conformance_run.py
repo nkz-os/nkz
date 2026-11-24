@@ -66,6 +66,7 @@ class World:
         self.baseline_device_wrote = True
         self.dm_value_shift = 0
         self.dm_unit = None
+        self.puts, self.bad_put, self.south_devices = {}, {}, []
         self.dm_at_shift = 0
         self.mapped = False
         self.on_delete, self.no_modified_at = on_delete, no_modified_at
@@ -122,14 +123,19 @@ class World:
             return Resp(201)
         if url.endswith("/iot/devices"):
             dev = json["devices"][0]
-            assert dev["transport"] == "HTTP" and dev["apikey"] == APIKEY
+            assert dev["apikey"] == APIKEY
+            if dev["transport"] == "MQTT":   # exactly what common.iot_agent.provision_device sends
+                assert "explicitAttrs" not in dev
+            else:
+                assert dev["transport"] == "HTTP" and dev["explicitAttrs"] is True
             self.agent[dev["device_id"]] = {"device_id": dev["device_id"], "attributes": dev["attributes"],
-                                            "entity_name": dev["entity_name"]}
+                                            "entity_name": dev["entity_name"], "transport": dev["transport"]}
             return Resp(201)
         if url.endswith("/iot/json"):
             assert params["k"] == APIKEY
             if self.south_status != 200:
                 return Resp(self.south_status, {"message": f"boom {params['k']}"})
+            self.south_devices.append(params["i"])
             if self.on_south:
                 self.on_south()
             for late in self.deferred:   # a write that lands one message late
@@ -156,6 +162,10 @@ class World:
         urn = self.agent[dev_id]["entity_name"]
         if urn not in self.entities:
             return Resp(200, {"name": "ENTITY_NOT_FOUND"})
+        self.puts[dev_id] = self.puts.get(dev_id, 0) + 1
+        bad = self.bad_put.get((self.agent[dev_id]["transport"], self.puts[dev_id]))
+        if bad:
+            return Resp(bad, {"name": "SOMETHING"})
         self.agent[dev_id]["attributes"] = json["attributes"]
         self.mapped = True
         return Resp(204)
@@ -707,3 +717,47 @@ def test_device_refused_is_rejected_for_a_wrong_instant():
     assert code == 1 and len(why) == 1
     mixed = {c["name"]: c for c in summary(out)["cases"]}["empty-with-valid-others"]
     assert not [d for d in mixed["diffs"] if d["label"] == "device-refused"]
+
+
+def test_identical_put_and_a_second_mqtt_device_are_checked_and_cleaned():
+    world = World()
+    code, out = run(world)
+    s = summary(out)
+    assert code == 0, "\n".join(out)
+    assert s["checks"] == {"identical_put_http": True, "second_device_put_1": True, "second_device_put_2": True}
+    assert any(x.startswith("identical put: 204") for x in out)
+    assert world.entities == {} and world.agent == {}
+    assert s["left"]["clean"] and s["left_second"]["clean"]
+    assert set(world.south_devices) == {"conf-iota-dm-0a1b2c3d"}   # no message to the second device
+    assert out.index(next(x for x in out if x.startswith("identical put"))) < \
+        next(i for i, x in enumerate(out) if x.startswith("== partial-with-time-first"))
+
+
+def test_a_failed_put_is_its_own_failed_check():
+    for key, name in ((("HTTP", 2), "identical_put_http"), (("MQTT", 1), "second_device_put_1"),
+                      (("MQTT", 2), "second_device_put_2")):
+        world = World()
+        world.bad_put[key] = 200
+        code, out = run(world)
+        s = summary(out)
+        assert code == 1 and s["checks"][name] is False, name
+        assert world.entities == {} and world.agent == {}
+
+
+def test_the_second_device_is_refused_when_it_exists_and_is_cleaned_by_cleanup_only():
+    world = World()
+    second = "urn:ngsi-ld:Device:acme:" + conf.companion_id("conf-iota-dm-0a1b2c3d")
+    world.entities[second] = {"id": second, "type": "Device"}
+    code, out = run(world)
+    assert code == 1 and any("exists" in x for x in out) and second in world.entities
+    first = "urn:ngsi-ld:Device:acme:conf-iota-dm-0a1b2c3d"
+    world.entities[first] = {"id": first, "type": "Device"}
+    code, out = run(world, ["--tenant", "acme", "--cleanup-only", "conf-iota-dm-0a1b2c3d"])
+    assert code == 0 and world.entities == {}
+
+
+def test_the_escaped_literals_channel_is_compared_like_the_others():
+    code, out = run(World())
+    s = summary(out)
+    case = {c["name"]: c for c in s["cases"]}["escaped-literals"]
+    assert code == 0 and case["must_change"] and case["latency"] is not None

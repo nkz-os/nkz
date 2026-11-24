@@ -389,6 +389,15 @@ def test_broker_instant_respells_only_whole_second_z_instants():
         assert conf.broker_instant(untouched) == untouched
 
 
+def test_the_second_device_id_is_derived_and_different():
+    for h in ("0a1b2c3d", "ffffffff", "00000000", "f5e4d3c2"):
+        a = conf.DEVICE_PREFIX + h
+        b = conf.companion_id(a)
+        assert b != a and b.startswith(conf.DEVICE_PREFIX) and len(b) == len(a)
+        assert conf.companion_id(b) == a
+        assert __import__("re").fullmatch(r"conf-iota-dm-[0-9a-f]{8}", b)
+
+
 def test_status_check():
     assert conf.status_violations(case(), 200) == []
     assert conf.status_violations(case(), 207)
@@ -445,6 +454,15 @@ def test_alias_channels_share_the_profile_type():
     types = {m["type"] for m in conf.LIVE_MEASUREMENTS if m["sdmAttribute"] in ("humidity", "relativeHumidity")}
     assert len(types) == 1 and list(legacy.values()) == [next(iter(types))]
     assert len({c.fixed["measurementType"] for c in _channels() if c.name == "relativeHumidity"}) == 1
+
+
+def test_a_channel_needs_escaping_in_the_generated_literals():
+    esc = [c for c in _channels() if c.key == "esc"]
+    assert len(esc) == 1
+    value = esc[0].fixed["measurementType"]
+    assert "'" in value and "\\" in value
+    cases = {c.name: c for c in conf.build_cases(lambda: "2026-01-01T10:00:00Z", lambda: 1.0)}
+    assert cases["escaped-literals"].writes == {esc[0].name} and cases["escaped-literals"].must_change
 
 
 def test_live_profile_covers_the_required_kinds():
@@ -525,6 +543,31 @@ def test_generator_hash_depends_on_both_files(tmp_path):
     assert conf.generator_hash(tmp_path) != h1
 
 
+def test_generator_hash_covers_the_attributes_generated_for_the_scripts_profile(tmp_path, monkeypatch):
+    (tmp_path / "iota_dm_mappings.py").write_text("a")
+    (tmp_path / "device_measurement_shape.py").write_text("b")
+    base = conf.generator_hash(tmp_path)
+    real = conf.device_attributes
+    seen = []
+
+    def changed(measurements, channels=None, **kw):
+        seen.append(channels is not None)
+        out = real(measurements, channels, **kw)
+        return out + [{"object_id": "x", "name": "x", "type": "Text"}]
+
+    monkeypatch.setattr(conf, "device_attributes", changed)
+    assert conf.generator_hash(tmp_path) != base
+    assert seen == [True, True]   # both shapes, with channels
+
+
+def test_generator_hash_does_not_depend_on_the_path_of_the_modules(tmp_path):
+    for d in ("a", "b"):
+        (tmp_path / d).mkdir()
+        (tmp_path / d / "iota_dm_mappings.py").write_text("a")
+        (tmp_path / d / "device_measurement_shape.py").write_text("b")
+    assert conf.generator_hash(tmp_path / "a") == conf.generator_hash(tmp_path / "b")
+
+
 def test_generator_hash_ignores_line_endings(tmp_path):
     (tmp_path / "device_measurement_shape.py").write_text("b\n")
     (tmp_path / "iota_dm_mappings.py").write_bytes(b"a\nb\n")
@@ -537,6 +580,6 @@ def test_recorded_hash_matches_the_generator_modules():
     path = pathlib.Path(__file__).resolve().parents[3] / "config" / "iota-dm-conformance.json"
     recorded = json.loads(path.read_text())
     assert recorded["generator_hash"] == conf.generator_hash(), (
-        "services/common/iota_dm_mappings.py or device_measurement_shape.py changed since the last "
+        "services/common/iota_dm_mappings.py, device_measurement_shape.py or the attributes generated from them changed since the last "
         "live conformance run: re-run services/entity-manager/scripts/iota_dm_conformance.py against "
         "the IoT Agent (test tenant) with --record config/iota-dm-conformance.json, then commit it.")

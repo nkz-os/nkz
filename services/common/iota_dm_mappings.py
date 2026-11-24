@@ -1,4 +1,4 @@
-"""IoT Agent multi-entity mappings that write `DeviceMeasurement` (pattern of spec 5.2).
+"""IoT Agent multi-entity mappings that write `DeviceMeasurement`.
 
 Pure: builds the attribute list from `Channel`s (`common/device_measurement_shape.py`).
 Ordering and conditions are load-bearing:
@@ -18,10 +18,17 @@ from common.device_measurement_shape import Channel
 from common.iot_agent import build_iota_attributes
 
 # Every attribute name a DM mapping uses (any shape) plus the time key: an incoming key with
-# one of these names would be overwritten by the mapping that loads it.
+# one of these names would be overwritten by the mapping that loads it. Also words and names
+# the agent's expression context already defines (see below).
 RESERVED_KEYS = frozenset({
     "numValue", "textValue", "refDevice", "controlledProperty", "measurementType", "deviceType",
     "name", "dateObserved", "timeSource", "TimeInstant",
+    # Words of the expression language (case sensitive): a key spelled like one is not a name.
+    "in", "null", "true", "false", "undefined",
+    # Names the agent puts in its own expression context (device id, type, service, subservice,
+    # entity name; a measure called `id` or `type` is renamed `measure_id` / `measure_type`):
+    # a key with one of these names would read the agent's value, not the device's.
+    "id", "type", "service", "subservice", "entity_name", "measure_id", "measure_type",
 })
 _KEY_RE = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
 _LIMIT = "1000000000000000"

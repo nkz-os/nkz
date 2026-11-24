@@ -1,4 +1,4 @@
-"""IoT Agent multi-entity mappings for DeviceMeasurement (spec 5.2)."""
+"""IoT Agent multi-entity mappings that write DeviceMeasurement: ordering, conditions, reserved keys."""
 import pytest
 
 from common.device_measurement_shape import Channel
@@ -223,6 +223,19 @@ def test_invalid_keys(key):
     with pytest.raises(InvalidChannelKey) as e:
         dm_mappings([ch(key=key)], device_urn=URN)
     assert isinstance(e.value, ValueError)
+
+
+@pytest.mark.parametrize("key", ["in", "null", "true", "false", "undefined", "id", "type", "service",
+                                 "subservice", "entity_name", "measure_id", "measure_type"])
+def test_expression_words_and_agent_context_names_are_refused_as_keys(key):
+    with pytest.raises(InvalidChannelKey):
+        dm_mappings([ch(key=key)], device_urn=URN)
+
+
+@pytest.mark.parametrize("key", ["In", "NULL", "True", "FALSE", "Undefined", "ID", "Type", "Service",
+                                 "types", "idx", "in_", "nullable"])
+def test_reserved_words_are_matched_exactly(key):
+    assert dm_mappings([ch(key=key)], device_urn=URN)
 
 
 def test_reserved_keys_cover_every_dm_name():
