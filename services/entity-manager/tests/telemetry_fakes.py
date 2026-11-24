@@ -5,6 +5,7 @@ The fake connection keeps a working copy per connection: `commit()` publishes it
 survives a failure. Every observable step also lands in `state.log`, in order.
 """
 import copy
+import re
 import uuid
 from contextlib import contextmanager
 from types import SimpleNamespace
@@ -120,21 +121,25 @@ class _Cursor:
                     self._rowcount += 1
             log.append(("db", "move"))
         elif sql.startswith("INSERT INTO sensor_profiles"):
-            tenant, code, name, description, etype, mapping = params
+            columns = [c.strip() for c in re.search(r"\(([^)]*)\) VALUES", sql).group(1).split(",")]
+            row = dict(zip(columns, (getattr(v, "adapted", v) for v in params), strict=True))
             if self.conn.state.fail.get("profile_unique"):
                 raise self.conn.state.unique_violation()
-            self.conn.state.profiles[code] = {
-                "tenant_id": tenant, "code": code, "name": name, "description": description,
-                "sdm_entity_type": etype, "mapping": getattr(mapping, "adapted", mapping)}
+            code = row["code"]
+            self.conn.state.profiles[code] = row
             self._rows = [{"code": code}]
             self._rowcount = 1
         elif sql.startswith("UPDATE sensor_profiles"):
-            name, description, mapping, code, tenant = params
+            *values, code, tenant = params
+            assignments = re.search(r" SET (.*?) WHERE ", sql).group(1).split(", ")
+            columns = [a.removesuffix(" = %s") for a in assignments]
             row = self.conn.state.profiles.get(code)
             if row and row.get("tenant_id") == tenant:
-                row.update(name=name, description=description,
-                           mapping=getattr(mapping, "adapted", mapping))
+                row.update(zip(columns, (getattr(v, "adapted", v) for v in values), strict=True))
                 self._rowcount = 1
+                if "RETURNING" in sql:
+                    self._rows = [{c.strip(): row.get(c.strip())
+                                   for c in sql.split(" RETURNING ")[1].split(",")}]
         elif "FROM sensor_profiles" in sql and "SELECT tenant_id" in sql:
             p = self.conn.state.profiles.get(params[0])
             self._rows = [{"tenant_id": p.get("tenant_id")}] if p else []
@@ -144,7 +149,7 @@ class _Cursor:
                               for c in params[0] if c in self.conn.state.profiles]
             else:
                 p = self.conn.state.profiles.get(params[0])
-                self._rows = [p] if p else []
+                self._rows = [{"code": params[0], **p}] if p else []
         else:
             raise AssertionError(f"unexpected SQL: {sql}")
 
@@ -273,7 +278,6 @@ def fake_iota(state, apikey="KEY123"):
 # ---------------------------------------------------------------------------
 import importlib.util  # noqa: E402
 import os  # noqa: E402
-import re  # noqa: E402
 import sys  # noqa: E402
 from functools import wraps  # noqa: E402
 from unittest.mock import patch  # noqa: E402
@@ -338,23 +342,51 @@ def _resp(status=200, body=None):
     return r
 
 
+def _as_orion_returns(entity):
+    """A one-element array is read back as its bare element."""
+    out = copy.deepcopy(entity)
+    for attr in out.values():
+        if isinstance(attr, dict):
+            for member in ("value", "object"):
+                if isinstance(attr.get(member), list) and len(attr[member]) == 1:
+                    attr[member] = attr[member][0]
+    return out
+
+
 class FakeOrion:
-    """Just enough of Orion-LD, logging every write."""
+    """Just enough of Orion-LD, logging every write.
+
+    `DeviceModel` entities live apart from `entities`, so a test can still compare
+    everything else the request wrote.
+    """
 
     def __init__(self, state):
         self.state = state
         self.entities = {}
+        self.device_models = {}
         self.exceptions = _real_requests.exceptions
         self.posted_urls = []
+        self.attr_posts = []
+
+    def _find(self, eid):
+        return self.entities.get(eid) or self.device_models.get(eid)
 
     def get(self, url, **kw):
         m = re.search(r"[?&]id=([^&]+)", url)
         if m:
             ids = m.group(1).split(",")
             return _resp(200, [self.entities[i] for i in ids if i in self.entities])
+        m = re.search(r"/entities/([^?]+)$", url)
+        if m:
+            if self.state.fail.get("orion_read") == m.group(1):
+                return _resp(500)
+            found = self._find(m.group(1))
+            return _resp(200, _as_orion_returns(found)) if found else _resp(404, {})
         return _resp(200, [])
 
     def post(self, url, **kw):
+        if url.endswith("/attrs"):
+            return self._append(url.rsplit("/entities/", 1)[-1][:-len("/attrs")], kw.get("json"))
         self.posted_urls.append(url)
         if "/ngsi-ld/v1/entities" not in url:
             return _resp(500)
@@ -365,8 +397,31 @@ class FakeOrion:
         self.entities[ent["id"]] = ent
         return _resp(201)
 
+    def _append(self, eid, attrs):
+        self.state.log.append(("orion", "attrs", eid))
+        self.attr_posts.append((eid, copy.deepcopy(attrs)))
+        fail = self.state.fail.get("orion_attrs")
+        if isinstance(fail, Exception):
+            raise fail
+        if fail:
+            return _resp(fail)
+        entity = self._find(eid)
+        if entity is None:
+            return _resp(404)
+        entity.update(copy.deepcopy(attrs))
+        return _resp(204)
+
     def delete(self, url, **kw):
         eid = url.rsplit("/entities/", 1)[-1]
+        if "/attrs/" in eid:
+            eid, attr = eid.split("/attrs/")
+            self.state.log.append(("orion", "delete_attr", eid, attr))
+            fail = self.state.fail.get("orion_attr_delete")
+            if isinstance(fail, Exception):
+                raise fail
+            if fail:
+                return _resp(fail)
+            return _resp(204 if (self._find(eid) or {}).pop(attr, None) else 404)
         self.state.log.append(("orion", "delete", eid))
         if self.state.fail.get("orion_delete"):
             return _resp(500)
@@ -376,14 +431,50 @@ class FakeOrion:
         self.state.log.append(("orion", "patch"))
         if self.state.fail.get("orion_patch"):
             return _resp(500)
-        return _resp(204)
+        entity = self._find(url.rsplit("/entities/", 1)[-1][:-len("/attrs")])
+        if entity is None:
+            return _resp(404)
+        # PATCH /attrs updates what exists; a missing attribute is a partial answer.
+        known = {k: v for k, v in kw["json"].items() if k in entity}
+        entity.update(copy.deepcopy(known))
+        return _resp(204 if len(known) == len(kw["json"]) else 207)
+
+
+def fake_sync_orion_client(state, orion):
+    """Class-shaped stand-in for the SDK's SyncOrionClient: the batch upsert only."""
+
+    class _Client:
+        def __init__(self, tenant_id, base_url=None, context_url=None):
+            orion.client_args = (tenant_id, base_url, context_url)
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            return False
+
+        def upsert_entities_batch(self, entities):
+            for entity in entities:
+                state.log.append(("orion", "upsert", entity["id"]))
+            fail = state.fail.get("upsert")
+            if isinstance(fail, Exception):
+                raise fail
+            if fail:  # what the SDK answers for a 207: it does not raise
+                return {"upserted": 0, "errors": fail, "entity_ids": []}
+            for entity in entities:
+                orion.device_models.setdefault(entity["id"], {}).update(copy.deepcopy(entity))
+            return {"upserted": len(entities), "errors": [],
+                    "entity_ids": [e["id"] for e in entities]}
+
+    return _Client
 
 
 @contextmanager
 def wired(state, monkeypatch=None, host="mqtt.example.org", port="8883"):
-    """Patch every collaborator of dataloggers.py and blueprints/sensors.py."""
+    """Patch every collaborator of dataloggers.py, device_models.py and blueprints/sensors.py."""
     import dataloggers
     import blueprints.sensors as sensors
+    import device_models
 
     orion = FakeOrion(state)
     db = fake_db(state)
@@ -418,6 +509,8 @@ def wired(state, monkeypatch=None, host="mqtt.example.org", port="8883"):
          patch.object(dataloggers, "requests", orion), \
          patch.object(sensors, "get_db_connection_with_tenant", db), \
          patch.object(sensors, "requests", orion), \
+         patch.object(device_models, "requests", orion), \
+         patch.object(device_models, "SyncOrionClient", fake_sync_orion_client(state, orion)), \
          patch.object(sensors, "mqtt", MagicMock()), \
          patch.object(sensors, "_tenant", lambda: TENANT), \
          patch.object(deployments, "open_deployment", open_deployment), \

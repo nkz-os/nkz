@@ -176,6 +176,11 @@ def is_registered_device_urn(tenant: str, urn: str) -> bool:
     return True
 
 
+def is_device_type(urn: str) -> bool:
+    """True for a `Device` URN, False for a `ManufacturingMachine`."""
+    return urn.startswith('urn:ngsi-ld:Device:')
+
+
 def _dl_id(value) -> str:
     try:
         return str(uuid.UUID(str(value)))
@@ -644,29 +649,45 @@ def _set_link_datalogger(tenant: str, urn: str, dl_id: str) -> None:
 
 
 @in_step('db', 'Database error')
-def _profile_measurements(tenant: str, code: str) -> Optional[list]:
+def _profile_row(tenant: str, code: str) -> Optional[dict]:
     with get_db_connection_with_tenant(tenant) as conn:
         cur = conn.cursor(cursor_factory=RealDictCursor)
-        cur.execute("SELECT id, mapping FROM sensor_profiles WHERE code = %s "
+        cur.execute("SELECT id, code, name, mapping, manufacturer_name, brand_name, model_name "
+                    "FROM sensor_profiles WHERE code = %s "
                     "AND (tenant_id IS NULL OR tenant_id = %s) ORDER BY tenant_id NULLS LAST LIMIT 1",
                     (code, tenant))
-        row = cur.fetchone()
-    if not row:
+        return cur.fetchone()
+
+
+def _measurements_of(profile: Optional[dict]) -> Optional[list]:
+    if not profile:
         return None
-    return (row.get('mapping') or {}).get('measurements', [])
+    return (profile.get('mapping') or {}).get('measurements', [])
 
 
 def change_device_profile(tenant: str, urn: str, code: str) -> None:
-    """Re-provision the IoT Agent attributes, then write profileCode; undo the first if the second fails."""
+    """Re-provision the IoT Agent attributes, then write the profile on the entity; undo the first
+    if the second fails.
+
+    For a Device the official attributes go with `profileCode`, after its DeviceModel. The one
+    failure that is not undone is a leftover attribute that could not be deleted: IoT Agent and
+    entity are both on the new profile by then, and repeating the call finishes the job.
+    """
+    import device_models  # it imports this module
+
     external_id = parse_device_urn(tenant, urn)
-    new_ms = _profile_measurements(tenant, code)
+    profile = _profile_row(tenant, code)
+    new_ms = _measurements_of(profile)
     if new_ms is None:
         raise ApiError(404, f'Profile "{code}" not found')
     entity = _orion_devices(tenant, [urn]).get(urn)
     if not entity:
         raise ApiError(404, 'Device not found')
     old_code = _prop(entity, 'profileCode')
-    old_ms = _profile_measurements(tenant, old_code) if old_code else None
+    old_ms = _measurements_of(_profile_row(tenant, old_code)) if old_code else None
+    is_device = is_device_type(urn)
+    if is_device:
+        device_models.profile_attrs(tenant, profile)  # 400 before anything is written
     try:
         new_attrs = iot_agent.build_iota_attributes(new_ms)
     except KeyError:
@@ -676,17 +697,31 @@ def change_device_profile(tenant: str, urn: str, code: str) -> None:
     except Exception as exc:
         logger.error("IoT Agent update failed: device=%s error=%s", external_id, type(exc).__name__)
         raise ApiError(502, 'IoT Agent device update failed', 'iota_device')
+    failure = None
+    profile_codes = {'profileCode': {'type': 'Property', 'value': code},
+                     'sensorType': {'type': 'Property', 'value': code}}
+    # Device only: `refDeviceModel`, `deviceCategory` and `controlledProperty` are attributes of the
+    # official Device, not of ManufacturingMachine (whose own equivalent is another model), and
+    # `installedAt` and `status` are OFFICIAL on ManufacturingMachine. A machine keeps exactly the
+    # request it always had: do not unify the two branches.
     try:
-        resp = requests.patch(
-            f"{ORION_URL}/ngsi-ld/v1/entities/{urn}/attrs",
-            json={'profileCode': {'type': 'Property', 'value': code},
-                  'sensorType': {'type': 'Property', 'value': code}},
-            headers=inject_fiware_headers({}, tenant=tenant, has_context_in_body=False), timeout=10)
-        orion_ok = resp.status_code in (200, 204)
+        if is_device:
+            device_models.ensure_device_model(tenant, profile)
+            device_models.write_profile_attrs(tenant, urn, profile, extra=profile_codes)
+        else:
+            resp = requests.patch(
+                f"{ORION_URL}/ngsi-ld/v1/entities/{urn}/attrs", json=profile_codes,
+                headers=inject_fiware_headers({}, tenant=tenant, has_context_in_body=False), timeout=10)
+            if resp.status_code not in (200, 204):
+                failure = ApiError(502, 'Entity update failed', 'orion_profile')
+    except device_models.StaleAttributeError:
+        raise
+    except ApiError as exc:
+        failure = exc
     except Exception as exc:
-        logger.error("profile patch failed: device=%s error=%s", external_id, type(exc).__name__)
-        orion_ok = False
-    if not orion_ok:
+        logger.error("profile write failed: device=%s error=%s", external_id, type(exc).__name__)
+        failure = ApiError(502, 'Entity update failed', 'orion_profile')
+    if failure is not None:
         if old_ms is not None:
             _run_undo(lambda: iot_agent.update_device_attributes(
                 iota_url(), iota_headers(tenant), external_id,
@@ -695,30 +730,35 @@ def change_device_profile(tenant: str, urn: str, code: str) -> None:
             logger.critical("INCONSISTENCY: device %s keeps IoT Agent attributes of profile %s "
                             "but the entity still has profile %s (previous profile not readable)",
                             external_id, code, old_code)
-        raise ApiError(502, 'Entity update failed', 'orion_profile')
+        raise failure
 
 
-def reprovision_profile_devices(tenant: str, code: str, measurements: list) -> dict:
-    """Push a profile's new attributes to the IoT Agent device of every device on it.
+def links_on_profile(tenant: str, code: str) -> list:
+    """The datalogger link rows of the tenant's devices on a profile.
 
     Source of truth for "device is on this profile": the Orion `profileCode` of the
     tenant's linked devices (the attribute `change_device_profile` writes), restricted to
     devices with a datalogger link (those are the ones that own an IoT Agent device).
-    Best effort per device: a failure is logged and listed, never raised.
     """
-    out = {'reprovisioned': [], 'failed': []}
     with get_db_connection_with_tenant(tenant) as conn:
         cur = conn.cursor(cursor_factory=RealDictCursor)
         cur.execute("SELECT datalogger_id, device_urn, external_id FROM iot_datalogger_devices "
                     "WHERE tenant_id = %s ORDER BY external_id", (tenant,))
         links = cur.fetchall()
     if not links:
-        return out
+        return []
     entities = _orion_devices(tenant, [d['device_urn'] for d in links])
-    for link in links:
+    return [d for d in links if _prop(entities.get(d['device_urn']), 'profileCode') == code]
+
+
+def reprovision_profile_devices(tenant: str, code: str, measurements: list) -> dict:
+    """Push a profile's new attributes to the IoT Agent device of every device on it.
+
+    Best effort per device: a failure is logged and listed, never raised.
+    """
+    out = {'reprovisioned': [], 'failed': []}
+    for link in links_on_profile(tenant, code):
         urn = link['device_urn']
-        if _prop(entities.get(urn), 'profileCode') != code:
-            continue
         try:
             attrs = iot_agent.build_iota_attributes(measurements)
             iot_agent.update_device_attributes(iota_url(), iota_headers(tenant),
