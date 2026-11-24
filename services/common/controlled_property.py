@@ -75,6 +75,8 @@ MAPPING: dict[str, MappingRow] = {
         "energy", "It is a cumulative imported energy counter, which `energy` covers."),
     "soilElectricalConductivity": _broader("conductivity", "It is the electrical conductivity of soil."),
     "snowHeight": _broader("depth", "Snow height is the depth of the snow layer."),
+    "soilSalinity": _broader("salinity", "A soil salinity reading is a salinity."),
+    "drainFlow": _broader("waterFlow", "A drain flow is a flow of water."),
     # None: concept official elsewhere
     **{name: _none(_AGRIPARCEL) for name in ("stemDiameter", "stemDiameterVariation", "leafWetness")},
     # None: no true value

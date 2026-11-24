@@ -116,3 +116,10 @@ def test_malformed_measurements_are_skipped():
 def test_non_list_input_returns_empty_list():
     assert cp.controlled_properties(None) == []
     assert cp.controlled_properties({"sdmAttribute": "windSpeed"}) == []
+
+
+def test_soil_salinity_and_drain_flow_map_to_broader_values():
+    assert cp.controlled_properties([{"sdmAttribute": "soilSalinity"}]) == ["salinity"]
+    assert cp.controlled_properties([{"sdmAttribute": "drainFlow"}]) == ["waterFlow"]
+    assert cp.MAPPING["soilSalinity"].kind == "broader"
+    assert cp.MAPPING["drainFlow"].kind == "broader"
