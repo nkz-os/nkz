@@ -995,4 +995,6 @@ def test_device_example_has_no_other_attribute_outside_the_platform_context():
     with open(os.path.join(_EXAMPLES_DIR, "Device.json"), encoding="utf-8") as handle:
         attributes = set(json.load(handle)) - {"id", "type"}
     assert {"refDeviceModel", "dateInstalled", "deviceCategory"} <= attributes
-    assert attributes - terms == {"externalId", "profileCode", "installedAt"}
+    # `location` and `status` are terms of the NGSI-LD core context, which the platform context ends with.
+    core_terms = {"location", "status"}
+    assert attributes - terms - core_terms == {"externalId", "profileCode", "installedAt"}

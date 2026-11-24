@@ -749,6 +749,7 @@ def test_cli_ratchet(repo, capsys):
 
 def test_cli_deviations(tmp_path, capsys):
     argv = cli_files(tmp_path, [thing()])
+    (tmp_path / "context.json").write_text(json.dumps({"@context": [PLATFORM_CONTEXT["@context"], CORE_URL]}))
     argv = ["deviations"] + argv[2:] + ["--deviations", str(tmp_path / "deviations.json")]
     assert checker.main(argv + ["--write"]) == 0
     assert (tmp_path / "deviations.json").read_text() == '{\n  "types": {},\n  "attributes": []\n}\n'
@@ -1105,3 +1106,66 @@ def test_the_image_that_runs_the_broker_check_carries_what_it_reads():
         encoding="utf-8").splitlines() if line.startswith("jsonschema")]
     workflow = (REPO_ROOT / ".github" / "workflows" / "test.yml").read_text(encoding="utf-8")
     assert len(pinned) == 1 and "==" in pinned[0] and pinned[0] in workflow
+
+
+CORE_TERMS = {"status": "https://uri.etsi.org/ngsi-ld/status", "location": "https://uri.etsi.org/ngsi-ld/location"}
+
+
+def test_a_context_that_lists_the_core_last_and_repeats_none_of_its_terms_is_clean():
+    context = {"@context": [{"DemoThing": OFFICIAL + "DemoThing"}, CORE_URL]}
+    assert checker.check_core_context(context, CORE_TERMS, CORE_URL) == []
+
+
+@pytest.mark.parametrize("entries", [
+    [CORE_URL, {"DemoThing": OFFICIAL + "DemoThing"}],
+    [{"DemoThing": OFFICIAL + "DemoThing"}],
+    [{"DemoThing": OFFICIAL + "DemoThing"}, "https://example.org/ngsi-ld-core-context.jsonld"],
+])
+def test_the_core_context_must_be_the_pinned_one_and_the_last_entry(entries):
+    errors = checker.check_core_context({"@context": entries}, CORE_TERMS, CORE_URL)
+    assert len(errors) == 1 and "last entry" in errors[0]
+
+
+def test_a_context_that_is_not_a_list_has_no_core_entry():
+    errors = checker.check_core_context({"@context": {"DemoThing": OFFICIAL + "DemoThing"}}, CORE_TERMS, CORE_URL)
+    assert len(errors) == 1 and "last entry" in errors[0]
+
+
+def test_the_core_context_is_listed_once():
+    context = {"@context": [CORE_URL, {"DemoThing": OFFICIAL + "DemoThing"}, CORE_URL]}
+    errors = checker.check_core_context(context, CORE_TERMS, CORE_URL)
+    assert len(errors) == 1 and "once" in errors[0]
+
+
+def test_a_platform_term_that_repeats_a_core_term_is_reported_even_with_the_same_iri():
+    context = {"@context": [
+        {"status": "https://example.org/other/status", "location": CORE_TERMS["location"],
+         "DemoThing": OFFICIAL + "DemoThing"},
+        CORE_URL,
+    ]}
+    errors = checker.check_core_context(context, CORE_TERMS, CORE_URL)
+    assert len(errors) == 2
+    assert "location" in errors[0] and "status" in errors[1]
+
+
+def test_keywords_of_the_platform_context_are_not_terms():
+    context = {"@context": [{"@version": 1.1, "DemoThing": OFFICIAL + "DemoThing"}, CORE_URL]}
+    assert checker.check_core_context(context, {"@version": "x", **CORE_TERMS}, CORE_URL) == []
+
+
+def test_cli_deviations_also_checks_the_core_context(tmp_path, capsys):
+    argv = cli_files(tmp_path, [thing()])
+    argv = ["deviations"] + argv[2:] + ["--deviations", str(tmp_path / "deviations.json")]
+    terms = PLATFORM_CONTEXT["@context"]
+
+    def run(entries):
+        (tmp_path / "context.json").write_text(json.dumps({"@context": entries}))
+        assert checker.main(argv + ["--write"]) == 0
+        return checker.main(argv)
+
+    assert run([terms, CORE_URL]) == 0
+    capsys.readouterr()
+    assert run([CORE_URL, terms]) == 1
+    assert "last entry" in capsys.readouterr().out
+    assert run([{**terms, "location": "https://example.org/other/location"}, CORE_URL]) == 1
+    assert "defines `location`" in capsys.readouterr().out

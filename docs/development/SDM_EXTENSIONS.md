@@ -103,7 +103,6 @@ fails on it.
 | `LivestockGroup` | entidad | extension-declarada | Platform extension — no SAREF4AGRI equivalent |
 | `LivestockProduction` | entidad | extension-declarada | Platform extension — no SAREF4AGRI equivalent |
 | `magnesium` | atributo | propuesta-sdm | Attribute of AgriPlantSample (smart-data-models/incubated#283) |
-| `management` | atributo | extension-declarada | Organic or conventional production of one crop cycle; not modelled in SDM AgriCrop |
 | `manganese` | atributo | propuesta-sdm | Attribute of AgriPlantSample (smart-data-models/incubated#283) |
 | `mobility` | atributo | extension-declarada | Whether a device stays in place (fixed) or moves (mobile); SDM Device has no such property |
 | `nitrateN` | atributo | propuesta-sdm | Attribute of AgriSoilSample (smart-data-models/incubated#283) |
@@ -250,7 +249,6 @@ fails on it.
 | `icon` | entidad | sin-revisar | Not yet reviewed |
 | `inputMethod` | atributo | sin-revisar | Not yet reviewed |
 | `instrumentation` | atributo | sin-revisar | Not yet reviewed |
-| `isActive` | atributo | sin-revisar | Not yet reviewed |
 | `isSilenced` | atributo | sin-revisar | Not yet reviewed |
 | `laboratoryReference` | atributo | sin-revisar | Not yet reviewed |
 | `lastComputed` | atributo | sin-revisar | Not yet reviewed |

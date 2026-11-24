@@ -25,7 +25,7 @@ NOTES_FILE = SERVICES_DIR.parent / "config" / "ngsi-ld-context.notes.json"
 
 @pytest.fixture(scope="module")
 def ctx():
-    return json.loads(CONTEXT_FILE.read_text())["@context"][1]
+    return json.loads(CONTEXT_FILE.read_text())["@context"][0]
 
 
 @pytest.fixture(scope="module")

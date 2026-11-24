@@ -1,6 +1,5 @@
 {
   "@context": [
-    "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context.jsonld",
     {
       "AgriApp": "https://smartdatamodels.org/dataModel.Agrifood/AgriApp",
       "AgriCrop": "https://smartdatamodels.org/dataModel.Agrifood/AgriCrop",
@@ -56,10 +55,6 @@
       "avgGrowth": "https://smartdatamodels.org/dataModel.Agrifood/avgGrowth",
       "avgWeight": "https://smartdatamodels.org/dataModel.Agrifood/avgWeight",
       "batch": "https://smartdatamodels.org/dataModel.Agrifood/batch",
-      "bbox": {
-        "@container": "@list",
-        "@id": "https://purl.org/geojson/vocab#bbox"
-      },
       "belongsTo": "https://nkz-os.org/ns/belongsTo",
       "bill": "https://smartdatamodels.org/dataModel.Agrifood/bill",
       "birthdate": "https://smartdatamodels.org/dataModel.Agrifood/birthdate",
@@ -79,7 +74,6 @@
       "contactOption": "https://smartdatamodels.org/contactOption",
       "contactPoint": "https://smartdatamodels.org/contactPoint",
       "contactType": "https://smartdatamodels.org/contactType",
-      "coordinates": "schema:geo",
       "cropStatus": "https://smartdatamodels.org/dataModel.Agrifood/cropStatus",
       "dailyLight": "https://smartdatamodels.org/dataModel.Agrifood/dailyLight",
       "dataProvider": "https://smartdatamodels.org/dataProvider",
@@ -90,8 +84,6 @@
       "deadAnimalsSinceDateOfArrival": "https://smartdatamodels.org/dataModel.Agrifood/deadAnimalsSinceDateOfArrival",
       "deliveryNote": "https://smartdatamodels.org/dataModel.Agrifood/deliveryNote",
       "depth": "https://smartdatamodels.org/dataModel.Agrifood/depth",
-      "description": "schema:description",
-      "detail": "https://uri.etsi.org/ngsi-ld/detail",
       "diagnosticTest": "https://smartdatamodels.org/dataModel.Agrifood/diagnosticTest",
       "disease": "https://smartdatamodels.org/dataModel.Agrifood/disease",
       "distributed": "https://smartdatamodels.org/dataModel.Agrifood/distributed",
@@ -105,7 +97,6 @@
       "empty": "https://smartdatamodels.org/dataModel.Agrifood/empty",
       "enddate": "https://smartdatamodels.org/dataModel.Agrifood/enddate",
       "endedAt": "https://smartdatamodels.org/dataModel.Agrifood/endedAt",
-      "endpoint": "https://uri.etsi.org/ngsi-ld/endpoint",
       "entrylimit": "https://smartdatamodels.org/dataModel.Agrifood/entrylimit",
       "farm": "https://smartdatamodels.org/dataModel.Agrifood/farm",
       "farmId": "https://smartdatamodels.org/dataModel.Agrifood/farmId",
@@ -133,7 +124,6 @@
       "healthCondition": "https://smartdatamodels.org/dataModel.Agrifood/healthCondition",
       "hecm": "https://smartdatamodels.org/dataModel.Agrifood/hecm",
       "humidity": "saref:Humidity",
-      "id": "@id",
       "idate": "https://smartdatamodels.org/dataModel.Agrifood/idate",
       "idcp": "https://smartdatamodels.org/dataModel.Agrifood/idcp",
       "idmachine": "https://smartdatamodels.org/dataModel.Agrifood/idmachine",
@@ -155,7 +145,6 @@
       "legalId": "https://smartdatamodels.org/dataModel.Agrifood/legalId",
       "rechargeEnergySource": "https://smartdatamodels.org/dataModel.Battery/rechargeEnergySource",
       "locatedAt": "https://nkz-os.org/ns/locatedAt",
-      "location": "schema:location",
       "loginname": "https://smartdatamodels.org/dataModel.Agrifood/loginname",
       "luminosity": "https://smartdatamodels.org/dataModel.Agrifood/luminosity",
       "machine": "https://smartdatamodels.org/dataModel.Agrifood/machine",
@@ -179,7 +168,6 @@
       "mud": "https://smartdatamodels.org/dataModel.Agrifood/mud",
       "name": "schema:name",
       "names": "https://smartdatamodels.org/dataModel.Agrifood/names",
-      "ngsi-ld": "https://uri.etsi.org/ngsi-ld/",
       "notes": "https://smartdatamodels.org/dataModel.Agrifood/notes",
       "numAnimals": "https://smartdatamodels.org/dataModel.Agrifood/numAnimals",
       "operationType": "nkz:operationType",
@@ -238,7 +226,6 @@
       "speed": "saref:Speed",
       "st": "https://smartdatamodels.org/dataModel.Agrifood/st",
       "startedAt": "https://smartdatamodels.org/dataModel.Agrifood/startedAt",
-      "status": "schema:status",
       "streetAddress": "https://smartdatamodels.org/streetAddress",
       "streetNr": "https://smartdatamodels.org/streetNr",
       "subcode": "https://smartdatamodels.org/dataModel.Agrifood/subcode",
@@ -254,13 +241,11 @@
       "temperature": "saref:Temperature",
       "tj": "https://smartdatamodels.org/dataModel.Agrifood/tj",
       "tmi": "https://smartdatamodels.org/dataModel.Agrifood/tmi",
-      "type": "@type",
       "typerisk": "https://smartdatamodels.org/dataModel.Agrifood/typerisk",
       "typsoil": "https://smartdatamodels.org/dataModel.Agrifood/typsoil",
       "unitText": "https://smartdatamodels.org/dataModel.Agrifood/unitText",
       "url": "https://smartdatamodels.org/url",
       "user": "https://smartdatamodels.org/dataModel.Agrifood/user",
-      "value": "https://uri.etsi.org/ngsi-ld/hasValue",
       "vat": "https://smartdatamodels.org/dataModel.Agrifood/vat",
       "version": "https://smartdatamodels.org/dataModel.Agrifood/version",
       "veterinarian": "https://smartdatamodels.org/dataModel.Agrifood/veterinarian",
@@ -558,7 +543,6 @@
       "cropSegmentSeq": "https://nkz-os.org/ns/cropSegmentSeq",
       "expectedTerminationDate": "https://nkz-os.org/ns/expectedTerminationDate",
       "irrigationRegime": "https://nkz-os.org/ns/irrigationRegime",
-      "management": "https://nkz-os.org/ns/management",
       "plantingDateSource": "https://nkz-os.org/ns/plantingDateSource",
       "sowingWindowEnd": "https://nkz-os.org/ns/sowingWindowEnd",
       "sowingWindowStart": "https://nkz-os.org/ns/sowingWindowStart",
@@ -592,9 +576,6 @@
       "severity": "nkz:severity",
       "targetEntityId": "nkz:targetEntityId",
       "targetEntityType": "nkz:targetEntityType",
-      "observedAt": "ngsi-ld:observedAt",
-      "createdAt": "ngsi-ld:createdAt",
-      "modifiedAt": "ngsi-ld:modifiedAt",
       "ref3DModel": "nkz:ref3DModel",
       "modelScale": "nkz:modelScale",
       "modelRotation": "nkz:modelRotation",
@@ -689,7 +670,6 @@
       "eppoCode": "https://smartdatamodels.org/dataModel.Agrifood/agroVocConcept",
       "inputMethod": "https://nkz-os.org/ns/inputMethod",
       "refAgriCrop": "https://smartdatamodels.org/dataModel.Agrifood/hasAgriCrop",
-      "Point": "schema:GeoCoordinates",
       "AgriCropDeclaration": {
         "@id": "https://nkz-os.org/ns/AgriCropDeclaration",
         "@type": "@id"
@@ -763,7 +743,6 @@
       "tipoAbono": "https://nkz-os.org/ns/tipoAbono",
       "tipoFertilizante": "https://nkz-os.org/ns/tipoFertilizante",
       "volumenRiego": "https://nkz-os.org/ns/volumenRiego",
-      "isActive": "https://nkz-os.org/ns/isActive",
       "WeatherAlert": {
         "@id": "https://smartdatamodels.org/dataModel.Weather/WeatherAlert",
         "@type": "@id"
@@ -923,6 +902,7 @@
       "storageFormat": "https://smartdatamodels.org/dataModel.SatelliteImagery/storageFormat",
       "contentInformation": "https://smartdatamodels.org/dataModel.SatelliteImagery/contentInformation",
       "analytics": "https://smartdatamodels.org/dataModel.SatelliteImagery/analytics"
-    }
+    },
+    "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.6.jsonld"
   ]
 }

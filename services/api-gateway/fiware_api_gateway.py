@@ -1446,9 +1446,10 @@ def entities():
         if rejected:
             return rejected
     if isinstance(json_body, dict) and "@context" not in json_body:
+        # The core context goes last, as NGSI-LD reads it whatever the order written.
         json_body["@context"] = [
-            "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context.jsonld",
             CONTEXT_URL,
+            "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.6.jsonld",
         ]
         headers["Content-Type"] = "application/ld+json"
         headers.pop("Link", None)  # Remove Link header; @context is now in body

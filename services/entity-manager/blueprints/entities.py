@@ -1093,8 +1093,8 @@ def create_parcel():
         "id": entity_id,
         "type": "AgriParcel",
         "@context": [
-            "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.6.jsonld",
             CONTEXT_URL,
+            "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.6.jsonld",
         ],
         "location": {"type": "GeoProperty", "value": geometry},
         "category": {"type": "Property", "value": data.get("category", "cadastral")},

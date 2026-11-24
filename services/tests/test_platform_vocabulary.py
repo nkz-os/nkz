@@ -128,7 +128,7 @@ VALID_TERM_KEYS = {
 @pytest.fixture(scope="module")
 def ctx():
     doc = json.loads(CONTEXT_FILE.read_text())
-    return doc["@context"][1]
+    return doc["@context"][0]
 
 
 def _host_and_path(iri: str):
@@ -347,6 +347,8 @@ WRITER_FILES = [
 
 # Keys these writers set that are NGSI-LD envelope, not domain attributes.
 ENVELOPE = {"id", "type", "@context", "value", "object", "unitCode", "observedAt"}
+# Attribute names the NGSI-LD core context defines; the platform context must not repeat them.
+CORE_ATTRIBUTES = {"location"}
 
 
 def _emitted_attribute_names(rel_path):
@@ -380,7 +382,7 @@ def test_every_emitted_attribute_is_in_the_context(rel_path):
 
     emitted = _emitted_attribute_names(rel_path)
     assert emitted, f"no attribute assignments found in {rel_path} — parser drifted"
-    missing = sorted(emitted - terms)
+    missing = sorted(emitted - terms - CORE_ATTRIBUTES)
     assert not missing, (
         f"{rel_path} writes attributes the platform @context does not define: {missing}. "
         "They land under the default vocabulary and become invisible to context-aware reads."
