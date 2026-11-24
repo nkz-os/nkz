@@ -54,6 +54,8 @@ class World:
     def __init__(self, *, on_delete=None, no_modified_at=False, south_status=200, agent_extra=None, leave_dm_on_delete=False, noop=False,
                  defer=None, on_south=None, bad_ti=False):
         self.bad_ti = bad_ti
+        self.south_ok = 200
+        self.mapped = False
         self.on_delete, self.no_modified_at = on_delete, no_modified_at
         self.noop, self.defer, self.on_south, self.deferred = noop, defer, on_south, []
         self.entities, self.agent, self.log = {}, {}, []
@@ -121,9 +123,13 @@ class World:
             for late in self.deferred:   # a write that lands one message late
                 self.entities[late["id"]] = late
             self.deferred = []
+            if "" in json.values():   # the broker refuses a null attribute: batch answer 207
+                if not self.noop:
+                    self._apply(params["i"], {k: v for k, v in json.items() if v != ""})
+                return Resp(207, {"name": "BatchOperationResult"})
             if not self.noop:
                 self._apply(params["i"], json)
-            return Resp(200)
+            return Resp(self.south_ok)
         raise AssertionError(f"POST {url}")
 
     def put(self, url, headers=None, json=None, timeout=None):
@@ -132,6 +138,7 @@ class World:
         if urn not in self.entities:
             return Resp(200, {"name": "ENTITY_NOT_FOUND"})
         self.agent[dev_id]["attributes"] = json["attributes"]
+        self.mapped = True
         return Resp(204)
 
     def delete(self, url, headers=None, timeout=None):
@@ -190,7 +197,7 @@ class World:
         built = build_measurements({**device, "profileCode": {"type": "Property", "value": conf.PROFILE_CODE}},
                                    conf.LIVE_PROFILE)
         for dm in built:
-            if dm["id"] not in touched:
+            if not self.mapped or dm["id"] not in touched:   # a Device-only agent writes no DM
                 continue
             for k, v in dm.items():
                 if isinstance(v, dict):
@@ -202,8 +209,8 @@ class World:
             self._stamp(dm)
             if self.defer and dm["id"].endswith(self.defer):
                 self.deferred.append(dm)
-            else:
-                self.entities[dm["id"]] = dm
+            else:   # an upsert with options=update merges attributes into the stored entity
+                self.entities[dm["id"]] = {**self.entities.get(dm["id"], {}), **dm}
 
 
 @pytest.fixture(autouse=True)
@@ -360,21 +367,35 @@ def test_a_write_that_lands_late_is_a_failure_and_not_carried_into_the_next_case
     assert any(c["late_write"] or c["outcome_violations"] for c in s["cases"])
 
 
-def test_a_change_where_none_may_happen_fails_the_case():
+def test_a_dm_changing_where_none_may_change_fails_the_case():
     world = World()
     original = world._apply
 
     def sneaky(dev_id, message):
         original(dev_id, message)
         if message.get("p") == "ERR":
-            world.entities["urn:ngsi-ld:Device:acme:conf-iota-dm-0a1b2c3d"]["pressure"] = {
-                "type": "Property", "value": 1.0}
-            world._stamp(world.entities["urn:ngsi-ld:Device:acme:conf-iota-dm-0a1b2c3d"])
+            dm = world.entities["urn:ngsi-ld:DeviceMeasurement:acme:conf-iota-dm-0a1b2c3d:pressure"]
+            world._stamp(dm)
 
     world._apply = sneaky
     code, out = run(world)
     by = {c["name"]: c for c in summary(out)["cases"]}
     assert code == 1 and by["p-invalid-ERR"]["outcome_violations"]
+
+
+def test_the_device_may_take_a_stamp_from_an_unusable_value_without_failing():
+    world = World()
+    original = world._apply
+
+    def stamps(dev_id, message):
+        original(dev_id, message)
+        if message.get("p") == "ERR":
+            ent = world.entities["urn:ngsi-ld:Device:acme:conf-iota-dm-0a1b2c3d"]
+            world._stamp(ent)
+
+    world._apply = stamps
+    code, out = run(world)
+    assert code == 0, "\n".join(out)
 
 
 def test_quiet_cases_wait_the_fixed_time_and_it_is_checked_against_the_latency():
@@ -474,3 +495,50 @@ def test_one_failing_delete_does_not_stop_the_others():
     assert failing and code == 1 and not summary(out)["left"]["clean"]
     assert list(world.entities) == [failing[0]] or all(":DeviceMeasurement:" not in k or k == failing[0] for k in world.entities)
     assert "urn:ngsi-ld:Device:acme:conf-iota-dm-0a1b2c3d" not in world.entities
+
+
+def test_baseline_of_the_device_only_agent_is_reported_before_the_mappings_are_put():
+    code, out = run(World())
+    s = summary(out)
+    line = [x for x in out if x.startswith("baseline device-only:")]
+    assert line and "status=207" in line[0]
+    b = s["baseline"]
+    assert b["status"] == 207 and b["device_written"] is True and b["other_channels_written"] is True
+    assert out.index(line[0]) < next(i for i, x in enumerate(out) if x.startswith("== partial-with-time-first"))
+
+
+def test_a_207_where_200_is_expected_is_a_failed_case_not_an_abort():
+    world = World()
+    world.south_ok = 207
+    code, out = run(world)
+    s = summary(out)
+    assert code == 1 and not any("ABORT" in x for x in out)
+    assert any(c["status"] == 207 and c["status_violations"] for c in s["cases"])
+    empty = {c["name"]: c for c in s["cases"]}["p-invalid-empty"]
+    assert empty["status"] == 207 and empty["status_violations"] == []
+
+
+def test_the_summary_counts_cases_and_prints_each_undeclared_difference_once():
+    world = World()
+    original = world._apply
+
+    def corrupt(dev_id, message):
+        original(dev_id, message)
+        for e in world.entities.values():
+            if e["type"] == "DeviceMeasurement" and "numValue" in e:
+                e["numValue"]["unitCode"] = "ZZZ"
+
+    world._apply = corrupt
+    code, out = run(world)
+    s = summary(out)
+    total = [d for d in s["differences"] if d["classification"] == "UNDECLARED"]
+    printed = [x for x in out if x.lstrip().startswith("[UNDECLARED]")]
+    assert code == 1 and len(total) > len(printed) > 0
+    assert any(x.startswith(f"cases: {len(s['cases'])}") for x in out)
+    assert any("times" in x and "first in" in x for x in out)
+    assert s["undeclared_summary"] and all(r["count"] >= 1 for r in s["undeclared_summary"])
+
+
+def test_the_merged_expectation_follows_number_then_text_in_the_broker():
+    code, out = run(World())
+    assert code == 0, "\n".join(out)

@@ -77,7 +77,7 @@ LIVE_MEASUREMENTS: List[Dict[str, Any]] = [
     {"type": "t", "incomingKey": "t", "sdmAttribute": "airTemperature", "unit": "°C",
      "statistics": ["mean", "min", "max"]},
     {"type": "p", "incomingKey": "p", "sdmAttribute": "pressure", "unit": "hPa"},
-    {"type": "hum_alias", "incomingKey": "humidity", "sdmAttribute": "humidity", "unit": "%"},
+    {"type": "hum", "incomingKey": "humidity", "sdmAttribute": "humidity", "unit": "%"},
     {"type": "hum", "incomingKey": "relativeHumidity", "sdmAttribute": "relativeHumidity",
      "unit": "%"},
     {"type": "sm", "incomingKey": "soilMoisture", "sdmAttribute": "soilMoisture", "unit": "%",
@@ -148,6 +148,8 @@ class Case:
     writes: FrozenSet[str] = frozenset()
     must_change: bool = False
     device_may_change: bool = False   # the Device may take the instant; no DM may change
+    ok_statuses: FrozenSet[int] = frozenset({200})   # southbound answers that are not a finding
+    device_required: bool = True   # a changing case that writes DMs must also change the Device
 
     @property
     def has_time_instant(self) -> bool:
@@ -161,12 +163,13 @@ def build_cases(ti: Callable[[], str], val: Callable[[], float]) -> List[Case]:
 
     def add(name: str, message: Dict[str, Any], time_instant: bool = True,
             writes: Optional[Sequence[str]] = None, must_change: Optional[bool] = None,
-            device_may_change: bool = False) -> None:
+            device_may_change: bool = False, ok_statuses: Sequence[int] = (200,),
+            device_required: bool = True) -> None:
         if time_instant:
             message = {**message, "TimeInstant": ti()}
         names = frozenset(KEY_DM[k] for k in message if k in KEY_DM) if writes is None else frozenset(writes)
         cases.append(Case(name, message, names, bool(names) if must_change is None else must_change,
-                          device_may_change))
+                          device_may_change, frozenset(ok_statuses), device_required))
 
     # Partial message WITH TimeInstant while nothing else exists: no DM may appear.
     add("partial-with-time-first", {"p": val()})
@@ -186,16 +189,25 @@ def build_cases(ti: Callable[[], str], val: Callable[[], float]) -> List[Case]:
     add("alias-and-canonical", {"humidity": val(), "relativeHumidity": val()})
     add("scaling-key-is-attribute-name", {"soilMoisture": val()})
     add("text", {"stat": f"ok-{val()}"})
-    # Unusable values change nothing at all: no TimeInstant, so not even the Device moves.
+    # Unusable values write no DM. Without a TimeInstant the agent may still stamp the Device.
+    # `""` is refused by the broker as a null attribute: the agent answers 207 (BatchOperationResult).
     for label, bad in (("null", None), ("ERR", "ERR"), ("12abc", "12abc"), ("empty", "")):
+        statuses = (200, 207) if bad == "" else (200,)
         add(f"p-prime-{label}", {"p": val()})
-        add(f"p-invalid-{label}", {"p": bad}, time_instant=False, writes=())
+        add(f"p-invalid-{label}", {"p": bad}, time_instant=False, writes=(), device_may_change=True,
+            ok_statuses=statuses)
     # The same unusable values WITH a device time: the Device may take the instant, but no DM
     # may be touched or created (the case where a DM used to appear empty).
     for label, bad in (("null", None), ("ERR", "ERR"), ("12abc", "12abc"), ("empty", "")):
+        statuses = (200, 207) if bad == "" else (200,)
         add(f"p-prime-{label}-with-time", {"p": val()})
-        add(f"p-invalid-{label}-with-time", {"p": bad}, writes=(), device_may_change=True)
+        add(f"p-invalid-{label}-with-time", {"p": bad}, writes=(), device_may_change=True,
+            ok_statuses=statuses)
     add("unknown-key-with-time", {"zz": val()}, writes=(), device_may_change=True)
+    # A refused `""` next to valid channels: the other channels' DM are written, `p`'s is not.
+    add("p-prime-empty-mixed", {"p": val()})
+    add("empty-with-valid-others", {"p": "", "tMax": val(), "rt": val()},
+        writes=("airTemperatureMax", "windSpeed"), ok_statuses=(200, 207), device_required=False)
     add("p-prime-zero", {"p": val()})
     add("p-invalid-zero", {"p": 0})
     add("p-prime-1e3", {"p": val()})
@@ -215,8 +227,8 @@ class Context(NamedTuple):
     keys_by_dm: Mapping[str, Tuple[str, ...]]
     unchanged: FrozenSet[str] = frozenset()   # DM with the same attributes and modifiedAt as before
     device_changed: bool = False
-    # per DM: (TimeInstant, send time) of the last message that was required to write it
-    last_write: Mapping[str, Tuple[Optional[str], Optional[datetime]]] = {}
+    # per (DM, attribute): (TimeInstant, send time) of the last message required to write it
+    last_write: Mapping[Tuple[str, str], Tuple[Optional[str], Optional[datetime]]] = {}
 
 
 @dataclass(frozen=True)
@@ -266,9 +278,9 @@ def _value(entity: Optional[Mapping[str, Any]], attr: str) -> Any:
 def _classify(dm_id: str, attr: str, aspect: str, exp: Any, act: Any, ctx: Context,
               expected: Optional[Mapping[str, Any]] = None) -> Tuple[str, str]:
     if aspect == "observedAt" and exp is None and isinstance(act, str):
-        # The agent stamps observedAt with the instant of the message that wrote the DM: its
+        # The agent stamps observedAt with the instant of the message that wrote the attribute: its
         # TimeInstant, or (none sent) its own clock, close to the moment the script sent it.
-        instant, sent_at = ctx.last_write.get(dm_id, (None, None))
+        instant, sent_at = ctx.last_write.get((dm_id, attr), (None, None))
         seen = _parse_instant(act)
         if seen is not None and instant is not None and seen == _parse_instant(instant):
             return "declared", "observedAt"
@@ -345,6 +357,36 @@ def group_diffs(diffs: Sequence[Diff]) -> List[Dict[str, Any]]:
         else:
             out.append(d.as_dict())
     return out
+
+
+def status_violations(case: Case, status: int) -> List[str]:
+    if status in case.ok_statuses:
+        return []
+    return [f"southbound HTTP {status}, expected one of {sorted(case.ok_statuses)}"]
+
+
+def merge_expected(previous: Optional[Mapping[str, Any]], new: Mapping[str, Any]) -> Dict[str, Any]:
+    """What the broker holds after the entity-manager path upserts `new` over `previous`
+    (options=update: attributes merge, an old `numValue` stays next to a new `textValue`)."""
+    return {**(previous or {}), **new}
+
+
+def summarize_undeclared(diffs: Sequence[Mapping[str, Any]]) -> List[Dict[str, Any]]:
+    """Each distinct UNDECLARED difference once, with how many times it appeared and in which
+    case it first did. Distinct = (DM, attribute, aspect, expected, actual)."""
+    rows: Dict[Tuple[str, ...], Dict[str, Any]] = {}
+    for d in diffs:
+        if d["classification"] != "UNDECLARED":
+            continue
+        key = (d["dm"], d["attr"], d["aspect"], json.dumps(d["expected"], sort_keys=True),
+               json.dumps(d["actual"], sort_keys=True))
+        row = rows.get(key)
+        if row is None:
+            rows[key] = {"dm": d["dm"], "attr": d["attr"], "aspect": d["aspect"], "expected": d["expected"],
+                         "actual": d["actual"], "count": 1, "first_case": d.get("case")}
+        else:
+            row["count"] += 1
+    return list(rows.values())
 
 
 def dms_without_value(actual: Sequence[Mapping[str, Any]]) -> List[str]:
@@ -438,7 +480,7 @@ def outcome_violations(case: Case, *, device_changed: bool, changed_names: Set[s
     changed = (device_changed and not case.device_may_change) or bool(changed_names)
     if case.must_change and not changed:
         out.append("expected a change, none observed")
-    if case.must_change and case.writes and not device_changed:
+    if case.must_change and case.writes and case.device_required and not device_changed:
         out.append("the message writes DM but the Device did not change")
     if not case.must_change and changed:
         out.append(f"expected no change; changed: device={device_changed} DM={sorted(changed_names)}")
@@ -467,7 +509,9 @@ class Conformance:
         self.server_stamped: Set[str] = set()
         self.quiet_wait = quiet_wait
         self.utcnow = utcnow
-        self.last_write: Dict[str, Tuple[Optional[str], datetime]] = {}
+        self.last_write: Dict[Tuple[str, str], Tuple[Optional[str], datetime]] = {}
+        self.expected: Dict[str, Dict[str, Any]] = {}
+        self.seen_undeclared: Set[Tuple[str, ...]] = set()
         self.expected_existing: Set[str] = set()
         self.last_final: Optional[Dict[str, str]] = None
         self.prev_result: Optional[Dict[str, Any]] = None
@@ -565,7 +609,7 @@ class Conformance:
         if resp.status_code not in (201, 204):
             raise Abort(f"create Device: HTTP {resp.status_code}")
 
-    def provision(self) -> list:
+    def provision_device_only(self) -> None:
         self._apikey = get_or_create_service_group(self.tenant, self.iota, self._iota_headers(),
                                                    cbroker=self.orion)
         if not self._apikey:
@@ -581,6 +625,8 @@ class Conformance:
             f"{self.iota}/iot/devices", headers=self._iota_headers(), json=body, timeout=15))
         if resp.status_code != 201:
             raise Abort(f"provision device: HTTP {resp.status_code} {self._redact(resp.text)}")
+
+    def put_mappings(self) -> list:
         mappings = device_attributes(LIVE_MEASUREMENTS, self.channels, device_urn=self.urn)
         try:
             update_device_attributes(self.iota, self._iota_headers(), self.device_id, mappings)
@@ -589,6 +635,7 @@ class Conformance:
         except Exception as exc:
             raise Abort(f"put mappings: {type(exc).__name__}") from None
         return mappings
+
 
     # per message ---------------------------------------------------------------------------
     def state(self) -> Tuple[Optional[dict], List[dict]]:
@@ -604,12 +651,32 @@ class Conformance:
             snap[e["id"]] = e["modifiedAt"]
         return snap
 
-    def send(self, message: Mapping[str, Any]) -> None:
+    def send(self, message: Mapping[str, Any]) -> int:
+        """The southbound HTTP status. Only a dead or refusing endpoint aborts; any other
+        status is recorded by the caller (a 207 is an expected answer for some cases)."""
         resp = self._call("southbound message", lambda: self.http.post(
             f"{self.south}/iot/json", params={"k": self._apikey, "i": self.device_id},
             json=dict(message), timeout=15))
-        if resp.status_code not in (200, 201, 204):
+        if resp.status_code in (401, 403, 404) or resp.status_code >= 500:
             raise Abort(f"southbound message: HTTP {resp.status_code} {self._redact(resp.text)}")
+        return resp.status_code
+
+    def baseline_device_only(self, message: Mapping[str, Any]) -> Dict[str, Any]:
+        """What the Device-only agent (today's behaviour) does with the mixed message; reported,
+        not judged."""
+        before_snap = self.snapshot(self.stable_state())
+        status = self.send(message)
+        read = lambda: self.snapshot(self.state())  # noqa: E731
+        await_outcome(read, lambda snap: snap.get(self.urn) != before_snap.get(self.urn),
+                      sleep=self.sleep, now=self.now)
+        device = self.state()[0] or {}
+        others = {k: v for k, v in message.items() if k in KEY_DM and v != ""}
+        written = {k: (device.get(KEY_DM[k]) or {}).get("value") == v for k, v in others.items()}
+        out = {"status": status, "device_written": device.get("modifiedAt") != before_snap.get(self.urn),
+               "other_channels_written": bool(written) and all(written.values())}
+        self.say(f"baseline device-only: status={status} device_written={out['device_written']} "
+                 f"other_channels_written={out['other_channels_written']}")
+        return out
 
     def stable_state(self, gap: float = 1.0) -> Tuple[Optional[dict], List[dict]]:
         """Read until two reads `gap` apart agree: a case never starts on a moving state."""
@@ -634,15 +701,14 @@ class Conformance:
         before = self.stable_state()
         self.check_late_write(before)
         before_snap = self.snapshot(before)
-        expected_ids = {self.prefix + n for n in case.writes} | ({self.urn} if case.must_change else set())
+        expected_ids = ({self.prefix + n for n in case.writes}
+                        | ({self.urn} if case.must_change and case.device_required else set()))
 
         def done(snap: Dict[str, str]) -> bool:
             return all(snap.get(i) != before_snap.get(i) for i in expected_ids)
 
         sent_at = self.utcnow()
-        self.send(case.message)
-        for name in case.writes:
-            self.last_write[self.prefix + name] = (case.message.get("TimeInstant"), sent_at)
+        status = self.send(case.message)
         read = lambda: self.snapshot(self.state())  # noqa: E731
         latency: Optional[float] = None
         if case.must_change:
@@ -673,17 +739,33 @@ class Conformance:
         if case.must_change and latency is None:
             violations.append(f"the change did not complete within {CHANGE_TIMEOUT_S:.0f} s")
         entity = strip_sys(device)
+        before_device = strip_sys(before[0] or {})
         entity["profileCode"] = {"type": "Property", "value": PROFILE_CODE}
-        expected = build_measurements(entity, LIVE_PROFILE)
+        built = {e["id"]: e for e in build_measurements(entity, LIVE_PROFILE)}
+        for dm_id, dm in built.items():
+            # The entity-manager path writes a DM when its channel's Device attribute changed,
+            # merging into what the broker already holds.
+            name = dm_id.rsplit(":", 1)[-1]
+            if before_device.get(name) != entity.get(name):
+                self.expected[dm_id] = merge_expected(self.expected.get(dm_id), dm)
+        for name in case.writes:   # the attributes this message was required to write
+            for attr in built.get(self.prefix + name, {}):
+                if attr not in ("id", "type"):
+                    self.last_write[(self.prefix + name, attr)] = (case.message.get("TimeInstant"), sent_at)
         ctx = Context(case.message, frozenset(self.server_stamped), keys_by_dm(self.channels),
                       unchanged, device_changed, dict(self.last_write))
-        diffs = compare_dms(expected, [strip_sys(d) for d in dms], ctx)
+        diffs = compare_dms(list(self.expected.values()), [strip_sys(d) for d in dms], ctx)
+        grouped = group_diffs(diffs)
+        for d in grouped:
+            d["case"] = case.name
         result = {
             "name": case.name, "sent": case.message, "must_change": case.must_change,
             "device_may_change": case.device_may_change,
             "writes": sorted(case.writes), "latency": latency, "quiet_wait": None if case.must_change else self.quiet_wait,
-            "diffs": group_diffs(diffs), "without_value": dms_without_value(dms),
+            "diffs": grouped, "without_value": dms_without_value(dms),
             "outcome_violations": violations, "late_write": False,
+            "status": status, "ok_statuses": sorted(case.ok_statuses),
+            "status_violations": status_violations(case, status), "device_written": device_changed,
         }
         self.last_final, self.prev_result = final_snap, result
         self._print_case(result)
@@ -704,9 +786,18 @@ class Conformance:
         for d in r["diffs"]:
             if d["attr"] == "*":
                 continue
+            if d["classification"] == "UNDECLARED":   # once; the summary has the counts
+                key = (d["dm"], d["attr"], d["aspect"], json.dumps(d["expected"]), json.dumps(d["actual"]))
+                if key in self.seen_undeclared:
+                    continue
+                self.seen_undeclared.add(key)
             tag = f"[{d['classification']}{':' + d['label'] if d['label'] else ''}]"
             where = f"{d['dm'].rsplit(':', 1)[-1]}.{d['attr']}.{d['aspect']}"
             self.say(f"   {tag} {where} expected={json.dumps(d['expected'])} actual={json.dumps(d['actual'])}")
+        for v in r["status_violations"]:
+            self.say(f"   [FAIL] status: {v}")
+        if "empty" in r["name"] or r["name"] == "empty-with-valid-others":
+            self.say(f"   status={r['status']}; Device written: {'yes' if r['device_written'] else 'no'}")
         for dm_id in r["without_value"]:
             self.say(f"   [FAIL] DM without value: {dm_id}")
         for v in r["outcome_violations"]:
@@ -863,6 +954,7 @@ def _main(argv: Optional[Sequence[str]] = None, *, http: Any = requests, sleep: 
     started = utcnow()
     results: List[Dict[str, Any]] = []
     agent_eq: Optional[bool] = None
+    baseline: Optional[Dict[str, Any]] = None
     failure: Optional[str] = None
     version = run.agent_version()
     instants: List[str] = []
@@ -874,17 +966,21 @@ def _main(argv: Optional[Sequence[str]] = None, *, http: Any = requests, sleep: 
     try:
         say(f"device {device_id} (agent version: {version})")
         run.create_entity()
-        mappings = run.provision()
+        run.provision_device_only()
+        counter = iter(range(1, 10_000))
+        base = started - timedelta(minutes=10)
+        ti = lambda: (base + timedelta(seconds=next(counter))).strftime("%Y-%m-%dT%H:%M:%SZ")  # noqa: E731
+        val = lambda: 100 + next(counter) * 1.25  # noqa: E731
+        mixed = {"p": "", "tMax": val(), "rt": val(), "TimeInstant": ti()}
+        instants.append(mixed["TimeInstant"])
+        baseline = run.baseline_device_only(mixed)
+        mappings = run.put_mappings()
         doc = run._agent_device()
         agent_eq = agent_document_equal(doc, mappings)
         say(f"check agent-document-equal: {agent_eq}")
         if not agent_eq:
             say("   the agent's document differs from the mappings sent (a cutover rerun would push again)")
-        counter = iter(range(1, 10_000))
-        base = started - timedelta(minutes=10)
-        cases = build_cases(
-            ti=lambda: (base + timedelta(seconds=next(counter))).strftime("%Y-%m-%dT%H:%M:%SZ"),
-            val=lambda: 100 + next(counter) * 1.25)
+        cases = build_cases(ti=ti, val=val)
         for case in cases:
             if case.message.get("TimeInstant"):
                 instants.append(case.message["TimeInstant"])
@@ -903,14 +999,21 @@ def _main(argv: Optional[Sequence[str]] = None, *, http: Any = requests, sleep: 
     flat = [d for r in results for d in r["diffs"]]
     undeclared = [d for d in flat if d["classification"] == "UNDECLARED"]
     check_failures = [r["name"] for r in results
-                      if r["without_value"] or r["outcome_violations"] or r["late_write"]]
+                      if r["without_value"] or r["outcome_violations"] or r["late_write"]
+                      or r["status_violations"]]
     max_latency = max(run.latencies, default=0.0)
     quiet_ok = args.quiet_wait >= 3 * max_latency
     say(f"quiet-wait {args.quiet_wait:.0f}s; longest measured latency {max_latency:.1f}s; "
         f"{'ok' if quiet_ok else 'FAIL: quiet-wait is under 3 times the longest latency, rerun with a longer --quiet-wait'}")
     ok = (failure is None and agent_eq is True and not undeclared and not check_failures
           and quiet_ok and left["clean"] and len(results) > 0)
-    say(f"differences: {len(flat)} ({len(undeclared)} UNDECLARED); check failures: {check_failures or 'none'}")
+    summary_rows = summarize_undeclared(flat)
+    say(f"cases: {len(results)}; differences: {len(flat)} ({len(undeclared)} UNDECLARED, "
+        f"{len(summary_rows)} distinct); check failures: {check_failures or 'none'}")
+    for row in summary_rows:
+        say(f"   distinct UNDECLARED: {row['dm'].rsplit(':', 1)[-1]}.{row['attr']}.{row['aspect']} "
+            f"expected={json.dumps(row['expected'])} actual={json.dumps(row['actual'])} "
+            f"({row['count']} times, first in {row['first_case']})")
     say(f"DM ids used: {', '.join(c.dm_id for c in run.channels)}")
     say(f"Device entity: {run.urn}")
     say(f"TimeInstant first/last: {min(instants) if instants else None} / {max(instants) if instants else None}; "
@@ -920,7 +1023,7 @@ def _main(argv: Optional[Sequence[str]] = None, *, http: Any = requests, sleep: 
     summary = {
         "ok": ok, "generator_hash": record["generator_hash"], "agent_version": version, "shape": SHAPE,
         "device_id": device_id, "failure": failure, "agent_document_equal": agent_eq,
-        "quiet_wait": args.quiet_wait, "max_latency": max_latency, "quiet_wait_ok": quiet_ok,
+        "baseline": baseline, "undeclared_summary": summary_rows, "quiet_wait": args.quiet_wait, "max_latency": max_latency, "quiet_wait_ok": quiet_ok,
         "dm_ids": [c.dm_id for c in run.channels], "device_entity": run.urn,
         "time_instant_first": min(instants) if instants else None,
         "time_instant_last": max(instants) if instants else None,

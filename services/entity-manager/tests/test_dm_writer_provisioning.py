@@ -459,8 +459,8 @@ def test_attribute_builders_and_pushes_are_called_only_in_the_helpers():
         ("dm_writer_cutover.py", "update_device_attributes", "_put"),
         # the live conformance script puts the mappings on its own temporary device
         ("iota_dm_conformance.py", "device_attributes", "import"),
-        ("iota_dm_conformance.py", "device_attributes", "provision"),
-        ("iota_dm_conformance.py", "device_attributes", "provision"),
+        ("iota_dm_conformance.py", "device_attributes", "provision_device_only"),
+        ("iota_dm_conformance.py", "device_attributes", "put_mappings"),
         ("iota_dm_conformance.py", "update_device_attributes", "import"),
-        ("iota_dm_conformance.py", "update_device_attributes", "provision"),
+        ("iota_dm_conformance.py", "update_device_attributes", "put_mappings"),
     ], seen

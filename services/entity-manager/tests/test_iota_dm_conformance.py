@@ -47,6 +47,8 @@ def with_observed(ent, at=T0):
     return out
 
 
+ATTRS = ("numValue", "textValue", "dateObserved", "timeSource", "controlledProperty",
+         "measurementType", "deviceType", "refDevice")
 SENT_AT = datetime(2026, 1, 1, 10, 0, 0, tzinfo=timezone.utc)
 
 
@@ -55,7 +57,8 @@ def ctx(sent=None, ti=True, keys=None, unchanged=(DM, DM2), device_changed=True)
                         server_stamped=frozenset() if ti else frozenset({DM, DM2}),
                         keys_by_dm=keys or {DM: ("p",), DM2: ("relativeHumidity", "humidity")},
                         unchanged=frozenset(unchanged), device_changed=device_changed,
-                        last_write={d: ((T0, SENT_AT) if ti else (None, SENT_AT)) for d in (DM, DM2)})
+                        last_write={(d, a): ((T0, SENT_AT) if ti else (None, SENT_AT))
+                                    for d in (DM, DM2) for a in ATTRS})
 
 
 def classes(diffs):
@@ -107,6 +110,19 @@ def test_observed_at_equal_to_the_message_instant_in_another_notation_is_declare
     actual = with_observed(dm(), "2026-01-01T10:00:00.000Z")
     diffs = conf.compare_dms([dm()], [actual], ctx())
     assert diffs and all(d.classification == "declared" for d in diffs if d.aspect == "observedAt")
+
+
+def test_observed_at_is_judged_per_attribute():
+    # numValue was last written by a later message than the other attributes
+    later = "2026-01-01T10:05:00Z"
+    c = ctx()
+    c = c._replace(last_write={**c.last_write, (DM, "numValue"): (later, SENT_AT)})
+    actual = with_observed(dm())
+    actual["numValue"]["observedAt"] = later
+    assert all(d.classification == "declared" for d in conf.compare_dms([dm()], [actual], c))
+    actual["numValue"]["observedAt"] = T0   # the instant of the OTHER attributes is not numValue's
+    bad = [d for d in conf.compare_dms([dm()], [actual], c) if d.attr == "numValue"]
+    assert bad and bad[0].classification == "UNDECLARED"
 
 
 def test_observed_at_must_be_the_reading_time():
@@ -318,9 +334,11 @@ def test_hold_waits_the_fixed_time_and_sees_a_late_change():
     assert clock.t == 10.0 and snap == {"a": "2"}
 
 
-def case(name="c", writes=(), must_change=None, message=None, device_may_change=False):
+def case(name="c", writes=(), must_change=None, message=None, device_may_change=False,
+         device_required=True):
     return conf.Case(name, message or {"p": 1}, frozenset(writes),
-                     bool(writes) if must_change is None else must_change, device_may_change)
+                     bool(writes) if must_change is None else must_change, device_may_change,
+                     frozenset({200}), device_required)
 
 
 def test_device_may_change_but_no_dm_may():
@@ -349,6 +367,37 @@ def test_a_changing_case_needs_the_device_and_the_dms_separately():
     assert conf.outcome_violations(case(writes={"pressure"}), **only_device)
 
 
+def test_the_device_is_not_required_when_the_case_says_so():
+    only_dm = dict(device_changed=False, changed_names={"pressure"}, existing_names={"pressure"},
+                   expected_existing={"pressure"})
+    assert conf.outcome_violations(case(writes={"pressure"}, device_required=False), **only_dm) == []
+
+
+def test_status_check():
+    assert conf.status_violations(case(), 200) == []
+    assert conf.status_violations(case(), 207)
+    both = conf.Case("c", {}, frozenset(), False, True, frozenset({200, 207}))
+    assert conf.status_violations(both, 207) == [] and conf.status_violations(both, 400)
+
+
+def test_merge_leaves_the_old_value_next_to_the_new_one():
+    prev = dm()
+    new = {"id": DM, "type": "DeviceMeasurement", "textValue": prop("calm"), "dateObserved": prop("2026-01-01T11:00:00Z")}
+    merged = conf.merge_expected(prev, new)
+    assert merged["numValue"] == prev["numValue"] and merged["textValue"] == new["textValue"]
+    assert merged["dateObserved"] == new["dateObserved"] and merged["refDevice"] == prev["refDevice"]
+    assert conf.merge_expected(None, new) == new
+
+
+def test_undeclared_summary_counts_the_first_appearance_only():
+    def d(case, v):
+        return {"dm": DM, "attr": "numValue", "aspect": "value", "expected": 1, "actual": v,
+                "classification": "UNDECLARED", "label": "", "case": case}
+    rows = conf.summarize_undeclared([d("a", 2), d("b", 2), d("c", 3),
+                                      {**d("d", 2), "classification": "declared"}])
+    assert [(r["count"], r["first_case"], r["actual"]) for r in rows] == [(2, "a", 2), (1, "c", 3)]
+
+
 def test_outcome_violations_are_exact():
     ok = dict(device_changed=True, changed_names={"pressure"}, existing_names={"pressure"},
               expected_existing={"pressure"})
@@ -373,6 +422,13 @@ def test_outcome_violations_are_exact():
 
 def _channels():
     return conf.live_channels("acme", "conf-iota-dm-aa", "legacy")
+
+
+def test_alias_channels_share_the_profile_type():
+    legacy = {c.name: c.fixed["measurementType"] for c in _channels() if c.name == "relativeHumidity"}
+    types = {m["type"] for m in conf.LIVE_MEASUREMENTS if m["sdmAttribute"] in ("humidity", "relativeHumidity")}
+    assert len(types) == 1 and list(legacy.values()) == [next(iter(types))]
+    assert len({c.fixed["measurementType"] for c in _channels() if c.name == "relativeHumidity"}) == 1
 
 
 def test_live_profile_covers_the_required_kinds():
@@ -417,6 +473,14 @@ def test_cases_use_distinct_values_and_cover_the_brief():
                                          "relativeHumidity", "soilMoisture", "status", "windSpeed"}
     assert by["partial-with-time"].writes == {"airTemperatureMax"}
     assert by["alias-only"].writes == {"relativeHumidity"}
+    for label in ("null", "ERR", "12abc"):
+        assert by[f"p-invalid-{label}"].device_may_change is True
+    for name in ("p-invalid-empty", "p-invalid-empty-with-time", "empty-with-valid-others"):
+        assert by[name].ok_statuses == {200, 207}
+    mixed = by["empty-with-valid-others"]
+    assert mixed.message["p"] == "" and mixed.has_time_instant and mixed.must_change
+    assert mixed.writes == {"airTemperatureMax", "windSpeed"} and mixed.device_required is False
+    assert by["p-invalid-null"].ok_statuses == {200}
     for label in ("null", "ERR", "12abc", "empty"):
         c = by[f"p-invalid-{label}"]
         assert c.writes == frozenset() and c.must_change is False
