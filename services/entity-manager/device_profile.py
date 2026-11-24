@@ -1,14 +1,15 @@
 """The profile an entity is on, for every reader of this service.
 
 `common.device_model.device_profile_code` is the lookup; this module applies it to entities read
-from Orion and logs, once each, the Devices that still name their profile only with `profileCode`.
+from Orion and logs, once each, the Devices that still name their profile only with `profileCode`
+and the Devices whose two codes disagree.
 """
 import logging
 import threading
 from collections import OrderedDict
 from typing import Mapping, Optional
 
-from common.device_model import device_profile_code
+from common.device_model import device_profile_code, profile_codes
 
 logger = logging.getLogger(__name__)
 
@@ -31,18 +32,26 @@ def entity_profile_code(tenant: str, entity: Optional[Mapping]) -> Optional[str]
     if entity.get('type') not in _DEVICE_TYPES:
         return device_profile_code(tenant, {'profileCode': entity.get('profileCode')})[0]
     code, source = device_profile_code(tenant, entity)
+    entity_id = entity.get('id')
     if source == 'legacy':
-        _log_fallback_once(tenant, entity.get('id'), code)
+        if _first_time('fallback', tenant, entity_id):
+            logger.info("device_profile_code_fallback: tenant=%s entity_id=%s profile=%s",
+                        tenant, entity_id, code)
+    elif source == 'model':
+        legacy = profile_codes(tenant, entity).legacy
+        if legacy not in (None, code) and _first_time('mismatch', tenant, entity_id):
+            logger.warning("device_profile_code_mismatch: tenant=%s entity_id=%s "
+                           "refDeviceModel=%s profileCode=%s", tenant, entity_id, code, legacy)
     return code
 
 
-def _log_fallback_once(tenant: str, entity_id, code: str) -> None:
-    key = (tenant, str(entity_id))
+def _first_time(event: str, tenant: str, entity_id) -> bool:
+    """True the first time `event` happens to this entity, while it is remembered."""
+    key = (event, tenant, str(entity_id))
     with _logged_lock:
         if key in _logged:
-            return
+            return False
         _logged[key] = None
         while len(_logged) > _MAX_LOGGED:
             _logged.popitem(last=False)
-    logger.info("device_profile_code_fallback: tenant=%s entity_id=%s profile=%s",
-                tenant, entity_id, code)
+    return True

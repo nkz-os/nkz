@@ -10,7 +10,7 @@ Everything here is pure: dicts in, dicts out. Entities carry no `@context`; the 
 
 import logging
 import re
-from typing import Any, Literal, Mapping
+from typing import Any, Literal, Mapping, NamedTuple
 
 from common.controlled_property import controlled_properties, mapped_name
 
@@ -68,6 +68,29 @@ def _attribute(entity: Mapping, keys: tuple[str, ...], member: str) -> Any:
     return None
 
 
+class ProfileCodes(NamedTuple):
+    """The codes a Device carries; a code is None when it is absent or unusable."""
+
+    model: str | None
+    model_error: str | None  # why the `refDeviceModel` it carries is not usable
+    legacy: str | None
+    present: bool  # it carries `refDeviceModel` or `profileCode`, usable or not
+
+
+def profile_codes(tenant: str, entity: Mapping) -> ProfileCodes:
+    """Both profile codes of a Device: the one of `refDeviceModel` and the one of `profileCode`."""
+    if not isinstance(entity, Mapping):
+        return ProfileCodes(None, None, None, False)
+    model = model_error = None
+    has_model = any(key in entity for key in _REF_DEVICE_MODEL_KEYS)
+    if has_model:
+        model, model_error = _check_model_urn(
+            tenant, _attribute(entity, _REF_DEVICE_MODEL_KEYS, "object"))
+    legacy = _attribute(entity, _PROFILE_CODE_KEYS, "value")
+    return ProfileCodes(model, model_error, legacy if isinstance(legacy, str) and legacy else None,
+                        has_model or any(key in entity for key in _PROFILE_CODE_KEYS))
+
+
 def device_profile_code(
     tenant: str, entity: Mapping
 ) -> tuple[str | None, Literal["model", "legacy", "none"]]:
@@ -76,22 +99,16 @@ def device_profile_code(
     `refDeviceModel` wins. A malformed or foreign one is ignored with a warning and the lookup
     falls through to `profileCode`.
     """
-    if not isinstance(entity, Mapping):
-        return None, "none"
-
-    if any(key in entity for key in _REF_DEVICE_MODEL_KEYS):
-        urn = _attribute(entity, _REF_DEVICE_MODEL_KEYS, "object")
-        code, reason = _check_model_urn(tenant, urn)
-        if code is not None:
-            return code, "model"
+    codes = profile_codes(tenant, entity)
+    if codes.model is not None:
+        return codes.model, "model"
+    if codes.model_error:
         logger.warning(
             "refDeviceModel ignored: tenant=%s entity_id=%s reason=%s",
-            tenant, entity.get("id"), reason,
+            tenant, entity.get("id"), codes.model_error,
         )
-
-    legacy = _attribute(entity, _PROFILE_CODE_KEYS, "value")
-    if isinstance(legacy, str) and legacy:
-        return legacy, "legacy"
+    if codes.legacy is not None:
+        return codes.legacy, "legacy"
     return None, "none"
 
 

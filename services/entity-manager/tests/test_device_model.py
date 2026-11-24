@@ -32,6 +32,7 @@ from common.device_model import (  # noqa: E402
     device_profile_attrs,
     device_profile_code,
     profile_code_from_model,
+    profile_codes,
 )
 
 TENANT = "acmefarm"
@@ -296,3 +297,23 @@ def _assert_example(file_name, entity):
 def test_device_model_example():
     profile = _profile(manufacturer_name="Acme Instruments", brand_name="AcmeSense", model_name="AS-100")
     _assert_example("DeviceModel.json", build_device_model(TENANT, profile))
+
+
+# ---- the codes a Device carries ----------------------------------------------
+
+@pytest.mark.parametrize("entity,expected", [
+    ({}, (None, None, None, False)),
+    (None, (None, None, None, False)),
+    ({"profileCode": {"type": "Property", "value": "p"}}, (None, None, "p", True)),
+    ({"profileCode": {"type": "Property", "value": ""}}, (None, None, None, True)),
+    ({"profileCode": {"type": "Property", "value": 7}}, (None, None, None, True)),
+    ({"refDeviceModel": {"type": "Relationship", "object": "urn:ngsi-ld:DeviceModel:acmefarm:m"},
+      "profileCode": {"type": "Property", "value": "p"}}, ("m", None, "p", True)),
+    ({"https://smartdatamodels.org/dataModel.Device/refDeviceModel":
+      {"type": "Relationship", "object": "urn:ngsi-ld:DeviceModel:acmefarm:m"}}, ("m", None, None, True)),
+    ({"refDeviceModel": {"type": "Relationship", "object": "urn:ngsi-ld:DeviceModel:otherfarm:m"},
+      "profileCode": {"type": "Property", "value": "p"}}, (None, "foreign tenant", "p", True)),
+    ({"refDeviceModel": {"type": "Property", "value": 1}}, (None, "malformed: not a string", None, True)),
+])
+def test_profile_codes_reports_both_codes(entity, expected):
+    assert tuple(profile_codes("acmefarm", entity)) == expected
