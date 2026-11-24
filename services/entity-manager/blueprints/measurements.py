@@ -17,8 +17,7 @@ from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Tuple
 
 from common.context_aliases import canonical_attribute
-from common.unit_codes import to_unit_code
-from common.window_statistics import INSTANT, expand_measurements
+from common.device_measurement_shape import channels_by_name
 
 # Attributes that are never measurements, regardless of what the profile declares. Device
 # identity/metadata, not a reading. Kept as an explicit allow-list-adjacent skip so a coincidental
@@ -28,8 +27,8 @@ _NON_MEASUREMENT_KEYS = frozenset({"id", "type", "@context"})
 logger = logging.getLogger(__name__)
 
 SDM_SHAPE_FLAG = "DEVICE_MEASUREMENT_SDM_SHAPE_ENABLED"
-# Closed `measurementType` vocabulary of the SDM shape: `common.window_statistics.STATISTICS`
-# map 1:1, and a reading with no window is `common.window_statistics.INSTANT`.
+# The shape of each DeviceMeasurement (id, fixed attributes, unit) comes from
+# `common.device_measurement_shape`; this module only adds the reading itself.
 
 
 def sdm_shape_enabled() -> bool:
@@ -79,17 +78,6 @@ def _parse_device_id(entity_id: str) -> Tuple[str, str]:
     return tenant, external_id
 
 
-def _measurement_defs_by_attr(profile: Dict[str, Any]) -> Dict[str, Dict[str, Any]]:
-    """Index the profile's declared measurements by `sdmAttribute` (the entity attribute name)."""
-    mapping = profile.get("mapping") or {}
-    measurements = mapping.get("measurements") or []
-    return {
-        canonical_attribute(m["sdmAttribute"]): m
-        for m in expand_measurements([m for m in measurements if isinstance(m, dict)])
-        if m.get("sdmAttribute")
-    }
-
-
 def _resolve_observed_at(attr_value: Dict[str, Any], entity: Dict[str, Any]) -> Tuple[str, str]:
     """Pick the DateTime value for `dateObserved` and say where it came from.
 
@@ -134,11 +122,10 @@ def build_measurements(entity: Dict[str, Any], profile: Dict[str, Any]) -> List[
     """
     entity_id = entity.get("id", "")
     tenant, external_id = _parse_device_id(entity_id)
-    measurement_defs = _measurement_defs_by_attr(profile)
     profile_code_attr = entity.get("profileCode")
     profile_code = profile_code_attr.get("value") if isinstance(profile_code_attr, dict) else None
 
-    sdm_shape = sdm_shape_enabled()
+    shape = "sdm" if sdm_shape_enabled() else "legacy"
     results: List[Dict[str, Any]] = []
     # One reading per canonical name: when the entity carries both aliases, the canonical
     # attribute wins.
@@ -150,9 +137,23 @@ def build_measurements(entity: Dict[str, Any], profile: Dict[str, Any]) -> List[
         if canon not in chosen or raw_name == canon:
             chosen[canon] = (raw_name, raw_value)
 
+    mapping = profile.get("mapping") or {}
+    # Only channels actually read are resolved, so an unknown unit in an absent channel does
+    # not raise (an unknown unit in a present one still does, whatever the value's type).
+    channels = channels_by_name(
+        mapping.get("measurements") or [],
+        names={name for name, (_, v) in chosen.items()
+               if isinstance(v, dict) and v.get("type") == "Property"},
+        tenant=tenant,
+        external_id=external_id,
+        device_urn=entity_id,
+        profile_code=profile_code,
+        shape=shape,
+    )
+
     for attr_name, (_, attr_value) in chosen.items():
-        measurement_def = measurement_defs.get(attr_name)
-        if measurement_def is None:
+        channel = channels.get(attr_name)
+        if channel is None:
             continue
         if not isinstance(attr_value, dict) or attr_value.get("type") != "Property":
             # A Relationship/GeoProperty happening to share a name with a declared measurement
@@ -160,22 +161,17 @@ def build_measurements(entity: Dict[str, Any], profile: Dict[str, Any]) -> List[
             continue
 
         value = attr_value.get("value")
-        unit_symbol = measurement_def.get("unit", "") or ""
-        # Always resolved, even when the branch below produces textValue: an unrecognized unit
-        # must raise regardless of the value's type (see judgement call in the docstring).
-        unit_code = to_unit_code(unit_symbol)
-
         value_prop: Dict[str, Any] = {"type": "Property", "value": value}
         if isinstance(value, (int, float)) and not isinstance(value, bool):
             value_key = "numValue"
-            if unit_code is not None:
-                value_prop["unitCode"] = unit_code
+            if channel.unit_code is not None:
+                value_prop["unitCode"] = channel.unit_code
         else:
             value_key = "textValue"
 
         observed_at, time_source = _resolve_observed_at(attr_value, entity)
         measurement: Dict[str, Any] = {
-            "id": f"urn:ngsi-ld:DeviceMeasurement:{tenant}:{external_id}:{attr_name}",
+            "id": channel.dm_id,
             "type": "DeviceMeasurement",
             "refDevice": {"type": "Relationship", "object": entity_id},
             value_key: value_prop,
@@ -185,31 +181,8 @@ def build_measurements(entity: Dict[str, Any], profile: Dict[str, Any]) -> List[
             },
             "timeSource": {"type": "Property", "value": time_source},
         }
-        if sdm_shape:
-            # A.1: `name` = the channel, `controlledProperty` = the catalogue name. Without one,
-            # the BASE attribute (not the expanded `...Min` channel; the statistic now lives in
-            # `measurementType`). Defs that were never expanded carry no `baseAttribute`, so the
-            # channel is already the base.
-            controlled = (
-                measurement_def.get("observedProperty")
-                or measurement_def.get("baseAttribute")
-                or attr_name
-            )
-            measurement["controlledProperty"] = {"type": "Property", "value": controlled}
-            measurement["name"] = {"type": "Property", "value": attr_name}
-            measurement["measurementType"] = {
-                "type": "Property",
-                "value": measurement_def.get("statistic") or INSTANT,
-            }
-        else:
-            # Phase 1 shape, unchanged: channel in `controlledProperty`, profile type.
-            measurement["controlledProperty"] = {"type": "Property", "value": attr_name}
-            measurement["measurementType"] = {
-                "type": "Property",
-                "value": measurement_def.get("type"),
-            }
-        if profile_code is not None:
-            measurement["deviceType"] = {"type": "Property", "value": profile_code}
+        for fixed_name, fixed_value in channel.fixed.items():
+            measurement[fixed_name] = {"type": "Property", "value": fixed_value}
         results.append(measurement)
 
     return results
