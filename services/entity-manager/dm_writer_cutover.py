@@ -76,6 +76,7 @@ from common import iot_agent
 from common.device_measurement_shape import SHAPES, measurement_channels
 from common.ngsi_headers import inject_fiware_headers
 from db_helper import get_db_connection_with_tenant
+from device_profile import entity_profile_code
 
 logger = logging.getLogger("dm_writer_cutover")
 
@@ -211,9 +212,9 @@ def build_plan(tenant: str, rows: List[Row], to: str, shape: Optional[str]) -> L
         if not entity:
             item.problems.append("Orion entity not found")
             continue
-        item.code = dataloggers._prop(entity, 'profileCode')
+        item.code = entity_profile_code(tenant, entity)
         if not item.code:
-            item.problems.append("profileCode missing")
+            item.problems.append("no profile on the Orion entity")
             continue
         try:
             item.measurements = dataloggers._profile_measurements(tenant, item.code)
@@ -254,7 +255,7 @@ def build_plan(tenant: str, rows: List[Row], to: str, shape: Optional[str]) -> L
 def _push_fresh(tenant: str, row: Row) -> None:
     """Re-read the profile and push what the row's committed state calls for."""
     entity = dataloggers._orion_devices(tenant, [row.urn]).get(row.urn)
-    code = dataloggers._prop(entity, 'profileCode') if entity else None
+    code = entity_profile_code(tenant, entity)
     measurements = dataloggers._profile_measurements(tenant, code) if code else None
     if measurements is None:
         raise RuntimeError("profile not readable")
@@ -280,7 +281,7 @@ def _restore_previous(tenant: str, item: Item) -> None:
     attrs = item.old_attrs
     try:
         entity = dataloggers._orion_devices(tenant, [row.urn]).get(row.urn)
-        code = dataloggers._prop(entity, 'profileCode') if entity else None
+        code = entity_profile_code(tenant, entity)
         measurements = dataloggers._profile_measurements(tenant, code) if code else None
         if measurements is None:
             raise RuntimeError("profile not readable")
@@ -609,7 +610,7 @@ def verify(tenant: str, rows: List[Row], only_urn: Optional[str], require_iota: 
             result = None
             try:
                 ent = dataloggers._orion_devices(tenant, [row.urn]).get(row.urn)
-                code = dataloggers._prop(ent, 'profileCode') if ent else None
+                code = entity_profile_code(tenant, ent)
                 ms = dataloggers._profile_measurements(tenant, code) if code else None
                 if ms is not None:
                     result = (code, ms)
