@@ -21,6 +21,8 @@ class FakeState:
         self.role_topics = {}
         self.fail = {}
         self.iota_update_fail_for = set()
+        self.after_update = None  # callback(n) after the n-th IoT Agent update (simulates a race)
+        self.iota_updates = 0
         self.iota_attrs = []  # (device_id, attributes) of every provision / update
 
     @staticmethod
@@ -261,8 +263,11 @@ def fake_iota(state, apikey="KEY123"):
     def update_device_attributes(url, headers, device_id, attributes):
         state.log.append(("iota", "update", device_id))
         state.iota_attrs.append((device_id, attributes))
+        state.iota_updates += 1
         if state.fail.get("iota_update") or device_id in state.iota_update_fail_for:
             raise _IotAgentError(500, "boom")
+        if state.after_update:
+            state.after_update(state.iota_updates)
 
     return SimpleNamespace(
         IotAgentError=_IotAgentError,

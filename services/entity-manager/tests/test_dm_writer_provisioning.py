@@ -239,6 +239,125 @@ def test_register_rejects_a_stored_profile_with_a_reserved_key_before_writing():
 
 # -- the one place ------------------------------------------------------------------------
 
+# -- the writer changes while attributes are being pushed -------------------------------
+
+def _flip(st, to_writer="iota", on=(1,)):
+    def cb(n):
+        if n in on:
+            for r in st.devices:
+                r["dm_writer"], r["dm_shape"] = to_writer, ("legacy" if to_writer == "iota" else None)
+    st.after_update = cb
+
+
+def _toggle(st):
+    def cb(n):
+        for r in st.devices:
+            on = r["dm_writer"] == "iota"
+            r["dm_writer"], r["dm_shape"] = ("em", None) if on else ("iota", "legacy")
+    st.after_update = cb
+
+
+def test_change_repushes_with_dm_mappings_when_the_device_moves_to_iota_meanwhile():
+    st, urn = _state()
+    _flip(st, on=(1,))
+    with wired(st) as w:
+        _orion_device(w, urn)
+        r = _put_profile(urn)
+    assert r.status_code == 200, r.get_json()
+    (_, first), (_, second) = st.iota_attrs
+    assert not _dm(first) and _dm(second)
+
+
+def test_undo_repushes_with_dm_mappings_when_the_device_moves_to_iota_meanwhile():
+    st, urn = _state()
+    st.fail["orion_patch"] = True
+    _flip(st, on=(2,))  # the undo push is the second one
+    with wired(st) as w:
+        _orion_device(w, urn)
+        r = _put_profile(urn)
+    assert r.status_code == 502 and r.get_json()["step"] == "orion_profile"
+    (_, new), (_, undo1), (_, undo2) = st.iota_attrs
+    assert not _dm(undo1) and _dm(undo2) and _device_type_literal(undo2) == "'p'"
+
+
+def test_reprovision_repushes_when_the_device_moves_to_iota_meanwhile():
+    st, u1 = _state()
+    st.profiles["p"]["tenant_id"] = TENANT
+    _flip(st, on=(1,))
+    body = {"code": "p", "name": "P", "sdm_entity_type": "Device",
+            "mapping": {"measurements": PROFILE["mapping"]["measurements"]}}
+    with wired(st) as w:
+        _orion_device(w, u1)
+        r = client().put("/api/sensors/profiles/p", headers=AUTH,
+                         content_type="application/json", data=json.dumps(body))
+    assert r.get_json()["reprovisioned"] == [u1]
+    assert not _dm(st.iota_attrs[0][1]) and _dm(st.iota_attrs[1][1])
+
+
+def test_change_with_a_state_that_never_settles_is_502_and_restores():
+    st, urn = _state()
+    _toggle(st)
+    with wired(st) as w:
+        _orion_device(w, urn)
+        r = _put_profile(urn)
+    assert r.status_code == 502 and r.get_json()["step"] == "dm_state"
+    assert ("orion", "patch") not in st.log
+    assert len(st.iota_attrs) > 3  # 3 pushes, then the restore pushes
+
+
+def test_change_with_a_failing_re_read_is_502_and_restores():
+    st, urn = _state()
+    st.after_update = lambda n: st.fail.__setitem__("dm_state", True) if n == 1 else None
+    with wired(st) as w:
+        _orion_device(w, urn)
+        r = _put_profile(urn)
+    assert r.status_code == 502 and r.get_json()["step"] == "dm_state"
+    assert ("orion", "patch") not in st.log
+
+
+@pytest.mark.parametrize("mode", ["toggle", "reread"])
+def test_reprovision_lists_the_device_as_failed(mode):
+    st, u1 = _state()
+    st.profiles["p"]["tenant_id"] = TENANT
+    if mode == "toggle":
+        _toggle(st)
+    else:
+        st.after_update = lambda n: st.fail.__setitem__("dm_state", True)
+    body = {"code": "p", "name": "P", "sdm_entity_type": "Device",
+            "mapping": {"measurements": PROFILE["mapping"]["measurements"]}}
+    with wired(st) as w:
+        _orion_device(w, u1)
+        r = client().put("/api/sensors/profiles/p", headers=AUTH,
+                         content_type="application/json", data=json.dumps(body))
+    assert r.status_code == 200 and r.get_json()["failed"] == [u1]
+
+
+def test_undo_failure_is_logged_with_both_profile_codes(caplog):
+    st, urn = _state()
+    st.fail["orion_patch"] = True
+    st.after_update = lambda n: st.fail.__setitem__("iota_update", True) if n == 1 else None
+    with wired(st) as w, caplog.at_level("CRITICAL"):
+        _orion_device(w, urn)
+        r = _put_profile(urn)
+    assert r.status_code == 502
+    msgs = [x.getMessage() for x in caplog.records if "could not restore" in x.getMessage()]
+    assert msgs and "S1" in msgs[0] and urn in msgs[0] and "old_profile=p " in msgs[0] \
+        and "new_profile=p2" in msgs[0]
+
+
+def test_provision_with_an_unsupported_mapping_is_400():
+    st, urn = _state("iota", "legacy")
+    bad = [{"type": "numValue", "sdmAttribute": "soilMoisture", "unit": "%"}]
+    with wired(st):
+        with pytest.raises(dataloggers.ApiError) as e:
+            dataloggers.provision_iota_device(TENANT, "k", "S1", urn, "Device", bad, "p")
+    assert e.value.status == 400 and not any(x[0] == "iota" for x in st.log)
+
+
+_GUARDED = ("build_iota_attributes", "device_attributes", "provision_device",
+            "update_device_attributes")
+
+
 class _Calls(ast.NodeVisitor):
     def __init__(self):
         self.scope, self.found = [], []
@@ -250,15 +369,22 @@ class _Calls(ast.NodeVisitor):
 
     visit_FunctionDef = visit_AsyncFunctionDef = _fn
 
+    def visit_ImportFrom(self, node):
+        for a in node.names:
+            if a.name in _GUARDED:
+                self.found.append((a.name, "import"))
+
+    visit_Import = visit_ImportFrom
+
     def visit_Call(self, node):
         f = node.func
         name = f.attr if isinstance(f, ast.Attribute) else getattr(f, "id", None)
-        if name in ("build_iota_attributes", "device_attributes"):
+        if name in _GUARDED:
             self.found.append((name, self.scope[0] if self.scope else None))
         self.generic_visit(node)
 
 
-def test_attribute_builders_are_called_only_in_the_two_helpers():
+def test_attribute_builders_and_pushes_are_called_only_in_the_helpers():
     root = pathlib.Path(dataloggers.__file__).parent
     seen = []
     for path in sorted(root.rglob("*.py")):
@@ -267,6 +393,12 @@ def test_attribute_builders_are_called_only_in_the_two_helpers():
         v = _Calls()
         v.visit(ast.parse(path.read_text()))
         seen += [(path.name, *f) for f in v.found]
-    assert sorted(seen) == [("dataloggers.py", "build_iota_attributes", "iota_attributes_for"),
-                            ("dataloggers.py", "device_attributes", "iota_attributes_for"),
-                            ("dataloggers.py", "device_attributes", "validate_profile_mappings")], seen
+    d = "dataloggers.py"
+    assert sorted(seen) == [
+        (d, "build_iota_attributes", "_attributes_for_state"),
+        (d, "device_attributes", "_attributes_for_state"),
+        (d, "device_attributes", "import"),
+        (d, "device_attributes", "validate_profile_mappings"),
+        (d, "provision_device", "provision_iota_device"),
+        (d, "update_device_attributes", "push_iota_attributes"),
+    ], seen
