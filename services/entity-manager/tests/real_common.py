@@ -20,7 +20,11 @@ def seed_real_common(names=("unit_codes", "context_aliases", "jexl_expressions",
         spec = importlib.util.spec_from_file_location(key, os.path.join(_COMMON, f"{name}.py"))
         mod = importlib.util.module_from_spec(spec)
         sys.modules[key] = mod  # dataclasses look the module up while it executes
-        spec.loader.exec_module(mod)
+        try:
+            spec.loader.exec_module(mod)
+        except BaseException:
+            sys.modules.pop(key, None)
+            raise
     # Built on the helpers above, which are in `sys.modules` by now; blueprints import it at
     # module level, so every caller needs it whatever names it asked for.
     key = "common.device_measurement_shape"
@@ -29,4 +33,8 @@ def seed_real_common(names=("unit_codes", "context_aliases", "jexl_expressions",
             key, os.path.join(_COMMON, "device_measurement_shape.py"))
         mod = importlib.util.module_from_spec(spec)
         sys.modules[key] = mod  # dataclasses look the module up while it executes
-        spec.loader.exec_module(mod)
+        try:
+            spec.loader.exec_module(mod)
+        except BaseException:
+            sys.modules.pop(key, None)
+            raise

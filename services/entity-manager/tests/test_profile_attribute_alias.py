@@ -41,3 +41,12 @@ def test_both_aliases_give_one_measurement_with_canonical_id():
     assert out[0]["id"].endswith(":airTemperature")
     assert out[0]["numValue"]["value"] == 2
     assert out[0]["controlledProperty"]["value"] == "airTemperature"
+
+
+def test_definition_without_type_or_key_still_builds():
+    entity = {"id": "urn:ngsi-ld:Device:acme:dev-1",
+              "x": {"type": "Property", "value": 3}}
+    profile = {"mapping": {"measurements": [{"sdmAttribute": "x", "unit": "°C"}]}}
+    out = build_measurements(entity, profile)
+    assert len(out) == 1 and out[0]["numValue"]["value"] == 3
+    assert out[0]["measurementType"]["value"] is None

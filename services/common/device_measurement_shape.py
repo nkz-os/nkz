@@ -14,6 +14,7 @@ Shapes:
 from __future__ import annotations
 
 from dataclasses import dataclass
+from types import MappingProxyType
 from typing import Any, Collection, Dict, List, Mapping, Optional, Tuple
 
 from common.context_aliases import canonical_attribute
@@ -58,6 +59,11 @@ def _entries(measurements: List[Dict[str, Any]]) -> List[Tuple[str, bool, Dict[s
     return out
 
 
+def _incoming_key(m: Mapping[str, Any]) -> str:
+    """Same rule as the IoT Agent attribute list (`common/iot_agent.py`)."""
+    return m.get("incomingKey") or m["type"]
+
+
 def _kind(m: Mapping[str, Any]) -> str:
     value_type = m.get("valueType")
     if value_type == "Number":
@@ -69,7 +75,7 @@ def _kind(m: Mapping[str, Any]) -> str:
     return "runtime"
 
 
-def _channel(name: str, m: Mapping[str, Any], *, tenant: str, external_id: str,
+def _channel(name: str, m: Mapping[str, Any], *, key: str, tenant: str, external_id: str,
              profile_code: Optional[str], shape: str) -> Channel:
     # Always resolved, whatever the kind: an unknown unit must raise, never pass through.
     unit_code = to_unit_code(m.get("unit", "") or "")
@@ -86,13 +92,11 @@ def _channel(name: str, m: Mapping[str, Any], *, tenant: str, external_id: str,
     return Channel(
         dm_id=f"urn:ngsi-ld:DeviceMeasurement:{tenant}:{external_id}:{name}",
         name=name,
-        # Same rule as the IoT Agent attribute list; the last fallback only avoids a KeyError
-        # on a definition with neither `incomingKey` nor `type`.
-        key=m.get("incomingKey") or m.get("type") or name,
+        key=key,
         expression=m.get("expression") or None,
         kind=_kind(m),
         unit_code=unit_code,
-        fixed=fixed,
+        fixed=MappingProxyType(fixed),
     )
 
 
@@ -116,7 +120,7 @@ def measurement_channels(
     _check_shape(shape)
     unique: Dict[Tuple[str, str], Tuple[str, bool, Dict[str, Any]]] = {}
     for name, is_canonical, m in _entries(measurements):
-        key = m.get("incomingKey") or m.get("type") or name
+        key = _incoming_key(m)
         unique[(key, name)] = (name, is_canonical, m)
     first_seen: Dict[str, int] = {}
     for i, (name, _, _) in enumerate(unique.values()):
@@ -126,7 +130,7 @@ def measurement_channels(
         key=lambda e: (first_seen[e[0]], e[1]),  # stable: canonical-declared last per name
     )
     return [
-        _channel(name, m, tenant=tenant, external_id=external_id,
+        _channel(name, m, key=_incoming_key(m), tenant=tenant, external_id=external_id,
                  profile_code=profile_code, shape=shape)
         for name, _, m in ordered
     ]
@@ -152,7 +156,9 @@ def channels_by_name(
         if names is None or name in names:
             chosen[name] = m
     return {
-        name: _channel(name, m, tenant=tenant, external_id=external_id,
+        # `key` is "" here: this path serves the entity-manager, which never reads it, and
+        # a definition without `type`/`incomingKey` must not raise for it.
+        name: _channel(name, m, key="", tenant=tenant, external_id=external_id,
                        profile_code=profile_code, shape=shape)
         for name, m in chosen.items()
     }

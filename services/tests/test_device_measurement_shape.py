@@ -149,3 +149,16 @@ def test_channels_by_name_last_in_profile_order_and_lazy_units():
     assert got[CANON].key == "a"  # last definition in profile order, as the EM always did
     with pytest.raises(ValueError):
         channels_by_name(ms, names=None, **kw)
+
+
+def test_missing_type_and_incoming_key_raises_in_channels_not_by_name():
+    ms = [{"sdmAttribute": "x", "unit": "°C"}]
+    with pytest.raises(KeyError):
+        chans(ms)
+    assert set(channels_by_name(ms, names={"x"}, **{**KW, "shape": "legacy"})) == {"x"}
+
+
+def test_fixed_is_read_only():
+    c = chans([{"type": "t", "sdmAttribute": "x"}])[0]
+    with pytest.raises(TypeError):
+        c.fixed["x"] = 1
