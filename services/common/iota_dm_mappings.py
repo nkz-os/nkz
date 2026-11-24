@@ -23,7 +23,7 @@ RESERVED_KEYS = frozenset({
     "numValue", "textValue", "refDevice", "controlledProperty", "measurementType", "deviceType",
     "name", "dateObserved", "timeSource", "TimeInstant",
 })
-_KEY_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
+_KEY_RE = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
 _LIMIT = "1000000000000000"
 
 
@@ -54,7 +54,7 @@ def _lit(value: Any) -> str:
 
 
 def _check_key(channel: Channel) -> None:
-    if not _KEY_RE.match(channel.key) or channel.key in RESERVED_KEYS:
+    if not _KEY_RE.fullmatch(channel.key) or channel.key in RESERVED_KEYS:
         raise InvalidChannelKey(f"Invalid incoming key {channel.key!r} for channel {channel.name!r}")
     if channel.kind not in ("number", "text", "runtime"):
         raise UnsupportedChannel(f"Unknown channel kind {channel.kind!r} for {channel.name!r}")
@@ -94,7 +94,8 @@ def _channel_mappings(channel: Channel, device_urn: str) -> List[Dict[str, Any]]
     if channel.kind == "runtime":
         out.append(mapping(key, "numValue", "Number", f"{_is('numValue', 'number')} ? numValue : null"))
         out.append(mapping(key, "textValue", "Text", f"{_is('textValue', 'string')} ? textValue : null"))
-    if channel.unit_code:
+    if channel.unit_code and channel.kind != "text":
+        # unitCode belongs to numValue only (first mapping of number and runtime channels).
         out[0]["metadata"] = {"unitCode": {"type": "Text", "value": channel.unit_code}}
 
     raw = cond(key)

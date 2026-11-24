@@ -71,44 +71,71 @@ def test_no_unit_no_metadata_and_none_fixed_skipped():
     assert "measurementType" not in by_name(maps)
 
 
-def test_scaling_adds_term_to_every_condition():
+def test_scaling_golden_every_mapping():
     maps = dm_mappings([ch(expression="t1 * 0.1")], device_urn=URN)
+    gt1 = ("(t1 != null && (t1|parsefloat) == t1 && (t1|parsefloat) < 1000000000000000"
+           " && (t1|parsefloat) > -1000000000000000)")
     term = " && (((t1 * 0.1)|parsefloat) != null)"
-    for m in maps:
-        if "expression" in m:
-            assert term in m["expression"], m["name"]
-    assert by_name(maps)["numValue"]["expression"] == f"{G('numValue')}{term} ? ((t1 * 0.1)|parsefloat) : null"
-    assert by_name(maps)["TimeInstant"]["expression"] == f"{G('t1')}{term} ? TimeInstant : null"
+
+    def g(n):
+        return gt1.replace("t1", n) + term
+
+    assert [m["expression"] for m in maps] == [
+        g("numValue") + " ? ((t1 * 0.1)|parsefloat) : null",
+        gt1 + term + " ? TimeInstant : null",
+        gt1 + term + " ? (dateObserved ? dateObserved : (0|now|toisodate)) : null",
+        gt1 + term + " ? (timeSource ? 'device' : 'server') : null",
+        g("refDevice") + " ? '" + URN + "' : null",
+        g("controlledProperty") + " ? 'temperature' : null",
+        g("measurementType") + " ? 'instant' : null",
+    ]
+    assert gt1.startswith("(t1 != null") and g("numValue").startswith("(numValue != null && (numValue|parsefloat) == numValue")
 
 
-def test_text_channel():
-    maps = by_name(dm_mappings([ch(kind="text", unit=None)], device_urn=URN))
-    assert "numValue" not in maps
-    assert maps["textValue"]["type"] == "Text"
-    assert maps["textValue"]["expression"] == "textValue != null ? textValue : null"
-    assert maps["TimeInstant"]["expression"] == "t1 != null ? TimeInstant : null"
-    assert maps["refDevice"]["expression"] == f"refDevice != null ? '{URN}' : null"
+def test_text_channel_golden():
+    maps = dm_mappings([ch(kind="text", unit=None)], device_urn=URN)
+    assert [(m["object_id"], m["name"], m["type"], m["expression"]) for m in maps] == [
+        ("t1", "textValue", "Text", "textValue != null ? textValue : null"),
+        ("TimeInstant", "TimeInstant", "DateTime", "t1 != null ? TimeInstant : null"),
+        ("TimeInstant", "dateObserved", "DateTime",
+         "t1 != null ? (dateObserved ? dateObserved : (0|now|toisodate)) : null"),
+        ("TimeInstant", "timeSource", "Text", "t1 != null ? (timeSource ? 'device' : 'server') : null"),
+        ("t1", "refDevice", "Relationship", "refDevice != null ? '" + URN + "' : null"),
+        ("t1", "controlledProperty", "Text", "controlledProperty != null ? 'temperature' : null"),
+        ("t1", "measurementType", "Text", "measurementType != null ? 'instant' : null"),
+    ]
 
 
-def test_runtime_channel():
-    maps = by_name(dm_mappings([ch(kind="runtime", unit=None)], device_urn=URN))
-    num = "((numValue|typeof) == 'number')"
-    txt = "((textValue|typeof) == 'string')"
-    assert maps["numValue"]["expression"] == f"{num} ? numValue : null"
-    assert maps["numValue"]["type"] == "Number"
-    assert maps["textValue"]["expression"] == f"{txt} ? textValue : null"
-    assert maps["textValue"]["type"] == "Text"
-    assert maps["dateObserved"]["expression"] == (
-        "(((t1|typeof) == 'number') || ((t1|typeof) == 'string')) ? "
-        "(dateObserved ? dateObserved : (0|now|toisodate)) : null")
-    assert maps["refDevice"]["expression"].startswith(
-        "(((refDevice|typeof) == 'number') || ((refDevice|typeof) == 'string')) ? ")
+def test_runtime_channel_golden():
+    maps = dm_mappings([ch(kind="runtime", unit=None)], device_urn=URN)
+    assert [(m["object_id"], m["name"], m["type"], m["expression"]) for m in maps] == [
+        ("t1", "numValue", "Number", "((numValue|typeof) == 'number') ? numValue : null"),
+        ("t1", "textValue", "Text", "((textValue|typeof) == 'string') ? textValue : null"),
+        ("TimeInstant", "TimeInstant", "DateTime",
+         "(((t1|typeof) == 'number') || ((t1|typeof) == 'string')) ? TimeInstant : null"),
+        ("TimeInstant", "dateObserved", "DateTime",
+         "(((t1|typeof) == 'number') || ((t1|typeof) == 'string')) ? "
+         "(dateObserved ? dateObserved : (0|now|toisodate)) : null"),
+        ("TimeInstant", "timeSource", "Text",
+         "(((t1|typeof) == 'number') || ((t1|typeof) == 'string')) ? "
+         "(timeSource ? 'device' : 'server') : null"),
+        ("t1", "refDevice", "Relationship",
+         "(((refDevice|typeof) == 'number') || ((refDevice|typeof) == 'string')) ? '" + URN + "' : null"),
+        ("t1", "controlledProperty", "Text",
+         "(((controlledProperty|typeof) == 'number') || ((controlledProperty|typeof) == 'string'))"
+         " ? 'temperature' : null"),
+        ("t1", "measurementType", "Text",
+         "(((measurementType|typeof) == 'number') || ((measurementType|typeof) == 'string'))"
+         " ? 'instant' : null"),
+    ]
 
 
-def test_runtime_unit_metadata_on_numvalue_only():
-    maps = by_name(dm_mappings([ch(kind="runtime")], device_urn=URN))
-    assert maps["numValue"]["metadata"]["unitCode"]["value"] == "CEL"
-    assert "metadata" not in maps["textValue"]
+def test_unit_metadata_on_numvalue_only():
+    text = dm_mappings([ch(kind="text", unit="CEL")], device_urn=URN)
+    assert all("metadata" not in m for m in text)
+    runtime = dm_mappings([ch(kind="runtime", unit="CEL")], device_urn=URN)
+    assert [m["name"] for m in runtime if "metadata" in m] == ["numValue"]
+    assert by_name(runtime)["numValue"]["metadata"] == {"unitCode": {"type": "Text", "value": "CEL"}}
 
 
 @pytest.mark.parametrize("kind", ["text", "runtime"])
@@ -119,10 +146,14 @@ def test_scaling_on_text_or_runtime_is_unsupported(kind):
 
 
 def test_literals_are_escaped():
-    maps = by_name(dm_mappings([ch(fixed={"controlledProperty": "a'b\\c", "measurementType": "instant"})],
-                               device_urn="urn:x'y"))
-    assert maps["controlledProperty"]["expression"].endswith("? 'a\\'b\\\\c' : null")
-    assert maps["refDevice"]["expression"].endswith("? 'urn:x\\'y' : null")
+    maps = dm_mappings([ch(fixed={"controlledProperty": "a'b\\c", "measurementType": "instant"})],
+                       device_urn="urn:x'y")
+    exprs = {m["name"]: m["expression"] for m in maps}
+    assert exprs["controlledProperty"] == (
+        "(controlledProperty != null && (controlledProperty|parsefloat) == controlledProperty"
+        " && (controlledProperty|parsefloat) < 1000000000000000"
+        " && (controlledProperty|parsefloat) > -1000000000000000) ? 'a\\'b\\\\c' : null")
+    assert exprs["refDevice"].endswith("? 'urn:x\\'y' : null")
 
 
 def test_alias_and_canonical_one_set_per_key_canonical_last():
@@ -133,7 +164,7 @@ def test_alias_and_canonical_one_set_per_key_canonical_last():
     assert len(maps) == 14
 
 
-@pytest.mark.parametrize("key", ["r-3", "name", "TimeInstant", "numValue", "1a", "", "a b"])
+@pytest.mark.parametrize("key", ["r-3", "name", "TimeInstant", "numValue", "1a", "", "a b", "t1\n", "a\n"])
 def test_invalid_keys(key):
     with pytest.raises(InvalidChannelKey) as e:
         dm_mappings([ch(key=key)], device_urn=URN)
