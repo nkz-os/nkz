@@ -20,6 +20,8 @@ from psycopg2.extras import RealDictCursor
 
 from common import iot_agent, mqtt_dynsec, mqtt_endpoint
 from common.context_aliases import canonical_attribute
+from common.device_measurement_shape import SHAPES, measurement_channels
+from common.iota_dm_mappings import device_attributes
 from common.ngsi_headers import inject_fiware_headers
 from common.window_statistics import gateway_statistics
 from db_helper import get_db_connection_with_tenant
@@ -566,13 +568,149 @@ def undo_link(tenant: str, urn: str) -> None:
                             "reconcile it", link['datalogger_id'], urn)
 
 
+@in_step('db', 'Database error')
+def device_dm_state(tenant: str, urn: str) -> tuple:
+    """`(dm_writer, dm_shape)` of a device; no row means `("em", None)` (the default)."""
+    with get_db_connection_with_tenant(tenant) as conn:
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        cur.execute("SELECT dm_writer, dm_shape FROM iot_datalogger_devices "
+                    "WHERE tenant_id = %s AND device_urn = %s", (tenant, urn))
+        row = cur.fetchone()
+    if not row:
+        return 'em', None
+    return row['dm_writer'], row['dm_shape']
+
+
+_VALIDATION_URN = 'urn:ngsi-ld:Device:validation:validation'
+
+
+def validate_profile_mappings(measurements: list) -> None:
+    """Build the mappings of a profile in every shape with placeholder ids; nothing is written.
+
+    Raises ValueError (invalid key, unsupported channel, unknown unit) or KeyError (a
+    measurement with neither incomingKey nor type); callers answer 400.
+    """
+    for shape in SHAPES:
+        channels = measurement_channels(
+            measurements, tenant='validation', external_id='validation',
+            device_urn=_VALIDATION_URN, profile_code='validation', shape=shape)
+        device_attributes(measurements, channels, device_urn=_VALIDATION_URN)
+
+
+def _attributes_for_state(state: tuple, tenant: str, urn: str, external_id: str,
+                          profile_code: Optional[str], measurements: list) -> list:
+    writer, shape = state
+    if writer == 'em':
+        return iot_agent.build_iota_attributes(measurements)
+    if writer != 'iota' or shape not in SHAPES:
+        logger.error("device %s has dm_writer=%r dm_shape=%r", external_id, writer, shape)
+        raise ApiError(500, 'Device measurement writer state is incomplete', 'dm_state')
+    channels = measurement_channels(
+        measurements, tenant=tenant, external_id=external_id, device_urn=urn,
+        profile_code=profile_code, shape=shape)
+    return device_attributes(measurements, channels, device_urn=urn)
+
+
+def iota_attributes_for(tenant: str, urn: str, external_id: str, profile_code: Optional[str],
+                        measurements: list) -> list:
+    """The IoT Agent attributes of a device: the only builder used by the entity-manager.
+
+    `em` devices get the Device mappings only. `iota` devices also get the
+    DeviceMeasurement mappings of their provisioned shape: the entity-manager skips them,
+    so a Device-only list would drop every reading. A state that cannot be read or is
+    incomplete is an error, never a guess.
+    """
+    return _attributes_for_state(device_dm_state(tenant, urn), tenant, urn, external_id,
+                                 profile_code, measurements)
+
+
+class WriterStateError(ApiError):
+    """A push after the first one failed or the writer state could not be confirmed.
+
+    The first push has been applied, so the caller must restore the previous attributes.
+    Always HTTP 502, step `dm_state`. `last_state` is the last `(dm_writer, dm_shape)` the
+    pushed attributes were built from (None when unknown): a restore that cannot read the
+    state builds the previous attributes from it.
+    """
+
+    def __init__(self, message: str, last_state: Optional[tuple] = None):
+        super().__init__(502, message, 'dm_state')
+        self.last_state = last_state
+
+
+_PUSH_ROUNDS = 3
+
+
+def _late_failure(exc: Exception, external_id: str, what: str, state: tuple) -> WriterStateError:
+    logger.error("IoT Agent push: %s failed after an earlier push: device=%s error=%s",
+                 what, external_id, type(exc).__name__, exc_info=exc)
+    return WriterStateError(f'Device writer state could not be confirmed ({what})', state)
+
+
+def push_iota_attributes(tenant: str, urn: str, external_id: str, profile_code: Optional[str],
+                         measurements: list) -> tuple:
+    """Replace a device's IoT Agent attributes and make sure they match its writer state.
+
+    The state is read, the attributes built from it, then pushed; the state is read again
+    afterwards. A move to `iota` committed between the first read and the push would leave
+    Device-only mappings on a device the entity-manager skips (every reading lost), so a
+    changed state means build and push again (at most `_PUSH_ROUNDS` pushes). The cutover
+    command does the other half (push, update the row, push again after the commit).
+
+    Failure handling: building errors (KeyError, ValueError, ApiError) and a failure of the
+    first push propagate as they are (nothing was applied). A first push that raises after
+    the agent applied it (a timeout) is not detected here either. Once the first push went
+    out, ANY later failure (re-read, rebuild, another push, or a state that never settles)
+    is a WriterStateError, so the caller restores the previous attributes. Returns the
+    state the attributes were finally built from.
+    """
+    state = device_dm_state(tenant, urn)
+    attrs = _attributes_for_state(state, tenant, urn, external_id, profile_code, measurements)
+    for push in range(_PUSH_ROUNDS):
+        if push == 0:
+            iot_agent.update_device_attributes(iota_url(), iota_headers(tenant), external_id,
+                                               attrs)
+        else:
+            try:
+                iot_agent.update_device_attributes(iota_url(), iota_headers(tenant),
+                                                   external_id, attrs)
+            except Exception as exc:
+                raise _late_failure(exc, external_id, 'push', state) from exc
+        try:
+            current = device_dm_state(tenant, urn)
+        except Exception as exc:
+            raise _late_failure(exc, external_id, 're-read', state) from exc
+        if current == state:
+            return state
+        state = current
+        if push == _PUSH_ROUNDS - 1:
+            break
+        try:
+            attrs = _attributes_for_state(state, tenant, urn, external_id, profile_code,
+                                          measurements)
+        except Exception as exc:
+            raise _late_failure(exc, external_id, 'rebuild', state) from exc
+    raise WriterStateError('Device writer state kept changing', state)
+
+
+def check_entity_type(entity_type: str) -> None:
+    """400 for a main entity type the IoT Agent may not be given (before any write)."""
+    if entity_type not in DEVICE_TYPES:
+        raise ApiError(400, f'Entity type "{entity_type}" is not allowed for IoT Agent devices')
+
+
 def provision_iota_device(tenant: str, apikey: str, external_id: str, urn: str,
-                          entity_type: str, measurements: list) -> None:
+                          entity_type: str, measurements: list,
+                          profile_code: Optional[str] = None) -> None:
+    check_entity_type(entity_type)
+    try:
+        attributes = iota_attributes_for(tenant, urn, external_id, profile_code, measurements)
+    except ValueError as exc:
+        raise ApiError(400, str(exc))
     try:
         iot_agent.provision_device(
             iota_url(), iota_headers(tenant), apikey=apikey, device_id=external_id,
-            entity_name=urn, entity_type=entity_type,
-            attributes=iot_agent.build_iota_attributes(measurements))
+            entity_name=urn, entity_type=entity_type, attributes=attributes)
     except Exception as exc:
         logger.error("IoT Agent provisioning failed: device=%s error=%s", external_id, type(exc).__name__)
         raise ApiError(502, 'IoT Agent device provisioning failed', 'iota_device')
@@ -667,12 +805,49 @@ def change_device_profile(tenant: str, urn: str, code: str) -> None:
         raise ApiError(404, 'Device not found')
     old_code = _prop(entity, 'profileCode')
     old_ms = _profile_measurements(tenant, old_code) if old_code else None
+
+    def restore(last_state: Optional[tuple]) -> None:
+        if old_ms is not None:
+            def push_old():
+                try:
+                    try:
+                        push_iota_attributes(tenant, urn, external_id, old_code, old_ms)
+                    except ApiError as exc:
+                        # The state cannot even be read: leaving the new profile's mappings
+                        # on the device while Orion keeps the old profile loses every reading,
+                        # so push the old attributes built from the last known state.
+                        if isinstance(exc, WriterStateError) or exc.step != 'db' or last_state is None:
+                            raise
+                        logger.critical(
+                            "device=%s urn=%s: writer state unreadable while restoring the "
+                            "profile mappings; pushing the old profile's attributes built "
+                            "from the last known state %r", external_id, urn, last_state)
+                        iot_agent.update_device_attributes(
+                            iota_url(), iota_headers(tenant), external_id,
+                            _attributes_for_state(last_state, tenant, urn, external_id,
+                                                  old_code, old_ms))
+                except Exception:
+                    logger.critical("INCONSISTENCY: could not restore IoT Agent attributes: "
+                                    "device=%s urn=%s old_profile=%s new_profile=%s",
+                                    external_id, urn, old_code, code)
+                    raise
+            _run_undo(push_old, 'restore_iota_attributes')
+        else:
+            logger.critical("INCONSISTENCY: device %s keeps IoT Agent attributes of profile %s "
+                            "but the entity still has profile %s (previous profile not readable)",
+                            external_id, code, old_code)
+
     try:
-        new_attrs = iot_agent.build_iota_attributes(new_ms)
+        pushed_state = push_iota_attributes(tenant, urn, external_id, code, new_ms)
     except KeyError:
         raise ApiError(400, 'Profile has measurements without sdmAttribute')
-    try:
-        iot_agent.update_device_attributes(iota_url(), iota_headers(tenant), external_id, new_attrs)
+    except ValueError as exc:
+        raise ApiError(400, str(exc))
+    except WriterStateError as exc:
+        restore(exc.last_state)
+        raise
+    except ApiError:
+        raise
     except Exception as exc:
         logger.error("IoT Agent update failed: device=%s error=%s", external_id, type(exc).__name__)
         raise ApiError(502, 'IoT Agent device update failed', 'iota_device')
@@ -687,14 +862,7 @@ def change_device_profile(tenant: str, urn: str, code: str) -> None:
         logger.error("profile patch failed: device=%s error=%s", external_id, type(exc).__name__)
         orion_ok = False
     if not orion_ok:
-        if old_ms is not None:
-            _run_undo(lambda: iot_agent.update_device_attributes(
-                iota_url(), iota_headers(tenant), external_id,
-                iot_agent.build_iota_attributes(old_ms)), 'restore_iota_attributes')
-        else:
-            logger.critical("INCONSISTENCY: device %s keeps IoT Agent attributes of profile %s "
-                            "but the entity still has profile %s (previous profile not readable)",
-                            external_id, code, old_code)
+        restore(pushed_state)
         raise ApiError(502, 'Entity update failed', 'orion_profile')
 
 
@@ -720,9 +888,7 @@ def reprovision_profile_devices(tenant: str, code: str, measurements: list) -> d
         if _prop(entities.get(urn), 'profileCode') != code:
             continue
         try:
-            attrs = iot_agent.build_iota_attributes(measurements)
-            iot_agent.update_device_attributes(iota_url(), iota_headers(tenant),
-                                               link['external_id'], attrs)
+            push_iota_attributes(tenant, urn, link['external_id'], code, measurements)
             out['reprovisioned'].append(urn)
         except Exception as exc:
             logger.error("profile re-provision failed: device=%s profile=%s error=%s",

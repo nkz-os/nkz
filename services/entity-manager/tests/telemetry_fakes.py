@@ -21,6 +21,9 @@ class FakeState:
         self.role_topics = {}
         self.fail = {}
         self.iota_update_fail_for = set()
+        self.after_update = None  # callback(n) after the n-th IoT Agent update (simulates a race)
+        self.iota_updates = 0
+        self.iota_attrs = []  # (device_id, attributes) of every provision / update
 
     @staticmethod
     def unique_violation():
@@ -92,6 +95,8 @@ class _Cursor:
                 del w["dataloggers"][str(params[0])]
                 self._rowcount = 1
         elif sql.startswith("SELECT") and "FROM iot_datalogger_devices" in sql:
+            if "dm_writer" in sql and self.conn.state.fail.get("dm_state"):
+                raise RuntimeError("state read failed")
             rows = [r for r in w["devices"] if r["tenant_id"] == params[0]]
             if "device_urn = %s" in sql:
                 rows = [r for r in rows if r["device_urn"] == params[1]]
@@ -104,7 +109,8 @@ class _Cursor:
                 self._rows = []
             else:
                 w["devices"].append(dict(datalogger_id=str(dl), tenant_id=tenant,
-                                         device_urn=urn, external_id=ext))
+                                         device_urn=urn, external_id=ext,
+                                         dm_writer="em", dm_shape=None))
                 self._rows = [{"device_urn": urn}]
                 log.append(("db", "link"))
         elif sql.startswith("DELETE FROM iot_datalogger_devices"):
@@ -246,6 +252,7 @@ def fake_iota(state, apikey="KEY123"):
 
     def provision_device(url, headers, **kw):
         state.log.append(("iota", "provision", kw["device_id"]))
+        state.iota_attrs.append((kw["device_id"], kw["attributes"]))
         if state.fail.get("provision"):
             raise _IotAgentError(500, "boom")
 
@@ -255,8 +262,12 @@ def fake_iota(state, apikey="KEY123"):
 
     def update_device_attributes(url, headers, device_id, attributes):
         state.log.append(("iota", "update", device_id))
+        state.iota_attrs.append((device_id, attributes))
+        state.iota_updates += 1
         if state.fail.get("iota_update") or device_id in state.iota_update_fail_for:
             raise _IotAgentError(500, "boom")
+        if state.after_update:
+            state.after_update(state.iota_updates)
 
     return SimpleNamespace(
         IotAgentError=_IotAgentError,
@@ -457,17 +468,17 @@ def seed_datalogger(state, status="active", dl_id="11111111-1111-1111-1111-11111
     return dl_id
 
 
-def seed_device(state, dl_id, external_id, tenant=TENANT):
+def seed_device(state, dl_id, external_id, tenant=TENANT, dm_writer="em", dm_shape=None):
     urn = f"urn:ngsi-ld:Device:{tenant}:{external_id}"
     state.devices.append(dict(datalogger_id=dl_id, tenant_id=tenant, device_urn=urn,
-                              external_id=external_id))
+                              external_id=external_id, dm_writer=dm_writer, dm_shape=dm_shape))
     return urn
 
 
 PROFILE = {"id": 1, "sdm_entity_type": "Device", "sdm_device_category": None,
            "mapping": {"measurements": [
-               {"type": "t", "incomingKey": "r1", "sdmAttribute": "airTemperature", "unit": "CEL"},
-               {"type": "hum", "sdmAttribute": "relativeHumidity", "unit": "P1"}]}}
+               {"type": "t", "incomingKey": "r1", "sdmAttribute": "airTemperature", "unit": "°C"},
+               {"type": "hum", "sdmAttribute": "relativeHumidity", "unit": "%"}]}}
 
 
 def post_json(c, path, body=None):

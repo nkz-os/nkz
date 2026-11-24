@@ -141,8 +141,8 @@ def test_config_has_exactly_the_documented_shape():
                  "username": "dl_aaaaaaaaaaaaaaaa", "apikey": "KEY123", "password": None},
         "devices": [{"externalId": "S1", "name": "Sensor 1", "topic": "/KEY123/S1/attrs",
                      "measurements": [
-                         {"key": "r1", "sdmAttribute": "airTemperature", "unit": "CEL"},
-                         {"key": "hum", "sdmAttribute": "relativeHumidity", "unit": "P1"}]}]}
+                         {"key": "r1", "sdmAttribute": "airTemperature", "unit": "°C"},
+                         {"key": "hum", "sdmAttribute": "relativeHumidity", "unit": "%"}]}]}
 
 
 def _config_for(mapping):

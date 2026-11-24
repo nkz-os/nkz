@@ -248,7 +248,7 @@ def provision_iot_device(entity_id: str, entity_type: str, tenant_id: str,
                 entity_type=entity_type, attributes=attributes,
                 static_attributes=static_attributes)
             iot_error = None
-        except iot_agent.IotAgentError as e:
+        except (iot_agent.IotAgentError, ValueError) as e:
             iot_error = str(e)
 
         if iot_error is None:
