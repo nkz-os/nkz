@@ -1,0 +1,22 @@
+name: SDM Upstream Watch
+
+# Fails when an official Smart Data Models file changed since the commit it is
+# pinned at in config/sdm/pins.json. Nothing depends on this run: a red one is
+# the reminder to review the change and move the pin.
+on:
+  schedule:
+    - cron: "23 6 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  watch:
+    name: Pinned Smart Data Models Files
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - name: Compare the pinned files with the official repositories
+        run: python3 .github/scripts/check_sdm_conformance.py upstream

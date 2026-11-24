@@ -166,6 +166,13 @@
         "sha256": "3d028d3e18038d5fec4b7232ca1c0fdf7cffb8f7b7e47203389bab8ce7aa61d7"
       }
     },
+    "DeviceModel": {
+      "subject": "Device",
+      "schema": {
+        "path": "DeviceModel/schema.json",
+        "sha256": "3a28d93fe3697b073ac8b17c72eb73023053754329e911f4178471b4bae3352c"
+      }
+    },
     "EOProduct": {
       "subject": "SatelliteImagery",
       "schema": {

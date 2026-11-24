@@ -40,7 +40,7 @@ def test_parse_legacy_rejects_name_before_block():
 
 def test_repo_lists_load_and_do_not_overlap():
     lists = load_lists(REPO_ROOT / "config" / "entity-types")
-    assert len(lists.allowed) == 21 and len(lists.legacy_broker) == 12 and len(lists.legacy_code) == 82
+    assert len(lists.allowed) == 22 and len(lists.legacy_broker) == 12 and len(lists.legacy_code) == 82
     assert not (lists.allowed & (lists.legacy_broker | lists.legacy_code))
     assert not (lists.legacy_broker & lists.legacy_code)
     assert "AgriParcel" in lists.allowed and "AgriPlant" in lists.legacy_broker and "AgriEnergyTracker" in lists.legacy_code
