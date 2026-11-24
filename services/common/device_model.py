@@ -3,7 +3,8 @@
 A registered `Device` names its profile with `refDeviceModel`, a Relationship to the
 `DeviceModel` whose id carries the tenant and the profile code:
 `urn:ngsi-ld:DeviceModel:{tenant}:{code}`. Devices registered before that shape name the
-profile with the non-standard `profileCode`; `device_profile_code` reads both.
+profile with the non-standard `profileCode`; `device_profile_code` reads both and says which one
+wins when they differ.
 
 Everything here is pure: dicts in, dicts out. Entities carry no `@context`; the caller adds it.
 """
@@ -99,11 +100,15 @@ def device_profile_code(
 ) -> tuple[str | None, Literal["model", "legacy", "none"]]:
     """The profile code a Device names, and where it came from.
 
-    `refDeviceModel` wins. A malformed or foreign one is ignored with a warning and the lookup
-    falls through to `profileCode`.
+    `refDeviceModel`, else `profileCode`; a malformed or foreign model is ignored with a warning.
+    When both are usable and differ, `profileCode` wins: every writer of this version writes the two
+    together, so only a writer that knows nothing but `profileCode` makes them differ (an image older
+    than `refDeviceModel`, during a rollout or after a rollback, or an API client) and its value is
+    the fresher one. The release that stops writing `profileCode` turns this round: from then on a
+    difference can only be a stale `profileCode`.
     """
     codes = profile_codes(tenant, entity)
-    if codes.model is not None:
+    if codes.model is not None and codes.legacy in (None, codes.model):
         return codes.model, "model"
     if codes.model_error:
         logger.warning(

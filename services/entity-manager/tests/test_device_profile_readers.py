@@ -1,6 +1,6 @@
 """Every reader of a device's profile: `refDeviceModel` alone, `profileCode` alone, and both.
 
-With both, the model wins. Machines only carry `profileCode`.
+When both differ, `profileCode` wins. Machines only carry `profileCode`.
 """
 import json
 import logging
@@ -39,7 +39,8 @@ def _entity(urn=URN, **attrs):
 ON_SOIL = {
     "model-only": _entity(refDeviceModel=_ref("soil")),
     "legacy-only": _entity(profileCode=_prop("soil")),
-    "both-model-wins": _entity(refDeviceModel=_ref("soil"), profileCode=_prop("air")),
+    "both-equal": _entity(refDeviceModel=_ref("soil"), profileCode=_prop("soil")),
+    "both-profile-code-wins": _entity(refDeviceModel=_ref("air"), profileCode=_prop("soil")),
     "foreign-model": _entity(refDeviceModel=_ref("air", "othertenant"), profileCode=_prop("soil")),
     "machine": _entity(MACHINE, profileCode=_prop("soil")),
     "machine-ignores-a-model": _entity(MACHINE, refDeviceModel=_ref("air"), profileCode=_prop("soil")),
@@ -172,14 +173,14 @@ def test_a_profile_edit_reaches_the_devices_on_it(entity):
 
 
 LEFT_FOR = {
-    "model-moved": {"refDeviceModel": _ref("wind"), "profileCode": _prop("soil")},
+    "profile-code-moved": {"refDeviceModel": _ref("soil"), "profileCode": _prop("wind")},
     "model-only-moved": {"refDeviceModel": _ref("wind")},
     "legacy-moved": {"profileCode": _prop("wind")},
 }
 
 
 @pytest.mark.parametrize("attrs", LEFT_FOR.values(), ids=LEFT_FOR.keys())
-def test_a_device_that_left_by_its_model_is_not_written(attrs, caplog):
+def test_a_device_that_left_is_not_written(attrs, caplog):
     entity = _entity(refDeviceModel=_ref("soil"))
     moved = _entity(**attrs)
     st = _state(entity)
@@ -200,6 +201,30 @@ def test_a_device_that_left_by_its_model_is_not_written(attrs, caplog):
     assert w.orion.entities[URN] == moved and w.orion.attr_posts == []
     assert any(all(part in r.getMessage() for part in (TENANT, URN, "expected='soil'", "found='wind'"))
                for r in caplog.records)
+
+
+# ---- a writer that only knows `profileCode` (an older image) moved the Device -----
+
+def test_a_device_moved_by_its_profile_code_alone_follows_it_everywhere():
+    entity = _entity(refDeviceModel=_ref("air"), profileCode=_prop("air"), sensorType=_prop("air"))
+    st = _state(entity)
+    st.fail["orion_attrs"] = 500
+    with wired(st) as w:
+        w.orion.entities[URN] = entity
+        before, = dataloggers.get_datalogger_config(TENANT, DL)["devices"]
+        # What that writer sends.
+        entity.update(profileCode=_prop("soil"), sensorType=_prop("soil"))
+        after, = dataloggers.get_datalogger_config(TENANT, DL)["devices"]
+        assert dataloggers.links_on_profile(TENANT, "air") == []
+        with pytest.raises(dataloggers.ApiError) as err:
+            dataloggers.change_device_profile(TENANT, URN, "wind")
+        assert st.iota_attrs == [
+            ("S1", dataloggers._attributes_for_state(("em", None), TENANT, URN, "S1", code, mapping["measurements"]))
+            for code, mapping in (("wind", WIND), ("soil", SOIL))]
+    assert [m["sdmAttribute"] for m in before["measurements"]] == ["airTemperature", "relativeHumidity"]
+    assert [m["sdmAttribute"] for m in after["measurements"]] == ["soilMoisture"]
+    assert after["windowSeconds"] == 600 and "windowSeconds" not in before
+    assert err.value.step == "orion_profile"
 
 
 # ---- the fallback log goes through every reader --------------------------------

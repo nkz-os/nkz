@@ -1,4 +1,4 @@
-"""`device_profile.entity_profile_code`: the profile an entity is on, and its one fallback log."""
+"""`device_profile.entity_profile_code`: the profile an entity is on, and what it logs once."""
 import logging
 import threading
 
@@ -48,15 +48,17 @@ def _mismatches(caplog):
 @pytest.mark.parametrize("attrs,expected,logged", [
     ({"refDeviceModel": _ref("model_code")}, "model_code", 0),
     ({"profileCode": _prop("legacy_code")}, "legacy_code", 1),
-    ({"refDeviceModel": _ref("model_code"), "profileCode": _prop("legacy_code")}, "model_code", 0),
-    ({DEVICE_IRI + "refDeviceModel": _ref("model_code"), "profileCode": _prop("x")}, "model_code", 0),
+    ({"refDeviceModel": _ref("same"), "profileCode": _prop("same")}, "same", 0),
+    ({"refDeviceModel": _ref("model_code"), "profileCode": _prop("legacy_code")}, "legacy_code", 0),
+    ({DEVICE_IRI + "refDeviceModel": _ref("model_code"), "profileCode": _prop("x")}, "x", 0),
+    ({"refDeviceModel": _ref("model_code"), "profileCode": _prop("")}, "model_code", 0),
     ({"refDeviceModel": _ref("model_code", "othertenant"), "profileCode": _prop("legacy_code")},
      "legacy_code", 1),
     ({"refDeviceModel": _ref("model_code", "othertenant")}, None, 0),
     ({"refDeviceModel": {"type": "Relationship", "object": "urn:x"}, "profileCode": _prop("legacy_code")},
      "legacy_code", 1),
     ({}, None, 0),
-], ids=["model", "legacy", "both", "iri", "foreign-and-legacy", "foreign", "malformed-and-legacy", "none"])
+], ids=["model", "legacy", "equal", "differ", "differ-iri", "empty-legacy", "foreign-and-legacy", "foreign", "malformed-and-legacy", "none"])
 @pytest.mark.parametrize("type_", ["Device", DEVICE_IRI + "Device"])
 def test_the_profile_of_a_device(attrs, expected, logged, type_, caplog):
     with caplog.at_level(logging.INFO):
@@ -141,18 +143,18 @@ def test_threads_reading_the_same_device_log_it_once(monkeypatch, caplog):
 # ---- the mismatch log --------------------------------------------------------
 
 def _disagreeing(urn=URN):
-    return _device(urn, refDeviceModel=_ref("new"), profileCode=_prop("old"))
+    return _device(urn, refDeviceModel=_ref("stale"), profileCode=_prop("fresh"))
 
 
-def test_two_codes_that_differ_are_one_warning_per_tenant_and_entity_and_the_model_wins(caplog):
+def test_two_codes_that_differ_are_one_warning_per_tenant_and_entity_and_profile_code_wins(caplog):
     other = f"urn:ngsi-ld:Device:{TENANT}:S2"
     with caplog.at_level(logging.INFO):
         for urn in (URN, URN, other, URN, other):
-            assert device_profile.entity_profile_code(TENANT, _disagreeing(urn)) == "new"
+            assert device_profile.entity_profile_code(TENANT, _disagreeing(urn)) == "fresh"
     records = _mismatches(caplog)
     assert [r.levelno for r in records] == [logging.WARNING] * 2
-    assert [r.args for r in records] == [(TENANT, URN, "new", "old"), (TENANT, other, "new", "old")]
-    for part in (f"tenant={TENANT}", f"entity_id={URN}", "refDeviceModel=new", "profileCode=old"):
+    assert [r.args for r in records] == [(TENANT, URN, "stale", "fresh"), (TENANT, other, "stale", "fresh")]
+    for part in (f"tenant={TENANT}", f"entity_id={URN}", "refDeviceModel=stale", "profileCode=fresh"):
         assert part in records[0].getMessage()
     assert _fallbacks(caplog) == []
 

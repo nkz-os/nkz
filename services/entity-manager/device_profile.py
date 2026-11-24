@@ -30,15 +30,15 @@ def entity_profile_code(tenant: str, entity: Optional[Mapping]) -> Optional[str]
     if not is_device(entity):
         return code
     entity_id = entity.get('id')
-    if source == 'legacy':
-        if _first_time('fallback', tenant, entity_id):
-            logger.info("device_profile_code_fallback: tenant=%s entity_id=%s profile=%s",
-                        tenant, entity_id, code)
-    elif source == 'model':
-        legacy = profile_codes(tenant, entity).legacy
-        if legacy not in (None, code) and _first_time('mismatch', tenant, entity_id):
+    codes = profile_codes(tenant, entity)
+    if None not in (codes.model, codes.legacy) and codes.model != codes.legacy:
+        if _first_time('mismatch', tenant, entity_id):
             logger.warning("device_profile_code_mismatch: tenant=%s entity_id=%s "
-                           "refDeviceModel=%s profileCode=%s", tenant, entity_id, code, legacy)
+                           "refDeviceModel=%s profileCode=%s",
+                           tenant, entity_id, codes.model, codes.legacy)
+    elif source == 'legacy' and _first_time('fallback', tenant, entity_id):
+        logger.info("device_profile_code_fallback: tenant=%s entity_id=%s profile=%s",
+                    tenant, entity_id, code)
     return code
 
 

@@ -210,10 +210,28 @@ MODEL_URN = "urn:ngsi-ld:DeviceModel:acmefarm:soil_probe"
 
 
 class TestDeviceProfileCode:
-    def test_model_is_preferred_over_profile_code(self):
+    @pytest.mark.parametrize("model_key", ["refDeviceModel", MODEL_IRI])
+    @pytest.mark.parametrize("code_key", ["profileCode", PROFILE_CODE_IRI])
+    def test_profile_code_wins_when_the_two_codes_differ(self, model_key, code_key):
+        """Only a writer that knows nothing but `profileCode` makes them differ: it is the fresher."""
+        entity = {
+            model_key: {"type": "Relationship", "object": MODEL_URN},
+            code_key: {"type": "Property", "value": "fresher_code"},
+        }
+        assert device_profile_code(TENANT, entity) == ("fresher_code", "legacy")
+
+    def test_two_equal_codes_come_from_the_model(self):
         entity = {
             "refDeviceModel": {"type": "Relationship", "object": MODEL_URN},
-            "profileCode": {"type": "Property", "value": "old_code"},
+            "profileCode": {"type": "Property", "value": "soil_probe"},
+        }
+        assert device_profile_code(TENANT, entity) == ("soil_probe", "model")
+
+    @pytest.mark.parametrize("unusable", ["", None, 5, ["other"]])
+    def test_the_model_is_used_when_profile_code_is_unusable(self, unusable):
+        entity = {
+            "refDeviceModel": {"type": "Relationship", "object": MODEL_URN},
+            "profileCode": {"type": "Property", "value": unusable},
         }
         assert device_profile_code(TENANT, entity) == ("soil_probe", "model")
 

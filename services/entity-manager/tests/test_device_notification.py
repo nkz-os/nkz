@@ -99,11 +99,11 @@ def _notify(*entities, tenant=TENANT):
 @pytest.mark.parametrize("attrs,profile", [
     (MODEL, "id-of-model-code"),
     (LEGACY, "id-of-legacy-code"),
-    (BOTH, "id-of-model-code"),
+    (BOTH, "id-of-legacy-code"),
     ({IRI + "refDeviceModel": _ref("model_code")}, "id-of-model-code"),
     ({"refDeviceModel": _ref("model_code", "othertenant"), **LEGACY}, "id-of-legacy-code"),
     ({"refDeviceModel": _ref("unknown_code")}, None),
-], ids=["model-only", "legacy-only", "both-model-wins", "iri", "foreign-model-and-legacy", "unknown-profile"])
+], ids=["model-only", "legacy-only", "both-profile-code-wins", "iri", "foreign-model-and-legacy", "unknown-profile"])
 def test_a_registered_device_is_stored_with_its_profile(attrs, profile):
     row, = _notify(_device(**attrs))
     assert (row["tenant_id"], row["external_id"], row["name"]) == (TENANT, "S1", "Sensor 1")

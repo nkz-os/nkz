@@ -1,4 +1,4 @@
-"""The cutover command takes a device's profile from its model, as every other reader."""
+"""The cutover command finds a device's profile as every other reader."""
 import pytest
 
 from tests.telemetry_fakes import TENANT  # noqa: F401,I001  (stubs first)
@@ -22,7 +22,8 @@ def _ref(code, tenant=TENANT):
 ON_P = {
     "model-only": {"refDeviceModel": _ref("p")},
     "legacy-only": {"profileCode": _prop("p")},
-    "both-model-wins": {"refDeviceModel": _ref("p"), "profileCode": _prop("other")},
+    "both-equal": {"refDeviceModel": _ref("p"), "profileCode": _prop("p")},
+    "both-profile-code-wins": {"refDeviceModel": _ref("other"), "profileCode": _prop("p")},
     "foreign-model": {"refDeviceModel": _ref("other", "othertenant"), "profileCode": _prop("p")},
     "malformed-model": {"refDeviceModel": _ref("other", ""), "profileCode": _prop("p")},
 }

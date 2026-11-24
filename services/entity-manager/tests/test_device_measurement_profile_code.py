@@ -1,4 +1,5 @@
-"""The profile code of a measurement: the Device's `refDeviceModel`, else its `profileCode`.
+"""The profile code of a measurement: the Device's `refDeviceModel`, else its `profileCode`; when both
+are usable and differ, its `profileCode`.
 
 The bridge and `build_measurements` read it with the same rule, so the code that selects the
 profile is the one written as `deviceType`.
@@ -54,7 +55,7 @@ CODES = {
     "type-iri-model-only": ({**_entity(refDeviceModel=_ref("soil")),
                              "type": "https://smartdatamodels.org/dataModel.Device/Device"}, "soil"),
     "legacy-only": (_entity(profileCode=_prop("bench")), "bench"),
-    "both-model-wins": (_entity(refDeviceModel=_ref("soil"), profileCode=_prop("bench")), "soil"),
+    "both-profile-code-wins": (_entity(refDeviceModel=_ref("soil"), profileCode=_prop("bench")), "bench"),
     "both-equal": (_entity(refDeviceModel=_ref("bench"), profileCode=_prop("bench")), "bench"),
     "foreign-model": (_entity(refDeviceModel=_ref("soil", "othertenant"), profileCode=_prop("bench")),
                       "bench"),
@@ -91,10 +92,10 @@ def test_build_measurements_changes_neither_argument_and_opens_nothing(monkeypat
 
     monkeypatch.setattr(socket, "socket", _refuse)
     monkeypatch.setattr("builtins.open", _refuse)
-    entity, profile = copy.deepcopy(CODES["both-model-wins"][0]), copy.deepcopy(PROFILE_ROW)
+    entity, profile = copy.deepcopy(CODES["both-profile-code-wins"][0]), copy.deepcopy(PROFILE_ROW)
     first = build_measurements(entity, profile)
     assert build_measurements(entity, profile) == first
-    assert entity == CODES["both-model-wins"][0] and profile == PROFILE_ROW
+    assert entity == CODES["both-profile-code-wins"][0] and profile == PROFILE_ROW
 
 
 # The output of `build_measurements` when the code was read from `profileCode`: channel, value
@@ -151,8 +152,8 @@ def test_a_device_with_only_a_model_gets_the_same_measurements(flag, monkeypatch
 class _Cursor:
     """The writer row and the profile row of whatever code is asked for; records the reads."""
 
-    def __init__(self, writer, reads):
-        self.writer, self.reads, self.row = writer, reads, None
+    def __init__(self, writer, reads, profiles=None):
+        self.writer, self.reads, self.profiles, self.row = writer, reads, profiles, None
 
     def execute(self, sql, params=None):
         if "iot_datalogger_devices" in sql:
@@ -160,7 +161,7 @@ class _Cursor:
             self.row = {"dm_writer": self.writer}
         elif "sensor_profiles" in sql:
             self.reads.append(("profile", params))
-            self.row = PROFILE_ROW
+            self.row = PROFILE_ROW if self.profiles is None else self.profiles.get(params[0])
 
     def fetchone(self):
         return self.row
@@ -169,12 +170,12 @@ class _Cursor:
         pass
 
 
-def _notify(entity, writer="em", tenant="acmefarm"):
+def _notify(entity, writer="em", tenant="acmefarm", profiles=None):
     """(handled, database reads, upserted batches) of one notification."""
     reads, client = [], MagicMock()
     client.upsert_entities_batch.return_value = {"upserted": 4, "errors": [], "entity_ids": []}
     conn = MagicMock()
-    conn.cursor.return_value = _Cursor(writer, reads)
+    conn.cursor.return_value = _Cursor(writer, reads, profiles)
     with patch.object(notif.psycopg2, "connect", return_value=conn), \
          patch.object(notif, "POSTGRES_URL", "postgresql://x/y"), \
          patch.object(notif, "SyncOrionClient", return_value=client):
@@ -203,7 +204,7 @@ def test_the_bridge_writes_what_it_always_wrote(entity, flag, monkeypatch):
     assert json.dumps(batch) == _recorded(entity["id"], flag == "true")
 
 
-@pytest.mark.parametrize("name", ["model-only", "legacy-only", "both-model-wins"])
+@pytest.mark.parametrize("name", ["model-only", "legacy-only", "both-profile-code-wins"])
 def test_a_device_written_by_the_iot_agent_is_still_skipped(name, caplog):
     entity, _ = CODES[name]
     assert _notify(entity, writer="iota") == (True, [("writer", ("acmefarm", DEVICE))], [])
@@ -216,6 +217,26 @@ def test_a_notification_of_another_tenant_never_follows_the_model():
     assert (handled, reads, batches) == (True, [], [])
     _, reads, _ = _notify(CODES["both-equal"][0], tenant="othertenant")
     assert reads[-1] == ("profile", ("bench", "othertenant"))
+
+
+def _row(attribute, unit):
+    return {"id": 1, "sdm_entity_type": "Device", "mapping": {"measurements": [
+        {"type": "m", "sdmAttribute": attribute, "unit": unit}]}}
+
+
+@each_shape
+def test_a_device_moved_by_a_writer_of_profile_code_only_is_measured_by_its_new_profile(flag, monkeypatch):
+    """An image that does not know `refDeviceModel` moves a Device: the relationship stays behind."""
+    monkeypatch.setenv(SDM_SHAPE_FLAG, flag)
+    profiles = {"old": _row("airTemperature", "°C"), "new": _row("soilMoisture", "%")}
+    device = _entity(refDeviceModel=_ref("old"), profileCode=_prop("old"), sensorType=_prop("old"))
+    _, _, (before,) = _notify(device, profiles=profiles)
+    device.update(profileCode=_prop("new"), sensorType=_prop("new"))
+    _, reads, (after,) = _notify(device, profiles=profiles)
+    assert reads[-1] == ("profile", ("new", "acmefarm"))
+    assert [(m["id"].rsplit(":", 1)[-1], m["numValue"]["value"], m["deviceType"]) for m in before + after] == [
+        ("airTemperature", 21.5, _prop("old")), ("soilMoisture", 31, _prop("new"))]
+    assert after == build_measurements(device, profiles["new"])
 
 
 def test_one_device_is_logged_once_by_the_bridge_and_the_transformer(caplog, monkeypatch):

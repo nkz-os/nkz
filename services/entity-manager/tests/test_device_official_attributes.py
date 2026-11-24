@@ -612,6 +612,22 @@ def test_an_edit_gives_a_device_registered_before_the_missing_attributes():
         "controlledProperty": _prop(["soilMoisture"])})]
 
 
+def test_an_edit_corrects_a_relationship_to_another_model():
+    """`profileCode` says where the Device is: the relationship is the stale one."""
+    st = _state(p2=SOIL)
+    with _editing(st, _on_p2(refDeviceModel=_rel(MODEL))) as w:
+        assert _refresh(_put_profile())["refreshed"] == [URN]
+    assert w.orion.attr_posts == [(URN, {"refDeviceModel": _rel(MODEL2)})]
+
+
+def test_an_edit_of_the_profile_a_stale_relationship_names_leaves_the_device_alone():
+    st = _state(p2=SOIL)
+    with _editing(st, _device("p", MODEL2)) as w:
+        r = _put_profile(AIR)
+    assert _refresh(r)["refreshed"] == [] == r.get_json()["reprovisioned"]
+    assert w.orion.attr_posts == []
+
+
 def test_an_edit_corrects_a_relationship_to_a_model_of_another_tenant():
     st = _state(p2=SOIL)
     with _editing(st, _on_p2(refDeviceModel=_rel("urn:ngsi-ld:DeviceModel:acmefarm:p2"))) as w:

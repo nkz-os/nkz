@@ -37,7 +37,7 @@ def _ref(code):
 ON_P = {
     "model-only": {"refDeviceModel": _ref("p")},
     "legacy-only": {"profileCode": _prop("p")},
-    "both-model-wins": {"refDeviceModel": _ref("p"), "profileCode": _prop("other")},
+    "both-profile-code-wins": {"refDeviceModel": _ref("other"), "profileCode": _prop("p")},
 }
 each_device = pytest.mark.parametrize("attrs", ON_P.values(), ids=ON_P.keys())
 
@@ -171,7 +171,7 @@ def test_the_restore_reads_the_state_again(fail):
             return out
 
         with patch.object(dataloggers, "push_iota_attributes", push):
-            r = _change(w, _entity(ON_P["both-model-wins"]))
+            r = _change(w, _entity(ON_P["both-profile-code-wins"]))
         assert calls == ["p2", "p"]
         assert [a for _, a in st.iota_attrs] == [_attributes(("em", None), "p2", NEW),
                                                  _attributes(("iota", "legacy"), "p", OLD)]
@@ -261,7 +261,7 @@ def test_a_machine_whose_patch_fails_gets_its_previous_attributes_back(state):
 
 @each_state
 @each_device
-def test_a_profile_edit_pushes_the_attributes_of_the_state_with_the_code_of_the_model(attrs, state):
+def test_a_profile_edit_pushes_the_attributes_of_the_state_with_the_code_of_the_profile(attrs, state):
     st = _state(state)
     with wired(st) as w:
         w.orion.entities[URN] = _entity(attrs)
