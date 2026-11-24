@@ -51,7 +51,8 @@ class World:
     """Just enough broker and agent to run the whole series."""
 
     def __init__(self, *, south_status=200, agent_extra=None, leave_dm_on_delete=False, noop=False,
-                 defer=None, on_south=None):
+                 defer=None, on_south=None, bad_ti=False):
+        self.bad_ti = bad_ti
         self.noop, self.defer, self.on_south, self.deferred = noop, defer, on_south, []
         self.entities, self.agent, self.log = {}, {}, []
         self.mod = 0
@@ -171,6 +172,13 @@ class World:
             device[ch.name] = {"type": "Property", "value": raw, "observedAt": at}
             touched.add(ch.dm_id)
         if not touched and not dirty:
+            if "TimeInstant" in message:   # the Device records the instant; no DM has a reading
+                device["TimeInstant"] = {"type": "Property", "value": at}
+                self._stamp(device)
+                if self.bad_ti:   # the fault the cases look for: a DM touched or created empty
+                    dm_id = f"urn:ngsi-ld:DeviceMeasurement:{parts[3]}:{':'.join(parts[4:])}:pressure"
+                    dm = self.entities.setdefault(dm_id, {"id": dm_id, "type": "DeviceMeasurement"})
+                    self._stamp(dm)
             return
         device["TimeInstant"] = {"type": "Property", "value": at}
         self._stamp(device)
@@ -408,3 +416,15 @@ def test_the_shape_flag_and_the_sigterm_handler_are_put_back(monkeypatch):
 def test_cleanup_only_takes_only_the_ids_the_script_makes():
     for bad in ("conf-iota-dm-test01", "conf-iota-dm-0a1b2c3", "conf-iota-dm-0A1B2C3D", "conf-iota-dm-0a1b2c3d9"):
         assert run(World(), ["--tenant", "acme", "--cleanup-only", bad])[0] == 2
+
+
+def test_an_invalid_value_with_a_device_time_must_not_touch_or_create_a_dm():
+    code, out = run(World())
+    by = {c["name"]: c for c in summary(out)["cases"]}
+    assert code == 0 and "p-invalid-ERR-with-time" in by and "unknown-key-with-time" in by
+    code, out = run(World(bad_ti=True))
+    s = summary(out)
+    by = {c["name"]: c for c in s["cases"]}
+    assert code == 1
+    for name in ("p-invalid-ERR-with-time", "p-invalid-null-with-time", "unknown-key-with-time"):
+        assert by[name]["outcome_violations"], name

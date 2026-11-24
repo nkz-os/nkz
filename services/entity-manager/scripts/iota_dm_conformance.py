@@ -147,6 +147,7 @@ class Case:
     message: Dict[str, Any]
     writes: FrozenSet[str] = frozenset()
     must_change: bool = False
+    device_may_change: bool = False   # the Device may take the instant; no DM may change
 
     @property
     def has_time_instant(self) -> bool:
@@ -159,11 +160,13 @@ def build_cases(ti: Callable[[], str], val: Callable[[], float]) -> List[Case]:
     cases: List[Case] = []
 
     def add(name: str, message: Dict[str, Any], time_instant: bool = True,
-            writes: Optional[Sequence[str]] = None, must_change: Optional[bool] = None) -> None:
+            writes: Optional[Sequence[str]] = None, must_change: Optional[bool] = None,
+            device_may_change: bool = False) -> None:
         if time_instant:
             message = {**message, "TimeInstant": ti()}
         names = frozenset(KEY_DM[k] for k in message if k in KEY_DM) if writes is None else frozenset(writes)
-        cases.append(Case(name, message, names, bool(names) if must_change is None else must_change))
+        cases.append(Case(name, message, names, bool(names) if must_change is None else must_change,
+                          device_may_change))
 
     # Partial message WITH TimeInstant while nothing else exists: no DM may appear.
     add("partial-with-time-first", {"p": val()})
@@ -187,6 +190,12 @@ def build_cases(ti: Callable[[], str], val: Callable[[], float]) -> List[Case]:
     for label, bad in (("null", None), ("ERR", "ERR"), ("12abc", "12abc"), ("empty", "")):
         add(f"p-prime-{label}", {"p": val()})
         add(f"p-invalid-{label}", {"p": bad}, time_instant=False, writes=())
+    # The same unusable values WITH a device time: the Device may take the instant, but no DM
+    # may be touched or created (the case where a DM used to appear empty).
+    for label, bad in (("null", None), ("ERR", "ERR"), ("12abc", "12abc"), ("empty", "")):
+        add(f"p-prime-{label}-with-time", {"p": val()})
+        add(f"p-invalid-{label}-with-time", {"p": bad}, writes=(), device_may_change=True)
+    add("unknown-key-with-time", {"zz": val()}, writes=(), device_may_change=True)
     add("p-prime-zero", {"p": val()})
     add("p-invalid-zero", {"p": 0})
     add("p-prime-1e3", {"p": val()})
@@ -396,20 +405,30 @@ def await_outcome(read: Callable[[], Dict[str, str]], done: Callable[[Dict[str, 
 
 
 def hold(read: Callable[[], Dict[str, str]], wait: float, *, sleep: Callable[[float], None],
-         now: Callable[[], float], poll: float = 0.5) -> Dict[str, str]:
-    """Watch for a fixed time (a case that must change nothing) and return the last snapshot."""
-    start = now()
+         now: Callable[[], float], poll: float = 0.5, since_change: bool = False,
+         cap: float = CHANGE_TIMEOUT_S) -> Dict[str, str]:
+    """Watch for a fixed time and return the last snapshot. With `since_change` the time runs
+    from the last observed change (the Device may still be moving), at most `cap` more seconds."""
+    start = last_change = now()
+    prev: Optional[Dict[str, str]] = None
     while True:
         sleep(poll)
         cur = read()
-        if now() - start >= wait:
+        t = now()
+        if prev is not None and cur != prev:
+            last_change = t
+        prev = cur
+        if since_change:
+            if t - last_change >= wait or t - start >= wait + cap:
+                return cur
+        elif t - start >= wait:
             return cur
 
 
 def outcome_violations(case: Case, *, device_changed: bool, changed_names: Set[str],
                        existing_names: Set[str], expected_existing: Set[str]) -> List[str]:
     out = []
-    changed = device_changed or bool(changed_names)
+    changed = (device_changed and not case.device_may_change) or bool(changed_names)
     if case.must_change and not changed:
         out.append("expected a change, none observed")
     if not case.must_change and changed:
@@ -614,7 +633,8 @@ class Conformance:
             if latency is not None:
                 self.latencies.append(latency)
         else:
-            hold(read, self.quiet_wait, sleep=self.sleep, now=self.now)
+            hold(read, self.quiet_wait, sleep=self.sleep, now=self.now,
+                 since_change=case.device_may_change)
         device, dms = self.state()
         if device is None:
             raise Abort("the Device entity disappeared")
@@ -643,6 +663,7 @@ class Conformance:
         diffs = compare_dms(expected, [strip_sys(d) for d in dms], ctx)
         result = {
             "name": case.name, "sent": case.message, "must_change": case.must_change,
+            "device_may_change": case.device_may_change,
             "writes": sorted(case.writes), "latency": latency, "quiet_wait": None if case.must_change else self.quiet_wait,
             "diffs": group_diffs(diffs), "without_value": dms_without_value(dms),
             "outcome_violations": violations, "late_write": False,
@@ -657,7 +678,7 @@ class Conformance:
 
     def _print_case(self, r: Dict[str, Any]) -> None:
         wait = (f"latency={r['latency']:.1f}s" if r["latency"] is not None else "latency=NONE") if r["must_change"] \
-            else f"nothing may change; waited {r['quiet_wait']:.0f}s"
+            else f"{'no DM' if r['device_may_change'] else 'nothing'} may change; waited {r['quiet_wait']:.0f}s"
         self.say(f"== {r['name']}: sent={json.dumps(r['sent'])} {wait}")
         observed = [d for d in r["diffs"] if d["attr"] == "*"]
         if observed:

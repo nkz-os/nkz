@@ -285,9 +285,27 @@ def test_hold_waits_the_fixed_time_and_sees_a_late_change():
     assert clock.t == 10.0 and snap == {"a": "2"}
 
 
-def case(name="c", writes=(), must_change=None, message=None):
+def case(name="c", writes=(), must_change=None, message=None, device_may_change=False):
     return conf.Case(name, message or {"p": 1}, frozenset(writes),
-                     bool(writes) if must_change is None else must_change)
+                     bool(writes) if must_change is None else must_change, device_may_change)
+
+
+def test_device_may_change_but_no_dm_may():
+    ok = dict(device_changed=True, changed_names=set(), existing_names={"pressure"},
+              expected_existing={"pressure"})
+    free = case(device_may_change=True)
+    assert conf.outcome_violations(free, **ok) == []
+    assert conf.outcome_violations(free, **dict(ok, device_changed=False)) == []   # not required to change
+    assert conf.outcome_violations(free, **dict(ok, changed_names={"pressure"}))
+    assert conf.outcome_violations(free, **dict(ok, existing_names={"pressure", "status"}))
+    assert conf.outcome_violations(case(), **ok)   # without the allowance the Device must stay put
+
+
+def test_hold_since_change_waits_the_full_time_after_the_last_change():
+    clock = Clock()
+    reads = iter([{"a": "1"}, {"a": "2"}, {"a": "3"}] + [{"a": "3"}] * 100)
+    snap = conf.hold(lambda: next(reads), 4.0, sleep=clock.sleep, now=clock.now, since_change=True)
+    assert snap == {"a": "3"} and clock.t == 1.5 + 4.0
 
 
 def test_outcome_violations_are_exact():
@@ -365,6 +383,14 @@ def test_cases_use_distinct_values_and_cover_the_brief():
     assert by["p-invalid-1e3"].writes == {"pressure"}
     assert by["p-invalid-0x10"].writes == frozenset() and by["p-invalid-0x10"].must_change is True
     assert all(c.must_change for c in cases if c.writes)
+    for label in ("null", "ERR", "12abc", "empty"):
+        c = by[f"p-invalid-{label}-with-time"]
+        assert c.writes == frozenset() and c.must_change is False and c.device_may_change is True
+        assert c.has_time_instant and "TimeInstant" not in by[f"p-invalid-{label}"].message
+        assert cases[cases.index(c) - 1].name == f"p-prime-{label}-with-time"
+    unknown = by["unknown-key-with-time"]
+    assert unknown.has_time_instant and unknown.writes == frozenset() and unknown.device_may_change
+    assert not set(unknown.message) & set(conf.KEY_DM)
 
 
 # -- hash ---------------------------------------------------------------------------------
