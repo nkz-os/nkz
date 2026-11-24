@@ -442,11 +442,20 @@ async def _prepare_entity(
                     calibration_period_ids[var] = cal["id"]
 
     # --- Health check on extracted measurements ---
+    # The health configuration (and reliabilityStatus) of a DeviceMeasurement lives on its
+    # Device, not on the DM itself; its keys are the channel names used in `measurements`.
     quality_flag = "valid"
     health_flags: Dict[str, str] = {}
-    if _health_checker and tenant_id:
+    health_target: Optional[str] = entity_id
+    if entity_type == "DeviceMeasurement":
+        health_target = _ref_device_urn(entity)
+        if health_target is not None and not health_target.startswith("urn:"):
+            health_target = None
+        if health_target is None:
+            logger.debug(f"No usable refDevice on {entity_id}, health check skipped")
+    if _health_checker and tenant_id and health_target:
         health_config = await _health_checker.get_health_config(
-            entity_id, tenant_id
+            health_target, tenant_id
         )
         if health_config:
             worst_flag = "valid"
@@ -461,7 +470,7 @@ async def _prepare_entity(
             if quality_flag in ("out_of_bounds", "nan"):
                 status = "error" if quality_flag == "out_of_bounds" else "degraded"
                 await _health_checker.update_reliability_status(
-                    entity_id, tenant_id, status
+                    health_target, tenant_id, status
                 )
 
     # Check if should persist (throttle + delta)

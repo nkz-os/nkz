@@ -19,6 +19,11 @@ logger = logging.getLogger(__name__)
 
 CACHE_PREFIX = "sensor_calibration:"
 CACHE_TTL = 300  # 5 minutes
+# "No active period" is cached briefly: a new period is picked up within this time even
+# without an explicit invalidate_cache (which also clears these entries).
+NEGATIVE_CACHE_TTL = 60
+# Not valid JSON, so it can never be mistaken for a period.
+ABSENT_MARKER = "__absent__"
 
 
 class CalibrationService:
@@ -66,6 +71,8 @@ class CalibrationService:
         if self._redis:
             try:
                 cached = await self._redis.get(cache_key)
+                if cached == ABSENT_MARKER:
+                    return None
                 if cached:
                     return json.loads(cached)
             except Exception:
@@ -108,6 +115,12 @@ class CalibrationService:
                         except Exception:
                             pass
                     return result
+                # Definite empty result (the query succeeded): remember it briefly.
+                if self._redis:
+                    try:
+                        await self._redis.setex(cache_key, NEGATIVE_CACHE_TTL, ABSENT_MARKER)
+                    except Exception:
+                        pass
         except Exception as e:
             logger.error(f"Error querying calibration for {sensor_id}/{variable}: {e}")
 
