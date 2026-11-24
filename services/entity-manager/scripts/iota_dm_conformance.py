@@ -360,6 +360,16 @@ def group_diffs(diffs: Sequence[Diff]) -> List[Dict[str, Any]]:
     return out
 
 
+def broker_instant(instant: str) -> str:
+    """An instant in the notation the broker returns (milliseconds, `Z`): the same instant as
+    the message's, spelled the way a value read back from the broker is."""
+    parsed = _parse_instant(instant)
+    if parsed is None:
+        return instant
+    parsed = parsed.astimezone(timezone.utc)
+    return parsed.strftime("%Y-%m-%dT%H:%M:%S.") + f"{parsed.microsecond // 1000:03d}Z"
+
+
 def canonical_device(entity: Mapping[str, Any]) -> Dict[str, Any]:
     """The Device with one reading per canonical name, the canonical key winning (what
     `build_measurements` does); the broker may return a channel under its context alias."""
@@ -767,7 +777,9 @@ class Conformance:
             name = dm_id.rsplit(":", 1)[-1]
             if before_device.get(name) != entity.get(name):
                 self.expected[dm_id] = merge_expected(self.expected.get(dm_id), dm)
-        refused_ids = self._device_refused(case, status, device_changed, entity, built, dms, unchanged)
+        refused_ids, why_not = self._device_refused(case, status, device_changed, entity, dms, unchanged)
+        if why_not:
+            self.say(f"   [device-refused rejected] {why_not}")
         written_from = {**built, **refused_ids}
         for name in case.writes:   # the attributes this message was required to write
             for attr in written_from.get(self.prefix + name, {}):
@@ -796,41 +808,51 @@ class Conformance:
         return result
 
     def _device_refused(self, case: Case, status: int, device_changed: bool, entity: Dict[str, Any],
-                        built: Mapping[str, Mapping[str, Any]], dms: Sequence[dict],
-                        unchanged: FrozenSet[str]) -> Dict[str, Mapping[str, Any]]:
+                        dms: Sequence[dict], unchanged: FrozenSet[str]
+                        ) -> Tuple[Dict[str, Mapping[str, Any]], Optional[str]]:
         """The agent refused the Device (207, not written) but wrote the DM of the valid
         channels. Declared (an improvement: today the whole message is lost) only when the
         baseline showed the Device-only agent writing nothing and each such DM equals
         `build_measurements` over the last Device overlaid with the message's valid values and
-        its TimeInstant. Returns the expected-DM entities it adopted ({} when not declared)."""
+        its TimeInstant. Returns (the expected-DM entities it adopted, why it did not) where
+        the reason is None when the case is not a candidate at all."""
+        if status != 207 or device_changed or not case.writes:
+            return {}, None
         instant = case.message.get("TimeInstant")
-        if (status != 207 or device_changed or not case.writes or not instant or self.baseline is None
-                or self.baseline["device_written"] is not False):
-            return {}
+        if status not in case.ok_statuses:
+            return {}, f"status {status} is not an expected answer for this case"
+        if not instant:
+            return {}, "the message has no TimeInstant"
+        if self.baseline is None or self.baseline["device_written"] is not False:
+            return {}, "the baseline did not show the Device-only agent leaving the Device unwritten"
         channels = {c.name: c for c in self.channels}
         synthetic = dict(entity)
         for key, value in case.message.items():
             name = KEY_DM.get(key)
             if name is None or value in ("", None) or channels[name].expression:
                 continue
-            synthetic[name] = {"type": "Property", "value": value, "observedAt": instant}
+            synthetic[name] = {"type": "Property", "value": value, "observedAt": broker_instant(instant)}
         synth_built = {e["id"]: e for e in build_measurements(synthetic, LIVE_PROFILE)}
         actual = {d["id"]: strip_sys(d) for d in dms}
         candidates: Dict[str, Dict[str, Any]] = {}
         for name in case.writes:
             dm_id = self.prefix + name
-            if dm_id not in synth_built or dm_id not in actual or dm_id in unchanged:
-                return {}
+            if dm_id not in synth_built or dm_id not in actual:
+                return {}, f"{name}: no expected or no actual DM"
+            if dm_id in unchanged:
+                return {}, f"{name}: the DM was not written"
             candidates[dm_id] = merge_expected(self.expected.get(dm_id), synth_built[dm_id])
         ctx = Context(case.message, frozenset(self.server_stamped), keys_by_dm(self.channels),
                       frozenset(), device_changed,
                       {**self.last_write, **{(i, a): (instant, None)
                                              for i in candidates for a in synth_built[i]}})
         diffs = compare_dms(list(candidates.values()), [actual[i] for i in candidates], ctx)
-        if any(d.classification != "declared" for d in diffs):
-            return {}
+        for d in diffs:
+            if d.classification != "declared":
+                return {}, (f"{d.dm_id.rsplit(':', 1)[-1]}.{d.attr}.{d.aspect} expected="
+                            f"{json.dumps(d.expected)} actual={json.dumps(d.actual)}")
         self.expected.update(candidates)
-        return {i: synth_built[i] for i in candidates}
+        return {i: synth_built[i] for i in candidates}, None
 
     def finish(self) -> None:
         """After the last case: the state must still be the one that case left."""

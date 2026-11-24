@@ -39,6 +39,12 @@ def fake_headers(headers, tenant=None, body=None, has_context_in_body=False):
     return headers
 
 
+def orion_instant(text):
+    """The notation the broker returns: milliseconds, `Z`."""
+    dt = datetime.fromisoformat(text.replace("Z", "+00:00")).astimezone(timezone.utc)
+    return dt.strftime("%Y-%m-%dT%H:%M:%S.") + f"{dt.microsecond // 1000:03d}Z"
+
+
 class Resp:
     def __init__(self, status=200, body=None, headers=None):
         self.status_code, self._body, self.headers = status, body, headers or {}
@@ -166,7 +172,7 @@ class World:
     def _write_dms_only(self, dev_id, message):
         urn = self.agent[dev_id]["entity_name"]
         parts = urn.split(":")
-        at = message.get("TimeInstant") or datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        at = orion_instant(message.get("TimeInstant") or datetime.now(timezone.utc).isoformat())
         device = {k: v for k, v in self.entities[urn].items()}
         touched = set()
         for ch in conf.live_channels(parts[3], ":".join(parts[4:])):
@@ -191,7 +197,7 @@ class World:
         device = self.entities[urn]
         parts = urn.split(":")
         channels = conf.live_channels(parts[3], ":".join(parts[4:]))
-        at = message.get("TimeInstant") or datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        at = orion_instant(message.get("TimeInstant") or datetime.now(timezone.utc).isoformat())
         touched, dirty, override = set(), False, {}
         for ch in channels:
             if ch.key not in message:
@@ -642,3 +648,40 @@ def test_the_baseline_is_printed_again_in_the_summary():
     code, out = run(World())
     lines = [x for x in out if x.startswith("baseline device-only")]
     assert len(lines) == 2 and lines[0].split(":", 1)[1] == lines[1].split(":", 1)[1]
+
+
+def test_the_real_sequence_runtime_text_without_time_then_the_207_message_with_time():
+    # the series puts `runtime-text-without-time` (server-stamped) before the 207 message; the
+    # broker returns instants in millisecond notation, the message carries them without
+    code, out = run(_refuse_world(baseline_device_wrote=False))
+    names = [x for x in out if x.startswith("== ")]
+    assert names.index(next(x for x in names if x.startswith("== runtime-text-without-time"))) < \
+        names.index(next(x for x in names if x.startswith("== empty-with-valid-others")))
+    s = summary(out)
+    mixed = {c["name"]: c for c in s["cases"]}["empty-with-valid-others"]
+    assert code == 0, "\n".join(out)
+    assert [d["label"] for d in mixed["diffs"] if d["label"] == "device-refused"] == ["device-refused"] * 2
+    assert not [d for d in s["differences"] if d["classification"] == "UNDECLARED"]
+
+
+def test_a_rejected_device_refused_says_why():
+    code, out = run(_refuse_world(baseline_device_wrote=False, dm_value_shift=1))
+    why = [x for x in out if "device-refused rejected" in x]
+    assert code == 1 and len(why) == 1 and "numValue" in why[0] and "expected=" in why[0]
+    code, out = run(_refuse_world(baseline_device_wrote=True))
+    why = [x for x in out if "device-refused rejected" in x]
+    assert why and "baseline" in why[0]
+
+
+def test_device_refused_needs_the_status_to_be_expected_for_the_case(monkeypatch):
+    import dataclasses
+    real = conf.build_cases
+
+    def strict(ti, val):
+        return [dataclasses.replace(c, ok_statuses=frozenset({200})) if c.name == "empty-with-valid-others" else c
+                for c in real(ti, val)]
+
+    monkeypatch.setattr(conf, "build_cases", strict)
+    code, out = run(_refuse_world(baseline_device_wrote=False))
+    why = [x for x in out if "device-refused rejected" in x]
+    assert code == 1 and why and "status" in why[0]
