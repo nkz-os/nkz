@@ -713,3 +713,78 @@ def test_cli_deviations(tmp_path, capsys):
     assert "remove it" in capsys.readouterr().out
     (tmp_path / "deviations.json").unlink()
     assert checker.main(argv) == 3
+
+
+# ── upstream watch ───────────────────────────────────────────────────────────
+
+def upstream_served(served):
+    """What the default branch serves when nothing changed since the pinned commits."""
+    return {
+        url.replace("/" + "a" * 40 + "/", "/HEAD/").replace("/" + "b" * 40 + "/", "/HEAD/"): document
+        for url, document in served.items()
+        if url != CORE_URL
+    }
+
+
+def test_upstream_is_quiet_when_the_default_branch_still_serves_the_pinned_files():
+    pins, served = make_pins()
+    calls = []
+    assert checker.check_upstream(pins, downloader(upstream_served(served), calls)) == []
+    assert len(calls) == 3
+    assert all("/HEAD/" in url for url in calls)
+
+
+def test_upstream_reports_a_file_that_changed_with_where_to_look():
+    pins, served = make_pins()
+    current = upstream_served(served)
+    current["https://raw.githubusercontent.com/org/dataModel.Demo/HEAD/DemoThing/schema.json"] = {"changed": True}
+    findings = checker.check_upstream(pins, downloader(current))
+    assert len(findings) == 1
+    assert findings[0].startswith("schema:DemoThing: ")
+    assert "https://github.com/org/dataModel.Demo/compare/" + "a" * 40 + "...HEAD" in findings[0]
+
+
+def test_upstream_reports_a_file_that_is_gone():
+    import urllib.error
+
+    pins, served = make_pins()
+    current = upstream_served(served)
+
+    def download(url):
+        if url.endswith("/common-schema.json"):
+            raise urllib.error.HTTPError(url, 404, "Not Found", {}, None)
+        return json.dumps(current[url]).encode()
+
+    findings = checker.check_upstream(pins, download)
+    assert len(findings) == 1
+    assert findings[0].startswith(SHARED_URL + ": ")
+    assert "no longer" in findings[0]
+
+
+def test_upstream_does_not_take_a_failed_download_for_a_change():
+    pins, _ = make_pins()
+
+    def broken(url):
+        raise OSError("no network")
+
+    with pytest.raises(checker.PinError, match="could not fetch"):
+        checker.check_upstream(pins, broken)
+
+
+def test_cli_upstream(tmp_path, monkeypatch, capsys):
+    pins, served = make_pins()
+    (tmp_path / "pins.json").write_text(json.dumps(pins))
+    argv = ["upstream", "--pins", str(tmp_path / "pins.json")]
+    current = upstream_served(served)
+    monkeypatch.setattr(checker, "_download", downloader(current))
+    assert checker.main(argv) == 0
+    assert "3 pinned files" in capsys.readouterr().out
+    current["https://raw.githubusercontent.com/org/dataModel.Demo/HEAD/context.jsonld"] = {"@context": {}}
+    assert checker.main(argv) == 1
+    assert "::warning title=Smart Data Models upstream::context:Demo: " in capsys.readouterr().out
+
+    def broken(url):
+        raise OSError("no network")
+
+    monkeypatch.setattr(checker, "_download", broken)
+    assert checker.main(argv) == 3
