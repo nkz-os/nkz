@@ -18,7 +18,7 @@ import psycopg2
 from flask import Blueprint, request, jsonify
 
 from common.api_errors import internal_error
-from device_profile import entity_profile_code
+from device_profile import entity_profile_code, first_time
 from device_urn import external_id_of, is_device_type
 from nkz_platform_sdk.notify_auth import accept_master_from_env, verify_notification
 
@@ -120,6 +120,28 @@ def _first_present(entity: dict, *keys: str) -> Any:
     return next((_extract_prop(entity, key) for key in keys if key in entity), None)
 
 
+def _date_text(tenant_id: str, entity: dict, *keys: str) -> Optional[str]:
+    """The text of the first of `keys` the entity carries, a DateTime literal unwrapped.
+
+    Anything else cannot be bound to the timestamp column and would roll the whole batch back, so it
+    counts as undeclared, with one log per Device.
+    """
+    key = next((k for k in keys if k in entity), None)
+    value = _extract_prop(entity, key) if key else None
+    if value is None:
+        return None
+    if isinstance(value, dict) and value.get("@type") == "DateTime":
+        value = value.get("@value")
+    if isinstance(value, str):
+        return value
+    if first_time("date_not_text", tenant_id, entity.get("id")):
+        logger.warning(
+            "installation date ignored, its value is not text: tenant=%s entity_id=%s "
+            "attribute=%s type=%s", tenant_id, entity.get("id"), key, type(value).__name__,
+        )
+    return None
+
+
 def _registered_device(tenant_id: str, entity: dict) -> Optional[dict]:
     """Identity, profile, installation and state of a registered Device.
 
@@ -130,18 +152,23 @@ def _registered_device(tenant_id: str, entity: dict) -> Optional[dict]:
     external_id = (external_id_of(tenant_id, urn)
                    if isinstance(urn, str) and is_device_type(urn) else None)
     profile_code = entity_profile_code(tenant_id, entity) if external_id else None
+    if not external_id:
+        logger.debug("device notification ignored: tenant=%s entity_id=%s reason=%s",
+                     tenant_id, urn, "not the id of a registered device")
+        return None
     if not profile_code:
-        logger.debug(
-            "device notification ignored: tenant=%s entity_id=%s reason=%s",
-            tenant_id, urn,
-            "no profile" if external_id else "not the id of a registered device",
-        )
+        # Somebody registered this one: without a profile it silently stops being updated here.
+        if first_time("no_profile", tenant_id, urn):
+            logger.info("device notification ignored: tenant=%s entity_id=%s reason=%s",
+                        tenant_id, urn, "no profile")
         return None
     return {
         "external_id": external_id,
         "profile_code": profile_code,
-        "installed_at": (_first_present(entity, "dateInstalled", _DEVICE_IRI + "dateInstalled")
-                         or _extract_prop(entity, "installedAt")),
+        # ASSUMPTION: a `dateInstalled` that is not text gives way to `installedAt`, as an empty one
+        # does; NULL when neither is text.
+        "installed_at": (_date_text(tenant_id, entity, "dateInstalled", _DEVICE_IRI + "dateInstalled")
+                         or _date_text(tenant_id, entity, "installedAt")),
         # A profile may declare `status` as a reading (an inverter's code), so a Device that has
         # `deviceState` never takes its state from `status`, not even when `deviceState` is empty.
         "status": _first_present(entity, "deviceState", _DEVICE_IRI + "deviceState", "status"),

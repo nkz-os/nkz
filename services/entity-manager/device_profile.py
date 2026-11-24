@@ -31,21 +31,21 @@ def entity_profile_code(tenant: str, entity: Optional[Mapping]) -> Optional[str]
         return code
     entity_id = entity.get('id')
     codes = profile_codes(tenant, entity)
-    if codes.model_error and _first_time('model_ignored', tenant, entity_id):
+    if codes.model_error and first_time('model_ignored', tenant, entity_id):
         logger.warning("refDeviceModel ignored: tenant=%s entity_id=%s reason=%s",
                        tenant, entity_id, codes.model_error)
     if None not in (codes.model, codes.legacy) and codes.model != codes.legacy:
-        if _first_time('mismatch', tenant, entity_id):
+        if first_time('mismatch', tenant, entity_id):
             logger.warning("device_profile_code_mismatch: tenant=%s entity_id=%s "
                            "refDeviceModel=%s profileCode=%s",
                            tenant, entity_id, codes.model, codes.legacy)
-    elif source == 'legacy' and _first_time('fallback', tenant, entity_id):
+    elif source == 'legacy' and first_time('fallback', tenant, entity_id):
         logger.info("device_profile_code_fallback: tenant=%s entity_id=%s profile=%s",
                     tenant, entity_id, code)
     return code
 
 
-def _first_time(event: str, tenant: str, entity_id) -> bool:
+def first_time(event: str, tenant: str, entity_id) -> bool:
     """True the first time `event` happens to this entity, while it is remembered."""
     key = (event, tenant, str(entity_id))
     with _logged_lock:

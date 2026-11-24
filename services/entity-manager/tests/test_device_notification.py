@@ -133,6 +133,69 @@ def test_the_official_attributes_are_read_first(profile, attrs, expected):
     assert (row["installed_at"], row["status"]) == expected
 
 
+# ---- an installation date that is not text ---------------------------------------
+
+NOT_TEXT = [20260301, 0, 1.5, True, False, ["2026-03-01T08:00:00Z"], [], {}, {"@value": "2026-03-01T08:00:00Z"},
+            {"@type": "Time", "@value": "08:00:00"}, {"@type": "DateTime"},
+            {"@type": "DateTime", "@value": 20260301}, {"@type": "DateTime", "@value": None}]
+LITERAL = {"@type": "DateTime", "@value": "2026-03-01T08:00:00Z"}
+
+
+def _not_text(caplog):
+    return [r for r in caplog.records if r.getMessage().startswith("installation date ignored")]
+
+
+@pytest.mark.parametrize("key", ["dateInstalled", IRI + "dateInstalled", "installedAt"])
+@pytest.mark.parametrize("profile", [MODEL, LEGACY], ids=["model", "legacy"])
+@pytest.mark.parametrize("value", NOT_TEXT, ids=repr)
+def test_a_date_that_is_not_text_is_null_and_the_rest_of_the_batch_is_stored(value, profile, key, caplog):
+    device = _device(**profile, **{key: _prop(value)})
+    other = _device(f"urn:ngsi-ld:Device:{TENANT}:S2", **MODEL, **NEW)
+    with caplog.at_level(logging.DEBUG, logger="notification_handler"):
+        for _ in range(2):  # one log however many times it is notified
+            rows = _notify(device, other)
+            assert [(r["external_id"], r["installed_at"]) for r in rows] == [("S1", None), ("S2", NEW_ROW[0])]
+    (record,) = _not_text(caplog)
+    assert record.levelno == logging.WARNING
+    for part in (TENANT, URN, key):
+        assert part in record.getMessage()
+
+
+@pytest.mark.parametrize("key", ["dateInstalled", IRI + "dateInstalled", "installedAt"])
+def test_a_date_time_literal_is_unwrapped(key, caplog):
+    with caplog.at_level(logging.DEBUG, logger="notification_handler"):
+        row, = _notify(_device(**MODEL, **{key: _prop(LITERAL)}))
+    assert row["installed_at"] == "2026-03-01T08:00:00Z" and _not_text(caplog) == []
+
+
+def test_a_date_time_literal_wins_over_installed_at():
+    row, = _notify(_device(**MODEL, **OLD, dateInstalled=_prop(LITERAL)))
+    assert row["installed_at"] == "2026-03-01T08:00:00Z"
+
+
+@pytest.mark.parametrize("value", NOT_TEXT, ids=repr)
+def test_installed_at_is_used_when_date_installed_is_not_text(value):
+    """As when it is empty."""
+    row, = _notify(_device(**MODEL, **OLD, dateInstalled=_prop(value)))
+    assert row["installed_at"] == OLD_ROW[0]
+
+
+def test_two_dates_that_are_not_text_are_one_log_per_device(caplog):
+    other = f"urn:ngsi-ld:Device:{TENANT}:S2"
+    with caplog.at_level(logging.DEBUG, logger="notification_handler"):
+        rows = _notify(*(_device(urn, **MODEL, dateInstalled=_prop(1), installedAt=_prop(2))
+                         for urn in (URN, other)))
+    assert [r["installed_at"] for r in rows] == [None, None]
+    assert [urn in r.getMessage() for r, urn in zip(_not_text(caplog), (URN, other), strict=True)] == [True, True]
+
+
+@pytest.mark.parametrize("attrs", [{}, NEW, OLD, {"dateInstalled": _prop(None)}, {"dateInstalled": _prop("")}])
+def test_a_text_or_absent_date_logs_nothing(attrs, caplog):
+    with caplog.at_level(logging.DEBUG, logger="notification_handler"):
+        _notify(_device(**MODEL, **attrs))
+    assert _not_text(caplog) == []
+
+
 @pytest.mark.parametrize("state", [_prop("active"), _prop(None), _prop("")])
 @pytest.mark.parametrize("key", ["deviceState", IRI + "deviceState"])
 def test_a_status_reading_is_never_the_state_of_a_device_with_device_state(key, state):
@@ -172,20 +235,46 @@ FOREIGN = {
     "bad-external-id": _device(f"urn:ngsi-ld:Device:{TENANT}:S 1", **BOTH),
     "long-external-id": _device(f"urn:ngsi-ld:Device:{TENANT}:{'x' * 65}", **BOTH),
     "machine-id": _device(f"urn:ngsi-ld:ManufacturingMachine:{TENANT}:S1", **BOTH),
+    "no-id-no-profile": {k: v for k, v in _device().items() if k != "id"},
+    "other-id-no-profile": _device("urn:ngsi-ld:Device:twin-1"),
     "no-id": {k: v for k, v in _device(**BOTH).items() if k != "id"},
     "id-not-text": _device(["urn"], **BOTH),
 }
 
+# The id is the one registration writes, so somebody expects to see this Device: not a foreign twin.
+UNPROFILED = ("no-profile", "model-of-another-tenant", "malformed-model")
 
-@pytest.mark.parametrize("entity", FOREIGN.values(), ids=FOREIGN.keys())
-def test_foreign_twin_is_still_ignored(entity, caplog):
+
+@pytest.mark.parametrize("name,entity", FOREIGN.items(), ids=FOREIGN.keys())
+def test_foreign_twin_is_still_ignored(name, entity, caplog):
     registered = _device(f"urn:ngsi-ld:Device:{TENANT}:S2", **MODEL)
     with caplog.at_level(logging.DEBUG, logger="notification_handler"):
         rows = _notify(entity, registered)
     assert [r["external_id"] for r in rows] == ["S2"]  # the rest of the batch is stored
     ignored, = [r for r in caplog.records if r.getMessage().startswith("device notification ignored")]
-    assert ignored.levelno == logging.DEBUG
+    assert ignored.levelno == (logging.INFO if name in UNPROFILED else logging.DEBUG)
     assert TENANT in ignored.getMessage() and str(entity.get("id")) in ignored.getMessage()
+
+
+def _ignored(caplog):
+    return [(r.levelno, r.args[:2]) for r in caplog.records
+            if r.getMessage().startswith("device notification ignored")]
+
+
+@pytest.mark.parametrize("name", UNPROFILED)
+def test_a_registered_id_without_a_usable_profile_is_one_info_per_device(name, caplog):
+    other = f"urn:ngsi-ld:Device:{TENANT}:S2"
+    with caplog.at_level(logging.DEBUG, logger="notification_handler"):
+        for _ in range(3):
+            assert _notify(FOREIGN[name], {**FOREIGN[name], "id": other}) == []
+    assert _ignored(caplog) == [(logging.INFO, (TENANT, URN)), (logging.INFO, (TENANT, other))]
+
+
+def test_an_id_that_is_not_a_registered_one_is_debug_every_time(caplog):
+    with caplog.at_level(logging.DEBUG, logger="notification_handler"):
+        for _ in range(3):
+            assert _notify(FOREIGN["other-id-shape"]) == []
+    assert _ignored(caplog) == [(logging.DEBUG, (TENANT, "urn:ngsi-ld:Device:twin-1"))] * 3
 
 
 @pytest.mark.parametrize("name", [None, _prop(""), _prop(None)])
@@ -207,6 +296,12 @@ def test_an_agrisensor_is_read_as_always():
     row, = _notify(_device("urn:ngsi-ld:AgriSensor:anything", "AgriSensor", **BOTH, **OLD, **NEW))
     assert row["external_id"] == "S1" and row["profile_id"] == "id-of-legacy-code"
     assert (row["installed_at"], row["status"]) == OLD_ROW
+
+
+@pytest.mark.parametrize("value", [5, LITERAL], ids=["number", "literal"])
+def test_the_date_of_an_agrisensor_is_passed_on_as_always(value):
+    row, = _notify(_device("urn:ngsi-ld:AgriSensor:x", "AgriSensor", **LEGACY, installedAt=_prop(value)))
+    assert row["installed_at"] == value
 
 
 def test_an_agrisensor_needs_an_external_id_and_no_profile():
