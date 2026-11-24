@@ -63,7 +63,19 @@ def _check_key(channel: Channel) -> None:
             f"Channel {channel.name!r}: a scaling expression is only supported on numeric channels")
 
 
-def _channel_mappings(channel: Channel, device_urn: str) -> List[Dict[str, Any]]:
+def _raw_condition(channel: Channel) -> str:
+    """The condition on the channel's raw key (the scaling term included)."""
+    expr = channel.expression
+    if channel.kind == "number":
+        return _num(channel.key) + (f" && ((({expr})|parsefloat) != null)" if expr else "")
+    if channel.kind == "text":
+        return f"{channel.key} != null"
+    return _either(channel.key)
+
+
+def _channel_mappings(channel: Channel, device_urn: str,
+                      time_condition: Optional[str]) -> List[Dict[str, Any]]:
+    """`time_condition` None: no time mappings (another channel of the entity emits them)."""
     _check_key(channel)
     key, expr = channel.key, channel.expression
     ent = {"entity_name": channel.dm_id, "entity_type": "DeviceMeasurement"}
@@ -98,12 +110,13 @@ def _channel_mappings(channel: Channel, device_urn: str) -> List[Dict[str, Any]]
         # unitCode belongs to numValue only (first mapping of number and runtime channels).
         out[0]["metadata"] = {"unitCode": {"type": "Text", "value": channel.unit_code}}
 
-    raw = cond(key)
-    out.append(mapping("TimeInstant", "TimeInstant", "DateTime", f"{raw} ? TimeInstant : null"))
-    out.append(mapping("TimeInstant", "dateObserved", "DateTime",
-                       f"{raw} ? (dateObserved ? dateObserved : (0|now|toisodate)) : null"))
-    out.append(mapping("TimeInstant", "timeSource", "Text",
-                       f"{raw} ? (timeSource ? 'device' : 'server') : null"))
+    if time_condition is not None:
+        raw = time_condition
+        out.append(mapping("TimeInstant", "TimeInstant", "DateTime", f"{raw} ? TimeInstant : null"))
+        out.append(mapping("TimeInstant", "dateObserved", "DateTime",
+                           f"{raw} ? (dateObserved ? dateObserved : (0|now|toisodate)) : null"))
+        out.append(mapping("TimeInstant", "timeSource", "Text",
+                           f"{raw} ? (timeSource ? 'device' : 'server') : null"))
     out.append(mapping(key, "refDevice", "Relationship", f"{cond('refDevice')} ? {_lit(device_urn)} : null"))
     for name, value in channel.fixed.items():
         if value is None:
@@ -113,10 +126,29 @@ def _channel_mappings(channel: Channel, device_urn: str) -> List[Dict[str, Any]]
 
 
 def dm_mappings(channels: Sequence[Channel], *, device_urn: str) -> List[Dict[str, Any]]:
-    """One full mapping set per channel, in the given order (canonical last per entity)."""
+    """Mappings per channel, in the given order (canonical last per entity).
+
+    Value, `refDevice` and fixed mappings are per incoming key. The three time mappings are
+    emitted ONCE per entity, in the place of its last channel, conditioned on the OR of its
+    channels' raw-key conditions: two `TimeInstant` mappings of one entity, the first null and
+    the second not, make the agent stamp the attributes with the server time.
+    """
+    groups: Dict[str, List[Channel]] = {}
+    for channel in channels:
+        groups.setdefault(channel.dm_id, []).append(channel)
+    last = {dm_id: members[-1] for dm_id, members in groups.items()}
     out: List[Dict[str, Any]] = []
     for channel in channels:
-        out.extend(_channel_mappings(channel, device_urn))
+        time_condition: Optional[str] = None
+        if channel is last[channel.dm_id]:
+            members = groups[channel.dm_id]
+            for member in members:
+                _check_key(member)
+            if len(members) == 1:
+                time_condition = _raw_condition(channel)
+            else:
+                time_condition = "(" + " || ".join(f"({_raw_condition(m)})" for m in members) + ")"
+        out.extend(_channel_mappings(channel, device_urn, time_condition))
     return out
 
 

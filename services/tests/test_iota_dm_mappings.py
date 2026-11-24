@@ -159,12 +159,63 @@ def test_literals_are_escaped():
         " && (refDevice|parsefloat) > -1000000000000000) ? 'urn:x\\'y' : null")
 
 
-def test_alias_and_canonical_one_set_per_key_canonical_last():
+def _g(n):
+    return (f"({n} != null && ({n}|parsefloat) == {n} && ({n}|parsefloat) < 1000000000000000"
+            f" && ({n}|parsefloat) > -1000000000000000)")
+
+
+def test_alias_and_canonical_share_one_time_set():
     maps = dm_mappings([ch(key="alias"), ch(key="temperature")], device_urn=URN)
-    nums = [m for m in maps if m["name"] == "numValue"]
-    assert [m["object_id"] for m in nums] == ["alias", "temperature"]
-    assert maps[-1]["object_id"] == "temperature"
-    assert len(maps) == 14
+    assert [(m["object_id"], m["name"]) for m in maps] == [
+        ("alias", "numValue"), ("alias", "refDevice"), ("alias", "controlledProperty"),
+        ("alias", "measurementType"),
+        ("temperature", "numValue"), ("TimeInstant", "TimeInstant"), ("TimeInstant", "dateObserved"),
+        ("TimeInstant", "timeSource"), ("temperature", "refDevice"),
+        ("temperature", "controlledProperty"), ("temperature", "measurementType"),
+    ]
+    cond = (
+        "(((alias != null && (alias|parsefloat) == alias && (alias|parsefloat) < 1000000000000000"
+        " && (alias|parsefloat) > -1000000000000000)) || "
+        "((temperature != null && (temperature|parsefloat) == temperature"
+        " && (temperature|parsefloat) < 1000000000000000"
+        " && (temperature|parsefloat) > -1000000000000000)))")
+    exprs = {m["name"]: m["expression"] for m in maps if m["object_id"] == "TimeInstant"}
+    assert exprs == {
+        "TimeInstant": cond + " ? TimeInstant : null",
+        "dateObserved": cond + " ? (dateObserved ? dateObserved : (0|now|toisodate)) : null",
+        "timeSource": cond + " ? (timeSource ? 'device' : 'server') : null",
+    }
+
+
+def test_shared_time_set_scaling_term_stays_on_its_own_side():
+    maps = dm_mappings([ch(key="alias", expression="alias * 10"), ch(key="temperature")], device_urn=URN)
+    t = [m for m in maps if m["name"] == "TimeInstant"]
+    assert len(t) == 1
+    assert t[0]["expression"] == (
+        "(((alias != null && (alias|parsefloat) == alias && (alias|parsefloat) < 1000000000000000"
+        " && (alias|parsefloat) > -1000000000000000) && (((alias * 10)|parsefloat) != null)) || "
+        "((temperature != null && (temperature|parsefloat) == temperature"
+        " && (temperature|parsefloat) < 1000000000000000"
+        " && (temperature|parsefloat) > -1000000000000000))) ? TimeInstant : null")
+
+
+def test_three_channels_on_one_dm_id_and_mixed_kinds():
+    maps = dm_mappings([ch(key="a"), ch(key="b", kind="text", unit=None), ch(key="c")], device_urn=URN)
+    for name in ("TimeInstant", "dateObserved", "timeSource"):
+        assert len([m for m in maps if m["name"] == name]) == 1
+    t = by_name(maps)["timeSource"]["expression"]
+    assert t == (
+        "(((a != null && (a|parsefloat) == a && (a|parsefloat) < 1000000000000000"
+        " && (a|parsefloat) > -1000000000000000)) || (b != null) || "
+        "((c != null && (c|parsefloat) == c && (c|parsefloat) < 1000000000000000"
+        " && (c|parsefloat) > -1000000000000000))) ? (timeSource ? 'device' : 'server') : null")
+    assert [m["object_id"] for m in maps if m["name"] == "refDevice"] == ["a", "b", "c"]
+
+
+def test_distinct_dm_ids_keep_their_own_time_sets():
+    other = ch(key="h1", dm_id=DM + "2", name="humidity")
+    maps = dm_mappings([ch(), other], device_urn=URN)
+    assert len([m for m in maps if m["name"] == "TimeInstant"]) == 2
 
 
 @pytest.mark.parametrize("key", ["r-3", "name", "TimeInstant", "numValue", "1a", "", "a b", "t1\n", "a\n"])
