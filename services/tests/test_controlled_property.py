@@ -1,3 +1,4 @@
+import json
 import re
 from pathlib import Path
 
@@ -123,3 +124,12 @@ def test_soil_salinity_and_drain_flow_map_to_broader_values():
     assert cp.controlled_properties([{"sdmAttribute": "drainFlow"}]) == ["waterFlow"]
     assert cp.MAPPING["soilSalinity"].kind == "broader"
     assert cp.MAPPING["drainFlow"].kind == "broader"
+
+
+def test_the_recorded_gap_lists_the_names_without_an_official_value():
+    """`config/sdm/pins.json` records them; whoever changes the table changes the list."""
+    pins = json.loads((ROOT / "config" / "sdm" / "pins.json").read_text(encoding="utf-8"))
+    gap = pins["gaps"]["ControlledPropertyType"]
+    without_value = sorted(name for name, row in cp.MAPPING.items() if row.kind == "none")
+    assert gap["values_missing_from_published_enum"] == without_value
+    assert gap["note"]

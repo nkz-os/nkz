@@ -869,15 +869,11 @@ def test_device_example():
     _assert_example("Device.json", entity)
 
 
-# Official terms of Device that another change adds to the platform context.
-ARRIVING_TERMS = {"refDeviceModel", "dateInstalled", "deviceCategory"}
-
-
 def test_device_example_has_no_other_attribute_outside_the_platform_context():
     with open(os.path.join(_CONFIG, "ngsi-ld-context.json"), encoding="utf-8") as handle:
         contexts = json.load(handle)["@context"]
     terms = {term for part in contexts if isinstance(part, dict) for term in part}
     with open(os.path.join(_EXAMPLES_DIR, "Device.json"), encoding="utf-8") as handle:
         attributes = set(json.load(handle)) - {"id", "type"}
-    assert ARRIVING_TERMS <= attributes
-    assert attributes - terms - ARRIVING_TERMS == {"externalId", "profileCode", "installedAt"}
+    assert {"refDeviceModel", "dateInstalled", "deviceCategory"} <= attributes
+    assert attributes - terms == {"externalId", "profileCode", "installedAt"}
