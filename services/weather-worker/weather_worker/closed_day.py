@@ -60,9 +60,10 @@ from common.ngsi_headers import inject_fiware_headers
 
 logger = logging.getLogger(__name__)
 
-# Orion throttles a subscription (not an entity): two writes to any WeatherObserved
-# closer than the subscription's throttling window lose a notification. The
-# telemetry subscription for WeatherObserved uses 1 s; keep a margin.
+# Orion throttles a subscription (not an entity), so two writes to any WeatherObserved
+# closer than a subscription's throttling window lose a notification. The telemetry
+# subscription for WeatherObserved no longer throttles; the pacing is kept as a margin
+# for any other subscription on the type.
 MIN_WRITE_INTERVAL_S = 1.5
 
 DAY_CLOSE_TIME = "23:59:59Z"

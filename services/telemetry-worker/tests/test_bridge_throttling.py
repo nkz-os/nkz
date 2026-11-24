@@ -27,9 +27,22 @@ def test_device_measurement_body_has_no_throttling():
     assert "throttling" not in sm._subscription_body(_sub("DeviceMeasurement"), "tenant-a")
 
 
-def test_other_subscriptions_keep_their_throttling():
+def test_agriparcel_and_vegetationindex_keep_their_throttling():
     assert _sub("AgriParcel")["throttling"] == 30
     assert _sub("VegetationIndex")["throttling"] == 5
+
+
+HISTORY_TYPES = [
+    "CropHealthAssessment", "AgriParcelRecord", "AgriSoil",
+    "WeatherObserved", "WeatherForecast", "WeatherAlert",
+]
+
+
+def test_history_subscriptions_have_no_throttling():
+    for entity_type in HISTORY_TYPES:
+        sub = _sub(entity_type)
+        assert "throttling" not in sub, entity_type
+        assert "throttling" not in sm._subscription_body(sub, "tenant-a"), entity_type
 
 
 def test_zone_subscription_shape_and_no_throttling():

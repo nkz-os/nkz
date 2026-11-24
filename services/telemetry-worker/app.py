@@ -22,7 +22,10 @@ from telemetry_worker.notification_handler import (
 from telemetry_worker.profiles import ProfileService
 from telemetry_worker.recompute import RecomputeLoop, recompute_interval_from_env
 from telemetry_worker.routers import health
-from telemetry_worker.subscription_manager import ensure_subscriptions_for_all_tenants
+from telemetry_worker.subscription_manager import (
+    ensure_subscriptions_for_all_tenants,
+    run_periodic_reconcile,
+)
 
 # Configure Logging
 logging.basicConfig(
@@ -134,19 +137,11 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.warning(f"Auto-subscription failed (non-fatal): {e}")
 
-    # Periodic subscription self-healing (every 60 minutes)
-    async def _periodic_subscription_check():
-        while True:
-            await asyncio.sleep(3600)
-            try:
-                await asyncio.get_event_loop().run_in_executor(
-                    None, ensure_subscriptions_for_all_tenants
-                )
-                logger.info("Periodic subscription check completed")
-            except Exception as e:
-                logger.warning(f"Periodic subscription check failed: {e}")
-
-    periodic_task = asyncio.create_task(_periodic_subscription_check())
+    # Periodic subscription self-healing: an extra pass 240 s after start (retires
+    # replaced subscriptions within minutes), then every 60 minutes.
+    periodic_task = asyncio.create_task(
+        run_periodic_reconcile(ensure_subscriptions_for_all_tenants)
+    )
 
     # The geometry subscription only fires on a create or a location change, so
     # features that already exist are backfilled here, in the background: readiness
@@ -173,6 +168,10 @@ async def lifespan(app: FastAPI):
 
     # Cancel periodic task and close pool
     periodic_task.cancel()
+    try:
+        await periodic_task
+    except asyncio.CancelledError:
+        pass
     backfill_task.cancel()
     try:
         await backfill_task
