@@ -146,7 +146,7 @@ def test_channels_by_name_last_in_profile_order_and_lazy_units():
     kw = {**KW, "shape": "legacy"}
     got = channels_by_name(ms, names={CANON}, **kw)
     assert set(got) == {CANON}
-    assert got[CANON].key == "a"  # last definition in profile order, as the EM always did
+    assert got[CANON].unit_code == "P1"  # last definition in profile order, as the EM always did
     with pytest.raises(ValueError):
         channels_by_name(ms, names=None, **kw)
 
