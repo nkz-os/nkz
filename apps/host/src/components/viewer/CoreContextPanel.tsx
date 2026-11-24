@@ -12,6 +12,7 @@ import { moduleLabel } from '@/utils/moduleI18n';
 import { ParcelDetailsPanel } from '@/components/parcels/ParcelDetailsPanel';
 import { TimelineView } from '@/components/Timeline/TimelineView';
 import { useTelemetry } from '@/hooks/useTelemetry';
+import { controlledPropertyText, readEntityStatus } from '@/types/assets';
 import { Button } from '@nekazari/ui-kit';
 import {
 
@@ -83,7 +84,7 @@ const SensorDetailsPanel: React.FC<{ entityData: any }> = ({ entityData }) => {
     }, [entityData]);
 
     // Extract sensor specific info
-    const sensorType = entityData.controlledProperty?.value ||
+    const sensorType = controlledPropertyText(entityData) ||
         (entityData['https://smartdatamodels.org/name']?.value ? t('viewer.sensor.iot_sensor') : t('viewer.sensor.generic_sensor'));
 
     const sensorName = entityData.name?.value ||
@@ -323,7 +324,7 @@ const CoreContextPanel: React.FC<CoreContextPanelProps> = ({ entityData }) => {
     // Get entity status
     const getEntityStatus = () => {
         if (!entityData) return null;
-        return entityData.status?.value || entityData.status;
+        return readEntityStatus(entityData);
     };
 
     // Format attribute value for display

@@ -48,6 +48,15 @@ interface SensorEntity {
   [key: string]: any;
 }
 
+/** Structural and registration attributes that are not measurements. */
+export const SKIP_KEYS = new Set([
+  'id', 'type', '@context', 'name', 'description', 'location', 'batteryLevel',
+  'observedAt', 'dateCreated', 'dateModified', 'refDeviceModel', 'refDeviceProfile',
+  'owner', 'source', 'dataProvider', 'seeAlso', 'controlledProperty',
+  'deviceState', 'dateInstalled', 'deviceCategory', 'category',
+  'profileCode', 'sensorType', 'externalId', 'installedAt',
+]);
+
 export const Sensors: React.FC = () => {
   const navigate = useNavigate();
   const { t, language } = useI18n();
@@ -163,13 +172,7 @@ export const Sensors: React.FC = () => {
     return counts;
   }, [sensors]);
 
-  // Extract dynamic measurement attributes (skip structural NGSI-LD fields)
-  const SKIP_KEYS = new Set([
-    'id', 'type', '@context', 'name', 'description', 'location', 'batteryLevel',
-    'observedAt', 'dateCreated', 'dateModified', 'refDeviceModel', 'refDeviceProfile',
-    'owner', 'source', 'dataProvider', 'seeAlso', 'controlledProperty',
-  ]);
-
+  // Extract dynamic measurement attributes (skip structural NGSI-LD fields; see SKIP_KEYS)
   const getDynamicAttrs = (sensor: SensorEntity): { key: string; value: any; observedAt?: string }[] => {
     const attrs: { key: string; value: any; observedAt?: string }[] = [];
     for (const [key, val] of Object.entries(sensor)) {

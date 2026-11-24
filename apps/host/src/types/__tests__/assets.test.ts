@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import i18n from 'i18next';
 import { beforeAll, describe, expect, it } from 'vitest';
-import { normalizeToAsset } from '../assets';
+import { controlledPropertyText, normalizeToAsset, readEntityStatus } from '../assets';
 
 // Fallback names use the type label of the active language.
 beforeAll(async () => {
@@ -81,5 +81,44 @@ describe('normalizeToAsset land entities', () => {
   it('keeps a real name', () => {
     expect(normalizeToAsset({ id: 'urn:ngsi-ld:AgriParcelZone:z', type: 'AgriParcelZone', name: 'North quadrant' }).name)
       .toBe('North quadrant');
+  });
+});
+
+describe('Device status', () => {
+  const device = (attrs: Record<string, unknown>) => ({ id: 'urn:ngsi-ld:Device:acme:d1', type: 'Device', ...attrs });
+
+  it('prefers deviceState over status for a Device', () => {
+    const asset = normalizeToAsset(device({ deviceState: { type: 'Property', value: 'active' }, status: 'error' }));
+    expect(asset.status).toBe('active');
+    expect(asset.statusLabel).toBe('active');
+  });
+
+  it('falls back to status, or to deviceState alone', () => {
+    expect(normalizeToAsset(device({ status: { type: 'Property', value: 'offline' } })).status).toBe('inactive');
+    expect(normalizeToAsset(device({ deviceState: 'maintenance' })).status).toBe('maintenance');
+  });
+
+  it('ignores deviceState on other types', () => {
+    const asset = normalizeToAsset({ id: 'urn:ngsi-ld:Other:x', type: 'AgriSensor', deviceState: 'active', status: 'error' });
+    expect(asset.status).toBe('error');
+    expect(readEntityStatus({ type: 'AgriSensor', deviceState: 'active' })).toBeNull();
+  });
+
+  it('treats a non-string status as unknown without throwing', () => {
+    const asset = normalizeToAsset(device({ status: { type: 'Property', value: { a: 1 } } }));
+    expect(asset.status).toBe('unknown');
+    expect(asset.statusLabel).toBe('Desconocido');
+    expect(normalizeToAsset(device({ deviceState: 5, status: 'working' })).status).toBe('active');
+  });
+});
+
+describe('controlledPropertyText', () => {
+  it('joins an array, keeps a string, and is null when empty or missing', () => {
+    expect(controlledPropertyText({ controlledProperty: { type: 'Property', value: ['humidity', 'temperature'] } })).toBe('humidity, temperature');
+    expect(controlledPropertyText({ controlledProperty: ['humidity', 'temperature'] })).toBe('humidity, temperature');
+    expect(controlledPropertyText({ controlledProperty: 'humidity' })).toBe('humidity');
+    expect(controlledPropertyText({ controlledProperty: { value: 'humidity' } })).toBe('humidity');
+    expect(controlledPropertyText({ controlledProperty: [] })).toBeNull();
+    expect(controlledPropertyText({})).toBeNull();
   });
 });
