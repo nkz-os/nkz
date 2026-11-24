@@ -17,6 +17,12 @@ _SVC_DIR = os.path.normpath(os.path.join(_TEST_DIR, ".."))
 if _SVC_DIR not in sys.path:
     sys.path.insert(0, _SVC_DIR)
 
+import tests.telemetry_fakes  # noqa: E402,F401,I001  (stubs first)
+from tests.real_common import seed_real_common  # noqa: E402
+
+# The stub of `common` is not a package: the module is found only if it is already loaded.
+seed_real_common(("subscription_health",))
+
 import subscription_manager as sm  # noqa: E402
 
 CONTEXT_FILE = os.path.normpath(os.path.join(_SVC_DIR, "..", "..", "config", "ngsi-ld-context.json"))

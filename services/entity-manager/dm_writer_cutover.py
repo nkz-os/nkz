@@ -84,6 +84,8 @@ PAGE = 1000
 DEFAULT_SETTLE = 60.0
 # Moving devices to the IoT Agent is disabled: a profile change while a device moves can still
 # leave the wrong mappings on it. Only a code change turns this on (no flag, no environment).
+# That window grew with the DeviceModel: between the IoT Agent push and the Device write, a profile
+# change of a Device now sends up to three requests (model upsert, model attribute delete, the write).
 MOVE_TO_IOTA_ENABLED = False
 _sleep = time.sleep
 SYSTEM_KEYS = frozenset({"id", "type", "@context", "createdAt", "modifiedAt"})

@@ -237,6 +237,9 @@ def _handle_device_measurement_notification(tenant_id: str, entity: dict) -> boo
     from device_profile import entity_profile_code
 
     entity_id = entity.get('id', '')
+    # ASSUMPTION: the tenant of the notification header here and the tenant of the entity id in
+    # build_measurements are the same one, because registration never gives an id of another tenant.
+    # If they differed, a refDeviceModel of the id's tenant would be foreign here and count only there.
     profile_code = entity_profile_code(tenant_id, entity)
     if not profile_code:
         logger.debug('No profile code on %s, skipping measurement build', entity_id)
