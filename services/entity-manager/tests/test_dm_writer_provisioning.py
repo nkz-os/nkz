@@ -457,4 +457,10 @@ def test_attribute_builders_and_pushes_are_called_only_in_the_helpers():
         # the cutover command: first push of a move to iota, and the restore (other half of
         # push_iota_attributes, see its module docstring)
         ("dm_writer_cutover.py", "update_device_attributes", "_put"),
+        # the live conformance script puts the mappings on its own temporary device
+        ("iota_dm_conformance.py", "device_attributes", "import"),
+        ("iota_dm_conformance.py", "device_attributes", "provision"),
+        ("iota_dm_conformance.py", "device_attributes", "provision"),
+        ("iota_dm_conformance.py", "update_device_attributes", "import"),
+        ("iota_dm_conformance.py", "update_device_attributes", "provision"),
     ], seen
