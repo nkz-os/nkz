@@ -31,6 +31,13 @@ COPY services/task-queue /app/task-queue
 
 # Copiar código del servicio
 COPY services/entity-manager /app
+
+# The Smart Data Models conformance checker and the two files its broker mode
+# reads, laid out as in the repository so its default paths hold when it runs
+# from /app/sdm-conformance. Used by a scheduled check, never by the service.
+COPY .github/scripts/check_sdm_conformance.py /app/sdm-conformance/.github/scripts/check_sdm_conformance.py
+COPY config/sdm/pins.json /app/sdm-conformance/config/sdm/pins.json
+COPY config/ngsi-ld-context.json /app/sdm-conformance/config/ngsi-ld-context.json
 # Limpiar archivos compilados de Python para evitar usar código antiguo
 RUN find /app -type d -name __pycache__ -exec rm -r {} + 2>/dev/null || true && \
     find /app -name "*.pyc" -delete 2>/dev/null || true && \

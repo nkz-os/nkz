@@ -44,6 +44,18 @@ an official model changed since its pin, not that anything here broke: read the 
 to, then move the pin (a new official attribute may replace one of the platform's own terms). A
 failed run with an internal error means the official repositories could not be read; run it again.
 
+`broker` runs the same validation over everything one tenant holds in a context broker, reading
+only. Each finding is reduced to a signature (type, kind, place and rule) and compared with a
+baseline file given with `--baseline`: a signature the baseline lacks fails the run, and a baseline
+line that no longer occurs is reported so the file can lose it. A broker may store a one-element
+array as its element; in JSON-LD the two are the same value, so this mode validates such a value as
+the array and lists it apart (`SINGLE`), never as a failure. The examples are still checked
+strictly: they are what the platform sends. `--print-signatures` prints the
+current signatures, to write a first baseline. The entity-manager image carries the checker under
+`/app/sdm-conformance`, so a scheduled job can run it next to the broker. Like every other
+subcommand it downloads the pinned official files on each run: the job needs outbound HTTPS and a
+writable `--cache`; without them it ends as an internal error, never as a clean run.
+
 ## Modules
 
 A module repository that calls the shared workflow `_public-repo-hygiene.yml` gets the same
