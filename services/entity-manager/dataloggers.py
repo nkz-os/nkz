@@ -733,12 +733,21 @@ def change_device_profile(tenant: str, urn: str, code: str) -> None:
         raise failure
 
 
+def entity_profile_code(entity: Optional[dict]):
+    """The profile a device is on: its Orion `profileCode`, the attribute `change_device_profile`
+    writes."""
+    return _prop(entity, 'profileCode')
+
+
+def is_on_profile(entity: Optional[dict], code: str) -> bool:
+    """The one rule for "this device is on that profile" when a profile is edited."""
+    return entity_profile_code(entity) == code
+
+
 def links_on_profile(tenant: str, code: str) -> list:
     """The datalogger link rows of the tenant's devices on a profile.
 
-    Source of truth for "device is on this profile": the Orion `profileCode` of the
-    tenant's linked devices (the attribute `change_device_profile` writes), restricted to
-    devices with a datalogger link (those are the ones that own an IoT Agent device).
+    Only devices with a datalogger link: those are the ones that own an IoT Agent device.
     """
     with get_db_connection_with_tenant(tenant) as conn:
         cur = conn.cursor(cursor_factory=RealDictCursor)
@@ -748,7 +757,7 @@ def links_on_profile(tenant: str, code: str) -> list:
     if not links:
         return []
     entities = _orion_devices(tenant, [d['device_urn'] for d in links])
-    return [d for d in links if _prop(entities.get(d['device_urn']), 'profileCode') == code]
+    return [d for d in links if is_on_profile(entities.get(d['device_urn']), code)]
 
 
 def reprovision_profile_devices(tenant: str, code: str, measurements: list) -> dict:

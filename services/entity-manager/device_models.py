@@ -249,10 +249,17 @@ def refresh_profile(tenant: str, profile: Mapping) -> dict:
 
 
 def _refresh_device(tenant: str, urn: str, profile: Mapping, model_exists: bool) -> Optional[str]:
-    """'refreshed', 'skipped', or None when the Device already has everything."""
+    """'refreshed', 'skipped', or None when there is nothing to write: the Device already has
+    everything, or it left the profile."""
     entity = _read_entity(tenant, urn)
     if entity is None:
         raise ApiError(404, 'Device not found')
+    if not dataloggers.is_on_profile(entity, profile.get('code')):
+        # It moved after the listing: another profile's attributes would be untrue on it.
+        logger.warning("device not refreshed, it left the profile: tenant=%s device=%s "
+                       "expected=%r found=%r", tenant, urn, profile.get('code'),
+                       dataloggers.entity_profile_code(entity))
+        return None
     changed, stale = profile_attr_changes(tenant, profile, entity)
     if not model_exists:
         # ASSUMPTION: a profile edit creates no DeviceModel and a Device never points to a missing

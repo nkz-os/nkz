@@ -679,6 +679,37 @@ def test_the_undated_check_uses_the_profile_just_saved():
     assert w.orion.attr_posts == []
 
 
+@pytest.mark.parametrize("reading", [{}, {"airTemperature": _prop(20.0)}, {"stemDiameter": _prop(21.5)}],
+                         ids=["no-reading", "undated-on-its-profile", "undated-on-the-edited-one"])
+@pytest.mark.parametrize("moved_to", [_prop("p"), None], ids=["other-profile", "no-profile"])
+def test_a_device_that_left_the_profile_after_the_listing_is_not_written(moved_to, reading, caplog):
+    """The attributes of the edited profile would be untrue on it, and stay there."""
+    st = _state(p2=SOIL)
+    stays = _on_p2("S2", **DATED)
+    with _editing(st, _on_p2(**reading), stays) as w, caplog.at_level(logging.WARNING):
+        moved = {**_device("p", MODEL), **reading}
+        if moved_to is None:
+            del moved["profileCode"]
+        listed = dataloggers._orion_devices
+
+        def _listing(tenant, urns):
+            found = copy.deepcopy(listed(tenant, urns))
+            st.listings = getattr(st, "listings", 0) + 1
+            if st.listings == 2:  # the first one belongs to the IoT Agent re-provisioning
+                w.orion.entities[URN] = copy.deepcopy(moved)
+            return found
+
+        with patch.object(dataloggers, "_orion_devices", _listing):
+            r = _put_profile(UNMAPPED)
+    assert st.listings == 2
+    assert _refresh(r) == {"refreshed": [stays["id"]], "skipped": [], "refresh_failed": []}
+    assert w.orion.entities[URN] == moved
+    assert not any(e[1] in ("attrs", "delete_attr") and e[2] == URN for e in _orion_log(st))
+    found = repr(moved_to["value"]) if moved_to else "None"
+    assert any(all(part in rec.getMessage() for part in (TENANT, URN, "expected='p2'", f"found={found}"))
+               for rec in caplog.records)
+
+
 def test_a_device_that_needs_no_write_is_not_listed_as_skipped():
     st = _state(p2=SOIL)
     with _editing(st, _on_p2(soilMoisture=_prop(21.5))):
