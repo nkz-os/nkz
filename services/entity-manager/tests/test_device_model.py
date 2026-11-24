@@ -239,6 +239,10 @@ class TestDeviceProfileCode:
         {"refDeviceModel": MODEL_URN},
         {MODEL_IRI: {"type": "Relationship", "object": MODEL_URN}},
         {MODEL_IRI: MODEL_URN},
+        {"refDeviceModel": {"type": "Relationship", "object": [MODEL_URN]}},
+        {"refDeviceModel": [MODEL_URN]},
+        {MODEL_IRI: {"type": "Relationship", "object": [MODEL_URN]}},
+        {MODEL_IRI: [MODEL_URN]},
     ])
     def test_model_forms(self, entity):
         assert device_profile_code(TENANT, entity) == ("soil_probe", "model")
@@ -266,33 +270,24 @@ class TestDeviceProfileCode:
         ("not-a-urn", "malformed"),
         (5, "malformed"),
     ])
-    def test_bad_model_falls_through_to_profile_code_with_one_warning(self, caplog, bad, reason_part):
+    def test_bad_model_falls_through_to_profile_code_and_gives_the_reason(self, caplog, bad, reason_part):
         entity = {
             "id": "urn:ngsi-ld:Device:acmefarm:s1",
             "refDeviceModel": {"type": "Relationship", "object": bad},
             "profileCode": {"type": "Property", "value": "old_code"},
         }
-        with caplog.at_level(logging.WARNING, logger="common.device_model"):
+        with caplog.at_level(logging.DEBUG):
             assert device_profile_code(TENANT, entity) == ("old_code", "legacy")
-        warnings = [r for r in caplog.records if r.levelno == logging.WARNING]
-        assert len(warnings) == 1
-        text = warnings[0].getMessage()
-        assert TENANT in text and "urn:ngsi-ld:Device:acmefarm:s1" in text
-        assert reason_part in text
+            assert reason_part in profile_codes(TENANT, entity).model_error
+        assert not caplog.records  # the caller logs it
 
-    def test_bad_model_without_profile_code_is_none(self, caplog):
+    def test_bad_model_without_profile_code_is_none(self):
         entity = {"refDeviceModel": {"type": "Relationship", "object": "urn:ngsi-ld:DeviceModel:other:x"}}
-        with caplog.at_level(logging.WARNING, logger="common.device_model"):
-            assert device_profile_code(TENANT, entity) == (None, "none")
+        assert device_profile_code(TENANT, entity) == (None, "none")
 
     def test_foreign_model_is_never_used_as_a_code(self):
         entity = {"refDeviceModel": {"type": "Relationship", "object": "urn:ngsi-ld:DeviceModel:other:x"}}
         assert device_profile_code(TENANT, entity)[0] is None
-
-    def test_no_warning_when_model_is_absent(self, caplog):
-        with caplog.at_level(logging.WARNING, logger="common.device_model"):
-            device_profile_code(TENANT, {"profileCode": "x"})
-        assert not caplog.records
 
 
 # ── Conformance example ─────────────────────────────────────────────────────
@@ -332,6 +327,12 @@ def test_device_model_example():
     ({"refDeviceModel": {"type": "Relationship", "object": "urn:ngsi-ld:DeviceModel:otherfarm:m"},
       "profileCode": {"type": "Property", "value": "p"}}, (None, "foreign tenant", "p", True)),
     ({"refDeviceModel": {"type": "Property", "value": 1}}, (None, "malformed: not a string", None, True)),
+    # more than one target is nobody's model, not even when they are equal
+    *(({"refDeviceModel": ref}, (None, "malformed: not a string", None, True)) for ref in (
+        {"type": "Relationship", "object": [MODEL_URN, MODEL_URN]}, [MODEL_URN, MODEL_URN],
+        {"type": "Relationship", "object": []}, [], {"type": "Relationship", "object": [[MODEL_URN]]},
+        [5], [None])),
+    ({"refDeviceModel": ["urn:ngsi-ld:DeviceModel:otherfarm:m"]}, (None, "foreign tenant", None, True)),
 ])
 def test_profile_codes_reports_both_codes(entity, expected):
     assert tuple(profile_codes("acmefarm", entity)) == expected

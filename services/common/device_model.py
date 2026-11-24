@@ -9,13 +9,10 @@ wins when they differ.
 Everything here is pure: dicts in, dicts out. Entities carry no `@context`; the caller adds it.
 """
 
-import logging
 import re
 from typing import Any, Literal, Mapping, NamedTuple
 
 from common.controlled_property import controlled_properties, mapped_name
-
-logger = logging.getLogger(__name__)
 
 GENERIC = "generic"
 OPTIONAL_PROFILE_ATTRS = ("controlledProperty",)
@@ -88,8 +85,10 @@ def profile_codes(tenant: str, entity: Mapping) -> ProfileCodes:
     model = model_error = None
     has_model = any(key in entity for key in _REF_DEVICE_MODEL_KEYS)
     if has_model:
-        model, model_error = _check_model_urn(
-            tenant, _attribute(entity, _REF_DEVICE_MODEL_KEYS, "object"))
+        target = _attribute(entity, _REF_DEVICE_MODEL_KEYS, "object")
+        if isinstance(target, list) and len(target) == 1:
+            target = target[0]  # the broker keeps the array a writer sent
+        model, model_error = _check_model_urn(tenant, target)
     legacy = _attribute(entity, _PROFILE_CODE_KEYS, "value")
     return ProfileCodes(model, model_error, legacy if isinstance(legacy, str) and legacy else None,
                         has_model or any(key in entity for key in _PROFILE_CODE_KEYS))
@@ -100,21 +99,16 @@ def device_profile_code(
 ) -> tuple[str | None, Literal["model", "legacy", "none"]]:
     """The profile code a Device names, and where it came from.
 
-    `refDeviceModel`, else `profileCode`; a malformed or foreign model is ignored with a warning.
-    When both are usable and differ, `profileCode` wins: every writer of this version writes the two
-    together, so only a writer that knows nothing but `profileCode` makes them differ (an image older
-    than `refDeviceModel`, during a rollout or after a rollback, or an API client) and its value is
-    the fresher one. The release that stops writing `profileCode` turns this round: from then on a
-    difference can only be a stale `profileCode`.
+    `refDeviceModel`, else `profileCode`; a malformed or foreign model is ignored (`profile_codes`
+    gives the reason).
+    When both are usable and differ, `profileCode` wins: no writer of this version makes them differ,
+    only one that knows nothing but `profileCode` does (an image older than `refDeviceModel`, during a
+    rollout or after a rollback, or an API client), so its value is the fresher one. The release that
+    stops writing `profileCode` turns this round: from then on a difference is a stale `profileCode`.
     """
     codes = profile_codes(tenant, entity)
     if codes.model is not None and codes.legacy in (None, codes.model):
         return codes.model, "model"
-    if codes.model_error:
-        logger.warning(
-            "refDeviceModel ignored: tenant=%s entity_id=%s reason=%s",
-            tenant, entity.get("id"), codes.model_error,
-        )
     if codes.legacy is not None:
         return codes.legacy, "legacy"
     return None, "none"

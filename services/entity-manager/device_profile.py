@@ -1,8 +1,8 @@
 """The profile an entity is on, for every reader of this service.
 
 `common.device_model.entity_profile` is the lookup; this module applies it to entities read
-from Orion and logs, once each, the Devices that still name their profile only with `profileCode`
-and the Devices whose two codes disagree.
+from Orion and logs, once each, the Devices that still name their profile only with `profileCode`,
+the ones whose two codes disagree and the ones whose `refDeviceModel` is not usable.
 """
 import logging
 import threading
@@ -31,6 +31,9 @@ def entity_profile_code(tenant: str, entity: Optional[Mapping]) -> Optional[str]
         return code
     entity_id = entity.get('id')
     codes = profile_codes(tenant, entity)
+    if codes.model_error and _first_time('model_ignored', tenant, entity_id):
+        logger.warning("refDeviceModel ignored: tenant=%s entity_id=%s reason=%s",
+                       tenant, entity_id, codes.model_error)
     if None not in (codes.model, codes.legacy) and codes.model != codes.legacy:
         if _first_time('mismatch', tenant, entity_id):
             logger.warning("device_profile_code_mismatch: tenant=%s entity_id=%s "

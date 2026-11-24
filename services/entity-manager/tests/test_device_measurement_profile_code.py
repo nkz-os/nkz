@@ -61,6 +61,10 @@ CODES = {
                       "bench"),
     "malformed-model": (_entity(refDeviceModel={"type": "Relationship", "object": "soil"},
                                 profileCode=_prop("bench")), "bench"),
+    "model-in-a-list": (_entity(refDeviceModel={"type": "Relationship", "object": [_ref("soil")["object"]]}),
+                        "soil"),
+    "two-models": (_entity(refDeviceModel={"type": "Relationship", "object": [_ref("soil")["object"]] * 2},
+                           profileCode=_prop("bench")), "bench"),
     "foreign-model-only": (_entity(refDeviceModel=_ref("soil", "othertenant")), None),
     "malformed-model-only": (_entity(refDeviceModel={"type": "Relationship", "object": "soil"}), None),
     "neither": (_entity(), None),
@@ -84,6 +88,13 @@ def test_every_measurement_carries_the_code_of_the_profile(entity, code, flag, m
     assert len(built) == 4
     assert {json.dumps(m.get("deviceType")) for m in built} == {
         json.dumps(_prop(code) if code else None)}
+
+
+@each_entity
+def test_build_measurements_logs_nothing(entity, code, caplog):
+    with caplog.at_level(logging.DEBUG):
+        build_measurements(entity, PROFILE_ROW)
+    assert caplog.records == []
 
 
 def test_build_measurements_changes_neither_argument_and_opens_nothing(monkeypatch):
@@ -247,3 +258,14 @@ def test_one_device_is_logged_once_by_the_bridge_and_the_transformer(caplog, mon
         _notify(CODES["legacy-only"][0])
     assert [r.args for r in caplog.records
             if r.getMessage().startswith("device_profile_code_fallback")] == [("acmefarm", DEVICE, "bench")]
+
+
+@pytest.mark.parametrize("name", ["foreign-model", "malformed-model", "two-models", "foreign-model-only"])
+def test_an_ignored_model_is_logged_once_by_the_bridge_and_the_transformer(name, caplog, monkeypatch):
+    import device_profile
+    monkeypatch.setattr(device_profile, "_logged", type(device_profile._logged)())
+    with caplog.at_level(logging.DEBUG):
+        _notify(CODES[name][0])
+        _notify(CODES[name][0])
+    (record,) = [r for r in caplog.records if "refDeviceModel ignored" in r.getMessage()]
+    assert record.levelno == logging.WARNING and record.args[:2] == ("acmefarm", DEVICE)

@@ -123,8 +123,8 @@ def build_measurements(entity: Dict[str, Any], profile: Dict[str, Any]) -> List[
     """
     entity_id = entity.get("id", "")
     tenant, external_id = _parse_device_id(entity_id)
-    # The rule of `device_profile.entity_profile_code`, without its log: this module is pure and
-    # is also loaded outside this service.
+    # The rule of `device_profile.entity_profile_code`, which also logs: this module is pure and is
+    # loaded outside this service too, so the code that calls it does the logging.
     profile_code = entity_profile(tenant, entity)[0]
 
     shape = "sdm" if sdm_shape_enabled() else "legacy"

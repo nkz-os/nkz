@@ -140,6 +140,60 @@ def test_threads_reading_the_same_device_log_it_once(monkeypatch, caplog):
     assert len(_fallbacks(caplog)) == 1
 
 
+# ---- the log of a model that is ignored ---------------------------------------
+
+IGNORED = "refDeviceModel ignored"
+
+
+def _ignored(caplog):
+    return [r for r in caplog.records if r.getMessage().startswith(IGNORED)]
+
+
+@pytest.mark.parametrize("ref,reason", [
+    (_ref("m", "othertenant"), "foreign tenant"),
+    ({"type": "Relationship", "object": "urn:x"}, "malformed"),
+    ({"type": "Relationship", "object": [f"urn:ngsi-ld:DeviceModel:{TENANT}:m"] * 2}, "malformed"),
+    (None, "malformed"),
+], ids=["foreign", "malformed", "two-targets", "null"])
+@pytest.mark.parametrize("attrs,code", [({}, None), ({"profileCode": _prop("p")}, "p")],
+                         ids=["no-code", "with-code"])
+def test_an_ignored_model_is_one_warning_per_tenant_and_entity(attrs, code, ref, reason, caplog):
+    other = f"urn:ngsi-ld:Device:{TENANT}:S2"
+    with caplog.at_level(logging.DEBUG):
+        for urn in (URN, other, URN, other, URN):
+            assert device_profile.entity_profile_code(TENANT, _device(urn, refDeviceModel=ref, **attrs)) == code
+        assert device_profile.entity_profile_code("thirdtenant", _device(refDeviceModel=ref, **attrs)) == code
+    records = _ignored(caplog)
+    assert [r.levelno for r in records] == [logging.WARNING] * 3
+    assert [r.args[:2] for r in records] == [(TENANT, URN), (TENANT, other), ("thirdtenant", URN)]
+    for part in (f"tenant={TENANT}", f"entity_id={URN}", f"reason={reason}"):
+        assert part in records[0].getMessage()
+    assert _mismatches(caplog) == [] and len(_fallbacks(caplog)) == (3 if code else 0)
+
+
+def test_a_model_that_is_used_or_absent_is_not_logged_as_ignored(caplog):
+    with caplog.at_level(logging.DEBUG):
+        for attrs in ({}, {"profileCode": _prop("p")}, {"refDeviceModel": _ref("m")},
+                      {"refDeviceModel": _ref("m"), "profileCode": _prop("p")}):
+            device_profile.entity_profile_code(TENANT, _device(**attrs))
+    assert _ignored(caplog) == []
+
+
+def test_a_model_on_a_machine_is_not_logged_as_ignored(caplog):
+    with caplog.at_level(logging.DEBUG):
+        device_profile.entity_profile_code(
+            TENANT, _device(MACHINE, "ManufacturingMachine", refDeviceModel=_ref("m", "othertenant")))
+    assert caplog.records == []
+
+
+def test_the_log_of_an_ignored_model_uses_the_same_bounded_memory(monkeypatch, caplog):
+    monkeypatch.setattr(device_profile, "_MAX_LOGGED", 3)
+    for i in range(9):
+        device_profile.entity_profile_code(
+            TENANT, _device(f"urn:ngsi-ld:Device:{TENANT}:S{i}", refDeviceModel=_ref("m", "othertenant")))
+    assert len(device_profile._logged) == 3 and len(_ignored(caplog)) == 9
+
+
 # ---- the mismatch log --------------------------------------------------------
 
 def _disagreeing(urn=URN):
