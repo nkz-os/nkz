@@ -491,6 +491,11 @@ def fake_sync_orion_client(state, orion):
     return _Client
 
 
+def _fiware_headers(headers, **kw):
+    """`device_models` sends nothing without a Link; test_device_models_headers.py has the real ones."""
+    return {**headers, "Link": "<http://context.test>"}
+
+
 @contextmanager
 def wired(state, monkeypatch=None, host="mqtt.example.org", port="8883"):
     """Patch every collaborator of dataloggers.py, device_models.py and blueprints/sensors.py."""
@@ -532,6 +537,7 @@ def wired(state, monkeypatch=None, host="mqtt.example.org", port="8883"):
          patch.object(sensors, "get_db_connection_with_tenant", db), \
          patch.object(sensors, "requests", orion), \
          patch.object(device_models, "requests", orion), \
+         patch.object(device_models, "inject_fiware_headers", _fiware_headers), \
          patch.object(device_models, "SyncOrionClient", fake_sync_orion_client(state, orion)), \
          patch.object(sensors, "mqtt", MagicMock()), \
          patch.object(sensors, "_tenant", lambda: TENANT), \

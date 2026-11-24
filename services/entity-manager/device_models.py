@@ -49,9 +49,16 @@ def why(exc: Exception) -> str:
 
 
 def _headers(tenant: str, link: bool = True) -> dict:
+    """The headers of a request without `@context`; raises when its Link is missing.
+
+    Without one the broker expands every name with the default vocabulary and answers 204 to a
+    write, so nothing is sent.
+    """
     headers = inject_fiware_headers({}, tenant=tenant, has_context_in_body=False)
     if not link:
         headers.pop('Link', None)
+    elif not headers.get('Link'):
+        raise ApiError(502, 'CONTEXT_URL is not set: the request would go out without its context')
     return headers
 
 
@@ -131,6 +138,9 @@ def ensure_device_model(tenant: str, profile: Mapping) -> None:
     except ValueError as exc:
         raise ApiError(400, str(exc)) from None
     try:
+        # ASSUMPTION: without the platform context nothing is written, not even this upsert, which
+        # carries its own context; so the answer does not depend on what the profile maps.
+        _headers(tenant)
         with SyncOrionClient(tenant, base_url=ORION_URL, context_url=CONTEXT_URL) as client:
             # A 207 does not raise: what Orion refused is in `errors`.
             errors = client.upsert_entities_batch([model])['errors']

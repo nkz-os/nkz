@@ -182,7 +182,8 @@ def test_the_device_model_goes_through_the_real_sdk_client(status, body, ok):
         return resp
 
     profile = {"code": "p", "name": "Profile P", "mapping": PROFILE["mapping"]}
-    with patch.object(requests.Session, "post", _post):
+    with patch.object(requests.Session, "post", _post), \
+         patch.object(device_models, "inject_fiware_headers", lambda headers, **kw: {"Link": "<x>"}):
         if ok:
             device_models.ensure_device_model(TENANT, profile)
         else:
