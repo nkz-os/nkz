@@ -409,6 +409,16 @@ def test_a_refused_device_is_listed_with_its_reason_and_not_written(broker, stat
     assert broker.writes == [("UPSERT", model("ok")), ("POST", urn("S9"))]
 
 
+def test_a_malformed_profile_is_logged_with_its_cause(broker, state, caplog):
+    state.profiles["p"] = REFUSALS["broken-profile"][1]["p"]
+    broker.seed(legacy())
+    run(apply=False)
+    record, = [r for r in caplog.records if "profile_malformed" in r.getMessage()]
+    assert record.levelno == logging.ERROR
+    for part in (f"tenant={TENANT}", "profile=p", f"device={urn('S1')}", "KeyError('sdmAttribute')"):
+        assert part in record.getMessage()
+
+
 @pytest.mark.parametrize("entity,profiles", [
     (legacy(airTemperature=prop(1), observedAt=prop(T0)), {}),
     (legacy(airTemperature=None), {}),
@@ -720,6 +730,52 @@ def test_a_device_that_became_level_after_the_listing_is_unchanged(broker):
     assert sleeps == [5]
 
 
+@pytest.mark.parametrize("change,expected", [
+    ({"relativeHumidity": prop(1)}, "undated_readings"), ({"profileCode": prop("q")}, "left_the_profile")])
+def test_a_change_during_the_other_fresh_reads_is_seen(broker, state, change, expected):
+    """The entity is read last: whatever happens before that read counts."""
+    state.profiles["q"] = profile()
+    broker.seed(legacy())
+    reads = []
+
+    def _hook(method, subject, link):
+        if method == "GET" and subject == urn("S1") and not link:
+            reads.append(subject)
+            if len(reads) == 2:
+                _set(broker, urn("S1"), **change)()
+
+    broker.hooks.append(_hook)
+    summary, code = run()
+    assert code == 1 and attr_posts(broker) == []
+    assert report(summary)["reason"] == expected
+
+
+def test_a_device_that_moved_is_refused_without_reading_the_other_profile(broker):
+    for n in (1, 2):
+        broker.seed(legacy(f"S{n}"))
+    _between_assessment_and_write(broker, _set(broker, urn("S2"), profileCode=prop("gone")))
+    summary, _ = run()
+    assert report(summary, urn("S2")) == {"urn": urn("S2"), "outcome": "refused", "profile": "gone",
+                                          "reason": "left_the_profile"}
+
+
+@pytest.mark.parametrize("nth", [1, 2])
+def test_a_device_that_was_gone_when_read_as_stored_is_not_written(broker, nth):
+    """Nothing is known of how it is stored, even if it is back for the other read."""
+    broker.seed(legacy())
+    reads = []
+
+    def _hook(method, subject, link):
+        if method == "GET" and subject == urn("S1") and not link:
+            reads.append(subject)
+            return 404 if len(reads) == nth else None
+
+    broker.hooks.append(_hook)
+    summary, code = run()
+    assert code == 1 and attr_posts(broker) == []
+    assert report(summary) == {"urn": urn("S1"), "outcome": "refused", "reason": "gone"}
+
+
 def test_what_is_written_comes_from_the_fresh_read(broker):
     for n in (1, 2):
         broker.seed(legacy(f"S{n}"))
@@ -732,21 +788,24 @@ def test_what_is_written_comes_from_the_fresh_read(broker):
 
 # ---- waiting -----------------------------------------------------------------
 
-def test_five_seconds_between_written_devices_and_the_read_comes_after_the_wait(broker):
+def test_five_seconds_between_written_devices_and_the_reads_come_after_the_wait_the_entity_last(
+        broker, monkeypatch):
     for n in (1, 2, 3):
         broker.seed(legacy(f"S{n}"))
-    marks = []
+    read = dataloggers.read_profile
 
-    def _sleep(seconds):
-        broker.log.append(("SLEEP", seconds, None))
-        marks.append(seconds)
+    def _read(tenant, code):
+        broker.log.append(("PROFILE", code, None))
+        return read(tenant, code)
 
-    run(sleep=_sleep)
-    assert marks == [5, 5]
+    monkeypatch.setattr(dataloggers, "read_profile", _read)
+    run(sleep=lambda seconds: broker.log.append(("SLEEP", seconds, None)))
+    assert [entry for entry in broker.log if entry[0] == "SLEEP"] == [("SLEEP", 5, None)] * 2
     for n in (2, 3):
-        written = broker.log.index(("POST", urn(f"S{n}") + "/attrs", True))
-        assert broker.log[written - 3][0] == "SLEEP"
-        assert broker.log[written - 2] == ("GET", urn(f"S{n}"), True)
+        device = urn(f"S{n}")
+        written = broker.log.index(("POST", device + "/attrs", True))
+        assert broker.log[written - 4:written] == [
+            ("SLEEP", 5, None), ("PROFILE", "p", None), ("GET", device, False), ("GET", device, True)]
     assert broker.log[-1][0] != "SLEEP"
 
 
@@ -899,13 +958,27 @@ def test_a_first_written_device_that_cannot_be_read_back_stops_the_run(broker):
     assert outcomes(summary) == {urn("S1"): "written", urn("S2"): "not_attempted"}
 
 
-def test_only_the_first_written_device_is_read_back(broker):
-    for n in (1, 2):
+@pytest.mark.parametrize("old,new", [("installedAt", "dateInstalled"), ("status", "deviceState")])
+def test_a_term_that_only_a_later_device_writes_is_verified_there(broker, old, new):
+    broker.seed(legacy("S1", **{old: None}))
+    for n in (2, 3):
+        broker.seed(legacy(f"S{n}"))
+    broker.context = without(new)
+    summary, code = run()
+    assert code == 1
+    assert summary["error"]["code"] == "outside_the_official_context"
+    assert summary["error"]["entity"] == urn("S2") and summary["error"]["attributes"] == [new]
+    assert outcomes(summary) == {urn("S1"): "written", urn("S2"): "written", urn("S3"): "not_attempted"}
+
+
+def test_a_device_is_read_back_only_when_it_wrote_a_term_not_verified_yet(broker):
+    broker.seed(legacy("S1", installedAt=None))
+    for n in (2, 3):
         broker.seed(legacy(f"S{n}"))
     run()
     bare = [(m, s) for m, s, link in broker.log if not link and m == "GET"]
-    assert bare.count(("GET", urn("S1"))) == 3  # assessed, reassessed, read back
-    assert bare.count(("GET", urn("S2"))) == 2
+    # assessed and reassessed; read back as well the first two
+    assert [bare.count(("GET", urn(f"S{n}"))) for n in (1, 2, 3)] == [3, 3, 2]
 
 
 # ---- failures ----------------------------------------------------------------
@@ -933,6 +1006,95 @@ def test_a_failed_write_stops_the_run_and_a_second_run_finishes_it(broker, answe
     assert outcomes(summary)[urn("S1")] == "unchanged"
 
 
+def test_a_model_is_reported_and_logged_as_written_before_its_guard(broker, caplog):
+    broker.seed(legacy())
+    broker.context = without(*NEW_TERMS)
+    with caplog.at_level(logging.INFO):
+        summary, _ = run()
+    assert summary["error"]["code"] == "outside_the_official_context"
+    assert summary["device_models"] == [{"id": model("p"), "outcome": "written"}]
+    assert _logged(caplog, "device model written", f"device_model={model('p')}", "profile=p")
+
+
+def test_a_model_that_was_already_there_is_reported_before_its_guard(broker):
+    broker.seed(level())
+    run()
+    broker.seed(broker.view(model("p")), context=without("brandName"))
+    summary, _ = run()
+    assert summary["error"]["entity"] == model("p")
+    assert summary["device_models"] == [{"id": model("p"), "outcome": "unchanged"}]
+
+
+def test_a_model_whose_write_failed_is_reported_as_failed(broker, state):
+    """The upsert may have landed: only the DELETE that follows it failed here."""
+    state.profiles["p"] = profile(UNMAPPED)
+    broker.seed(legacy())
+    broker.hooks.append(lambda m, s, link: 500 if m == "DELETE" else None)
+    summary, _ = run()
+    assert summary["error"] == {"code": "device_model_failed", "entity": model("p")}
+    assert summary["device_models"] == [{"id": model("p"), "outcome": "failed"}]
+
+
+def _logged(caplog, *parts):
+    return [r for r in caplog.records
+            if f"tenant={TENANT}" in r.getMessage() and all(part in r.getMessage() for part in parts)]
+
+
+def test_a_failed_read_says_that_nothing_was_written(broker):
+    broker.seed(legacy())
+    broker.hooks.append(lambda m, s, link: 500 if s == urn("S1") and link else None)
+    summary, _ = run()
+    assert report(summary) == {"urn": urn("S1"), "outcome": "failed", "profile": "p",
+                               "reason": "read_failed", "error": "HTTPError status=500"}
+
+
+def test_a_failed_post_lists_what_it_sent_as_unconfirmed(broker):
+    """A 207 or a timeout may have stored part of it."""
+    broker.seed(legacy())
+    broker.hooks.append(lambda m, s, link: 207 if m == "POST" and s.startswith(urn("S1")) else None)
+    summary, _ = run()
+    assert report(summary) == {"urn": urn("S1"), "outcome": "failed", "profile": "p",
+                               "reason": "write_failed", "error": "HTTPError status=207",
+                               "attributes_unconfirmed": OFFICIAL}
+
+
+def _stale_that_cannot_be_deleted(broker, state):
+    state.profiles["p"] = profile(UNMAPPED)
+    broker.seed(legacy("S1", controlledProperty=prop(["temperature"])))
+    broker.seed(legacy("S2"))
+    broker.hooks.append(lambda m, s, link: 500 if m == "DELETE" and s.startswith(urn("S1")) else None)
+
+
+def test_a_failed_delete_lists_the_attributes_that_landed(broker, state, caplog):
+    _stale_that_cannot_be_deleted(broker, state)
+    with caplog.at_level(logging.INFO):
+        summary, _ = run()
+    assert "error" not in summary
+    assert report(summary) == {
+        "urn": urn("S1"), "outcome": "failed", "profile": "p", "reason": "delete_failed",
+        "error": "HTTPError status=500",
+        "attributes": ["dateInstalled", "deviceCategory", "deviceState", "refDeviceModel"]}
+    assert _logged(caplog, "device attributes written", f"device={urn('S1')}", "profile=p", "refDeviceModel")
+
+
+def test_a_device_whose_post_landed_is_read_back_although_its_delete_failed(broker, state):
+    _stale_that_cannot_be_deleted(broker, state)
+    broker.context = without("dateInstalled")
+    summary, code = run()
+    assert code == 1
+    assert (summary["error"]["entity"], summary["error"]["attributes"]) == (urn("S1"), ["dateInstalled"])
+    assert report(summary)["reason"] == "delete_failed" and "dateInstalled" in report(summary)["attributes"]
+    assert outcomes(summary)[urn("S2")] == "not_attempted"
+
+
+def test_a_write_that_the_guard_then_rejects_is_logged(broker, caplog):
+    broker.seed(legacy())
+    broker.context = without("refDeviceModel")
+    with caplog.at_level(logging.INFO):
+        run()
+    assert _logged(caplog, "device attributes written", f"device={urn('S1')}", "refDeviceModel")
+
+
 def test_a_failed_fresh_read_stops_the_run_and_nothing_is_written_blind(broker):
     for n in (1, 2, 3):
         broker.seed(legacy(f"S{n}"))
@@ -957,6 +1119,7 @@ def test_a_profile_that_cannot_be_read_again_stops_the_run(broker, monkeypatch):
     summary, code = run()
     assert code == 1 and attr_posts(broker) == []
     assert outcomes(summary) == {urn("S1"): "failed", urn("S2"): "not_attempted"}
+    assert report(summary)["reason"] == "read_failed"
 
 
 def test_a_stale_attribute_that_cannot_be_deleted_is_a_failure(broker, state):
@@ -968,12 +1131,15 @@ def test_a_stale_attribute_that_cannot_be_deleted_is_a_failure(broker, state):
     assert code == 1 and outcomes(summary) == {urn("S1"): "failed", urn("S2"): "not_attempted"}
 
 
-def test_every_write_is_logged_with_its_ids(broker, caplog):
-    broker.seed(legacy())
+def test_every_write_is_logged_with_its_ids(broker, state, caplog):
+    state.profiles["p"] = profile(UNMAPPED)
+    broker.seed(legacy(controlledProperty=prop(["temperature"])))
     with caplog.at_level(logging.INFO):
         run()
-    assert [r for r in caplog.records if f"tenant={TENANT}" in r.getMessage()
-            and f"device={urn('S1')}" in r.getMessage() and "refDeviceModel" in r.getMessage()]
+    device = f"device={urn('S1')}"
+    assert len(_logged(caplog, "device model written", f"device_model={model('p')}", "profile=p")) == 1
+    assert len(_logged(caplog, "device attributes written", device, "profile=p", "refDeviceModel")) == 1
+    assert len(_logged(caplog, "device attribute deleted", device, "profile=p", "controlledProperty")) == 1
 
 
 # ---- command line ------------------------------------------------------------

@@ -26,8 +26,6 @@ import time
 from dataclasses import dataclass, field
 from typing import Callable, Iterable, Mapping, Optional
 
-from requests.exceptions import RequestException
-
 import dataloggers
 import device_models
 from common.device_model import (DEFAULT_CONTEXT_IRI, DEVICE_IRI, build_device_model,
@@ -44,8 +42,6 @@ OUTCOMES = ('planned', 'written', 'unchanged', 'refused', 'ignored', 'failed', '
 _DEVICE_ATTRS = ('refDeviceModel', 'deviceCategory', 'controlledProperty', 'dateInstalled', 'deviceState')
 # What a DeviceModel has under DEVICE_IRI; `name` and `category` have other IRIs on this platform.
 _MODEL_ATTRS = ('manufacturerName', 'brandName', 'modelName', 'controlledProperty')
-
-ReadProfile = Callable[[str, str], Optional[dict]]
 
 
 class BackfillAborted(Exception):
@@ -89,15 +85,14 @@ def _refused(reason: str, code: Optional[str] = None, **detail) -> Assessment:
     return Assessment('refused', code=code, detail={'reason': reason, **detail})
 
 
-def assess(tenant: str, entity: Mapping, read_profile: ReadProfile) -> Assessment:
-    """What a Device read from Orion needs. Reads its profile, and the Device as it is stored."""
+def named_profile(tenant: str, entity: Mapping) -> Assessment | str:
+    """The profile code of a Device, or why it has none that can be used."""
     if entity.get('type') != 'Device':
         return _refused('type_not_device')
     codes = profile_codes(tenant, entity)
     if not codes.present:
         return Assessment('ignored', detail={'reason': 'no_profile'})
-    urn = entity['id']
-    if external_id_of(tenant, urn) is None or not is_device_type(urn):
+    if external_id_of(tenant, entity['id']) is None or not is_device_type(entity['id']):
         return _refused('id_not_parseable')
     if codes.model_error:
         return _refused('ref_device_model_unusable')
@@ -109,7 +104,12 @@ def assess(tenant: str, entity: Mapping, read_profile: ReadProfile) -> Assessmen
         device_model_id(tenant, code)
     except ValueError:
         return _refused('profile_code_unusable')
-    profile = read_profile(tenant, code)
+    return code
+
+
+def assess(tenant: str, entity: Mapping, code: str, profile: Optional[Mapping],
+           stored: Optional[Mapping]) -> Assessment:
+    """What a Device on profile `code` needs; `stored` is the Device read without Link."""
     if profile is None:
         return _refused('profile_unknown', code)
     if (profile.get('sdm_entity_type') or 'Device') != 'Device':
@@ -118,7 +118,9 @@ def assess(tenant: str, entity: Mapping, read_profile: ReadProfile) -> Assessmen
         changed, stale = device_models.profile_attr_changes(tenant, profile, entity)
         channels = device_models.reading_channels(profile)
         undated = device_models.undated_readings(profile, entity)
-    except (KeyError, TypeError, AttributeError):
+    except (KeyError, TypeError, AttributeError) as exc:
+        logger.error("profile_malformed: tenant=%s profile=%s device=%s cause=%r",
+                     tenant, code, entity['id'], exc)
         return _refused('profile_malformed', code)
     if undated:
         return _refused('undated_readings', code, readings=undated)
@@ -127,10 +129,11 @@ def assess(tenant: str, entity: Mapping, read_profile: ReadProfile) -> Assessmen
     clash = sorted(channels.intersection([*changed, *stale]))
     if clash:
         return _refused('official_attribute_is_a_reading', code, readings=clash)
+    if stored is None:
+        return _refused('gone')
     # ASSUMPTION: refused, not corrected. A write would add the official attribute next to this one,
     # and without one the Device would pass for complete, because a normal read shows either.
-    outside = _under_default_vocabulary(device_models.read_entity(tenant, urn, link=False) or {},
-                                        _DEVICE_ATTRS)
+    outside = _under_default_vocabulary(stored, _DEVICE_ATTRS)
     if outside:
         return _refused('attributes_outside_the_official_context', code, attributes_outside=outside)
     return Assessment('planned' if changed or stale else 'unchanged', code, profile, changed, stale,
@@ -196,6 +199,7 @@ class _Run:
         self.sleep = sleep
         self.reports: dict[str, dict] = {}
         self.models: list[dict] = []
+        self.verified: set[str] = set()  # attributes read back under their official IRI
         self.error: Optional[dict] = None
 
     def execute(self, device: Optional[str]) -> None:
@@ -236,22 +240,23 @@ class _Run:
 
     def _assess_all(self, entities: list[dict]) -> dict[str, Assessment]:
         profiles: dict = {}
-
-        def _read_profile(tenant: str, code: str) -> Optional[dict]:
-            if code not in profiles:
-                try:
-                    profiles[code] = dataloggers.read_profile(tenant, code)
-                except Exception as exc:
-                    raise _abort('profile_read_failed', exc, profile=code) from None
-            return profiles[code]
-
         assessed = {}
         for entity in sorted(entities, key=lambda e: e['id']):
             urn = entity['id']
-            try:
-                assessed[urn] = assess(self.tenant, entity, _read_profile)
-            except RequestException as exc:
-                raise _abort('device_read_failed', exc, entity=urn) from None
+            named = named_profile(self.tenant, entity)
+            if isinstance(named, Assessment):
+                assessed[urn] = named
+            else:
+                if named not in profiles:
+                    try:
+                        profiles[named] = dataloggers.read_profile(self.tenant, named)
+                    except Exception as exc:
+                        raise _abort('profile_read_failed', exc, profile=named) from None
+                try:
+                    stored = device_models.read_entity(self.tenant, urn, link=False)
+                except Exception as exc:
+                    raise _abort('device_read_failed', exc, entity=urn) from None
+                assessed[urn] = assess(self.tenant, entity, named, profiles[named], stored)
             self.reports[urn] = assessed[urn].report(urn)
         return assessed
 
@@ -268,12 +273,7 @@ class _Run:
             model = build_device_model(self.tenant, profile)
             names = [name for name in model if name not in ('id', 'type')]
             try:
-                outcome = 'unchanged'
-                if not device_models.is_model_current(self.tenant, profile):
-                    outcome = 'planned'
-                    if self.apply:
-                        device_models.ensure_device_model(self.tenant, profile)
-                        outcome = 'written'
+                outcome = self._write_model(code, profile, model['id'])
                 if outcome != 'planned':
                     _check_context(self.tenant, model['id'], 'DeviceModel',
                                    [name for name in _MODEL_ATTRS if name in model], names)
@@ -281,59 +281,106 @@ class _Run:
                 raise
             except Exception as exc:
                 raise _abort('device_model_failed', exc, entity=model['id']) from None
-            self.models.append({'id': model['id'], 'outcome': outcome})
+
+    def _write_model(self, code: str, profile: Mapping, model_id: str) -> str:
+        """Write the DeviceModel if it needs it. Its outcome goes to the summary before its guard,
+        and before the write as `failed`: one that raises may have landed."""
+        current = device_models.is_model_current(self.tenant, profile)
+        report = {'id': model_id,
+                  'outcome': 'unchanged' if current else 'failed' if self.apply else 'planned'}
+        self.models.append(report)
+        if self.apply and not current:
+            device_models.ensure_device_model(self.tenant, profile)
+            report['outcome'] = 'written'
+            logger.info("device model written: tenant=%s device_model=%s profile=%s",
+                        self.tenant, model_id, code)
+        return report['outcome']
 
     def _write(self, planned: dict[str, Assessment]) -> None:
-        wait = context_checked = False
+        wait = False
         for urn, before in planned.items():
             if wait:
                 self.sleep(WAIT_S)
             try:
                 fresh = self._reassess(urn, before)
-                wait = fresh.outcome == 'planned'
-                if wait:
-                    self._write_device(urn, fresh)
             except Exception as exc:
-                logger.error("device not backfilled: tenant=%s device=%s profile=%s error=%s",
-                             self.tenant, urn, before.code, device_models.why(exc))
-                self.reports[urn] = {'urn': urn, 'outcome': 'failed', 'profile': before.code,
-                                     'reason': 'write_failed', 'error': device_models.why(exc)}
-                return  # do not hammer a sick broker
-            self.reports[urn] = fresh.report(urn, 'written' if wait else None)
-            if wait and fresh.changed and not context_checked:
-                self._check_written_device(urn, fresh)
-                context_checked = True
+                self._fail(urn, before.code, 'read_failed', exc)
+                return  # after any failure: do not hammer a sick broker
+            wait = fresh.outcome == 'planned'
+            if not wait:
+                self.reports[urn] = fresh.report(urn)
+                continue
+            if not self._post(urn, fresh):
+                return
+            complete = self._delete_stale(urn, fresh)
+            self._verify_terms(urn, fresh.changed)
+            if not complete:
+                return
 
     def _reassess(self, urn: str, before: Assessment) -> Assessment:
-        """The same assessment on a fresh read of the Device and of its profile."""
+        """The same assessment on fresh reads; the entity is the last one, just before the write."""
+        profile = dataloggers.read_profile(self.tenant, before.code)
+        stored = device_models.read_entity(self.tenant, urn, link=False)
         entity = device_models.read_entity(self.tenant, urn)
         if entity is None:
             return _refused('gone')
-        fresh = assess(self.tenant, entity, dataloggers.read_profile)
-        if fresh.outcome == 'refused':
-            return fresh
-        if fresh.code != before.code:
-            return _refused('left_the_profile', fresh.code)
-        if fresh.profile != before.profile:
+        named = named_profile(self.tenant, entity)
+        if isinstance(named, Assessment):
+            return named if named.outcome == 'refused' else _refused('left_the_profile')
+        if named != before.code:
+            return _refused('left_the_profile', named)
+        fresh = assess(self.tenant, entity, named, profile, stored)
+        if fresh.outcome != 'refused' and profile != before.profile:
             # Its DeviceModel was written from the profile of before.
-            return _refused('profile_changed', fresh.code)
+            return _refused('profile_changed', named)
         return fresh
 
-    def _write_device(self, urn: str, fresh: Assessment) -> None:
-        if fresh.changed:
-            device_models.append_attrs(self.tenant, urn, fresh.changed)
-        for attr in fresh.stale:
-            device_models.delete_attr(self.tenant, urn, attr)
-        logger.info("device backfilled: tenant=%s device=%s profile=%s attributes=%s deleted=%s",
-                    self.tenant, urn, fresh.code, sorted(fresh.changed), fresh.stale)
+    def _fail(self, urn: str, code: str, reason: str, exc: Exception, **extra) -> None:
+        logger.error("device not backfilled: tenant=%s device=%s profile=%s reason=%s error=%s %s",
+                     self.tenant, urn, code, reason, device_models.why(exc), extra)
+        self.reports[urn] = {'urn': urn, 'outcome': 'failed', 'profile': code, 'reason': reason,
+                             'error': device_models.why(exc), **extra}
 
-    def _check_written_device(self, urn: str, fresh: Assessment) -> None:
+    def _post(self, urn: str, fresh: Assessment) -> bool:
+        """The one POST /attrs; False when it failed."""
+        if not fresh.changed:
+            return True
+        names = sorted(fresh.changed)
         try:
-            _check_context(self.tenant, urn, 'Device', fresh.changed, fresh.changed)
+            device_models.append_attrs(self.tenant, urn, fresh.changed)
+        except Exception as exc:
+            # A partial answer or a lost one may have stored some of them.
+            self._fail(urn, fresh.code, 'write_failed', exc, attributes_unconfirmed=names)
+            return False
+        logger.info("device attributes written: tenant=%s device=%s profile=%s attributes=%s",
+                    self.tenant, urn, fresh.code, names)
+        return True
+
+    def _delete_stale(self, urn: str, fresh: Assessment) -> bool:
+        """Delete what the profile no longer has and report the Device; False when one failed."""
+        for attr in fresh.stale:
+            try:
+                device_models.delete_attr(self.tenant, urn, attr)
+            except Exception as exc:
+                landed = {'attributes': sorted(fresh.changed)} if fresh.changed else {}
+                self._fail(urn, fresh.code, 'delete_failed', exc, **landed)
+                return False
+            logger.info("device attribute deleted: tenant=%s device=%s profile=%s attribute=%s",
+                        self.tenant, urn, fresh.code, attr)
+        self.reports[urn] = fresh.report(urn, 'written')
+        return True
+
+    def _verify_terms(self, urn: str, written: Iterable[str]) -> None:
+        """Read the Device back when it wrote a term that no Device of this run has proven yet."""
+        if self.verified.issuperset(written):
+            return
+        try:
+            _check_context(self.tenant, urn, 'Device', written, written)
         except BackfillAborted:
             raise
         except Exception as exc:
             raise _abort('device_read_failed', exc, entity=urn) from None
+        self.verified.update(written)
 
     def summary(self) -> dict:
         devices = list(self.reports.values())
