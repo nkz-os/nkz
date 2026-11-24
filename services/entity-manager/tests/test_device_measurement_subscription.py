@@ -276,7 +276,6 @@ def test_measurements_refuse_the_token_of_another_tenant(client, monkeypatch):
 
 
 def test_measurement_registrar_gets_the_master_and_the_derived_flag(monkeypatch):
-
     monkeypatch.setenv("NKZ_NOTIFY_DERIVED_TOKENS", "true")
     with patch.object(notif, "SubscriptionRegistrar") as reg, \
          patch.object(notif, "_get_active_tenants", return_value=["tenant-a"]), \
@@ -290,7 +289,6 @@ def test_measurement_registrar_gets_the_master_and_the_derived_flag(monkeypatch)
 
 
 def test_ensure_subscriptions_can_target_given_tenants_only():
-
     with patch.object(notif, "SubscriptionRegistrar") as reg, \
          patch.object(notif, "_get_active_tenants", return_value=["tenant-a", "tenant-b"]) as active, \
          patch.object(notif.asyncio, "run",
@@ -301,7 +299,6 @@ def test_ensure_subscriptions_can_target_given_tenants_only():
 
 
 def test_ensure_subscriptions_defaults_to_every_active_tenant():
-
     with patch.object(notif, "SubscriptionRegistrar") as reg, \
          patch.object(notif, "_get_active_tenants", return_value=["tenant-a", "tenant-b"]), \
          patch.object(notif.asyncio, "run",
@@ -311,7 +308,6 @@ def test_ensure_subscriptions_defaults_to_every_active_tenant():
 
 
 def test_ensure_subscriptions_with_an_empty_list_does_not_fall_back_to_all():
-
     with patch.object(notif, "SubscriptionRegistrar") as reg, \
          patch.object(notif, "_get_active_tenants", return_value=["tenant-a"]) as active, \
          patch.object(notif.asyncio, "run",
@@ -322,7 +318,6 @@ def test_ensure_subscriptions_with_an_empty_list_does_not_fall_back_to_all():
 
 
 def test_ensure_subscriptions_returns_the_registrar_result_and_logs_errors(caplog):
-
     result = {"created": 0, "skipped": 0, "errors": [{"tenant": "tenant-a", "error": "500"}]}
     with patch.object(notif, "SubscriptionRegistrar"), \
          patch.object(notif.asyncio, "run", return_value=result), \

@@ -238,13 +238,27 @@ def test_register_rejects_an_entity_type_outside_the_whitelist_before_any_write(
     assert w.orion.posted_urls == [] and not any(e[0] in ("orion", "iota", "db") for e in st.log)
 
 
-def test_provision_with_an_entity_type_outside_the_whitelist_is_400():
+def test_provision_with_an_entity_type_outside_the_whitelist_is_400_before_the_agent():
     st, urn = _state()
     with wired(st) as w:
-        w.iota.provision_device = MagicMock(side_effect=ValueError("not allowed"))
+        w.iota.provision_device = MagicMock(side_effect=AssertionError("must not be called"))
         with pytest.raises(dataloggers.ApiError) as e:
             dataloggers.provision_iota_device(TENANT, "k", "S1", urn, "Bogus", PROFILE["mapping"]["measurements"], "p")
     assert e.value.status == 400
+    w.iota.provision_device.assert_not_called()
+
+
+def test_provision_transport_errors_stay_a_logged_502_without_the_url(caplog):
+    import requests
+    st, urn = _state()
+    secret_url = "http://internal-agent.invalid:4041/iot/devices"
+    with wired(st) as w, caplog.at_level("ERROR"):
+        w.iota.provision_device = MagicMock(side_effect=requests.exceptions.InvalidURL(secret_url))
+        with pytest.raises(dataloggers.ApiError) as e:
+            dataloggers.provision_iota_device(TENANT, "k", "S1", urn, "Device", PROFILE["mapping"]["measurements"], "p")
+    assert e.value.status == 502 and e.value.step == "iota_device"
+    assert secret_url not in str(e.value.body()) and "internal-agent" not in str(e.value.body())
+    assert "IoT Agent provisioning failed" in caplog.text
 
 
 def test_register_rejects_a_stored_profile_with_a_reserved_key_before_writing():

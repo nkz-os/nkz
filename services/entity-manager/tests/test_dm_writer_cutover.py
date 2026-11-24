@@ -196,6 +196,12 @@ def world(monkeypatch):
 
 
 @pytest.fixture(autouse=True)
+def move_enabled(monkeypatch):
+    """The shipped constant is off; the tests of the move itself switch it on."""
+    monkeypatch.setattr(cut, "MOVE_TO_IOTA_ENABLED", True)
+
+
+@pytest.fixture(autouse=True)
 def sleeps(world, monkeypatch):
     """The settle wait never really sleeps; it lands in the event log."""
     seen = []
@@ -1097,3 +1103,36 @@ def test_verify_unknown_device_exits_1(world, http, capsys):
     http(Http([]))
     assert run(*BASE, "--device", urn_of("nope"), "--verify") == 1
     assert "not linked" in capsys.readouterr().out
+
+
+# -- the move to iota is disabled ---------------------------------------------------------
+
+def test_apply_to_iota_is_refused_by_default(world, monkeypatch, capsys):
+    monkeypatch.setattr(cut, "MOVE_TO_IOTA_ENABLED", False)
+    world.add("S1")
+    with pytest.raises(SystemExit) as e:
+        run(*BASE, "--to", "iota", "--shape", "legacy", "--apply")
+    assert e.value.code == 2
+    assert world.puts == 0 and not world.events("update")
+    assert "disabled" in capsys.readouterr().err
+
+
+def test_the_constant_is_off_in_the_source():
+    import ast
+    import pathlib
+    tree = ast.parse(pathlib.Path(cut.__file__).read_text())
+    values = [n.value.value for n in tree.body if isinstance(n, ast.Assign)
+              and any(getattr(t, "id", None) == "MOVE_TO_IOTA_ENABLED" for t in n.targets)]
+    assert values == [False]
+    assert "disabled" in cut.__doc__
+
+
+def test_dry_run_verify_and_to_em_keep_working_while_disabled(world, http, monkeypatch):
+    monkeypatch.setattr(cut, "MOVE_TO_IOTA_ENABLED", False)
+    world.add("S1")
+    assert run(*BASE, "--to", "iota", "--shape", "legacy", "--dry-run") == 0
+    world.add("S2", writer="iota", shape="legacy", code="p", ms=ONE_MS)
+    world.settle_agent()
+    assert run(*BASE, "--device", urn_of("S2"), "--to", "em", "--apply") == 0
+    http(Http([]))
+    assert run(*BASE, "--verify") == 0

@@ -21,6 +21,9 @@ With `--device`, a device that is not on `iota` is a failure (not "NOT RUN").
 The term to IRI mapping comes from the platform context document at CONTEXT_URL (required;
 without it, or without a term, the verification fails). `--device` narrows check (b).
 
+`--apply --to iota` is disabled (refused with exit 2) until profile changes are locked out
+during the move; `--dry-run`, `--verify` and `--to em --apply` work.
+
 Exit codes: 0 done, 1 a validation, device or verification failure, 2 bad arguments.
 
 Order of the writes. A moment where two writers write is acceptable (a reading may appear
@@ -78,6 +81,9 @@ logger = logging.getLogger("dm_writer_cutover")
 
 PAGE = 1000
 DEFAULT_SETTLE = 60.0
+# Moving devices to the IoT Agent is disabled: a profile change while a device moves can still
+# leave the wrong mappings on it. Only a code change turns this on (no flag, no environment).
+MOVE_TO_IOTA_ENABLED = False
 _sleep = time.sleep
 SYSTEM_KEYS = frozenset({"id", "type", "@context", "createdAt", "modifiedAt"})
 DEFAULT_VOCABULARY = "https://uri.etsi.org/ngsi-ld/default-context/"
@@ -752,6 +758,9 @@ def _args(argv: Optional[List[str]]) -> argparse.Namespace:
             p.error("--to is required with --dry-run/--apply")
         if a.to == 'iota' and not a.shape:
             p.error("--shape is required with --to iota")
+        if a.apply and a.to == 'iota' and not MOVE_TO_IOTA_ENABLED:
+            p.error("moving devices to the IoT Agent is disabled until profile changes are "
+                    "locked out during the move (--dry-run, --verify and --to em still work)")
         if a.to == 'em' and a.shape:
             p.error("--shape is refused with --to em (the entity-manager has no shape)")
         if a.to == 'em' and (a.settle is not None or a.no_settle):

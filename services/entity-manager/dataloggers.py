@@ -711,8 +711,6 @@ def provision_iota_device(tenant: str, apikey: str, external_id: str, urn: str,
         iot_agent.provision_device(
             iota_url(), iota_headers(tenant), apikey=apikey, device_id=external_id,
             entity_name=urn, entity_type=entity_type, attributes=attributes)
-    except ValueError as exc:
-        raise ApiError(400, str(exc))
     except Exception as exc:
         logger.error("IoT Agent provisioning failed: device=%s error=%s", external_id, type(exc).__name__)
         raise ApiError(502, 'IoT Agent device provisioning failed', 'iota_device')
