@@ -88,23 +88,36 @@ MAPPING: dict[str, MappingRow] = {
 }
 
 
-def _row_for(measurement: dict) -> MappingRow | None:
-    """First row found for observedProperty, canonical sdmAttribute, then its base name.
+def mapped_name(measurement: object) -> str | None:
+    """First MAPPING key found for observedProperty, canonical sdmAttribute, then its base name.
 
-    A `none` row is a decision and stops the search.
+    A `none` row is a decision and stops the search. Anything that is not a dict, and
+    names that are not strings, are ignored.
     """
+    if not isinstance(measurement, dict):
+        return None
+    observed = measurement.get("observedProperty")
     sdm = measurement.get("sdmAttribute")
-    candidates = [measurement.get("observedProperty")]
-    if sdm:
+    candidates = [observed] if isinstance(observed, str) else []
+    if isinstance(sdm, str) and sdm:
         canonical = canonical_attribute(sdm)
         candidates += [canonical, base_attribute(canonical)]
     for name in candidates:
         if name and name in MAPPING:
-            return MAPPING[name]
+            return name
     return None
 
 
 def controlled_properties(measurements: list[dict]) -> list[str]:
-    """Sorted unique official values for the measurements; empty list when nothing maps."""
-    rows = (_row_for(m) for m in measurements)
-    return sorted({r.value for r in rows if r is not None and r.value is not None})
+    """Sorted unique official values for the measurements; empty list when nothing maps.
+
+    Entries that are not dicts are skipped, so a malformed profile cannot raise here.
+    """
+    if not isinstance(measurements, (list, tuple)):
+        return []
+    values = set()
+    for measurement in measurements:
+        name = mapped_name(measurement)
+        if name is not None and MAPPING[name].value is not None:
+            values.add(MAPPING[name].value)
+    return sorted(values)

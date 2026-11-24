@@ -100,3 +100,19 @@ def test_duplicates_collapse_and_sort():
 def test_unmapped_returns_empty_list():
     assert cp.controlled_properties([{"sdmAttribute": "sapFlow"}, {"sdmAttribute": "nonsense"}, {}]) == []
     assert cp.controlled_properties([]) == []
+
+
+def test_malformed_measurements_are_skipped():
+    ms = [
+        None, "windSpeed", 3, ["windSpeed"],
+        {"observedProperty": 5, "sdmAttribute": "soilMoisture"},
+        {"observedProperty": ["x"], "sdmAttribute": ["y"]},
+        {"sdmAttribute": {"a": 1}},
+        {"sdmAttribute": "windSpeed"},
+    ]
+    assert cp.controlled_properties(ms) == ["soilMoisture", "windSpeed"]
+
+
+def test_non_list_input_returns_empty_list():
+    assert cp.controlled_properties(None) == []
+    assert cp.controlled_properties({"sdmAttribute": "windSpeed"}) == []
