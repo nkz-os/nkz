@@ -374,11 +374,20 @@ class FakeOrion:
     def get(self, url, **kw):
         m = re.search(r"[?&]id=([^&]+)", url)
         if m:
-            ids = m.group(1).split(",")
-            return _resp(200, [self.entities[i] for i in ids if i in self.entities])
+            found = [self.entities[i] for i in m.group(1).split(",") if i in self.entities]
+            attrs = re.search(r"[?&]attrs=([^&]+)", url)
+            if attrs:
+                kept = {"id", "type", *attrs.group(1).split(",")}
+                found = [{k: v for k, v in e.items() if k in kept} for e in found]
+            return _resp(200, found)
         m = re.search(r"/entities/([^?]+)$", url)
         if m:
-            if self.state.fail.get("orion_read") == m.group(1):
+            fail = self.state.fail.get("orion_read")
+            if isinstance(fail, dict) and m.group(1) in fail:
+                if isinstance(fail[m.group(1)], Exception):
+                    raise fail[m.group(1)]
+                return _resp(fail[m.group(1)])
+            if fail == m.group(1):
                 return _resp(500)
             found = self._find(m.group(1))
             return _resp(200, _as_orion_returns(found)) if found else _resp(404, {})

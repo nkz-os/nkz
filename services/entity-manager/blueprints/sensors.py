@@ -30,6 +30,7 @@ from helpers import ORION_URL, CONTEXT_URL
 import dataloggers
 import deployments
 import device_models
+import device_profile
 import observation_catalogue
 from common.context_aliases import canonical_attribute
 from common.observation_context import validate_channel_overrides, validate_observation_context
@@ -222,15 +223,6 @@ def _read_profile(tenant_id: str, profile_code: str):
     return row
 
 
-@dataloggers.in_step('orion_read', 'Could not read the context broker')
-def _orion_dedup_check(tenant_id: str, entity_type: str, external_id: str):
-    return requests.get(
-        f"{ORION_URL}/ngsi-ld/v1/entities?type={entity_type}"
-        f'&q=externalId=="{external_id}"',
-        headers=inject_fiware_headers({}, tenant=tenant_id, has_context_in_body=False),
-        timeout=10)
-
-
 @dataloggers.in_step('orion_entity', 'Failed to create sensor entity in context broker')
 def _orion_create(tenant_id: str, entity: dict):
     return requests.post(
@@ -378,8 +370,8 @@ def _require_entities_exist(tenant_id: str, urns: list) -> None:
 
 def _profile_attributes(tenant_id: str, device: dict) -> set:
     """Canonical sdmAttribute names of the device's profile."""
-    code = _extract_prop_value(device, 'profileCode')
-    row = _read_profile(tenant_id, code) if isinstance(code, str) and code else None
+    code = device_profile.entity_profile_code(tenant_id, device)
+    row = _read_profile(tenant_id, code) if code else None
     if not row:
         raise dataloggers.ApiError(400, 'The device has no known profile')
     mapping = row.get('mapping')
@@ -552,13 +544,13 @@ def register_sensor():
     if dataloggers.device_link(tenant_id, orion_entity_id):
         raise dataloggers.ApiError(409, 'Device is already on a datalogger')
 
-    orion_check = _orion_dedup_check(tenant_id, sdm_entity_type, external_id)
-    if orion_check.status_code == 200 and orion_check.json():
-        existing = orion_check.json()[0]
+    # By id: it carries type, tenant and external id. A failed read is never "not there".
+    existing = _orion_get_entity(tenant_id, orion_entity_id)
+    if existing is not None:
         return jsonify({
             'error': f'Sensor with external_id "{external_id}" already exists',
             'sensor': {'id': existing.get('id'),
-                       'external_id': _extract_prop_value(existing, 'externalId'),
+                       'external_id': external_id,
                        'name': _extract_prop_value(existing, 'name')},
         }), 409
 

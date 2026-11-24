@@ -62,6 +62,8 @@ def _all_canonical(module, skip_first=False):
             continue
         body = _sub(module, module._subscription_id(sub_def))
         body["description"] = sub_def["description"]
+        if "watchedAttributes" in sub_def:
+            body["watchedAttributes"] = sub_def["watchedAttributes"]
         subs.append(body)
     return subs
 

@@ -18,6 +18,10 @@ for _mod in ("common", "common.auth_middleware", "common.api_errors",
              "common.ngsi_headers", "common.subscription_health"):
     sys.modules.setdefault(_mod, MagicMock())
 
+from tests.real_common import seed_real_common  # noqa: E402
+
+seed_real_common()
+
 import notification_handler as nh  # noqa: E402
 import subscription_manager as sm  # noqa: E402
 

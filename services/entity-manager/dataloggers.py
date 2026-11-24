@@ -23,13 +23,13 @@ from common.context_aliases import canonical_attribute
 from common.ngsi_headers import inject_fiware_headers
 from common.window_statistics import gateway_statistics
 from db_helper import get_db_connection_with_tenant
+from device_profile import entity_profile_code
+from device_urn import DEVICE_TYPES, EXTERNAL_ID_RE, external_id_of, is_device_type  # noqa: F401
 from helpers import ORION_URL
 
 logger = logging.getLogger(__name__)
 
-EXTERNAL_ID_RE = re.compile(r'^[A-Za-z0-9_.-]{1,64}$')
 KINDS = ('datak', 'generic_mqtt')
-DEVICE_TYPES = ('Device', 'ManufacturingMachine')
 _CLIENT_NOT_FOUND = 'Client not found'
 # Roles that may set up dataloggers and the sensors on them; a Farmer may not.
 INSTALLER_ROLES = frozenset({'PlatformAdmin', 'TenantAdmin', 'TechnicalConsultant'})
@@ -160,11 +160,10 @@ def _broker_error(exc: Exception) -> str:
 
 def parse_device_urn(tenant: str, urn: str) -> str:
     """The externalId of `urn:ngsi-ld:<Device|ManufacturingMachine>:<tenant>:<externalId>`."""
-    parts = (urn or '').split(':')
-    if (len(parts) != 5 or parts[:2] != ['urn', 'ngsi-ld'] or parts[2] not in DEVICE_TYPES
-            or parts[3] != tenant or not EXTERNAL_ID_RE.fullmatch(parts[4])):
+    external_id = external_id_of(tenant, urn)
+    if external_id is None:
         raise ApiError(404, 'Device not found')
-    return parts[4]
+    return external_id
 
 
 def is_registered_device_urn(tenant: str, urn: str) -> bool:
@@ -174,11 +173,6 @@ def is_registered_device_urn(tenant: str, urn: str) -> bool:
     except ApiError:
         return False
     return True
-
-
-def is_device_type(urn: str) -> bool:
-    """True for a `Device` URN, False for a `ManufacturingMachine`."""
-    return urn.startswith('urn:ngsi-ld:Device:')
 
 
 def _dl_id(value) -> str:
@@ -281,7 +275,7 @@ def _orion_devices(tenant: str, urns: list) -> dict:
         chunk = urns[i:i + 50]
         resp = requests.get(
             f"{ORION_URL}/ngsi-ld/v1/entities?id={','.join(chunk)}"
-            f"&type={','.join(DEVICE_TYPES)}&attrs=name,profileCode&limit=1000",
+            f"&type={','.join(DEVICE_TYPES)}&attrs=name,profileCode,refDeviceModel&limit=1000",
             headers=headers, timeout=10)
         if resp.status_code != 200:
             raise ApiError(502, 'Could not read the devices from the context broker', 'orion_read')
@@ -314,7 +308,8 @@ def get_datalogger_config(tenant: str, dl_id: str) -> dict:
         devices = _device_rows(cur, tenant, dl_id)
     apikey = get_apikey(tenant)
     entities = _orion_devices(tenant, [d['device_urn'] for d in devices]) if devices else {}
-    codes = sorted({_prop(e, 'profileCode') for e in entities.values() if _prop(e, 'profileCode')})
+    profile_of = {urn: entity_profile_code(tenant, e) for urn, e in entities.items()}
+    codes = sorted({code for code in profile_of.values() if code})
     mappings = {}
     if codes:
         with get_db_connection_with_tenant(tenant) as conn:
@@ -327,7 +322,7 @@ def get_datalogger_config(tenant: str, dl_id: str) -> dict:
     out_devices = []
     for d in devices:
         ent = entities.get(d['device_urn'], {})
-        mapping = mappings.get(_prop(ent, 'profileCode')) or {}
+        mapping = mappings.get(profile_of.get(d['device_urn'])) or {}
         ms = mapping.get('measurements', [])
         out_devices.append({
             'externalId': d['external_id'],
@@ -683,7 +678,7 @@ def change_device_profile(tenant: str, urn: str, code: str) -> None:
     entity = _orion_devices(tenant, [urn]).get(urn)
     if not entity:
         raise ApiError(404, 'Device not found')
-    old_code = _prop(entity, 'profileCode')
+    old_code = entity_profile_code(tenant, entity)
     old_ms = _measurements_of(_profile_row(tenant, old_code)) if old_code else None
     is_device = is_device_type(urn)
     if is_device:
@@ -733,15 +728,9 @@ def change_device_profile(tenant: str, urn: str, code: str) -> None:
         raise failure
 
 
-def entity_profile_code(entity: Optional[dict]):
-    """The profile a device is on: its Orion `profileCode`, the attribute `change_device_profile`
-    writes."""
-    return _prop(entity, 'profileCode')
-
-
-def is_on_profile(entity: Optional[dict], code: str) -> bool:
+def is_on_profile(tenant: str, entity: Optional[dict], code: str) -> bool:
     """The one rule for "this device is on that profile" when a profile is edited."""
-    return entity_profile_code(entity) == code
+    return entity_profile_code(tenant, entity) == code
 
 
 def links_on_profile(tenant: str, code: str) -> list:
@@ -757,7 +746,7 @@ def links_on_profile(tenant: str, code: str) -> list:
     if not links:
         return []
     entities = _orion_devices(tenant, [d['device_urn'] for d in links])
-    return [d for d in links if is_on_profile(entities.get(d['device_urn']), code)]
+    return [d for d in links if is_on_profile(tenant, entities.get(d['device_urn']), code)]
 
 
 def reprovision_profile_devices(tenant: str, code: str, measurements: list) -> dict:

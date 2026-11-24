@@ -29,6 +29,7 @@ def _declared():
             "id": sm._subscription_id(sub_def),
             "description": sub_def["description"],
             "notification": {"endpoint": {"uri": sm.NOTIFICATION_URL}},
+            **{k: sub_def[k] for k in ("watchedAttributes",) if k in sub_def},
         }
         for sub_def in sm.SUBSCRIPTIONS
     ]

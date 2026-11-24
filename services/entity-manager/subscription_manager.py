@@ -44,7 +44,7 @@ SUBSCRIPTIONS = [
         "watchedAttributes": [
             "name", "externalId", "profileCode", "controlledAsset", "parcelId",
             "location", "status", "metadata", "isUnderCanopy", "altitudeMeters",
-            "installedAt",
+            "installedAt", "refDeviceModel", "dateInstalled", "deviceState",
         ],
         "notification": {
             "endpoint": {
@@ -146,6 +146,24 @@ def _matches_are_stale(matches: list, tenant_id=None) -> bool:
     if present.get(key) != value:
         return True
     return key != MASTER_HEADER and MASTER_HEADER in present
+
+
+def _attribute_name(name) -> str:
+    """The short name of a stored attribute: Orion returns an IRI for a term the context lacks."""
+    return re.split(r"[/#]", str(name))[-1]
+
+
+def _watched_attributes_changed(existing: dict, sub_def: dict) -> bool:
+    """The stored subscription does not watch the attributes it declares (order does not count).
+
+    Never for a definition that declares none: a PATCH without the list would not remove the
+    stored one, so it would be sent on every reconcile.
+    """
+    wanted = sub_def.get("watchedAttributes")
+    if not wanted:
+        return False
+    stored = existing.get("watchedAttributes") or []
+    return {_attribute_name(name) for name in stored} != set(wanted)
 
 
 def _delete_subscription(headers: dict, sub_id: str) -> None:
@@ -291,7 +309,8 @@ def _ensure_tenant_subscriptions(tenant_id: str):
                 # 409 means a concurrent reconciler created it first, which is
                 # the intended arbitration, not an error.
                 _create_subscription(headers, sub_def, tenant_id)
-            elif _matches_are_stale([canonical], tenant_id):
+            elif (_matches_are_stale([canonical], tenant_id)
+                  or _watched_attributes_changed(canonical, sub_def)):
                 logger.info(
                     "Refreshing subscription '%s' for %s",
                     sub_def["description"], tenant_id,

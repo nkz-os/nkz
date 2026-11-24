@@ -20,6 +20,7 @@ from common.device_model import (OPTIONAL_PROFILE_ATTRS, build_device_model, dev
 from common.ngsi_headers import inject_fiware_headers
 from common.window_statistics import expand_measurements
 from dataloggers import ApiError
+from device_profile import entity_profile_code
 from helpers import CONTEXT_URL, ORION_URL
 
 logger = logging.getLogger(__name__)
@@ -254,11 +255,11 @@ def _refresh_device(tenant: str, urn: str, profile: Mapping, model_exists: bool)
     entity = _read_entity(tenant, urn)
     if entity is None:
         raise ApiError(404, 'Device not found')
-    if not dataloggers.is_on_profile(entity, profile.get('code')):
+    if not dataloggers.is_on_profile(tenant, entity, profile.get('code')):
         # It moved after the listing: another profile's attributes would be untrue on it.
         logger.warning("device not refreshed, it left the profile: tenant=%s device=%s "
                        "expected=%r found=%r", tenant, urn, profile.get('code'),
-                       dataloggers.entity_profile_code(entity))
+                       entity_profile_code(tenant, entity))
         return None
     changed, stale = profile_attr_changes(tenant, profile, entity)
     if not model_exists:

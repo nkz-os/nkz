@@ -612,9 +612,9 @@ def test_an_edit_gives_a_device_registered_before_the_missing_attributes():
         "controlledProperty": _prop(["soilMoisture"])})]
 
 
-def test_an_edit_corrects_a_relationship_to_another_model():
+def test_an_edit_corrects_a_relationship_to_a_model_of_another_tenant():
     st = _state(p2=SOIL)
-    with _editing(st, _on_p2(refDeviceModel=_rel(MODEL))) as w:
+    with _editing(st, _on_p2(refDeviceModel=_rel("urn:ngsi-ld:DeviceModel:acmefarm:p2"))) as w:
         assert _refresh(_put_profile())["refreshed"] == [URN]
     assert w.orion.attr_posts == [(URN, {"refDeviceModel": _rel(MODEL2)})]
 
@@ -646,7 +646,7 @@ def test_an_edit_uses_the_stored_maker_of_the_profile():
 
 
 def test_an_edit_touches_only_linked_devices_on_that_profile():
-    other = _on_p2("S2", profileCode=_prop("p"), controlledProperty=None)
+    other = _on_p2("S2", profileCode=_prop("p"), refDeviceModel=_rel(MODEL), controlledProperty=None)
     machine = {**_on_p2(controlledProperty=None), "id": MACHINE, "type": "ManufacturingMachine"}
     unlinked = _on_p2("S9", controlledProperty=None)
     st = _state(p2=SOIL)
@@ -689,7 +689,7 @@ def test_a_device_that_left_the_profile_after_the_listing_is_not_written(moved_t
     with _editing(st, _on_p2(**reading), stays) as w, caplog.at_level(logging.WARNING):
         moved = {**_device("p", MODEL), **reading}
         if moved_to is None:
-            del moved["profileCode"]
+            del moved["profileCode"], moved["refDeviceModel"]
         listed = dataloggers._orion_devices
 
         def _listing(tenant, urns):
@@ -757,7 +757,7 @@ def test_a_device_that_cannot_be_read_is_listed_and_never_written_blind():
 
 def test_an_edit_of_a_profile_whose_code_fits_no_model_id_keeps_the_saved_profile():
     st = _state(**{"bad code": SOIL})
-    with _editing(st, _on_p2(profileCode=_prop("bad code")), model=False) as w:
+    with _editing(st, _on_p2(profileCode=_prop("bad code"), refDeviceModel=None), model=False) as w:
         r = _put_profile(AIR, "bad code")
     assert _refresh(r) == {"refreshed": [], "skipped": [], "refresh_failed": []}
     assert r.get_json()["error"] == "profile_code_unusable"

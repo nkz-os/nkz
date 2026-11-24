@@ -1,0 +1,133 @@
+"""`device_profile.entity_profile_code`: the profile an entity is on, and its one fallback log."""
+import logging
+import threading
+
+import pytest
+
+from tests.real_common import seed_real_common
+
+seed_real_common()
+
+import device_profile  # noqa: E402
+
+TENANT = "acmefarm"
+URN = f"urn:ngsi-ld:Device:{TENANT}:S1"
+MACHINE = f"urn:ngsi-ld:ManufacturingMachine:{TENANT}:M1"
+DEVICE_IRI = "https://smartdatamodels.org/dataModel.Device/"
+MESSAGE = "device_profile_code_fallback"
+
+
+def _prop(value):
+    return {"type": "Property", "value": value}
+
+
+def _ref(code, tenant=TENANT):
+    return {"type": "Relationship", "object": f"urn:ngsi-ld:DeviceModel:{tenant}:{code}"}
+
+
+def _device(urn=URN, type_="Device", **attrs):
+    return {"id": urn, "type": type_, **attrs}
+
+
+@pytest.fixture(autouse=True)
+def _nothing_logged_yet(monkeypatch):
+    monkeypatch.setattr(device_profile, "_logged", type(device_profile._logged)())
+
+
+def _fallbacks(caplog):
+    return [r for r in caplog.records if r.getMessage().startswith(MESSAGE)]
+
+
+# ---- which profile -----------------------------------------------------------
+
+@pytest.mark.parametrize("attrs,expected,logged", [
+    ({"refDeviceModel": _ref("model_code")}, "model_code", 0),
+    ({"profileCode": _prop("legacy_code")}, "legacy_code", 1),
+    ({"refDeviceModel": _ref("model_code"), "profileCode": _prop("legacy_code")}, "model_code", 0),
+    ({DEVICE_IRI + "refDeviceModel": _ref("model_code"), "profileCode": _prop("x")}, "model_code", 0),
+    ({"refDeviceModel": _ref("model_code", "othertenant"), "profileCode": _prop("legacy_code")},
+     "legacy_code", 1),
+    ({"refDeviceModel": _ref("model_code", "othertenant")}, None, 0),
+    ({"refDeviceModel": {"type": "Relationship", "object": "urn:x"}, "profileCode": _prop("legacy_code")},
+     "legacy_code", 1),
+    ({}, None, 0),
+], ids=["model", "legacy", "both", "iri", "foreign-and-legacy", "foreign", "malformed-and-legacy", "none"])
+@pytest.mark.parametrize("type_", ["Device", DEVICE_IRI + "Device"])
+def test_the_profile_of_a_device(attrs, expected, logged, type_, caplog):
+    with caplog.at_level(logging.INFO):
+        assert device_profile.entity_profile_code(TENANT, _device(type_=type_, **attrs)) == expected
+    assert len(_fallbacks(caplog)) == logged
+
+
+@pytest.mark.parametrize("attrs,expected", [
+    ({"profileCode": _prop("p")}, "p"),
+    ({"refDeviceModel": _ref("model_code"), "profileCode": _prop("p")}, "p"),
+    ({"refDeviceModel": _ref("model_code")}, None),
+    ({}, None),
+])
+def test_a_machine_is_on_its_profile_code_only_and_logs_nothing(attrs, expected, caplog):
+    machine = _device(MACHINE, "ManufacturingMachine", **attrs)
+    with caplog.at_level(logging.DEBUG):
+        assert device_profile.entity_profile_code(TENANT, machine) == expected
+    assert caplog.records == []
+
+
+@pytest.mark.parametrize("entity", [None, {}])
+def test_no_entity_has_no_profile(entity):
+    assert device_profile.entity_profile_code(TENANT, entity) is None
+
+
+# ---- the fallback log --------------------------------------------------------
+
+def _legacy(urn=URN):
+    return _device(urn, profileCode=_prop("p"))
+
+
+def test_the_fallback_is_one_info_with_its_ids_per_tenant_and_entity(caplog):
+    other = f"urn:ngsi-ld:Device:{TENANT}:S2"
+    with caplog.at_level(logging.INFO):
+        for tenant, urn in [(TENANT, URN), (TENANT, URN), (TENANT, other), ("othertenant", URN),
+                            (TENANT, other), ("othertenant", URN)]:
+            assert device_profile.entity_profile_code(tenant, _legacy(urn)) == "p"
+    records = _fallbacks(caplog)
+    assert [r.levelno for r in records] == [logging.INFO] * 3
+    assert [r.args for r in records] == [(TENANT, URN, "p"), (TENANT, other, "p"), ("othertenant", URN, "p")]
+    for part in (f"tenant={TENANT}", f"entity_id={URN}", "profile=p"):
+        assert part in records[0].getMessage()
+
+
+def test_the_memory_of_the_log_is_bounded(monkeypatch, caplog):
+    monkeypatch.setattr(device_profile, "_MAX_LOGGED", 3)
+    with caplog.at_level(logging.INFO):
+        for i in range(20):
+            device_profile.entity_profile_code(TENANT, _legacy(f"urn:ngsi-ld:Device:{TENANT}:S{i}"))
+        assert len(device_profile._logged) == 3
+        assert len(_fallbacks(caplog)) == 20
+        # the newest ones are the remembered ones
+        device_profile.entity_profile_code(TENANT, _legacy(f"urn:ngsi-ld:Device:{TENANT}:S19"))
+    assert len(_fallbacks(caplog)) == 20
+
+
+def test_threads_reading_the_same_device_log_it_once(monkeypatch, caplog):
+    class _SlowDict(type(device_profile._logged)):
+        """Gives every other thread time to look before this one has written."""
+
+        def __contains__(self, key):
+            found = super().__contains__(key)
+            threading.Event().wait(0.01)
+            return found
+
+    monkeypatch.setattr(device_profile, "_logged", _SlowDict())
+    start = threading.Barrier(8)
+
+    def _read():
+        start.wait()
+        device_profile.entity_profile_code(TENANT, _legacy())
+
+    threads = [threading.Thread(target=_read) for _ in range(8)]
+    with caplog.at_level(logging.INFO):
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+    assert len(_fallbacks(caplog)) == 1
