@@ -492,3 +492,43 @@ def _expected(types, watched=None, attrs=None):
 def test_the_six_are_unchanged_apart_from_description_and_throttling(old, expected):
     d = next(x for x in sm.SUBSCRIPTIONS if x["description"] == sm.REPLACED_DESCRIPTIONS[old])
     assert {k: v for k, v in d.items() if k != "description"} == expected
+
+
+def _listing(active=True, present=True):
+    others = [s for s in _declared() if s["description"] != _new_desc()]
+    if not present:
+        return others + [_old()]
+    if active:
+        return others + [_live(_new_def()), _old()]
+    return others + [_live(_new_def(), status="paused", isActive=False), _old()]
+
+
+def test_a_pause_between_two_active_passes_resets_the_clock(monkeypatch, clock):
+    assert _deletes(_pass(monkeypatch, _listing())) == []          # pass 1: active, clock set
+    clock.t += 100
+    assert _deletes(_pass(monkeypatch, _listing(active=False))) == []  # pass 2: paused, dropped
+    clock.t += 100
+    assert _deletes(_pass(monkeypatch, _listing())) == []          # pass 3: active again, 200 s since pass 1
+    clock.t += sm.RETIRE_MIN_AGE_S
+    assert _deletes(_pass(monkeypatch, _listing())) == [OLD_IDS[SOME_OLD]]  # pass 4
+
+
+def test_an_absence_between_two_active_passes_resets_the_clock(monkeypatch, clock):
+    assert _deletes(_pass(monkeypatch, _listing())) == []
+    clock.t += 100
+    assert _deletes(_pass(monkeypatch, _listing(present=False))) == []  # absent: re-created now
+    clock.t += 100
+    assert _deletes(_pass(monkeypatch, _listing())) == []
+    clock.t += sm.RETIRE_MIN_AGE_S
+    assert _deletes(_pass(monkeypatch, _listing())) == [OLD_IDS[SOME_OLD]]
+
+
+def test_a_409_does_not_keep_the_clock_when_the_next_listing_is_not_active(monkeypatch, clock):
+    key = ("tenant-a", sm._subscription_id(_new_def()))
+    _pass(monkeypatch, _listing(present=False), post_status=409)
+    assert key in sm._FIRST_SEEN
+    clock.t += 100
+    assert _deletes(_pass(monkeypatch, _listing(active=False))) == []
+    assert key not in sm._FIRST_SEEN
+    clock.t += sm.RETIRE_MIN_AGE_S
+    assert _deletes(_pass(monkeypatch, _listing(active=False))) == []
