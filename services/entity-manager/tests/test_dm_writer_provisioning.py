@@ -454,4 +454,7 @@ def test_attribute_builders_and_pushes_are_called_only_in_the_helpers():
         (d, "provision_device", "provision_iota_device"),
         (d, "update_device_attributes", "push_iota_attributes"),
         (d, "update_device_attributes", "push_iota_attributes"),
+        # the cutover command: first push of a move to iota, and the restore (other half of
+        # push_iota_attributes, see its module docstring)
+        ("dm_writer_cutover.py", "update_device_attributes", "_put"),
     ], seen

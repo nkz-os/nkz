@@ -181,3 +181,20 @@ def update_device_attributes(iota_url: str, headers: dict, device_id: str,
                         json={"attributes": attributes}, headers=headers, timeout=10)
     if resp.status_code != 204:
         raise IotAgentError(resp.status_code, resp.text)
+
+
+def get_device(iota_url: str, headers: dict, device_id: str) -> dict:
+    """The agent's own document of a device (`GET /iot/devices/{id}`).
+
+    Raises IotAgentError on any status other than 200 or a body that is not a JSON object.
+    """
+    resp = requests.get(f"{iota_url}/iot/devices/{device_id}", headers=headers, timeout=10)
+    if resp.status_code != 200:
+        raise IotAgentError(resp.status_code, resp.text)
+    try:
+        doc = resp.json()
+    except ValueError:
+        doc = None
+    if not isinstance(doc, dict):
+        raise IotAgentError(resp.status_code, "device document is not a JSON object")
+    return doc

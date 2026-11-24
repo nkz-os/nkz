@@ -203,3 +203,27 @@ def test_update_rejects_disallowed_attribute_entity_type(bad):
 def test_update_accepts_dm_attributes():
     with patch.object(iot_agent.requests, "put", return_value=_resp(204)):
         iot_agent.update_device_attributes(URL, HDR, "s1", [DM_ATTR])
+
+
+# -- reading a device document ------------------------------------------------------------
+
+def test_get_device_returns_the_document():
+    doc = {"device_id": "s1", "attributes": [DM_ATTR]}
+    with patch.object(iot_agent.requests, "get", return_value=_resp(200, doc)) as get:
+        assert iot_agent.get_device(URL, HDR, "s1") == doc
+    assert get.call_args.args[0] == f"{URL}/iot/devices/s1"
+    assert get.call_args.kwargs["headers"] == HDR
+
+
+@pytest.mark.parametrize("status", [404, 500])
+def test_get_device_non_200_raises(status):
+    with patch.object(iot_agent.requests, "get", return_value=_resp(status, text="nope")):
+        with pytest.raises(iot_agent.IotAgentError) as e:
+            iot_agent.get_device(URL, HDR, "s1")
+    assert e.value.status_code == status
+
+
+def test_get_device_rejects_a_body_that_is_not_an_object():
+    with patch.object(iot_agent.requests, "get", return_value=_resp(200, ["x"])):
+        with pytest.raises(iot_agent.IotAgentError):
+            iot_agent.get_device(URL, HDR, "s1")
