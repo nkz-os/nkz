@@ -79,10 +79,15 @@ MAPPING: dict[str, MappingRow] = {
     "drainFlow": _broader("waterFlow", "A drain flow is a flow of water."),
     # None: concept official elsewhere
     **{name: _none(_AGRIPARCEL) for name in ("stemDiameter", "stemDiameterVariation", "leafWetness")},
+    # None: concept official as an attribute of Device itself
+    "batteryLevel": _none(
+        "The concept is already official as an attribute of Device itself (dataModel.Device, "
+        "Device schema); ControlledPropertyType has no value for it."
+    ),
     # None: no true value
     **{name: _none(_NO_VALUE) for name in (
         "sapFlow", "stemWaterPotential", "vaporPressureDeficit", "ndvi", "leafAreaIndex",
-        "chlorophyllContent", "voltage", "current", "powerFactor", "stateOfCharge", "batteryLevel",
+        "chlorophyllContent", "voltage", "current", "powerFactor", "stateOfCharge",
         "efficiency", "status", "inclination", "azimuth", "elevation", "solarZenith", "uvIndex",
         "soilingIndex", "shadingCoverage", "soilNitrogen", "soilPhosphorus", "soilPotassium",
         "soilOrganicMatter", "soilCompaction",
