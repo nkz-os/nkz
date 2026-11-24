@@ -5,7 +5,7 @@ import pathlib
 
 import pytest
 
-from tests.telemetry_fakes import (AUTH, PROFILE, TENANT, FakeState, client, post_json,  # noqa: I001
+from tests.telemetry_fakes import (AUTH, PROFILE, TENANT, FakeState, _resp, client, post_json,  # noqa: I001
                                    seed_datalogger, seed_device, wired)
 
 import dataloggers  # after telemetry_fakes: it stubs the modules dataloggers imports
@@ -313,6 +313,44 @@ def test_change_with_a_failing_re_read_is_502_and_restores():
         r = _put_profile(urn)
     assert r.status_code == 502 and r.get_json()["step"] == "dm_state"
     assert ("orion", "patch") not in st.log
+    # the state cannot be read for the restore either: the old profile's attributes go out,
+    # built from the last known state (em)
+    assert st.iota_attrs[-1][1] == w.iota.build_iota_attributes(PROFILE["mapping"]["measurements"])
+
+
+def test_restore_after_an_orion_failure_survives_an_unreadable_state(caplog):
+    st, urn = _state()
+    with wired(st) as w, caplog.at_level("CRITICAL"):
+        _orion_device(w, urn)
+
+        def failing_patch(url, **kw):
+            st.fail["dm_state"] = True
+            return _resp(500)
+
+        w.orion.patch = failing_patch
+        r = _put_profile(urn)
+    assert r.status_code == 502 and r.get_json()["step"] == "orion_profile"
+    assert len(st.iota_attrs) == 2
+    assert st.iota_attrs[-1][1] == w.iota.build_iota_attributes(PROFILE["mapping"]["measurements"])
+    assert any("last known" in x.getMessage() for x in caplog.records)
+
+
+def test_restore_uses_the_last_state_read_when_it_changed_during_the_push(caplog):
+    st, urn = _state()
+
+    def cb(n):
+        if n == 1:   # the device moves to iota, then the state becomes unreadable
+            for r in st.devices:
+                r["dm_writer"], r["dm_shape"] = "iota", "legacy"
+        if n == 2:
+            st.fail["dm_state"] = True
+
+    st.after_update = cb
+    with wired(st) as w, caplog.at_level("CRITICAL"):
+        _orion_device(w, urn)
+        r = _put_profile(urn)
+    assert r.status_code == 502 and r.get_json()["step"] == "dm_state"
+    assert _dm(st.iota_attrs[-1][1]) and _device_type_literal(st.iota_attrs[-1][1]) == "'p'"
 
 
 @pytest.mark.parametrize("mode", ["toggle", "reread"])
@@ -392,7 +430,7 @@ def test_change_rebuild_error_after_the_state_moved_restores_and_is_not_a_400():
 
 
 @pytest.mark.parametrize("mode", ["push", "rebuild"])
-def test_reprovision_late_failure_lists_the_device_as_failed(mode):
+def test_reprovision_late_failure_lists_the_device_as_failed(mode, caplog):
     st, u1 = _state()
     if mode == "push":
         _late_second_push_fails(st)
@@ -404,6 +442,9 @@ def test_reprovision_late_failure_lists_the_device_as_failed(mode):
         _orion_device(w, u1)
         out = dataloggers.reprovision_profile_devices(TENANT, "p", ms)
     assert out["failed"] == [u1] and out["reprovisioned"] == []
+    # only the conversion into a WriterStateError logs this
+    what = {"push": "push failed after an earlier push", "rebuild": "rebuild failed after an earlier push"}[mode]
+    assert what in caplog.text
 
 
 _GUARDED = ("build_iota_attributes", "device_attributes", "provision_device",
@@ -452,6 +493,7 @@ def test_attribute_builders_and_pushes_are_called_only_in_the_helpers():
         (d, "device_attributes", "import"),
         (d, "device_attributes", "validate_profile_mappings"),
         (d, "provision_device", "provision_iota_device"),
+        (d, "update_device_attributes", "change_device_profile"),  # restore, state unreadable
         (d, "update_device_attributes", "push_iota_attributes"),
         (d, "update_device_attributes", "push_iota_attributes"),
         # the cutover command: first push of a move to iota, and the restore (other half of

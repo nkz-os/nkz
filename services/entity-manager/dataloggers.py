@@ -628,24 +628,27 @@ class WriterStateError(ApiError):
     """A push after the first one failed or the writer state could not be confirmed.
 
     The first push has been applied, so the caller must restore the previous attributes.
-    Always HTTP 502, step `dm_state`.
+    Always HTTP 502, step `dm_state`. `last_state` is the last `(dm_writer, dm_shape)` the
+    pushed attributes were built from (None when unknown): a restore that cannot read the
+    state builds the previous attributes from it.
     """
 
-    def __init__(self, message: str):
+    def __init__(self, message: str, last_state: Optional[tuple] = None):
         super().__init__(502, message, 'dm_state')
+        self.last_state = last_state
 
 
 _PUSH_ROUNDS = 3
 
 
-def _late_failure(exc: Exception, external_id: str, what: str) -> WriterStateError:
+def _late_failure(exc: Exception, external_id: str, what: str, state: tuple) -> WriterStateError:
     logger.error("IoT Agent push: %s failed after an earlier push: device=%s error=%s",
                  what, external_id, type(exc).__name__, exc_info=exc)
-    return WriterStateError(f'Device writer state could not be confirmed ({what})')
+    return WriterStateError(f'Device writer state could not be confirmed ({what})', state)
 
 
 def push_iota_attributes(tenant: str, urn: str, external_id: str, profile_code: Optional[str],
-                         measurements: list) -> None:
+                         measurements: list) -> tuple:
     """Replace a device's IoT Agent attributes and make sure they match its writer state.
 
     The state is read, the attributes built from it, then pushed; the state is read again
@@ -658,7 +661,8 @@ def push_iota_attributes(tenant: str, urn: str, external_id: str, profile_code: 
     first push propagate as they are (nothing was applied). A first push that raises after
     the agent applied it (a timeout) is not detected here either. Once the first push went
     out, ANY later failure (re-read, rebuild, another push, or a state that never settles)
-    is a WriterStateError, so the caller restores the previous attributes.
+    is a WriterStateError, so the caller restores the previous attributes. Returns the
+    state the attributes were finally built from.
     """
     state = device_dm_state(tenant, urn)
     attrs = _attributes_for_state(state, tenant, urn, external_id, profile_code, measurements)
@@ -671,13 +675,13 @@ def push_iota_attributes(tenant: str, urn: str, external_id: str, profile_code: 
                 iot_agent.update_device_attributes(iota_url(), iota_headers(tenant),
                                                    external_id, attrs)
             except Exception as exc:
-                raise _late_failure(exc, external_id, 'push') from exc
+                raise _late_failure(exc, external_id, 'push', state) from exc
         try:
             current = device_dm_state(tenant, urn)
         except Exception as exc:
-            raise _late_failure(exc, external_id, 're-read') from exc
+            raise _late_failure(exc, external_id, 're-read', state) from exc
         if current == state:
-            return
+            return state
         state = current
         if push == _PUSH_ROUNDS - 1:
             break
@@ -685,8 +689,8 @@ def push_iota_attributes(tenant: str, urn: str, external_id: str, profile_code: 
             attrs = _attributes_for_state(state, tenant, urn, external_id, profile_code,
                                           measurements)
         except Exception as exc:
-            raise _late_failure(exc, external_id, 'rebuild') from exc
-    raise WriterStateError('Device writer state kept changing')
+            raise _late_failure(exc, external_id, 'rebuild', state) from exc
+    raise WriterStateError('Device writer state kept changing', state)
 
 
 def provision_iota_device(tenant: str, apikey: str, external_id: str, urn: str,
@@ -795,11 +799,26 @@ def change_device_profile(tenant: str, urn: str, code: str) -> None:
     old_code = _prop(entity, 'profileCode')
     old_ms = _profile_measurements(tenant, old_code) if old_code else None
 
-    def restore() -> None:
+    def restore(last_state: Optional[tuple]) -> None:
         if old_ms is not None:
             def push_old():
                 try:
-                    push_iota_attributes(tenant, urn, external_id, old_code, old_ms)
+                    try:
+                        push_iota_attributes(tenant, urn, external_id, old_code, old_ms)
+                    except ApiError as exc:
+                        # The state cannot even be read: leaving the new profile's mappings
+                        # on the device while Orion keeps the old profile loses every reading,
+                        # so push the old attributes built from the last known state.
+                        if isinstance(exc, WriterStateError) or exc.step != 'db' or last_state is None:
+                            raise
+                        logger.critical(
+                            "device=%s urn=%s: writer state unreadable while restoring the "
+                            "profile mappings; pushing the old profile's attributes built "
+                            "from the last known state %r", external_id, urn, last_state)
+                        iot_agent.update_device_attributes(
+                            iota_url(), iota_headers(tenant), external_id,
+                            _attributes_for_state(last_state, tenant, urn, external_id,
+                                                  old_code, old_ms))
                 except Exception:
                     logger.critical("INCONSISTENCY: could not restore IoT Agent attributes: "
                                     "device=%s urn=%s old_profile=%s new_profile=%s",
@@ -812,13 +831,13 @@ def change_device_profile(tenant: str, urn: str, code: str) -> None:
                             external_id, code, old_code)
 
     try:
-        push_iota_attributes(tenant, urn, external_id, code, new_ms)
+        pushed_state = push_iota_attributes(tenant, urn, external_id, code, new_ms)
     except KeyError:
         raise ApiError(400, 'Profile has measurements without sdmAttribute')
     except ValueError as exc:
         raise ApiError(400, str(exc))
-    except WriterStateError:
-        restore()
+    except WriterStateError as exc:
+        restore(exc.last_state)
         raise
     except ApiError:
         raise
@@ -836,7 +855,7 @@ def change_device_profile(tenant: str, urn: str, code: str) -> None:
         logger.error("profile patch failed: device=%s error=%s", external_id, type(exc).__name__)
         orion_ok = False
     if not orion_ok:
-        restore()
+        restore(pushed_state)
         raise ApiError(502, 'Entity update failed', 'orion_profile')
 
 
