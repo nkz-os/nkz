@@ -65,7 +65,7 @@ export function StepIoTSensorConfig() {
 
   const formDataSafe = formData as IoTSensorFormData | null;
 
-  // ── Health & Calibration helpers (hooks before early return per React rules) ──
+  // ── Health helpers (hooks before early return per React rules) ──
   const selectedProfile = formDataSafe
     ? deviceProfiles.find(p => p.id === formDataSafe.deviceProfileId)
     : undefined;
@@ -114,18 +114,14 @@ export function StepIoTSensorConfig() {
   }, [selectedProfile?.id]);
 
   const currentHealth = (formDataSafe as any)?.healthConfig ?? {};
-  const currentCalibration = (formDataSafe as any)?.calibrationConfig ?? {};
 
   const customVarKeys = useMemo(() => {
     const keys = new Set<string>();
     for (const k of Object.keys(currentHealth)) {
       if (k !== 'communicationTimeoutHours') keys.add(k);
     }
-    for (const k of Object.keys(currentCalibration)) {
-      keys.add(k);
-    }
     return keys;
-  }, [currentHealth, currentCalibration]);
+  }, [currentHealth]);
   const allVariables = useMemo(
     () => [...new Set([...profileVariables, ...customVarKeys])],
     [profileVariables, customVarKeys]
@@ -141,13 +137,6 @@ export function StepIoTSensorConfig() {
     (updateFormData as any)({ healthConfig: current });
   }
 
-  function updateCalibrationVar(variable: string, field: string, value: any) {
-    const current = { ...((data as any).calibrationConfig ?? {}) };
-    if (!current[variable]) current[variable] = {};
-    current[variable] = { ...current[variable], [field]: value };
-    (updateFormData as any)({ calibrationConfig: current });
-  }
-
   function updateCommunicationTimeout(value: number | undefined) {
     const current = { ...((data as any).healthConfig ?? {}) };
     current.communicationTimeoutHours = value;
@@ -157,14 +146,10 @@ export function StepIoTSensorConfig() {
   function addVariable() {
     const name = newVariableName.trim();
     if (!name || allVariables.includes(name)) return;
-    // Initialise empty entries for the new variable
+    // Initialise an empty health entry for the new variable
     const hc = { ...((data as any).healthConfig ?? {}) };
     hc[name] = hc[name] ?? {};
     (updateFormData as any)({ healthConfig: hc });
-
-    const cc = { ...((data as any).calibrationConfig ?? {}) };
-    cc[name] = cc[name] ?? { slope: 1.0, offset: 0.0, sensorHardwareId: '' };
-    (updateFormData as any)({ calibrationConfig: cc });
 
     setNewVariableName('');
   }
@@ -173,10 +158,6 @@ export function StepIoTSensorConfig() {
     const hc = { ...((data as any).healthConfig ?? {}) };
     delete hc[variable];
     (updateFormData as any)({ healthConfig: hc });
-
-    const cc = { ...((data as any).calibrationConfig ?? {}) };
-    delete cc[variable];
-    (updateFormData as any)({ calibrationConfig: cc });
   }
 
   const handleImportProfile = (file: File) => {
@@ -372,7 +353,7 @@ export function StepIoTSensorConfig() {
         </div>
       )}
 
-      {/* ── Health Rules & Calibration Accordion ── */}
+      {/* ── Health Rules Accordion ── */}
       <details className="group mt-6 border border-nkz-border rounded-xl overflow-hidden">
         <summary className="flex items-center gap-2 px-4 py-3 bg-nkz-surface-sunken hover:bg-nkz-surface-sunken cursor-pointer list-none">
           <Settings className="w-5 h-5 text-teal-600" />
@@ -439,7 +420,6 @@ export function StepIoTSensorConfig() {
 
             {allVariables.map(variable => {
               const vHealth = (currentHealth as any)[variable] ?? {};
-              const vCalib = (currentCalibration as any)[variable] ?? {};
               return (
                 <div key={variable} className="border border-nkz-border rounded-lg p-3 bg-nkz-surface">
                   <div className="flex items-center justify-between mb-2">
@@ -487,39 +467,6 @@ export function StepIoTSensorConfig() {
                         onChange={(e: any) => updateHealthVar(variable, 'maxStagnantHours', e.target.value !== '' ? Number(e.target.value) : undefined)}
                         className="w-full px-3 py-1.5 text-sm border border-nkz-border rounded-lg"
                         placeholder="—"
-                      />
-                    </div>
-                    {/* Calibration: slope */}
-                    <div>
-                      <label className="block text-xs font-medium text-nkz-text-secondary mb-0.5">{t('wizard.iot.slope')}</label>
-                      <Input
-                        type="number"
-                        step="0.01"
-                        value={vCalib.slope ?? 1.0}
-                        onChange={(e: any) => updateCalibrationVar(variable, 'slope', e.target.value !== '' ? Number(e.target.value) : 1.0)}
-                        className="w-full px-3 py-1.5 text-sm border border-nkz-border rounded-lg"
-                      />
-                    </div>
-                    {/* Calibration: offset */}
-                    <div>
-                      <label className="block text-xs font-medium text-nkz-text-secondary mb-0.5">{t('wizard.iot.offset')}</label>
-                      <Input
-                        type="number"
-                        step="0.01"
-                        value={vCalib.offset ?? 0.0}
-                        onChange={(e: any) => updateCalibrationVar(variable, 'offset', e.target.value !== '' ? Number(e.target.value) : 0.0)}
-                        className="w-full px-3 py-1.5 text-sm border border-nkz-border rounded-lg"
-                      />
-                    </div>
-                    {/* Calibration: sensorHardwareId */}
-                    <div>
-                      <label className="block text-xs font-medium text-nkz-text-secondary mb-0.5">{t('wizard.iot.hardware_id')}</label>
-                      <Input
-                        type="text"
-                        value={vCalib.sensorHardwareId ?? ''}
-                        onChange={(e: any) => updateCalibrationVar(variable, 'sensorHardwareId', e.target.value)}
-                        className="w-full px-3 py-1.5 text-sm border border-nkz-border rounded-lg"
-                        placeholder="SN-..."
                       />
                     </div>
                   </div>
