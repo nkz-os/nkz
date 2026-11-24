@@ -24,8 +24,7 @@
    - **DeepSeek API** (preferred): API key from platform.deepseek.com. Add as "DeepSeek API" credential.
      If using Anthropic Claude instead: add API key from console.anthropic.com as "Anthropic API" credential.
    - **Zulip Bot** (HTTP Basic Auth):
-     Username: `kubectl get secret zulip-secret -n nekazari -o jsonpath='{.data.bot-email}' | base64 -d`
-     Password: `kubectl get secret zulip-secret -n nekazari -o jsonpath='{.data.bot-api-key}' | base64 -d`
+     Use the bot email and API key from your Zulip deployment credentials.
 
 3. Update the LLM node in the workflow:
    - Open the "LLM — Anthropic Claude" node
@@ -33,14 +32,7 @@
    - Model: `deepseek-chat` or `claude-sonnet-4-20250514`
    - Verify the prompt is in Spanish and agronomic context is preserved
 
-4. Verify Zulip stream exists:
-   ```bash
-   kubectl exec -n nekazari deploy/zulip-provisioner -- python -c "
-   from zulip_client import ZulipClient
-   c = ZulipClient()
-   c.ensure_stream('tenant-<TENANT_ID>-alerts')
-   "
-   ```
+4. Verify that the `tenant-<TENANT_ID>-alerts` stream exists in Zulip (via the Zulip provisioner or admin UI).
 
 5. Register webhook in `tenant_risk_webhooks`:
    ```sql
