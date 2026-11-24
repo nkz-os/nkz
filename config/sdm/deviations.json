@@ -28,6 +28,10 @@
       "official": "https://smartdatamodels.org/dataModel.Agrifood/atmosphericPressure",
       "types": [
         "AgriParcelRecord"
+      ],
+      "officialFor": [
+        "WeatherForecast",
+        "WeatherObserved"
       ]
     },
     {
@@ -56,11 +60,25 @@
       ]
     },
     {
+      "term": "brandName",
+      "platform": "https://smartdatamodels.org/dataModel.Device/brandName",
+      "official": "https://smartdatamodels.org/dataModel.Battery/brandName",
+      "types": [
+        "StorageBatteryDevice"
+      ],
+      "officialFor": [
+        "DeviceModel"
+      ]
+    },
+    {
       "term": "category",
       "platform": "https://smartdatamodels.org/dataModel.Agrifood/category",
       "official": "https://smartdatamodels.org/dataModel.Alert/category",
       "types": [
         "Alert"
+      ],
+      "officialFor": [
+        "AgriParcel"
       ]
     },
     {
@@ -69,6 +87,9 @@
       "official": "https://smartdatamodels.org/dataModel.Building/category",
       "types": [
         "Building"
+      ],
+      "officialFor": [
+        "AgriParcel"
       ]
     },
     {
@@ -76,7 +97,11 @@
       "platform": "https://smartdatamodels.org/dataModel.Agrifood/category",
       "official": "https://smartdatamodels.org/dataModel.Device/category",
       "types": [
-        "Device"
+        "Device",
+        "DeviceModel"
+      ],
+      "officialFor": [
+        "AgriParcel"
       ]
     },
     {
@@ -85,6 +110,9 @@
       "official": "https://smartdatamodels.org/dataModel.Weather/category",
       "types": [
         "WeatherAlert"
+      ],
+      "officialFor": [
+        "AgriParcel"
       ]
     },
     {
@@ -101,6 +129,9 @@
       "official": "https://smartdatamodels.org/dataModel.Device/depth",
       "types": [
         "Device"
+      ],
+      "officialFor": [
+        "AgriParcelRecord"
       ]
     },
     {
@@ -139,6 +170,28 @@
       ]
     },
     {
+      "term": "manufacturerName",
+      "platform": "https://smartdatamodels.org/dataModel.Device/manufacturerName",
+      "official": "https://smartdatamodels.org/dataModel.Battery/manufacturerName",
+      "types": [
+        "StorageBatteryDevice"
+      ],
+      "officialFor": [
+        "DeviceModel"
+      ]
+    },
+    {
+      "term": "modelName",
+      "platform": "https://smartdatamodels.org/dataModel.Device/modelName",
+      "official": "https://smartdatamodels.org/dataModel.Battery/modelName",
+      "types": [
+        "StorageBatteryDevice"
+      ],
+      "officialFor": [
+        "DeviceModel"
+      ]
+    },
+    {
       "term": "name",
       "platform": "https://schema.org/name",
       "official": "https://smartdatamodels.org/name",
@@ -155,6 +208,7 @@
         "Building",
         "Device",
         "DeviceMeasurement",
+        "DeviceModel",
         "EOProduct",
         "EOSatelliteImagery",
         "ManufacturingMachine",
@@ -188,6 +242,9 @@
       "official": "https://smartdatamodels.org/dataModel.Device/provider",
       "types": [
         "Device"
+      ],
+      "officialFor": [
+        "EOSatelliteImagery"
       ]
     },
     {
@@ -238,6 +295,9 @@
       "official": "https://smartdatamodels.org/dataModel.Battery/serialNumber",
       "types": [
         "StorageBatteryDevice"
+      ],
+      "officialFor": [
+        "Device"
       ]
     },
     {
@@ -246,6 +306,9 @@
       "official": "https://smartdatamodels.org/dataModel.ManufacturingMachine/serialNumber",
       "types": [
         "ManufacturingMachine"
+      ],
+      "officialFor": [
+        "Device"
       ]
     },
     {
@@ -278,6 +341,9 @@
       "official": "https://smartdatamodels.org/dataModel.Agrifood/solarRadiation",
       "types": [
         "AgriParcelRecord"
+      ],
+      "officialFor": [
+        "WeatherObserved"
       ]
     },
     {
@@ -328,6 +394,9 @@
       "official": "https://smartdatamodels.org/dataModel.Battery/weight",
       "types": [
         "StorageBatteryDevice"
+      ],
+      "officialFor": [
+        "Animal"
       ]
     },
     {

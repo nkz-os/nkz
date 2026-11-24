@@ -13,7 +13,9 @@ entities the platform builds really conform to them.
 - `deviations.json` records, one by one, every official type or attribute that the platform
   context maps to another IRI than the official one. It is generated (`deviations --write`),
   checked on every pull request, and may only lose entries. An official attribute the context
-  does not declare at all is not a deviation: it is reported when an example carries it.
+  does not declare at all is not a deviation: it is reported when an example carries it. Smart
+  Data Models gives some names a different IRI in each subject and a context maps a name once: an
+  entry that lists `officialFor` is official for those types and cannot be avoided, only moved.
 - `../sdm-examples/` holds one example entity per file, written by the builder that produces
   that entity in production. A test next to each builder keeps the file equal to its output.
 

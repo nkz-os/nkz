@@ -574,6 +574,39 @@ def test_a_core_term_means_the_core_iri_whatever_the_platform_says(tmp_path):
     assert checker.compute_deviations(pins, files, context, ["DemoThing"])["attributes"] == []
 
 
+def two_subjects(tmp_path):
+    """Two official subjects that give the term `status` two different IRIs."""
+    other = "https://smartdatamodels.org/dataModel.Other/"
+    pins, served = make_pins()
+    other_context = {"@context": {"OtherThing": other + "OtherThing", "status": other + "status"}}
+    other_schema = {"type": "object", "properties": {"id": {}, "type": {}, "status": {"type": "string"}}}
+    pins["subjects"]["Other"] = {"repo": "org/dataModel.Other", "commit": "c" * 40,
+                                 "context": {"path": "context.jsonld", "sha256": digest(other_context)}}
+    pins["types"]["OtherThing"] = {"subject": "Other", "schema": {"path": "OtherThing/schema.json",
+                                                                  "sha256": digest(other_schema)}}
+    base = "https://raw.githubusercontent.com/org/dataModel.Other/" + "c" * 40
+    served[base + "/context.jsonld"] = other_context
+    served[base + "/OtherThing/schema.json"] = other_schema
+    return pins, checker.fetch(pins, tmp_path / "cache", downloader(served)), other
+
+
+def test_a_deviation_forced_by_a_name_defined_twice_says_which_types_it_is_official_for(tmp_path):
+    pins, files, other = two_subjects(tmp_path)
+    context = {"@context": {"DemoThing": OFFICIAL + "DemoThing", "OtherThing": other + "OtherThing",
+                            "status": OFFICIAL + "status"}}
+    assert checker.compute_deviations(pins, files, context, ["DemoThing", "OtherThing"])["attributes"] == [
+        {"term": "status", "platform": OFFICIAL + "status", "official": other + "status", "types": ["OtherThing"],
+         "officialFor": ["DemoThing"]}]
+
+
+def test_a_deviation_to_an_iri_no_model_uses_is_official_for_nothing(tmp_path):
+    pins, files, other = two_subjects(tmp_path)
+    context = {"@context": {"DemoThing": OFFICIAL + "DemoThing", "OtherThing": other + "OtherThing",
+                            "status": "nkz:status"}}
+    found = checker.compute_deviations(pins, files, context, ["DemoThing", "OtherThing"])["attributes"]
+    assert len(found) == 2 and all("officialFor" not in entry for entry in found)
+
+
 def test_types_outside_the_allowed_list_are_not_inspected(tmp_path):
     pins, files, context = deviation_setup(tmp_path, {"DemoThing": "nkz:DemoThing"})
     assert checker.compute_deviations(pins, files, context, ["Other"]) == {"types": {}, "attributes": []}
@@ -669,6 +702,18 @@ def test_a_newly_allowed_type_may_bring_its_deviations_and_be_pending(repo):
     assert errors == ["Alert: attribute status added to the recorded deviations, which may only shrink"]
     # and without the allowed list nothing is forgiven
     assert len(checker.check_ratchet("main", Path("pending.txt"), Path("deviations.json"))) == 4
+
+
+def test_ratchet_accepts_a_deviation_that_is_official_for_another_type(repo):
+    grown = json.loads(json.dumps(RECORDED))
+    grown["attributes"].append({"term": "brand", "platform": OFFICIAL + "brand", "official": "https://other/brand",
+                                "types": ["Alert"], "officialFor": ["DemoThing"]})
+    (repo / "deviations.json").write_text(json.dumps(grown))
+    assert ratchet(repo) == []
+    # the same entry without a type it is official for is an ordinary new deviation
+    del grown["attributes"][1]["officialFor"]
+    (repo / "deviations.json").write_text(json.dumps(grown))
+    assert ratchet(repo) == ["Alert: attribute brand added to the recorded deviations, which may only shrink"]
 
 
 def test_ratchet_reads_the_base_list_whatever_its_line_endings(repo):
