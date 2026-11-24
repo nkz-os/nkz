@@ -354,6 +354,58 @@ def test_provision_with_an_unsupported_mapping_is_400():
     assert e.value.status == 400 and not any(x[0] == "iota" for x in st.log)
 
 
+def _late_second_push_fails(st):
+    def cb(n):
+        if n == 1:
+            for r in st.devices:
+                r["dm_writer"], r["dm_shape"] = "iota", "legacy"
+            st.fail["iota_update"] = True
+    st.after_update = cb
+
+
+_BAD_P2 = {"mapping": {"measurements": [
+    {"type": "numValue", "sdmAttribute": "soilMoisture", "unit": "%"}]}}  # fine for em only
+
+
+def test_change_second_push_failure_restores_and_is_502_dm_state():
+    st, urn = _state()
+    _late_second_push_fails(st)
+    with wired(st) as w:
+        _orion_device(w, urn)
+        r = _put_profile(urn)
+    assert r.status_code == 502 and r.get_json()["step"] == "dm_state"
+    assert ("orion", "patch") not in st.log
+    assert len(st.iota_attrs) == 3  # first push, failed second push, restore attempt
+
+
+def test_change_rebuild_error_after_the_state_moved_restores_and_is_not_a_400():
+    st, urn = _state()
+    st.profiles["p2"] = dict(_BAD_P2)
+    _flip(st, on=(1,))
+    with wired(st) as w:
+        _orion_device(w, urn)
+        r = _put_profile(urn)
+    assert r.status_code == 502 and r.get_json()["step"] == "dm_state"
+    assert ("orion", "patch") not in st.log
+    (_, first), (_, restore) = st.iota_attrs
+    assert not _dm(first) and _dm(restore) and _device_type_literal(restore) == "'p'"
+
+
+@pytest.mark.parametrize("mode", ["push", "rebuild"])
+def test_reprovision_late_failure_lists_the_device_as_failed(mode):
+    st, u1 = _state()
+    if mode == "push":
+        _late_second_push_fails(st)
+    else:
+        _flip(st, on=(1,))
+    # Called directly: profile save would reject the unsupported mapping with a 400.
+    ms = PROFILE["mapping"]["measurements"] if mode == "push" else _BAD_P2["mapping"]["measurements"]
+    with wired(st) as w:
+        _orion_device(w, u1)
+        out = dataloggers.reprovision_profile_devices(TENANT, "p", ms)
+    assert out["failed"] == [u1] and out["reprovisioned"] == []
+
+
 _GUARDED = ("build_iota_attributes", "device_attributes", "provision_device",
             "update_device_attributes")
 
@@ -400,5 +452,6 @@ def test_attribute_builders_and_pushes_are_called_only_in_the_helpers():
         (d, "device_attributes", "import"),
         (d, "device_attributes", "validate_profile_mappings"),
         (d, "provision_device", "provision_iota_device"),
+        (d, "update_device_attributes", "push_iota_attributes"),
         (d, "update_device_attributes", "push_iota_attributes"),
     ], seen

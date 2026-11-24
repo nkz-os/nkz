@@ -625,10 +625,23 @@ def iota_attributes_for(tenant: str, urn: str, external_id: str, profile_code: O
 
 
 class WriterStateError(ApiError):
-    """The writer state could not be confirmed AFTER attributes were pushed (they are applied)."""
+    """A push after the first one failed or the writer state could not be confirmed.
+
+    The first push has been applied, so the caller must restore the previous attributes.
+    Always HTTP 502, step `dm_state`.
+    """
+
+    def __init__(self, message: str):
+        super().__init__(502, message, 'dm_state')
 
 
 _PUSH_ROUNDS = 3
+
+
+def _late_failure(exc: Exception, external_id: str, what: str) -> WriterStateError:
+    logger.error("IoT Agent push: %s failed after an earlier push: device=%s error=%s",
+                 what, external_id, type(exc).__name__, exc_info=exc)
+    return WriterStateError(f'Device writer state could not be confirmed ({what})')
 
 
 def push_iota_attributes(tenant: str, urn: str, external_id: str, profile_code: Optional[str],
@@ -640,26 +653,40 @@ def push_iota_attributes(tenant: str, urn: str, external_id: str, profile_code: 
     Device-only mappings on a device the entity-manager skips (every reading lost), so a
     changed state means build and push again (at most `_PUSH_ROUNDS` pushes). The cutover
     command does the other half (push, update the row, push again after the commit).
-    Building errors (KeyError, ValueError, ApiError) happen before the first push; once
-    one push has gone out, a failed re-read or an unsettled state raises WriterStateError.
+
+    Failure handling: building errors (KeyError, ValueError, ApiError) and a failure of the
+    first push propagate as they are (nothing was applied). A first push that raises after
+    the agent applied it (a timeout) is not detected here either. Once the first push went
+    out, ANY later failure (re-read, rebuild, another push, or a state that never settles)
+    is a WriterStateError, so the caller restores the previous attributes.
     """
     state = device_dm_state(tenant, urn)
     attrs = _attributes_for_state(state, tenant, urn, external_id, profile_code, measurements)
-    for _ in range(_PUSH_ROUNDS):
-        iot_agent.update_device_attributes(iota_url(), iota_headers(tenant), external_id, attrs)
+    for push in range(_PUSH_ROUNDS):
+        if push == 0:
+            iot_agent.update_device_attributes(iota_url(), iota_headers(tenant), external_id,
+                                               attrs)
+        else:
+            try:
+                iot_agent.update_device_attributes(iota_url(), iota_headers(tenant),
+                                                   external_id, attrs)
+            except Exception as exc:
+                raise _late_failure(exc, external_id, 'push') from exc
         try:
             current = device_dm_state(tenant, urn)
-        except ApiError as exc:
-            raise WriterStateError(exc.status, exc.message, 'dm_state') from None
+        except Exception as exc:
+            raise _late_failure(exc, external_id, 're-read') from exc
         if current == state:
             return
         state = current
+        if push == _PUSH_ROUNDS - 1:
+            break
         try:
             attrs = _attributes_for_state(state, tenant, urn, external_id, profile_code,
                                           measurements)
-        except ApiError as exc:
-            raise WriterStateError(exc.status, exc.message, 'dm_state') from None
-    raise WriterStateError(502, 'Device writer state kept changing', 'dm_state')
+        except Exception as exc:
+            raise _late_failure(exc, external_id, 'rebuild') from exc
+    raise WriterStateError('Device writer state kept changing')
 
 
 def provision_iota_device(tenant: str, apikey: str, external_id: str, urn: str,
