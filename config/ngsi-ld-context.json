@@ -832,6 +832,10 @@
         "@id": "https://smartdatamodels.org/dataModel.Device/DeviceMeasurement",
         "@type": "@id"
       },
+      "DeviceModel": {
+        "@id": "https://smartdatamodels.org/dataModel.Device/DeviceModel",
+        "@type": "@id"
+      },
       "ManufacturingMachine": {
         "@id": "https://smartdatamodels.org/dataModel.ManufacturingMachine/ManufacturingMachine",
         "@type": "@id"
@@ -853,6 +857,12 @@
       "outlier": "https://smartdatamodels.org/dataModel.Device/outlier",
       "serialNumber": "https://smartdatamodels.org/dataModel.Device/serialNumber",
       "deviceState": "https://smartdatamodels.org/dataModel.Device/deviceState",
+      "refDeviceModel": "https://smartdatamodels.org/dataModel.Device/refDeviceModel",
+      "dateInstalled": "https://smartdatamodels.org/dataModel.Device/dateInstalled",
+      "deviceCategory": "https://smartdatamodels.org/dataModel.Device/deviceCategory",
+      "manufacturerName": "https://smartdatamodels.org/dataModel.Device/manufacturerName",
+      "brandName": "https://smartdatamodels.org/dataModel.Device/brandName",
+      "modelName": "https://smartdatamodels.org/dataModel.Device/modelName",
       "machineModel": "https://smartdatamodels.org/dataModel.ManufacturingMachine/machineModel",
       "dayMaximum": "https://smartdatamodels.org/dataModel.Weather/dayMaximum",
       "dayMinimum": "https://smartdatamodels.org/dataModel.Weather/dayMinimum",

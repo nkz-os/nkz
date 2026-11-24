@@ -12,6 +12,7 @@ Animal
 Building
 Device
 DeviceMeasurement
+DeviceModel
 EOProduct
 EOSatelliteImagery
 ManufacturingMachine

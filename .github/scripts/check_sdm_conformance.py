@@ -381,12 +381,18 @@ def compute_deviations(pins: dict, files: dict[str, Any], platform_context: Any,
     An official attribute that the platform context does not declare at all is
     not listed: nothing is mapped. It shows up as `attribute-outside-context`
     as soon as an entity carries it.
+
+    Smart Data Models gives some names a different IRI in each subject, and a
+    context can map a name only once. An entry whose platform IRI is the
+    official one for other allowed types carries them in `officialFor`: that
+    deviation cannot be avoided, only moved.
     """
     platform = context_terms(platform_context)
     core = context_terms(files["core"])
     shared = {ref: files[ref] for ref in pins["shared"]}
     types: dict[str, dict[str, str]] = {}
     by_pair: dict[tuple[str, str, str], list[str]] = {}
+    conforming: dict[tuple[str, str], list[str]] = {}
     for name in sorted(set(allowed) & set(pins["types"])):
         subject_terms = context_terms(files[f"context:{pins['types'][name]['subject']}"])
         official_type = subject_terms.get(name)
@@ -396,13 +402,18 @@ def compute_deviations(pins: dict, files: dict[str, Any], platform_context: Any,
         for term in sorted(schema_properties(files[f"schema:{name}"], shared)):
             official = subject_terms.get(term)
             mapped = core.get(term, platform.get(term))
-            if official is None or mapped is None or mapped == official:
+            if official is None or mapped is None:
+                continue
+            if mapped == official:
+                conforming.setdefault((term, mapped), []).append(name)
                 continue
             by_pair.setdefault((term, mapped, official), []).append(name)
-    attributes = [
-        {"term": term, "platform": mapped, "official": official, "types": names}
-        for (term, mapped, official), names in sorted(by_pair.items())
-    ]
+    attributes = []
+    for (term, mapped, official), names in sorted(by_pair.items()):
+        entry = {"term": term, "platform": mapped, "official": official, "types": names}
+        if (term, mapped) in conforming:
+            entry["officialFor"] = conforming[(term, mapped)]
+        attributes.append(entry)
     return {"types": types, "attributes": attributes}
 
 
@@ -450,7 +461,9 @@ def check_ratchet(base: str, pending: Path, deviations: Path, allowed: Path | No
 
     A type that joins the allowed list after the base ref brings the deviations of
     the terms it shares with the rest; those are accepted, and visible in the diff.
-    An already allowed type may not gain one.
+    So is a deviation whose platform IRI is the official one for another allowed
+    type (`officialFor`): the name is defined twice upstream and one side must lose.
+    An already allowed type may not gain any other.
     """
     errors: list[str] = []
     newly_allowed: set[str] = set()
@@ -465,9 +478,13 @@ def check_ratchet(base: str, pending: Path, deviations: Path, allowed: Path | No
     old_deviations = _at_ref(base, deviations)
     if old_deviations is not None:
         before_keys = deviation_keys(json.loads(old_deviations))
-        current = deviation_keys(json.loads(deviations.read_text(encoding="utf-8")))
+        recorded = json.loads(deviations.read_text(encoding="utf-8"))
+        current = deviation_keys(recorded)
+        forced = {("attribute", entry["term"], type_name, entry["official"])
+                  for entry in recorded.get("attributes", []) if entry.get("officialFor")
+                  for type_name in entry["types"]}
         for kind, name, type_name, official in sorted(current - before_keys):
-            if type_name in newly_allowed:
+            if type_name in newly_allowed or (kind, name, type_name, official) in forced:
                 continue
             errors.append(f"{type_name}: {kind} {name} added to the recorded deviations, which may only shrink")
     return errors
