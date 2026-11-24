@@ -1,6 +1,6 @@
 """The profile an entity is on, for every reader of this service.
 
-`common.device_model.device_profile_code` is the lookup; this module applies it to entities read
+`common.device_model.entity_profile` is the lookup; this module applies it to entities read
 from Orion and logs, once each, the Devices that still name their profile only with `profileCode`
 and the Devices whose two codes disagree.
 """
@@ -9,12 +9,9 @@ import threading
 from collections import OrderedDict
 from typing import Mapping, Optional
 
-from common.device_model import device_profile_code, profile_codes
+from common.device_model import entity_profile, is_device, profile_codes
 
 logger = logging.getLogger(__name__)
-
-# A read whose context lacks the term brings the type as an IRI.
-_DEVICE_TYPES = ('Device', 'https://smartdatamodels.org/dataModel.Device/Device')
 
 # Bound of the memory of what was logged; past it the oldest are forgotten and may log again.
 _MAX_LOGGED = 10_000
@@ -29,9 +26,9 @@ def entity_profile_code(tenant: str, entity: Optional[Mapping]) -> Optional[str]
     """
     if not entity:
         return None
-    if entity.get('type') not in _DEVICE_TYPES:
-        return device_profile_code(tenant, {'profileCode': entity.get('profileCode')})[0]
-    code, source = device_profile_code(tenant, entity)
+    code, source = entity_profile(tenant, entity)
+    if not is_device(entity):
+        return code
     entity_id = entity.get('id')
     if source == 'legacy':
         if _first_time('fallback', tenant, entity_id):

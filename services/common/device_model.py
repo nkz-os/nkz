@@ -23,6 +23,8 @@ DEVICE_IRI = "https://smartdatamodels.org/dataModel.Device/"
 DEFAULT_CONTEXT_IRI = "https://uri.etsi.org/ngsi-ld/default-context/"
 _REF_DEVICE_MODEL_KEYS = ("refDeviceModel", DEVICE_IRI + "refDeviceModel")
 _PROFILE_CODE_KEYS = ("profileCode", DEFAULT_CONTEXT_IRI + "profileCode")
+# A read whose context lacks the term brings the type as an IRI.
+_DEVICE_TYPES = ("Device", DEVICE_IRI + "Device")
 
 _MODEL_PREFIX = "urn:ngsi-ld:DeviceModel:"
 _CODE = re.compile(r"[A-Za-z0-9_.-]{1,64}")
@@ -111,6 +113,23 @@ def device_profile_code(
     if codes.legacy is not None:
         return codes.legacy, "legacy"
     return None, "none"
+
+
+def is_device(entity: Mapping) -> bool:
+    """The entity is of type Device."""
+    return entity.get("type") in _DEVICE_TYPES
+
+
+def entity_profile(
+    tenant: str, entity: Mapping
+) -> tuple[str | None, Literal["model", "legacy", "none"]]:
+    """The profile code an entity of any type is on, and where it came from.
+
+    Only a Device has `refDeviceModel`: any other type is on its `profileCode`.
+    """
+    if not is_device(entity):
+        entity = {"profileCode": entity.get("profileCode")}
+    return device_profile_code(tenant, entity)
 
 
 def _declared(value: object) -> str | None:

@@ -219,7 +219,7 @@ def _handle_device_measurement_notification(tenant_id: str, entity: dict) -> boo
     """Turn one Device/ManufacturingMachine notification into DeviceMeasurement writes.
 
     Returns True once the entity was handled (including the legitimate "nothing to write"
-    case — no profileCode, no matching profile, or a profile with no measurement
+    case — no profile code, no matching profile, or a profile with no measurement
     attributes present on this entity), False only for an unexpected failure building or
     writing the batch, so callers can distinguish "processed" from "errored".
 
@@ -229,17 +229,17 @@ def _handle_device_measurement_notification(tenant_id: str, entity: dict) -> boo
     suite stubs `common` as a bare MagicMock for files that never touch it — importing
     eagerly would break every one of those unrelated test files at collection time, and
     importing unconditionally at the top of this function would do the same to any test
-    that exercises the no-profileCode/no-matching-profile early-outs below without also
+    that exercises the no-profile-code/no-matching-profile early-outs below without also
     setting up common.unit_codes. See tests/test_measurement_transformer.py's docstring
-    for the same constraint from the other side.
+    for the same constraint from the other side. device_profile reads common.device_model
+    at import time, so it is imported here as well, when a notification is handled.
     """
+    from device_profile import entity_profile_code
+
     entity_id = entity.get('id', '')
-    profile_code_attr = entity.get('profileCode')
-    profile_code = (
-        profile_code_attr.get('value') if isinstance(profile_code_attr, dict) else None
-    )
+    profile_code = entity_profile_code(tenant_id, entity)
     if not profile_code:
-        logger.debug('No profileCode on %s, skipping measurement build', entity_id)
+        logger.debug('No profile code on %s, skipping measurement build', entity_id)
         return True
 
     dm_writer, profile = _read_dm_writer_and_profile(tenant_id, entity_id, profile_code)

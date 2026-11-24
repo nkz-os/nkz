@@ -18,6 +18,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from common.context_aliases import canonical_attribute
 from common.device_measurement_shape import channels_by_name
+from common.device_model import entity_profile
 
 # Attributes that are never measurements, regardless of what the profile declares. Device
 # identity/metadata, not a reading. Kept as an explicit allow-list-adjacent skip so a coincidental
@@ -122,8 +123,9 @@ def build_measurements(entity: Dict[str, Any], profile: Dict[str, Any]) -> List[
     """
     entity_id = entity.get("id", "")
     tenant, external_id = _parse_device_id(entity_id)
-    profile_code_attr = entity.get("profileCode")
-    profile_code = profile_code_attr.get("value") if isinstance(profile_code_attr, dict) else None
+    # The rule of `device_profile.entity_profile_code`, without its log: this module is pure and
+    # is also loaded outside this service.
+    profile_code = entity_profile(tenant, entity)[0]
 
     shape = "sdm" if sdm_shape_enabled() else "legacy"
     results: List[Dict[str, Any]] = []

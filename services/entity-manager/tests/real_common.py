@@ -12,8 +12,7 @@ _COMMON = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__
 
 
 def seed_real_common(names=("unit_codes", "context_aliases", "jexl_expressions", "csrf_guard",
-                                "observation_context", "window_statistics", "controlled_property",
-                                "device_model")):
+                                "observation_context", "window_statistics")):
     for name in names:
         key = f"common.{name}"
         if key in sys.modules:
@@ -29,7 +28,8 @@ def seed_real_common(names=("unit_codes", "context_aliases", "jexl_expressions",
     # Built on the helpers above, which are in `sys.modules` by now; blueprints and
     # dataloggers import them at module level, so every caller needs them whatever names it
     # asked for. Order matters: each one imports the ones before it.
-    for name in ("device_measurement_shape", "iot_agent", "iota_dm_mappings"):
+    for name in ("controlled_property", "device_model", "device_measurement_shape", "iot_agent",
+                 "iota_dm_mappings"):
         key = f"common.{name}"
         if key in sys.modules:
             continue
