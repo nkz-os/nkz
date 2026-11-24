@@ -247,10 +247,13 @@ class InboxConsumer:
                     extra={"queue": self._queue, "error": repr(exc)},
                 )
 
+    # asyncio.timeout, not wait_for: on Python 3.11 wait_for can swallow a cancellation that
+    # arrives as its inner call finishes, and the loop would then never stop.
     async def _refresh_stats(self) -> None:
         """Set the depth/age gauges; a failure is logged and never ends the loop."""
         try:
-            depth, age = await asyncio.wait_for(self._inbox.stats(), STATS_TIMEOUT_SECONDS)
+            async with asyncio.timeout(STATS_TIMEOUT_SECONDS):
+                depth, age = await self._inbox.stats()
         except Exception as exc:  # CancelledError is not an Exception: it propagates
             logger.warning(
                 f"inbox_stats_failed queue={self._queue} error={exc!r}",
@@ -297,7 +300,8 @@ class InboxConsumer:
             )
             return False
         try:
-            await asyncio.wait_for(conn.fetchval("SELECT 1"), LOCK_PING_TIMEOUT_SECONDS)
+            async with asyncio.timeout(LOCK_PING_TIMEOUT_SECONDS):
+                await conn.fetchval("SELECT 1")
         except Exception as exc:
             logger.warning(
                 f"inbox_consumer_lock_lost queue={self._queue} reason={exc!r}",

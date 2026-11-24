@@ -188,6 +188,28 @@ def test_consumer_refreshes_gauges_while_idle_and_survives_stats_failure():
     asyncio.run(main())
 
 
+def test_consumer_stops_every_time_it_is_cancelled():
+    # A pending stats or lock-check call must never absorb the cancellation.
+    async def main():
+        async def noop(*a, **kw):
+            return None
+
+        for i in range(40):
+            c = InboxConsumer(StatsInbox(f"t-cancel-{i}"), OkPool(), process=noop, idle_s=0.0)
+            c._stats_refresh_s = 0.0
+            c._lock_check_s = 0.0
+            task = asyncio.create_task(c.run())
+            await asyncio.sleep(0.001)
+            task.cancel()
+            done, _ = await asyncio.wait({task}, timeout=1)
+            while not task.done():  # never leave the loop running: it would hang the suite
+                task.cancel()
+                await asyncio.wait({task}, timeout=0.05)
+            assert done, f"cancellation {i} was lost"
+
+    asyncio.run(main())
+
+
 def test_failed_stats_gives_nan_and_counter_then_recovers():
     q = "t-nan"
     inbox = StatsInbox(q)
