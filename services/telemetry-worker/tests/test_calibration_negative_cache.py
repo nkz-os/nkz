@@ -110,14 +110,22 @@ def test_found_period_still_cached_and_served():
     assert redis.setex_calls[0][1] == cal.CACHE_TTL
 
 
-def test_marker_is_never_returned_as_a_period():
-    pool, redis = FakePool(row=None), CacheRedis()
-    s = _svc(pool, redis)
-    _lookup(s)
-    assert all(v is None for v in _lookup(s, 3))
+def test_cached_marker_short_circuits_postgres_and_is_never_a_period():
+    pool, redis = FakePool(row={"id": "p1", "slope": 2, "offset_val": 1}), CacheRedis()
+    redis.store[f"{cal.CACHE_PREFIX}{TENANT}:{SENSOR}:{VAR}"] = cal.ABSENT_MARKER
+    assert _lookup(_svc(pool, redis), 3) == [None, None, None]
+    assert pool.queries == 0
 
 
-def test_redis_down_queries_every_time():
+def test_redis_down_still_serves_periods_from_postgres():
+    # both the cache read and the cache write fail; the lookup must not
+    pool = FakePool(row={"id": "p1", "slope": 2, "offset_val": 1})
+    out = _lookup(_svc(pool, DownRedis()), 2)
+    assert out == [{"id": "p1", "slope": 2.0, "offset_val": 1.0}] * 2
+    assert pool.queries == 2
+
+
+def test_redis_down_negative_result_is_not_an_error():
     pool = FakePool(row=None)
     assert _lookup(_svc(pool, DownRedis()), 2) == [None, None]
     assert pool.queries == 2

@@ -442,16 +442,18 @@ async def _prepare_entity(
                     calibration_period_ids[var] = cal["id"]
 
     # --- Health check on extracted measurements ---
-    # The health configuration (and reliabilityStatus) of a DeviceMeasurement lives on its
-    # Device, not on the DM itself; its keys are the channel names used in `measurements`.
+    # The health configuration of a DeviceMeasurement lives on its Device, not on the DM
+    # itself; its keys are the channel names used in `measurements` (or their canonical
+    # aliases).
     quality_flag = "valid"
     health_flags: Dict[str, str] = {}
+    is_dm = entity_type == "DeviceMeasurement"
     health_target: Optional[str] = entity_id
-    if entity_type == "DeviceMeasurement":
+    if is_dm:
         health_target = _ref_device_urn(entity)
         if health_target is not None and not health_target.startswith("urn:"):
             health_target = None
-        if health_target is None:
+        if health_target is None and _health_checker and tenant_id:
             logger.debug(f"No usable refDevice on {entity_id}, health check skipped")
     if _health_checker and tenant_id and health_target:
         health_config = await _health_checker.get_health_config(
@@ -460,14 +462,19 @@ async def _prepare_entity(
         if health_config:
             worst_flag = "valid"
             for var, val in measurements.items():
-                flag = _health_checker.evaluate_measurement(var, val, health_config)
+                flag = _health_checker.evaluate_measurement(
+                    var, val, health_config,
+                    context=(tenant_id, health_target), aliases=is_dm,
+                )
                 health_flags[var] = flag
                 if _severity(flag) > _severity(worst_flag):
                     worst_flag = flag
             quality_flag = worst_flag
 
-            # Update reliabilityStatus in Orion if degraded/error
-            if quality_flag in ("out_of_bounds", "nan"):
+            # reliabilityStatus is written for non-DM entities only: a write on the Device
+            # of a DM would re-trigger the entity-manager subscription, which rebuilds
+            # every channel of that Device (echo). A DM reading keeps its quality_flag.
+            if not is_dm and quality_flag in ("out_of_bounds", "nan"):
                 status = "error" if quality_flag == "out_of_bounds" else "degraded"
                 await _health_checker.update_reliability_status(
                     health_target, tenant_id, status

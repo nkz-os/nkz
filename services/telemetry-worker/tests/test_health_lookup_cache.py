@@ -13,6 +13,7 @@ for _p in [_TEST_DIR, _SVC_DIR, _SERVICES_DIR, os.path.join(_SERVICES_DIR, "comm
         sys.path.insert(0, _p)
 
 import httpx
+import pytest
 
 from _lookup_fakes import TIMEOUT, CacheRedis, DownRedis, FakeClient, FakeResponse, health_property
 from telemetry_worker import health_checker as hcm
@@ -188,3 +189,111 @@ def test_client_is_created_lazily_without_start_and_reused():
 
     a, b = asyncio.run(go())
     assert a is b and a.is_closed
+
+
+def test_tenant_is_part_of_the_cache_key():
+    client = FakeClient([FakeResponse(404), FakeResponse(200, health_property(CONFIG))])
+    hc = _hc(CacheRedis(), client)
+
+    async def go():
+        a = await hc.get_health_config(ENTITY, "tenant-a")
+        b = await hc.get_health_config(ENTITY, "tenant-b")
+        a2 = await hc.get_health_config(ENTITY, "tenant-a")
+        return a, b, a2
+
+    assert asyncio.run(go()) == (None, CONFIG, None)
+    assert len(client.gets) == 2
+
+
+def test_patch_404_returns_false_and_warns(caplog):
+    client = FakeClient(patch_status=404)
+    with caplog.at_level(logging.WARNING, logger=hcm.__name__):
+        assert asyncio.run(_hc(None, client).update_reliability_status(ENTITY, TENANT, "error")) is False
+    assert any("reliabilityStatus" in r.getMessage() for r in caplog.records)
+
+
+def test_stop_closes_redis_even_if_aclose_raises():
+    class Boom(FakeClient):
+        async def aclose(self):
+            raise RuntimeError("boom")
+
+    redis = CacheRedis()
+    closed = []
+
+    async def close():
+        closed.append(True)
+
+    redis.close = close
+    hc = _hc(redis, Boom())
+    with pytest.raises(RuntimeError):
+        asyncio.run(hc.stop())
+    assert closed == [True]
+
+
+def test_get_client_after_stop_raises_instead_of_leaking_a_client():
+    hc = _hc(None, FakeClient())
+    asyncio.run(hc.stop())
+    with pytest.raises(RuntimeError):
+        hc._get_client()
+    # and lookups degrade to "no config", logged, never an unclosed client
+    assert asyncio.run(hc.get_health_config(ENTITY, TENANT)) is None
+    assert hc._client is None
+
+
+def test_start_after_stop_reopens(monkeypatch):
+    monkeypatch.setattr(hcm.aioredis, "from_url", lambda *a, **k: CacheRedis())
+    hc = HealthChecker(orion_url="http://orion:1026", redis_url="redis://x/0", context_url=CTX)
+
+    async def go():
+        await hc.start()
+        await hc.stop()
+        await hc.start()
+        c = hc._client
+        await hc.stop()
+        return c
+
+    assert asyncio.run(go()).is_closed
+
+
+def test_ref_device_with_reserved_characters_is_quoted_in_patch_url():
+    client = FakeClient()
+    asyncio.run(_hc(None, client).update_reliability_status("urn:x:a/b?c", TENANT, "error"))
+    assert client.patches[0][0].endswith("/entities/urn:x:a%2Fb%3Fc/attrs")
+
+
+# --- evaluate_measurement is fail-safe ---
+
+@pytest.mark.parametrize("cfg", [
+    None, [], "x", 5,
+    {"t": "oops"}, {"t": 3}, {"t": ["a"]},
+    {"t": {"minValid": "1"}}, {"t": {"maxValid": "9"}},
+    {"t": {"minValid": True}}, {"t": {"maxValid": False}},
+    {"t": {"minValid": float("nan")}}, {"t": {"maxValid": float("nan")}},
+])
+def test_evaluate_never_raises_on_malformed_config(cfg):
+    hc = _hc(None, None)
+    assert hc.evaluate_measurement("t", 0.5, cfg) == "valid"
+
+
+def test_evaluate_one_bad_threshold_makes_the_variable_valid():
+    hc = _hc(None, None)
+    assert hc.evaluate_measurement("t", 100.0, {"t": {"minValid": 0, "maxValid": "9"}}) == "valid"
+
+
+def test_evaluate_warns_once_per_tenant_device_window(caplog):
+    hc = _hc(None, None)
+    with caplog.at_level(logging.WARNING, logger=hcm.__name__):
+        for _ in range(4):
+            hc.evaluate_measurement("t", 5.0, {"t": "oops"}, context=("tenant-a", "dev-1"))
+        assert len(caplog.records) == 1
+        hc.evaluate_measurement("t", 5.0, {"t": "oops"}, context=("tenant-a", "dev-2"))
+        hc.evaluate_measurement("t", 5.0, {"t": "oops"}, context=("tenant-b", "dev-1"))
+        assert len(caplog.records) == 3
+    assert hc._config_warnings._window_s == CACHE_TTL
+
+
+def test_evaluate_alias_only_when_asked():
+    hc = _hc(None, None)
+    cfg = {"temperature": {"maxValid": 40}}
+    assert hc.evaluate_measurement("airTemperature", 99.0, cfg) == "valid"
+    assert hc.evaluate_measurement("airTemperature", 99.0, cfg, aliases=True) == "out_of_bounds"

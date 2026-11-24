@@ -65,13 +65,20 @@ def _run(entities_list, client):
     return sink
 
 
-def test_dm_looks_up_and_patches_the_device():
+def test_dm_looks_up_the_device_and_never_patches():
+    # A reliabilityStatus write on the Device would re-trigger the entity-manager
+    # subscription and rebuild every channel of it, so a DM reading only gets its flag.
     client = FakeClient([FakeResponse(200, health_property(CFG))])
     sink = _run([[_dm()]], client)
     assert [g[0] for g in client.gets] == [f"http://orion:1026/ngsi-ld/v1/entities/{DEVICE}?attrs=healthConfig"]
-    assert [p[0] for p in client.patches] == [f"http://orion:1026/ngsi-ld/v1/entities/{DEVICE}/attrs"]
-    assert client.patches[0][1]["reliabilityStatus"]["value"] == "error"
+    assert client.patches == []
     assert [e.quality_flag for e in sink.inserted] == ["out_of_bounds"]
+
+
+def test_dm_nan_reading_never_patches():
+    client = FakeClient([FakeResponse(200, health_property(CFG))])
+    _run([[_dm(value=None)]], client)
+    assert client.patches == []
 
 
 def test_dm_in_range_has_no_patch_and_valid_flag():
@@ -111,9 +118,10 @@ def test_dm_with_non_urn_ref_device_makes_no_request_and_is_stored():
     assert len(sink.inserted) == 1 and sink.inserted[0].quality_flag == "valid"
 
 
-def test_dm_without_ref_device_makes_no_request():
+def test_dm_without_ref_device_is_skipped_before_any_health_request():
     client = FakeClient()
-    _run([[_dm(ref=False)]], client)
+    sink = _run([[_dm(ref=False)]], client)
+    assert sink.inserted == []
     assert client.gets == [] and client.patches == []
 
 
@@ -122,6 +130,88 @@ def test_one_lookup_per_device_across_channels():
     sink = _run([[_dm(value=1.0, channel="airTemperature"), _dm(value=2.0, channel="airHumidity")]], client)
     assert len(client.gets) == 1
     assert len(sink.inserted) == 2
+
+
+def test_debug_line_only_when_health_checker_is_on(caplog):
+    import logging
+    with caplog.at_level(logging.DEBUG, logger=nh.logger.name):
+        _run([[_dm(ref="dev-1")]], FakeClient())
+        assert any("No usable refDevice" in r.getMessage() for r in caplog.records)
+        caplog.clear()
+        nh.init_handler(
+            settings=Settings(postgres_url="postgresql://test:test@localhost/test"),
+            profile_service=FakeProfileService(), event_sink=FakeSink(),
+        )
+        try:
+            asyncio.run(nh.process_notification_task({"data": [_dm(ref="dev-1")]}, TENANT))
+        finally:
+            nh.init_handler(
+                settings=Settings(postgres_url="postgresql://test:test@localhost/test"),
+                profile_service=FakeProfileService(), event_sink=None,
+            )
+        assert not any("No usable refDevice" in r.getMessage() for r in caplog.records)
+
+
+def test_ref_device_is_quoted_in_the_url():
+    client = FakeClient([FakeResponse(404)])
+    _run([[_dm(ref="urn:ngsi-ld:Device:tenant-a:a/b?c d")]], client)
+    assert client.gets[0][0] == (
+        "http://orion:1026/ngsi-ld/v1/entities/urn:ngsi-ld:Device:tenant-a:a%2Fb%3Fc%20d?attrs=healthConfig"
+    )
+
+
+# --- variable matching (DeviceMeasurement only) ---
+
+def test_alias_config_key_matches_canonical_channel():
+    cfg = {"temperature": {"minValid": 0, "maxValid": 40}}
+    sink = _run([[_dm()]], FakeClient([FakeResponse(200, health_property(cfg))]))
+    assert [e.quality_flag for e in sink.inserted] == ["out_of_bounds"]
+
+
+def test_exact_key_wins_over_alias_key():
+    cfg = {"airTemperature": {"minValid": 0, "maxValid": 500}, "temperature": {"minValid": 0, "maxValid": 40}}
+    sink = _run([[_dm()]], FakeClient([FakeResponse(200, health_property(cfg))]))
+    assert [e.quality_flag for e in sink.inserted] == ["valid"]
+
+
+def test_alias_not_applied_to_non_dm_entities():
+    # non-DM variables are attribute keys as stored; `airTemperature` != config key `temperature`
+    entity = {"id": "urn:ngsi-ld:AgriSensor:tenant-a:s1", "type": "AgriSensor",
+              "airTemperature": {"type": "Property", "value": 99}}
+    cfg = {"temperature": {"maxValid": 40}}
+    sink = _run([[entity]], FakeClient([FakeResponse(200, health_property(cfg))]))
+    assert [e.quality_flag for e in sink.inserted] == ["valid"]
+
+
+# --- fail-safe on malformed configuration ---
+
+import pytest
+
+
+@pytest.mark.parametrize("cfg", [
+    ["not", "a", "dict"],
+    {"airTemperature": "oops"},
+    {"airTemperature": ["x"]},
+    {"airTemperature": {"maxValid": "40"}},
+    {"airTemperature": {"minValid": True}},
+    {"airTemperature": {"maxValid": float("nan")}},
+])
+def test_malformed_config_is_valid_and_row_is_stored(cfg, caplog):
+    import logging
+    with caplog.at_level(logging.WARNING):
+        sink = _run([[_dm()]], FakeClient([FakeResponse(200, health_property(cfg))]))
+    assert [e.quality_flag for e in sink.inserted] == ["valid"]
+    assert any("health" in r.getMessage().lower() and r.levelno == logging.WARNING for r in caplog.records)
+
+
+def test_malformed_config_warning_is_throttled_per_device(caplog):
+    import logging
+    cfg = {"airTemperature": "oops"}
+    entities = [[_dm(value=float(i))] for i in range(5)]
+    # dedup is off in this harness; distinct values avoid any replay skip
+    with caplog.at_level(logging.WARNING):
+        _run(entities, FakeClient([FakeResponse(200, health_property(cfg))]))
+    assert len([r for r in caplog.records if "health" in r.getMessage().lower()]) == 1
 
 
 def test_non_dm_entity_is_unchanged_and_targets_its_own_id():
