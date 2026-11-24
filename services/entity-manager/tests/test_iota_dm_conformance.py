@@ -2,6 +2,7 @@
 import json
 import pathlib
 import sys
+from datetime import datetime, timezone
 
 import pytest
 
@@ -46,11 +47,15 @@ def with_observed(ent, at=T0):
     return out
 
 
+SENT_AT = datetime(2026, 1, 1, 10, 0, 0, tzinfo=timezone.utc)
+
+
 def ctx(sent=None, ti=True, keys=None, unchanged=(DM, DM2), device_changed=True):
     return conf.Context(sent=sent or {"p": 1.5},
                         server_stamped=frozenset() if ti else frozenset({DM, DM2}),
                         keys_by_dm=keys or {DM: ("p",), DM2: ("relativeHumidity", "humidity")},
-                        unchanged=frozenset(unchanged), device_changed=device_changed)
+                        unchanged=frozenset(unchanged), device_changed=device_changed,
+                        last_write={d: ((T0, SENT_AT) if ti else (None, SENT_AT)) for d in (DM, DM2)})
 
 
 def classes(diffs):
@@ -83,6 +88,25 @@ def test_observed_at_declared_only_when_expected_has_none():
     actual["numValue"]["observedAt"] = T0
     diffs = conf.compare_dms([expected], [actual], ctx())
     assert [(d.attr, d.classification) for d in diffs] == [("numValue", "UNDECLARED")]
+
+
+def test_observed_at_is_not_judged_against_the_dms_own_date_observed():
+    # dateObserved and observedAt agree with each other but not with the message that wrote it
+    other = "2026-01-01T09:00:00Z"
+    expected = dm(dateObserved=prop(other))
+    actual = with_observed(expected, other)
+    diffs = conf.compare_dms([expected], [actual], ctx())
+    assert diffs and all(d.classification == "UNDECLARED" for d in diffs if d.aspect == "observedAt")
+    # a DM no message was required to write has no declared observedAt
+    nowhere = ctx()._replace(last_write={})
+    assert all(d.classification == "UNDECLARED"
+               for d in conf.compare_dms([dm()], [with_observed(dm())], nowhere) if d.aspect == "observedAt")
+
+
+def test_observed_at_equal_to_the_message_instant_in_another_notation_is_declared():
+    actual = with_observed(dm(), "2026-01-01T10:00:00.000Z")
+    diffs = conf.compare_dms([dm()], [actual], ctx())
+    assert diffs and all(d.classification == "declared" for d in diffs if d.aspect == "observedAt")
 
 
 def test_observed_at_must_be_the_reading_time():
@@ -178,6 +202,15 @@ def test_hex_value_is_declared_only_when_the_dm_is_unchanged_and_the_device_chan
     assert {d.classification for d in conf.compare_dms([dm(num=16)], [stale], no_device)} == {"UNDECLARED"}
     assert classes(conf.compare_dms([dm(num=16)], [], ctx(sent=sent, unchanged=()))) == [
         ("<entity>", "UNDECLARED", "")]
+
+
+def test_hex_declaration_covers_only_the_value_and_the_observation_time_of_that_reading():
+    stale = dm(num=9, dateObserved=prop("2026-01-01T09:00:00Z"), timeSource=prop("server"),
+               controlledProperty=prop("other"))
+    diffs = conf.compare_dms([dm(num=16)], [stale], ctx(sent={"p": "0x10"}))
+    by = {d.attr: d.classification for d in diffs}
+    assert by == {"numValue": "declared", "dateObserved": "declared", "timeSource": "declared",
+                  "controlledProperty": "UNDECLARED"}
 
 
 def test_hex_declaration_is_per_entity():
@@ -306,6 +339,14 @@ def test_hold_since_change_waits_the_full_time_after_the_last_change():
     reads = iter([{"a": "1"}, {"a": "2"}, {"a": "3"}] + [{"a": "3"}] * 100)
     snap = conf.hold(lambda: next(reads), 4.0, sleep=clock.sleep, now=clock.now, since_change=True)
     assert snap == {"a": "3"} and clock.t == 1.5 + 4.0
+
+
+def test_a_changing_case_needs_the_device_and_the_dms_separately():
+    only_dm = dict(device_changed=False, changed_names={"pressure"}, existing_names={"pressure"},
+                   expected_existing={"pressure"})
+    assert conf.outcome_violations(case(writes={"pressure"}), **only_dm)
+    only_device = dict(only_dm, device_changed=True, changed_names=set())
+    assert conf.outcome_violations(case(writes={"pressure"}), **only_device)
 
 
 def test_outcome_violations_are_exact():

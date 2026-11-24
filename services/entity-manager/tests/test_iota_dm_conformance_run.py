@@ -1,5 +1,6 @@
 """End-to-end run of the conformance script against an in-memory broker and IoT Agent."""
 import json
+from datetime import datetime, timezone
 import pathlib
 import re
 import sys
@@ -50,9 +51,10 @@ class Resp:
 class World:
     """Just enough broker and agent to run the whole series."""
 
-    def __init__(self, *, south_status=200, agent_extra=None, leave_dm_on_delete=False, noop=False,
+    def __init__(self, *, on_delete=None, no_modified_at=False, south_status=200, agent_extra=None, leave_dm_on_delete=False, noop=False,
                  defer=None, on_south=None, bad_ti=False):
         self.bad_ti = bad_ti
+        self.on_delete, self.no_modified_at = on_delete, no_modified_at
         self.noop, self.defer, self.on_south, self.deferred = noop, defer, on_south, []
         self.entities, self.agent, self.log = {}, {}, []
         self.mod = 0
@@ -63,7 +65,8 @@ class World:
     # -- helpers
     def _stamp(self, ent):
         self.mod += 1
-        ent["modifiedAt"] = f"2026-01-01T00:00:{self.mod:05d}Z"
+        if not self.no_modified_at:
+            ent["modifiedAt"] = f"2026-01-01T00:00:{self.mod:05d}Z"
 
     def _ids(self, params):
         pattern = params["idPattern"]
@@ -136,6 +139,8 @@ class World:
             self.agent.pop(url.rsplit("/", 1)[1], None)
             return Resp(204)
         urn = url.rsplit("/entities/", 1)[1]
+        if self.on_delete:
+            self.on_delete(urn)
         if self.leave_dm_on_delete and ":DeviceMeasurement:" in urn:
             return Resp(204)
         return Resp(204) if self.entities.pop(urn, None) else Resp(404)
@@ -146,7 +151,7 @@ class World:
         device = self.entities[urn]
         parts = urn.split(":")
         channels = conf.live_channels(parts[3], ":".join(parts[4:]))
-        at = message.get("TimeInstant") or SERVER_NOW
+        at = message.get("TimeInstant") or datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
         touched, dirty, override = set(), False, {}
         for ch in channels:
             if ch.key not in message:
@@ -428,3 +433,44 @@ def test_an_invalid_value_with_a_device_time_must_not_touch_or_create_a_dm():
     assert code == 1
     for name in ("p-invalid-ERR-with-time", "p-invalid-null-with-time", "unknown-key-with-time"):
         assert by[name]["outcome_violations"], name
+
+
+def test_an_entity_without_modified_at_aborts_the_run():
+    world = World(no_modified_at=True)
+    code, out = run(world)
+    assert code == 1 and any("modifiedAt" in line for line in out if "ABORT" in line)
+    assert world.entities == {} and world.agent == {}
+
+
+def test_cleanup_finishes_under_a_second_signal_and_restores_the_handlers():
+    import os
+    import signal
+    sent = []
+
+    def hit(urn):
+        if not sent:
+            sent.append(1)
+            os.kill(os.getpid(), signal.SIGTERM)
+            os.kill(os.getpid(), signal.SIGINT)
+
+    before = (signal.getsignal(signal.SIGTERM), signal.getsignal(signal.SIGINT))
+    world = World(on_delete=hit)
+    code, out = run(world)
+    assert sent and world.entities == {} and world.agent == {}
+    assert summary(out)["left"]["clean"]
+    assert (signal.getsignal(signal.SIGTERM), signal.getsignal(signal.SIGINT)) == before
+
+
+def test_one_failing_delete_does_not_stop_the_others():
+    failing = []
+
+    def boom(urn):
+        if ":DeviceMeasurement:" in urn and not failing:
+            failing.append(urn)
+            raise RuntimeError("boom")
+
+    world = World(on_delete=boom)
+    code, out = run(world)
+    assert failing and code == 1 and not summary(out)["left"]["clean"]
+    assert list(world.entities) == [failing[0]] or all(":DeviceMeasurement:" not in k or k == failing[0] for k in world.entities)
+    assert "urn:ngsi-ld:Device:acme:conf-iota-dm-0a1b2c3d" not in world.entities

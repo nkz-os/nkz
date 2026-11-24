@@ -215,6 +215,8 @@ class Context(NamedTuple):
     keys_by_dm: Mapping[str, Tuple[str, ...]]
     unchanged: FrozenSet[str] = frozenset()   # DM with the same attributes and modifiedAt as before
     device_changed: bool = False
+    # per DM: (TimeInstant, send time) of the last message that was required to write it
+    last_write: Mapping[str, Tuple[Optional[str], Optional[datetime]]] = {}
 
 
 @dataclass(frozen=True)
@@ -264,13 +266,14 @@ def _value(entity: Optional[Mapping[str, Any]], attr: str) -> Any:
 def _classify(dm_id: str, attr: str, aspect: str, exp: Any, act: Any, ctx: Context,
               expected: Optional[Mapping[str, Any]] = None) -> Tuple[str, str]:
     if aspect == "observedAt" and exp is None and isinstance(act, str):
-        # The reading time: the DM's own `dateObserved`; for a server-stamped DM the agent's
-        # clock may be a little off the Device's.
-        reading = _value(expected, "dateObserved")
-        if act == reading:
+        # The agent stamps observedAt with the instant of the message that wrote the DM: its
+        # TimeInstant, or (none sent) its own clock, close to the moment the script sent it.
+        instant, sent_at = ctx.last_write.get(dm_id, (None, None))
+        seen = _parse_instant(act)
+        if seen is not None and instant is not None and seen == _parse_instant(instant):
             return "declared", "observedAt"
-        a, b = _parse_instant(act), _parse_instant(reading)
-        if dm_id in ctx.server_stamped and a and b and abs((a - b).total_seconds()) <= OBSERVED_TOLERANCE_S:
+        if (seen is not None and instant is None and sent_at is not None
+                and abs((seen - sent_at).total_seconds()) <= OBSERVED_TOLERANCE_S):
             return "declared", "observedAt"
     if (attr == "timeSource" and aspect == "value" and exp == "device" and act == "server"
             and dm_id in ctx.server_stamped):
@@ -314,9 +317,13 @@ def compare_dms(expected: Sequence[Mapping[str, Any]], actual: Sequence[Mapping[
                     cls, label = _classify(dm_id, attr, sub, ea.get(sub), aa.get(sub), ctx, e)
                     mine.append(Diff(dm_id, attr, sub, ea.get(sub), aa.get(sub), cls, label))
         if mine and _sent_by(ctx, dm_id, "0x10") and ctx.device_changed and dm_id in ctx.unchanged:
-            # Device 16, DM not written (same attributes and modifiedAt): the declared difference.
-            mine = [Diff(d.dm_id, d.attr, d.aspect,
-                         d.expected, d.actual, "declared", "0x10") for d in mine]
+            # Device 16, DM not written (same attributes and modifiedAt): the declared difference
+            # is the value and the observation time of that reading; any other attribute that
+            # differs keeps its own classification.
+            mine = [Diff(d.dm_id, d.attr, d.aspect, d.expected, d.actual, "declared", "0x10")
+                    if (d.attr in ("<entity>", "numValue", "dateObserved", "timeSource")
+                        or d.aspect == "observedAt") else d
+                    for d in mine]
         diffs.extend(mine)
     return diffs
 
@@ -431,6 +438,8 @@ def outcome_violations(case: Case, *, device_changed: bool, changed_names: Set[s
     changed = (device_changed and not case.device_may_change) or bool(changed_names)
     if case.must_change and not changed:
         out.append("expected a change, none observed")
+    if case.must_change and case.writes and not device_changed:
+        out.append("the message writes DM but the Device did not change")
     if not case.must_change and changed:
         out.append(f"expected no change; changed: device={device_changed} DM={sorted(changed_names)}")
     if changed_names != set(case.writes):
@@ -446,7 +455,8 @@ class Conformance:
     def __init__(self, *, http: Any, tenant: str, device_id: str, iota_url: str,
                  south_url: Optional[str], orion_url: str, context_url: str, type_iri: str,
                  say: Callable[[str], None], sleep: Callable[[float], None],
-                 now: Callable[[], float], quiet_wait: float = 10.0):
+                 now: Callable[[], float], quiet_wait: float = 10.0,
+                 utcnow: Callable[[], datetime] = lambda: datetime.now(timezone.utc)):
         self.http, self.tenant, self.device_id = http, tenant, device_id
         self.iota, self.south, self.orion = iota_url.rstrip("/"), (south_url or "").rstrip("/"), orion_url.rstrip("/")
         self.type_iri, self.say, self.sleep, self.now = type_iri, say, sleep, now
@@ -456,6 +466,8 @@ class Conformance:
         self._apikey: Optional[str] = None
         self.server_stamped: Set[str] = set()
         self.quiet_wait = quiet_wait
+        self.utcnow = utcnow
+        self.last_write: Dict[str, Tuple[Optional[str], datetime]] = {}
         self.expected_existing: Set[str] = set()
         self.last_final: Optional[Dict[str, str]] = None
         self.prev_result: Optional[Dict[str, Any]] = None
@@ -585,9 +597,11 @@ class Conformance:
     @staticmethod
     def snapshot(state: Tuple[Optional[dict], List[dict]]) -> Dict[str, str]:
         device, dms = state
-        snap = {e["id"]: e.get("modifiedAt", "") for e in dms}
-        if device:
-            snap[device["id"]] = device.get("modifiedAt", "")
+        snap = {}
+        for e in list(dms) + ([device] if device else []):
+            if not e.get("modifiedAt"):
+                raise Abort(f"{e.get('id')}: the broker returned no modifiedAt (sysAttrs); cannot judge changes")
+            snap[e["id"]] = e["modifiedAt"]
         return snap
 
     def send(self, message: Mapping[str, Any]) -> None:
@@ -625,7 +639,10 @@ class Conformance:
         def done(snap: Dict[str, str]) -> bool:
             return all(snap.get(i) != before_snap.get(i) for i in expected_ids)
 
+        sent_at = self.utcnow()
         self.send(case.message)
+        for name in case.writes:
+            self.last_write[self.prefix + name] = (case.message.get("TimeInstant"), sent_at)
         read = lambda: self.snapshot(self.state())  # noqa: E731
         latency: Optional[float] = None
         if case.must_change:
@@ -659,7 +676,7 @@ class Conformance:
         entity["profileCode"] = {"type": "Property", "value": PROFILE_CODE}
         expected = build_measurements(entity, LIVE_PROFILE)
         ctx = Context(case.message, frozenset(self.server_stamped), keys_by_dm(self.channels),
-                      unchanged, device_changed)
+                      unchanged, device_changed, dict(self.last_write))
         diffs = compare_dms(expected, [strip_sys(d) for d in dms], ctx)
         result = {
             "name": case.name, "sent": case.message, "must_change": case.must_change,
@@ -697,21 +714,35 @@ class Conformance:
 
     # cleanup -------------------------------------------------------------------------------
     def cleanup(self) -> Dict[str, Any]:
-        """Delete what exists under this device id, then count what is left."""
+        """Delete what exists under this device id, then count what is left. A second SIGTERM
+        or Ctrl-C does not interrupt it."""
+        saved = {}
+        for sig in (signal.SIGTERM, signal.SIGINT):
+            try:
+                saved[sig] = signal.signal(sig, signal.SIG_IGN)
+            except ValueError:   # not the main thread
+                pass
+        try:
+            return self._cleanup()
+        finally:
+            for sig, handler in saved.items():
+                signal.signal(sig, handler)
+
+    def _cleanup(self) -> Dict[str, Any]:
         problems: List[str] = []
 
         def attempt(what: str, fn: Callable[[], bool]) -> None:
             try:
                 if not fn():
                     problems.append(what)
-            except Exception as exc:
+            except (Exception, Terminated, KeyboardInterrupt) as exc:
                 problems.append(f"{what}: {type(exc).__name__}")
 
         attempt("agent device not deleted", lambda: delete_device(self.iota, self._iota_headers(), self.device_id))
         try:
             ids = sorted({e["id"] for e in self._list_dms(link=False)}
                          | {e["id"] for e in self._list_dms(link=True)})
-        except Exception as exc:
+        except (Exception, Terminated, KeyboardInterrupt) as exc:
             ids = [c.dm_id for c in self.channels]
             problems.append(f"DM listing before delete: {type(exc).__name__}")
         for urn in ids + [self.urn]:
@@ -723,8 +754,8 @@ class Conformance:
             left["agent_device"] = 0 if self._agent_device() is None else 1
             left["device_entity"] = 0 if self._get_entity(self.urn, link=False) is None else 1
             left["dm_ids"] = sorted(e["id"] for e in self._list_dms(link=False))
-        except Abort as exc:
-            problems.append(f"count after delete: {exc}")
+        except (Exception, Terminated, KeyboardInterrupt) as exc:
+            problems.append(f"count after delete: {exc if isinstance(exc, Abort) else type(exc).__name__}")
         clean = (not problems and left["agent_device"] == 0 and left["device_entity"] == 0
                  and left["dm_ids"] == [])
         left["problems"], left["clean"] = problems, clean
@@ -821,7 +852,7 @@ def _main(argv: Optional[Sequence[str]] = None, *, http: Any = requests, sleep: 
     run = Conformance(http=http, tenant=args.tenant, device_id=device_id, iota_url=env["IOT_AGENT_URL"],
                       south_url=args.south_url, orion_url=env["ORION_URL"], context_url=env["CONTEXT_URL"],
                       type_iri=type_iri,
-                      say=say, sleep=sleep, now=now, quiet_wait=args.quiet_wait)
+                      say=say, sleep=sleep, now=now, quiet_wait=args.quiet_wait, utcnow=utcnow)
     if args.cleanup_only:
         say(f"cleanup-only: {device_id}")
         left = run.cleanup()
