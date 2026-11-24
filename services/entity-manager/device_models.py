@@ -28,6 +28,7 @@ logger = logging.getLogger(__name__)
 _MODEL_ERROR = 'Could not write the device model'
 _DEVICE_ERROR = 'Entity update failed'
 _TIMEOUT = 10
+PAGE_SIZE = 200
 
 
 class StaleAttributeError(ApiError):
@@ -40,24 +41,31 @@ class StaleAttributeError(ApiError):
 
 # ── Orion requests ─────────────────────────────────────────────────────
 
-def _why(exc: Exception) -> str:
+def why(exc: Exception) -> str:
     if isinstance(exc, ApiError):
         return exc.message
     status = getattr(getattr(exc, 'response', None), 'status_code', None)
     return f'{type(exc).__name__} status={status}' if status else type(exc).__name__
 
 
-def _headers(tenant: str) -> dict:
-    return inject_fiware_headers({}, tenant=tenant, has_context_in_body=False)
+def _headers(tenant: str, link: bool = True) -> dict:
+    headers = inject_fiware_headers({}, tenant=tenant, has_context_in_body=False)
+    if not link:
+        headers.pop('Link', None)
+    return headers
 
 
 def _entity_url(urn: str) -> str:
     return f"{ORION_URL}/ngsi-ld/v1/entities/{urn}"
 
 
-def _read_entity(tenant: str, urn: str) -> Optional[dict]:
-    """The FULL entity, or None when it does not exist."""
-    resp = requests.get(_entity_url(urn), headers=_headers(tenant), timeout=_TIMEOUT)
+def read_entity(tenant: str, urn: str, link: bool = True) -> Optional[dict]:
+    """The FULL entity, or None when it does not exist.
+
+    `link=False` reads it without the platform context, so names come as they are stored: full
+    IRIs, except the terms of the default vocabulary, which the broker always shortens.
+    """
+    resp = requests.get(_entity_url(urn), headers=_headers(tenant, link), timeout=_TIMEOUT)
     if resp.status_code == 404:
         return None
     if resp.status_code != 200:
@@ -65,7 +73,26 @@ def _read_entity(tenant: str, urn: str) -> Optional[dict]:
     return resp.json()
 
 
-def _append_attrs(tenant: str, urn: str, attrs: dict) -> None:
+def list_entities(tenant: str, entity_type: str) -> list[dict]:
+    """Every entity of a type; raises unless the pages add up to the total the broker reports."""
+    found: dict = {}
+    offset, total = 0, None
+    while total is None or offset < total:
+        resp = requests.get(f"{ORION_URL}/ngsi-ld/v1/entities", headers=_headers(tenant),
+                            params={'type': entity_type, 'limit': PAGE_SIZE, 'offset': offset,
+                                    'count': 'true'}, timeout=_TIMEOUT)
+        if resp.status_code != 200:
+            raise HTTPError(response=resp)
+        page = resp.json()
+        total = int(resp.headers['NGSILD-Results-Count'])
+        found.update({entity['id']: entity for entity in page})
+        offset += PAGE_SIZE
+    if len(found) != total:
+        raise ApiError(502, f'The broker reports {total} entities and listed {len(found)}')
+    return list(found.values())
+
+
+def append_attrs(tenant: str, urn: str, attrs: dict) -> None:
     """POST /attrs adds and overwrites; PATCH would not add a missing attribute (207)."""
     resp = requests.post(f"{_entity_url(urn)}/attrs", json=attrs, headers=_headers(tenant),
                          timeout=_TIMEOUT)
@@ -73,7 +100,7 @@ def _append_attrs(tenant: str, urn: str, attrs: dict) -> None:
         raise HTTPError(response=resp)
 
 
-def _delete_attr(tenant: str, urn: str, attr: str) -> None:
+def delete_attr(tenant: str, urn: str, attr: str) -> None:
     """The attribute is gone afterwards; that it was not there (404) is fine."""
     resp = requests.delete(f"{_entity_url(urn)}/attrs/{attr}", headers=_headers(tenant),
                            timeout=_TIMEOUT)
@@ -109,7 +136,7 @@ def ensure_device_model(tenant: str, profile: Mapping) -> None:
             errors = client.upsert_entities_batch([model])['errors']
     except Exception as exc:
         logger.error("device model upsert failed: tenant=%s device_model=%s error=%s",
-                     tenant, model['id'], _why(exc))
+                     tenant, model['id'], why(exc))
         raise ApiError(502, _MODEL_ERROR, 'device_model') from None
     if errors:
         logger.error("device model upsert refused: tenant=%s device_model=%s errors=%s",
@@ -120,10 +147,10 @@ def ensure_device_model(tenant: str, profile: Mapping) -> None:
             continue
         # The upsert keeps attributes it does not carry: a stale one would be untrue.
         try:
-            _delete_attr(tenant, model['id'], attr)
+            delete_attr(tenant, model['id'], attr)
         except Exception as exc:
             logger.error("device model attribute not removed: tenant=%s device_model=%s "
-                         "attribute=%s error=%s", tenant, model['id'], attr, _why(exc))
+                         "attribute=%s error=%s", tenant, model['id'], attr, why(exc))
             raise ApiError(502, _MODEL_ERROR, 'device_model') from None
 
 
@@ -134,19 +161,19 @@ def write_profile_attrs(tenant: str, urn: str, profile: Mapping, extra: Optional
     """
     attrs = profile_attrs(tenant, profile)
     try:
-        _append_attrs(tenant, urn, {**(extra or {}), **attrs})
+        append_attrs(tenant, urn, {**(extra or {}), **attrs})
     except Exception as exc:
         logger.error("profile attributes not written: tenant=%s device=%s profile=%s error=%s",
-                     tenant, urn, profile.get('code'), _why(exc))
+                     tenant, urn, profile.get('code'), why(exc))
         raise ApiError(502, _DEVICE_ERROR, 'orion_profile') from None
     for attr in OPTIONAL_PROFILE_ATTRS:
         if attr in attrs:
             continue
         try:
-            _delete_attr(tenant, urn, attr)
+            delete_attr(tenant, urn, attr)
         except Exception as exc:
             logger.error("stale profile attribute not removed: tenant=%s device=%s profile=%s "
-                         "attribute=%s error=%s", tenant, urn, profile.get('code'), attr, _why(exc))
+                         "attribute=%s error=%s", tenant, urn, profile.get('code'), attr, why(exc))
             raise StaleAttributeError(502, _DEVICE_ERROR, 'orion_profile') from None
 
 
@@ -172,6 +199,24 @@ def profile_attr_changes(tenant: str, profile: Mapping, entity: Mapping) -> tupl
     return changed, stale
 
 
+def is_model_current(tenant: str, profile: Mapping) -> bool:
+    """The tenant's DeviceModel of `profile` exists and says what `ensure_device_model` would write."""
+    model = build_device_model(tenant, profile)
+    stored = read_entity(tenant, model['id'])
+    if stored is None or any(a in stored and a not in model for a in OPTIONAL_PROFILE_ATTRS):
+        return False
+    return all(_is_stored(stored.get(name), attr) for name, attr in model.items()
+               if name not in ('id', 'type'))
+
+
+def reading_channels(profile: Mapping) -> set[str]:
+    """The attributes a profile declares as readings: canonical names, statistics expanded."""
+    mapping = profile.get('mapping') or {}
+    measurements = [m for m in mapping.get('measurements') or [] if isinstance(m, dict)]
+    return {canonical_attribute(m['sdmAttribute'])
+            for m in expand_measurements(measurements) if m.get('sdmAttribute')}
+
+
 def undated_readings(profile: Mapping, entity: Mapping) -> list[str]:
     """Channels of `profile` that `entity` carries without a time of their own, sorted.
 
@@ -184,10 +229,7 @@ def undated_readings(profile: Mapping, entity: Mapping) -> list[str]:
     entity_time = entity.get('observedAt')
     if isinstance(entity_time, Mapping) and entity_time.get('value'):
         return []
-    mapping = profile.get('mapping') or {}
-    measurements = [m for m in mapping.get('measurements') or [] if isinstance(m, dict)]
-    channels = {canonical_attribute(m['sdmAttribute'])
-                for m in expand_measurements(measurements) if m.get('sdmAttribute')}
+    channels = reading_channels(profile)
     readings: dict = {}
     for name, attr in entity.items():
         canonical = canonical_attribute(name)
@@ -221,18 +263,18 @@ def refresh_profile(tenant: str, profile: Mapping) -> dict:
         return out
     model_exists = False
     try:
-        model_exists = _read_entity(tenant, model_id) is not None
+        model_exists = read_entity(tenant, model_id) is not None
         if model_exists:
             ensure_device_model(tenant, profile)
     except Exception as exc:
         logger.error("device model not refreshed: tenant=%s device_model=%s profile=%s error=%s",
-                     tenant, model_id, code, _why(exc))
+                     tenant, model_id, code, why(exc))
         out['refresh_failed'].append(model_id)
     try:
         links = dataloggers.links_on_profile(tenant, code)
     except Exception as exc:
         logger.error("profile devices not listed for refresh: tenant=%s profile=%s error=%s",
-                     tenant, code, _why(exc))
+                     tenant, code, why(exc))
         out['error'] = 'device_listing_failed'
         return out
     for urn in (link['device_urn'] for link in links):
@@ -242,7 +284,7 @@ def refresh_profile(tenant: str, profile: Mapping) -> dict:
             outcome = _refresh_device(tenant, urn, profile, model_exists)
         except Exception as exc:
             logger.error("device not refreshed: tenant=%s device=%s profile=%s error=%s",
-                         tenant, urn, code, _why(exc))
+                         tenant, urn, code, why(exc))
             outcome = 'refresh_failed'
         if outcome:
             out[outcome].append(urn)
@@ -252,7 +294,7 @@ def refresh_profile(tenant: str, profile: Mapping) -> dict:
 def _refresh_device(tenant: str, urn: str, profile: Mapping, model_exists: bool) -> Optional[str]:
     """'refreshed', 'skipped', or None when there is nothing to write: the Device already has
     everything, or it left the profile."""
-    entity = _read_entity(tenant, urn)
+    entity = read_entity(tenant, urn)
     if entity is None:
         raise ApiError(404, 'Device not found')
     if not dataloggers.is_on_profile(tenant, entity, profile.get('code')):
@@ -274,7 +316,7 @@ def _refresh_device(tenant: str, urn: str, profile: Mapping, model_exists: bool)
                        "profile=%s readings=%s", tenant, urn, profile.get('code'), undated)
         return 'skipped'
     if changed:
-        _append_attrs(tenant, urn, changed)
+        append_attrs(tenant, urn, changed)
     for attr in stale:
-        _delete_attr(tenant, urn, attr)
+        delete_attr(tenant, urn, attr)
     return 'refreshed'

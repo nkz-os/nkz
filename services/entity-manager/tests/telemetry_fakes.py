@@ -149,7 +149,9 @@ class _Cursor:
                               for c in params[0] if c in self.conn.state.profiles]
             else:
                 p = self.conn.state.profiles.get(params[0])
-                self._rows = [{"code": params[0], **p}] if p else []
+                row = {"code": params[0], **(p or {})}
+                columns = re.search(r"^SELECT (.*?) FROM", sql).group(1).split(", ")
+                self._rows = [{c: row.get(c) for c in columns}] if p else []
         else:
             raise AssertionError(f"unexpected SQL: {sql}")
 

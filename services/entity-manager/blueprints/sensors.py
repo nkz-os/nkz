@@ -206,23 +206,6 @@ def _coordinate(value, name: str) -> float:
     return number
 
 
-@dataloggers.in_step('db', 'Database error')
-def _read_profile(tenant_id: str, profile_code: str):
-    with get_db_connection_with_tenant(tenant_id) as conn:
-        cur = conn.cursor(cursor_factory=RealDictCursor)
-        cur.execute("""
-            SELECT id, sdm_entity_type, sdm_device_category, mapping,
-                   code, name, manufacturer_name, brand_name, model_name
-            FROM sensor_profiles
-            WHERE code = %s AND (tenant_id IS NULL OR tenant_id = %s)
-            ORDER BY tenant_id NULLS LAST
-            LIMIT 1
-        """, (profile_code, tenant_id))
-        row = cur.fetchone()
-        cur.close()
-    return row
-
-
 @dataloggers.in_step('orion_entity', 'Failed to create sensor entity in context broker')
 def _orion_create(tenant_id: str, entity: dict):
     return requests.post(
@@ -371,7 +354,7 @@ def _require_entities_exist(tenant_id: str, urns: list) -> None:
 def _profile_attributes(tenant_id: str, device: dict) -> set:
     """Canonical sdmAttribute names of the device's profile."""
     code = device_profile.entity_profile_code(tenant_id, device)
-    row = _read_profile(tenant_id, code) if code else None
+    row = dataloggers.read_profile(tenant_id, code) if code else None
     if not row:
         raise dataloggers.ApiError(400, 'The device has no known profile')
     mapping = row.get('mapping')
@@ -519,7 +502,7 @@ def register_sensor():
     # Reads and validations first: nothing is written until all of them pass.
     datalogger = dataloggers.require_usable_datalogger(tenant_id, data['datalogger_id'])
 
-    profile_row = _read_profile(tenant_id, profile_code)
+    profile_row = dataloggers.read_profile(tenant_id, profile_code)
     if not profile_row:
         raise dataloggers.ApiError(404, f'Profile "{profile_code}" not found')
 

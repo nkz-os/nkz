@@ -644,10 +644,12 @@ def _set_link_datalogger(tenant: str, urn: str, dl_id: str) -> None:
 
 
 @in_step('db', 'Database error')
-def _profile_row(tenant: str, code: str) -> Optional[dict]:
+def read_profile(tenant: str, code: str) -> Optional[dict]:
+    """The `sensor_profiles` row of `code`: the tenant's own, else the global one, else None."""
     with get_db_connection_with_tenant(tenant) as conn:
         cur = conn.cursor(cursor_factory=RealDictCursor)
-        cur.execute("SELECT id, code, name, mapping, manufacturer_name, brand_name, model_name "
+        cur.execute("SELECT id, code, name, sdm_entity_type, sdm_device_category, mapping, "
+                    "manufacturer_name, brand_name, model_name "
                     "FROM sensor_profiles WHERE code = %s "
                     "AND (tenant_id IS NULL OR tenant_id = %s) ORDER BY tenant_id NULLS LAST LIMIT 1",
                     (code, tenant))
@@ -671,7 +673,7 @@ def change_device_profile(tenant: str, urn: str, code: str) -> None:
     import device_models  # it imports this module
 
     external_id = parse_device_urn(tenant, urn)
-    profile = _profile_row(tenant, code)
+    profile = read_profile(tenant, code)
     new_ms = _measurements_of(profile)
     if new_ms is None:
         raise ApiError(404, f'Profile "{code}" not found')
@@ -679,7 +681,7 @@ def change_device_profile(tenant: str, urn: str, code: str) -> None:
     if not entity:
         raise ApiError(404, 'Device not found')
     old_code = entity_profile_code(tenant, entity)
-    old_ms = _measurements_of(_profile_row(tenant, old_code)) if old_code else None
+    old_ms = _measurements_of(read_profile(tenant, old_code)) if old_code else None
     is_device = is_device_type(urn)
     if is_device:
         device_models.profile_attrs(tenant, profile)  # 400 before anything is written

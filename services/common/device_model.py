@@ -19,9 +19,10 @@ logger = logging.getLogger(__name__)
 GENERIC = "generic"
 OPTIONAL_PROFILE_ATTRS = ("controlledProperty",)
 
-_DEVICE_IRI = "https://smartdatamodels.org/dataModel.Device/"
-_REF_DEVICE_MODEL_KEYS = ("refDeviceModel", _DEVICE_IRI + "refDeviceModel")
-_PROFILE_CODE_KEYS = ("profileCode", "https://uri.etsi.org/ngsi-ld/default-context/profileCode")
+DEVICE_IRI = "https://smartdatamodels.org/dataModel.Device/"
+DEFAULT_CONTEXT_IRI = "https://uri.etsi.org/ngsi-ld/default-context/"
+_REF_DEVICE_MODEL_KEYS = ("refDeviceModel", DEVICE_IRI + "refDeviceModel")
+_PROFILE_CODE_KEYS = ("profileCode", DEFAULT_CONTEXT_IRI + "profileCode")
 
 _MODEL_PREFIX = "urn:ngsi-ld:DeviceModel:"
 _CODE = re.compile(r"[A-Za-z0-9_.-]{1,64}")
