@@ -264,7 +264,7 @@ def _changing(st, entity):
     """Wiring for a profile change of one linked Device; records the IoT Agent attributes sent."""
     urn = entity["id"]
     st.devices.append(dict(datalogger_id=DL, tenant_id=TENANT, device_urn=urn,
-                           external_id=urn.rsplit(":", 1)[-1]))
+                           external_id=urn.rsplit(":", 1)[-1], dm_writer="em", dm_shape=None))
     with wired(st) as w:
         w.orion.entities[urn] = copy.deepcopy(entity)
         w.sent = []
@@ -542,7 +542,7 @@ def _editing(st, *entities, model=True):
     """Linked Devices on profile `p2`, and its DeviceModel unless `model` is False."""
     for e in entities:
         st.devices.append(dict(datalogger_id=DL, tenant_id=TENANT, device_urn=e["id"],
-                               external_id=e["id"].rsplit(":", 1)[-1]))
+                               external_id=e["id"].rsplit(":", 1)[-1], dm_writer="em", dm_shape=None))
     with wired(st) as w:
         for e in entities:
             w.orion.entities[e["id"]] = copy.deepcopy(e)

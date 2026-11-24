@@ -23,7 +23,7 @@ sys.modules.setdefault("common", MagicMock())
 
 from tests.real_common import seed_real_common  # noqa: E402
 
-seed_real_common(("context_aliases", "window_statistics", "controlled_property", "device_model"))
+seed_real_common()
 
 from common.device_model import (  # noqa: E402
     OPTIONAL_PROFILE_ATTRS,

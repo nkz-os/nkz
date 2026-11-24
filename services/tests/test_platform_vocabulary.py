@@ -64,6 +64,13 @@ OFFICIAL = {
     "hasAgriParcel": "https://smartdatamodels.org/dataModel.Agrifood/hasAgriParcel",
     "Device": "https://smartdatamodels.org/dataModel.Device/Device",
     "DeviceMeasurement": "https://smartdatamodels.org/dataModel.Device/DeviceMeasurement",
+    "DeviceModel": "https://smartdatamodels.org/dataModel.Device/DeviceModel",
+    "refDeviceModel": "https://smartdatamodels.org/dataModel.Device/refDeviceModel",
+    "dateInstalled": "https://smartdatamodels.org/dataModel.Device/dateInstalled",
+    "deviceCategory": "https://smartdatamodels.org/dataModel.Device/deviceCategory",
+    "manufacturerName": "https://smartdatamodels.org/dataModel.Device/manufacturerName",
+    "brandName": "https://smartdatamodels.org/dataModel.Device/brandName",
+    "modelName": "https://smartdatamodels.org/dataModel.Device/modelName",
     "ManufacturingMachine": "https://smartdatamodels.org/dataModel.ManufacturingMachine/ManufacturingMachine",
     "controlledAsset": "https://smartdatamodels.org/dataModel.Device/controlledAsset",
     "controlledProperty": "https://smartdatamodels.org/dataModel.Device/controlledProperty",
@@ -107,7 +114,7 @@ WRITTEN_TYPES = [
     "DataProcessingJob", "DeviceProfile", "DeviceCommand", "AgriSensor",
     "WaterStorage", "OpenChannelFlow", "AgriCropDeclaration", "SigpacEnclosure",
     "AgriPest", "AgriFertilize", "Alert",
-    "Device", "DeviceMeasurement", "ManufacturingMachine", "WaterQualityObserved",
+    "Device", "DeviceMeasurement", "DeviceModel", "ManufacturingMachine", "WaterQualityObserved",
     "AgriPlant", "AgriPlantSample", "AgriSoilSample",
 ]
 

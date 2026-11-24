@@ -25,6 +25,8 @@
     "Device": "Official SDM dataModel.Device. Canonical type for a provisioned physical sensor. Replaces the platform extension AgriSensor.",
     "DeviceCommand": "Platform extension — MQTT device command tracking. Records command lifecycle (pending -> sent/failed) for IoT device management.",
     "DeviceMeasurement": "Official SDM dataModel.Device. Canonical carrier for a reading. One entity per (device, controlledProperty), overwritten; history lives in TimescaleDB.",
+    "DeviceModel": "Official SDM dataModel.Device. The make and model a Device is an instance of; a Device points to it with refDeviceModel.",
+    "brandName": "Official attribute of SDM DeviceModel, mapped to the Device subject IRI. Smart Data Models gives brandName, manufacturerName and modelName another IRI in the Battery subject (StorageBatteryDevice); a context can map a name once, so that side is a recorded deviation (config/sdm/deviations.json).",
     "DigitalAsset": "Platform extension — no SDM equivalent. LiDAR point cloud and 3D model assets.",
     "DiseaseRiskAssessment": "Platform extension — no SDM equivalent. Proposed for FIWARE Smart Data Models AgriFood domain (P1). Daily disease risk evaluation per parcel.",
     "EOProduct": "FIWARE Smart Data Model — Earth Observation product (Sentinel-1 GRD, Sentinel-2 NDVI, etc.). Properties: productType, hasAgriParcel, backscatterVV, backscatterVH, ndviValue, dateObserved.",

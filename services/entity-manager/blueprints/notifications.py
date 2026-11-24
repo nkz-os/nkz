@@ -145,18 +145,53 @@ def _notify_unauthorized() -> bool:
     )
 
 
-def _get_sensor_profile_by_code(tenant_id: str, profile_code: str) -> Optional[dict]:
-    """Look up a sensor_profiles row by code (tenant override wins over the global row).
+def _read_dm_writer_and_profile(
+    tenant_id: str, entity_id: str, profile_code: str
+) -> tuple:
+    """Return (dm_writer, profile) read in ONE connection.
 
-    Same query shape as blueprints/sensors.py's profile lookup — that is the established
-    read path for this table in this service.
+    dm_writer is 'iota' when the IoT Agent writes this device's measurements; then the
+    profile is not read (None). Anything else, including a missing row or any error
+    reading the state, is 'em': a duplicate is preferred to a hole.
+
+    The profile row is the sensor_profiles row by code (tenant override wins over the
+    global row), same query shape as blueprints/sensors.py's profile lookup.
+
+    iot_datalogger_devices has forced row-level security on app.current_tenant, and this
+    raw connection does not set it, so it is set here (transaction-scoped, same setting
+    as common.db_helper) and the query also filters by tenant. The state read runs in a
+    savepoint so a failure (e.g. column not migrated yet) does not abort the profile read.
     """
     if not POSTGRES_URL or not profile_code:
-        return None
+        return 'em', None
     try:
         conn = psycopg2.connect(POSTGRES_URL)
         try:
             cur = conn.cursor(cursor_factory=RealDictCursor)
+            writer = 'em'
+            try:
+                cur.execute('SAVEPOINT dm_writer_read')
+                cur.execute(
+                    "SELECT set_config('app.current_tenant', %s, true)", (tenant_id,)
+                )
+                cur.execute(
+                    'SELECT dm_writer FROM iot_datalogger_devices '
+                    'WHERE tenant_id = %s AND device_urn = %s',
+                    (tenant_id, entity_id),
+                )
+                row = cur.fetchone()
+                cur.execute('RELEASE SAVEPOINT dm_writer_read')
+                if row and row['dm_writer'] == 'iota':
+                    writer = 'iota'
+            except Exception as e:
+                logger.warning(
+                    'Could not read dm_writer for %s (tenant=%s), treating as em: %s',
+                    entity_id, tenant_id, e,
+                )
+                cur.execute('ROLLBACK TO SAVEPOINT dm_writer_read')
+            if writer == 'iota':
+                cur.close()
+                return writer, None
             cur.execute(
                 """
                 SELECT id, sdm_entity_type, mapping
@@ -169,7 +204,7 @@ def _get_sensor_profile_by_code(tenant_id: str, profile_code: str) -> Optional[d
             )
             row = cur.fetchone()
             cur.close()
-            return dict(row) if row else None
+            return writer, (dict(row) if row else None)
         finally:
             conn.close()
     except Exception as e:
@@ -177,7 +212,7 @@ def _get_sensor_profile_by_code(tenant_id: str, profile_code: str) -> Optional[d
             'Error reading sensor_profiles for code=%s (tenant=%s): %s',
             profile_code, tenant_id, e,
         )
-        return None
+        return 'em', None
 
 
 def _handle_device_measurement_notification(tenant_id: str, entity: dict) -> bool:
@@ -207,7 +242,10 @@ def _handle_device_measurement_notification(tenant_id: str, entity: dict) -> boo
         logger.debug('No profileCode on %s, skipping measurement build', entity_id)
         return True
 
-    profile = _get_sensor_profile_by_code(tenant_id, profile_code)
+    dm_writer, profile = _read_dm_writer_and_profile(tenant_id, entity_id, profile_code)
+    if dm_writer == 'iota':
+        logger.debug('%s is written by the IoT Agent, skipping measurement build', entity_id)
+        return True
     if not profile:
         logger.warning(
             'No sensor_profiles row for code=%s (entity=%s, tenant=%s)',

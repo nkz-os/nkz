@@ -142,3 +142,88 @@ def test_no_statistics_leaves_iota_attributes_unchanged():
         {"type": "temp", "sdmAttribute": "airTemperature", "unit": "\u00b0C"}])
     assert attrs == [{"object_id": "temp", "name": "airTemperature", "type": "Number"},
                      dict(iot_agent.TIME_INSTANT_ATTRIBUTE)]
+
+
+# -- update succeeds only on 204; entity-type whitelist ----------------------------------
+
+@pytest.mark.parametrize("status", [200, 201, 202])
+def test_update_device_attributes_other_2xx_is_a_failure(status):
+    """The agent answers 200 with an error body and applies nothing when the entity is absent."""
+    with patch.object(iot_agent.requests, "put",
+                      return_value=_resp(status, text='{"name":"ENTITY_NOT_FOUND"}')):
+        with pytest.raises(iot_agent.IotAgentError) as e:
+            iot_agent.update_device_attributes(URL, HDR, "s1", [])
+    assert e.value.status_code == status and "ENTITY_NOT_FOUND" in e.value.body
+
+
+DM_ATTR = {"object_id": "t1", "name": "numValue", "type": "Number",
+           "entity_name": "urn:ngsi-ld:DeviceMeasurement:acme:s1:t1", "entity_type": "DeviceMeasurement"}
+
+
+def test_allowed_entity_types_are_in_the_platform_list():
+    from pathlib import Path
+    listed = {line.strip() for line in
+              (Path(__file__).resolve().parents[2] / "config/entity-types/allowed.txt").read_text().splitlines()
+              if line.strip() and not line.startswith("#")}
+    assert iot_agent.ALLOWED_ENTITY_TYPES == frozenset({"Device", "ManufacturingMachine"})
+    assert iot_agent.ALLOWED_MULTI_ENTITY_TYPES == frozenset({"DeviceMeasurement"})
+    assert (iot_agent.ALLOWED_ENTITY_TYPES | iot_agent.ALLOWED_MULTI_ENTITY_TYPES) <= listed
+
+
+@pytest.mark.parametrize("main,attrs", [
+    ("AgriSensor", []),
+    ("Device", [dict(DM_ATTR, entity_type="Other")]),
+    ("Device", [dict(DM_ATTR, entity_type="Device")]),
+])
+def test_provision_rejects_disallowed_types_before_any_request(main, attrs):
+    with patch.object(iot_agent.requests, "post") as post:
+        with pytest.raises(ValueError):
+            iot_agent.provision_device(URL, HDR, apikey="k", device_id="s1", entity_name="n",
+                                       entity_type=main, attributes=attrs)
+    post.assert_not_called()
+
+
+def test_provision_accepts_main_and_multi_entity_types():
+    with patch.object(iot_agent.requests, "post", return_value=_resp(201)) as post:
+        for main in ("Device", "ManufacturingMachine"):
+            iot_agent.provision_device(URL, HDR, apikey="k", device_id="s1", entity_name="n",
+                                       entity_type=main,
+                                       attributes=[DM_ATTR, {"object_id": "a", "name": "b", "type": "Number"}])
+    assert post.call_count == 2
+
+
+@pytest.mark.parametrize("bad", ["Other", "Device"])
+def test_update_rejects_disallowed_attribute_entity_type(bad):
+    with patch.object(iot_agent.requests, "put") as put:
+        with pytest.raises(ValueError):
+            iot_agent.update_device_attributes(URL, HDR, "s1", [dict(DM_ATTR, entity_type=bad)])
+    put.assert_not_called()
+
+
+def test_update_accepts_dm_attributes():
+    with patch.object(iot_agent.requests, "put", return_value=_resp(204)):
+        iot_agent.update_device_attributes(URL, HDR, "s1", [DM_ATTR])
+
+
+# -- reading a device document ------------------------------------------------------------
+
+def test_get_device_returns_the_document():
+    doc = {"device_id": "s1", "attributes": [DM_ATTR]}
+    with patch.object(iot_agent.requests, "get", return_value=_resp(200, doc)) as get:
+        assert iot_agent.get_device(URL, HDR, "s1") == doc
+    assert get.call_args.args[0] == f"{URL}/iot/devices/s1"
+    assert get.call_args.kwargs["headers"] == HDR
+
+
+@pytest.mark.parametrize("status", [404, 500])
+def test_get_device_non_200_raises(status):
+    with patch.object(iot_agent.requests, "get", return_value=_resp(status, text="nope")):
+        with pytest.raises(iot_agent.IotAgentError) as e:
+            iot_agent.get_device(URL, HDR, "s1")
+    assert e.value.status_code == status
+
+
+def test_get_device_rejects_a_body_that_is_not_an_object():
+    with patch.object(iot_agent.requests, "get", return_value=_resp(200, ["x"])):
+        with pytest.raises(iot_agent.IotAgentError):
+            iot_agent.get_device(URL, HDR, "s1")

@@ -24,6 +24,7 @@ measurements`) does need it, applied the same way, for the same reason.
 
 import importlib.util
 import json
+import logging
 import os
 import sys
 from unittest.mock import MagicMock, patch
@@ -82,6 +83,8 @@ from blueprints.notifications import (  # noqa: E402
     notifications_bp,
     _handle_device_measurement_notification,
 )
+import blueprints.notifications as notif  # noqa: E402
+from nkz_platform_sdk.notify_auth import TOKEN_HEADER, notification_token  # noqa: E402
 
 _app = Flask(__name__)
 _app.register_blueprint(notifications_bp)
@@ -194,7 +197,7 @@ class TestMeasurementNotifyRoute:
 
 class TestHandleDeviceMeasurementNotification:
     @patch("blueprints.notifications.SyncOrionClient")
-    @patch("blueprints.notifications._get_sensor_profile_by_code", return_value=PROFILE_ROW)
+    @patch("blueprints.notifications._read_dm_writer_and_profile", return_value=("em", PROFILE_ROW))
     def test_builds_and_writes_real_measurements(self, mock_get_profile, mock_client_cls):
         mock_client = MagicMock()
         mock_client.upsert_entities_batch.return_value = {
@@ -205,7 +208,9 @@ class TestHandleDeviceMeasurementNotification:
         result = _handle_device_measurement_notification("acmefarm", DEVICE_ENTITY)
 
         assert result is True
-        mock_get_profile.assert_called_once_with("acmefarm", "soil-sensor")
+        mock_get_profile.assert_called_once_with(
+            "acmefarm", DEVICE_ENTITY["id"], "soil-sensor"
+        )
         mock_client.upsert_entities_batch.assert_called_once()
         (written,), _ = mock_client.upsert_entities_batch.call_args
         assert len(written) == 1
@@ -216,7 +221,7 @@ class TestHandleDeviceMeasurementNotification:
         entity = {"id": "urn:ngsi-ld:Device:acmefarm:s1", "type": "Device"}
         assert _handle_device_measurement_notification("acmefarm", entity) is True
 
-    @patch("blueprints.notifications._get_sensor_profile_by_code", return_value=None)
+    @patch("blueprints.notifications._read_dm_writer_and_profile", return_value=("em", None))
     def test_no_matching_profile_is_skipped_not_an_error(self, mock_get_profile):
         entity = {
             "id": "urn:ngsi-ld:Device:acmefarm:s1",
@@ -246,7 +251,6 @@ class TestHandleDeviceMeasurementNotification:
 # instead of the master secret. Werkzeug's test client sends Host: localhost, so
 # that is the host the token binds to here.
 
-from nkz_platform_sdk.notify_auth import TOKEN_HEADER, notification_token  # noqa: E402
 
 _DERIVED = notification_token("test-secret", "tenant-a", "localhost")
 _NOTIFY = "/api/internal/notify/measurements"
@@ -272,8 +276,6 @@ def test_measurements_refuse_the_token_of_another_tenant(client, monkeypatch):
 
 
 def test_measurement_registrar_gets_the_master_and_the_derived_flag(monkeypatch):
-    import blueprints.notifications as notif
-
     monkeypatch.setenv("NKZ_NOTIFY_DERIVED_TOKENS", "true")
     with patch.object(notif, "SubscriptionRegistrar") as reg, \
          patch.object(notif, "_get_active_tenants", return_value=["tenant-a"]), \
@@ -287,8 +289,6 @@ def test_measurement_registrar_gets_the_master_and_the_derived_flag(monkeypatch)
 
 
 def test_ensure_subscriptions_can_target_given_tenants_only():
-    import blueprints.notifications as notif
-
     with patch.object(notif, "SubscriptionRegistrar") as reg, \
          patch.object(notif, "_get_active_tenants", return_value=["tenant-a", "tenant-b"]) as active, \
          patch.object(notif.asyncio, "run",
@@ -299,8 +299,6 @@ def test_ensure_subscriptions_can_target_given_tenants_only():
 
 
 def test_ensure_subscriptions_defaults_to_every_active_tenant():
-    import blueprints.notifications as notif
-
     with patch.object(notif, "SubscriptionRegistrar") as reg, \
          patch.object(notif, "_get_active_tenants", return_value=["tenant-a", "tenant-b"]), \
          patch.object(notif.asyncio, "run",
@@ -310,8 +308,6 @@ def test_ensure_subscriptions_defaults_to_every_active_tenant():
 
 
 def test_ensure_subscriptions_with_an_empty_list_does_not_fall_back_to_all():
-    import blueprints.notifications as notif
-
     with patch.object(notif, "SubscriptionRegistrar") as reg, \
          patch.object(notif, "_get_active_tenants", return_value=["tenant-a"]) as active, \
          patch.object(notif.asyncio, "run",
@@ -322,9 +318,6 @@ def test_ensure_subscriptions_with_an_empty_list_does_not_fall_back_to_all():
 
 
 def test_ensure_subscriptions_returns_the_registrar_result_and_logs_errors(caplog):
-    import logging
-    import blueprints.notifications as notif
-
     result = {"created": 0, "skipped": 0, "errors": [{"tenant": "tenant-a", "error": "500"}]}
     with patch.object(notif, "SubscriptionRegistrar"), \
          patch.object(notif.asyncio, "run", return_value=result), \
@@ -332,3 +325,142 @@ def test_ensure_subscriptions_returns_the_registrar_result_and_logs_errors(caplo
         out = notif.ensure_device_measurement_subscriptions(tenants=["tenant-a"])
     assert out is result
     assert any(r.levelno == logging.ERROR and "errors=1" in r.getMessage() for r in caplog.records)
+
+
+# --- dm_writer: devices written by the IoT Agent are skipped ----------------
+
+
+
+
+class _FakeCursor:
+    """Records executes; answers the writer SELECT and the profile SELECT."""
+
+    def __init__(self, log, writer_row, writer_error, profile_row):
+        self.log = log
+        self.writer_row = writer_row
+        self.writer_error = writer_error
+        self.profile_row = profile_row
+        self._last = None
+
+    def execute(self, sql, params=None):
+        self.log.append((" ".join(sql.split()), params))
+        self._last = sql
+        if "FROM iot_datalogger_devices" in sql and self.writer_error:
+            raise self.writer_error
+
+    def fetchone(self):
+        if self._last and "FROM iot_datalogger_devices" in self._last:
+            return self.writer_row
+        if self._last and "sensor_profiles" in self._last:
+            return self.profile_row
+        return None
+
+    def close(self):
+        pass
+
+
+class _FakeConn:
+    def __init__(self, log, writer_row=None, writer_error=None, profile_row=None):
+        self.log = log
+        self.cur = _FakeCursor(log, writer_row, writer_error, profile_row)
+        self.closed = False
+
+    def cursor(self, **kw):
+        return self.cur
+
+    def close(self):
+        self.closed = True
+
+
+def _patched_connect(conn):
+    return patch.object(notif.psycopg2, "connect", return_value=conn), patch.object(
+        notif, "POSTGRES_URL", "postgresql://x/y"
+    )
+
+
+def _statements(log):
+    return [sql for sql, _ in log]
+
+
+class TestDmWriterSkip:
+    @patch("blueprints.notifications.SyncOrionClient")
+    def test_iota_device_is_handled_without_profile_read_or_upsert(self, mock_client_cls):
+        log = []
+        conn = _FakeConn(log, writer_row={"dm_writer": "iota"}, profile_row=PROFILE_ROW)
+        p1, p2 = _patched_connect(conn)
+        with p1 as connect, p2, patch("blueprints.measurements.build_measurements") as build:
+            result = _handle_device_measurement_notification("acmefarm", DEVICE_ENTITY)
+        assert result is True
+        assert connect.call_count == 1
+        assert not any("sensor_profiles" in s for s in _statements(log))
+        build.assert_not_called()
+        mock_client_cls.assert_not_called()
+        assert conn.closed
+
+    @patch("blueprints.notifications.SyncOrionClient")
+    def test_em_device_builds_and_writes_as_before(self, mock_client_cls):
+        mock_client = MagicMock()
+        mock_client.upsert_entities_batch.return_value = {"upserted": 1, "errors": [], "entity_ids": []}
+        mock_client_cls.return_value = mock_client
+        log = []
+        conn = _FakeConn(log, writer_row={"dm_writer": "em"}, profile_row=PROFILE_ROW)
+        p1, p2 = _patched_connect(conn)
+        with p1 as connect, p2:
+            result = _handle_device_measurement_notification("acmefarm", DEVICE_ENTITY)
+        assert result is True
+        assert connect.call_count == 1
+        mock_client.upsert_entities_batch.assert_called_once()
+
+    @patch("blueprints.notifications.SyncOrionClient")
+    def test_no_row_counts_as_em(self, mock_client_cls):
+        mock_client = MagicMock()
+        mock_client.upsert_entities_batch.return_value = {"upserted": 1, "errors": [], "entity_ids": []}
+        mock_client_cls.return_value = mock_client
+        conn = _FakeConn([], writer_row=None, profile_row=PROFILE_ROW)
+        p1, p2 = _patched_connect(conn)
+        with p1, p2:
+            assert _handle_device_measurement_notification("acmefarm", DEVICE_ENTITY) is True
+        mock_client.upsert_entities_batch.assert_called_once()
+
+    @patch("blueprints.notifications.SyncOrionClient")
+    def test_db_error_reading_writer_counts_as_em_and_profile_still_read(
+        self, mock_client_cls, caplog
+    ):
+        mock_client = MagicMock()
+        mock_client.upsert_entities_batch.return_value = {"upserted": 1, "errors": [], "entity_ids": []}
+        mock_client_cls.return_value = mock_client
+        log = []
+        conn = _FakeConn(
+            log, writer_error=RuntimeError("column dm_writer does not exist"),
+            profile_row=PROFILE_ROW,
+        )
+        p1, p2 = _patched_connect(conn)
+        with p1, p2, caplog.at_level(logging.WARNING):
+            assert _handle_device_measurement_notification("acmefarm", DEVICE_ENTITY) is True
+        stmts = _statements(log)
+        assert any("ROLLBACK TO SAVEPOINT" in s for s in stmts)
+        # profile read happens after the rollback to the savepoint
+        assert max(i for i, s in enumerate(stmts) if "sensor_profiles" in s) > max(
+            i for i, s in enumerate(stmts) if "ROLLBACK TO SAVEPOINT" in s
+        )
+        mock_client.upsert_entities_batch.assert_called_once()
+        msgs = " ".join(r.getMessage() for r in caplog.records if r.levelno == logging.WARNING)
+        assert DEVICE_ENTITY["id"] in msgs and "acmefarm" in msgs
+
+    def test_tenant_is_set_before_the_writer_select(self):
+        log = []
+        conn = _FakeConn(log, writer_row={"dm_writer": "iota"})
+        p1, p2 = _patched_connect(conn)
+        with p1, p2:
+            _handle_device_measurement_notification("acmefarm", DEVICE_ENTITY)
+        stmts = _statements(log)
+        set_idx = next(i for i, s in enumerate(stmts) if "set_config('app.current_tenant'" in s)
+        sel_idx = next(i for i, s in enumerate(stmts) if "FROM iot_datalogger_devices" in s)
+        assert set_idx < sel_idx
+        assert log[set_idx][1] == ("acmefarm",)
+        assert log[sel_idx][1] == ("acmefarm", DEVICE_ENTITY["id"])
+
+    def test_profile_read_failure_behaves_as_before(self):
+        p1 = patch.object(notif.psycopg2, "connect", side_effect=RuntimeError("down"))
+        with p1, patch.object(notif, "POSTGRES_URL", "postgresql://x/y"):
+            assert _handle_device_measurement_notification("acmefarm", DEVICE_ENTITY) is True

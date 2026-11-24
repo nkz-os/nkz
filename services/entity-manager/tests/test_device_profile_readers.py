@@ -57,7 +57,8 @@ def _state(entity):
     seed_datalogger(st, dl_id=DL)
     for code, mapping in (("air", AIR), ("soil", SOIL), ("wind", WIND)):
         st.profiles[code] = {"tenant_id": TENANT, "name": code, "mapping": mapping}
-    st.devices.append(dict(datalogger_id=DL, tenant_id=TENANT, device_urn=entity["id"], external_id="S1"))
+    st.devices.append(dict(datalogger_id=DL, tenant_id=TENANT, device_urn=entity["id"], external_id="S1",
+                           dm_writer="em", dm_shape=None))
     return st
 
 

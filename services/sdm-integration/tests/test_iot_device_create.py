@@ -249,3 +249,19 @@ def test_orion_post_timeout_is_5xx_and_attempts_rollback(sdm, env):
     assert delete.called
     assert delete.call_args.args[0].startswith(f"{ORION}/ngsi-ld/v1/entities/")
     prov.assert_not_called()
+
+
+def test_provision_with_an_entity_type_outside_the_whitelist_is_an_error_result(sdm):
+    """The shared whitelist raises ValueError; the result reports it instead of a 500."""
+    profile = {"name": "p", "mappings": [{"incoming_key": "t", "target_attribute": "airTemperature"}]}
+    collection = MagicMock()
+    collection.find_one.return_value = profile
+    fake_profiles = MagicMock(get_profiles_collection=lambda: collection)
+    fake_bson = MagicMock(ObjectId=lambda value: value)
+    with patch.dict(sys.modules, {"device_profiles": fake_profiles, "bson": fake_bson}), \
+         patch.object(sdm, "get_or_create_service_group", return_value="k"), \
+         patch.object(sdm.requests, "post") as post:
+        result = sdm.provision_iot_device(
+            "urn:ngsi-ld:Sensor:t1", "Sensor", "test-tenant", "s1", profile_id="1")
+    assert result["provisioned"] is False and "Sensor" in result["error"]
+    post.assert_not_called()

@@ -507,6 +507,7 @@ def register_sensor():
         raise dataloggers.ApiError(404, f'Profile "{profile_code}" not found')
 
     sdm_entity_type = profile_row.get('sdm_entity_type') or 'Device'
+    dataloggers.check_entity_type(sdm_entity_type)
     # tractor / implement / robot / harvester for machines, NULL for devices: the
     # one attribute that tells machines of the same type apart.
     device_category = profile_row.get('sdm_device_category')
@@ -514,10 +515,7 @@ def register_sensor():
     official_attrs = device_models.profile_attrs(tenant_id, profile_row) if is_device else {}
     profile_mapping = profile_row.get('mapping')
     measurements = (profile_mapping.get('measurements') or []) if isinstance(profile_mapping, dict) else []
-    try:
-        dataloggers.iot_agent.build_iota_attributes(measurements)
-    except (KeyError, TypeError, AttributeError):
-        raise dataloggers.ApiError(400, 'Profile measurements need type and sdmAttribute')
+    _check_profile_mappings(measurements)
 
     obs = _validated_observation(
         data, {m['sdmAttribute'] for m in measurements if m.get('sdmAttribute')})
@@ -620,7 +618,7 @@ def register_sensor():
         undo.push('orion_entity', lambda: dataloggers.delete_orion_entity(tenant_id, orion_entity_id))
 
         dataloggers.provision_iota_device(tenant_id, apikey, external_id, orion_entity_id,
-                                          sdm_entity_type, measurements)
+                                          sdm_entity_type, measurements, profile_code)
         undo.push('iota_device', lambda: dataloggers.delete_iota_device(tenant_id, external_id))
 
         dataloggers.link_device(tenant_id, datalogger['id'], orion_entity_id, external_id)
@@ -938,6 +936,16 @@ _MAKER_COLUMNS = {'manufacturerName': 'manufacturer_name', 'brandName': 'brand_n
 _MAKER_MAX_LENGTH = 128
 
 
+def _check_profile_mappings(measurements: list) -> None:
+    """400 when the IoT Agent mappings of a profile cannot be built in either shape."""
+    try:
+        dataloggers.validate_profile_mappings(measurements)
+    except (KeyError, TypeError, AttributeError):
+        raise dataloggers.ApiError(400, 'Profile measurements need type and sdmAttribute')
+    except ValueError as exc:
+        raise dataloggers.ApiError(400, str(exc))
+
+
 def _validated_profile(data: dict, tenant_id: str) -> tuple:
     """(name, description, mapping) of a profile body, with `sdmAttribute` canonicalized."""
     name = data.get('name')
@@ -1048,6 +1056,7 @@ def _validated_profile(data: dict, tenant_id: str) -> tuple:
             raise dataloggers.ApiError(
                 400, 'windowSeconds must be a whole number of seconds between 60 and 86400 '
                      'that divides a day')
+    _check_profile_mappings(measurements)
     return name.strip(), description, {**mapping, 'measurements': measurements}
 
 
