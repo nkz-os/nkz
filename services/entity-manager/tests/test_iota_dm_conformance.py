@@ -46,10 +46,11 @@ def with_observed(ent, at=T0):
     return out
 
 
-def ctx(sent=None, ti=True, keys=None):
+def ctx(sent=None, ti=True, keys=None, unchanged=(DM, DM2), device_changed=True):
     return conf.Context(sent=sent or {"p": 1.5},
                         server_stamped=frozenset() if ti else frozenset({DM, DM2}),
-                        keys_by_dm=keys or {DM: ("p",), DM2: ("relativeHumidity", "humidity")})
+                        keys_by_dm=keys or {DM: ("p",), DM2: ("relativeHumidity", "humidity")},
+                        unchanged=frozenset(unchanged), device_changed=device_changed)
 
 
 def classes(diffs):
@@ -84,6 +85,20 @@ def test_observed_at_declared_only_when_expected_has_none():
     assert [(d.attr, d.classification) for d in diffs] == [("numValue", "UNDECLARED")]
 
 
+def test_observed_at_must_be_the_reading_time():
+    diffs = conf.compare_dms([dm()], [with_observed(dm(), "2026-01-01T11:00:00Z")], ctx())
+    assert diffs and all(d.classification == "UNDECLARED" for d in diffs if d.aspect == "observedAt")
+
+
+def test_observed_at_of_a_server_stamped_dm_may_be_close_to_the_reading_time():
+    near = with_observed(dm(), "2026-01-01T10:00:40Z")
+    assert all(d.classification == "declared" for d in conf.compare_dms([dm()], [near], ctx(ti=False))
+               if d.aspect == "observedAt")
+    far = with_observed(dm(), "2026-01-01T10:02:00Z")
+    assert any(d.classification == "UNDECLARED" for d in conf.compare_dms([dm()], [far], ctx(ti=False))
+               if d.aspect == "observedAt")
+
+
 def test_time_source_server_without_time_instant_is_declared():
     actual = dm(timeSource=prop("server"))
     diffs = conf.compare_dms([dm()], [actual], ctx(ti=False))
@@ -97,7 +112,7 @@ def test_time_source_server_with_time_instant_is_undeclared():
 
 
 def test_server_stamp_is_per_entity():
-    c = conf.Context(sent={"p": 1.5}, server_stamped=frozenset({DM2}), keys_by_dm={DM: ("p",)})
+    c = ctx(ti=True)._replace(server_stamped=frozenset({DM2}))
     actual = dm(timeSource=prop("server"))
     assert classes(conf.compare_dms([dm()], [actual], c)) == [("timeSource", "UNDECLARED", "")]
 
@@ -128,6 +143,13 @@ def test_one_e_three_is_declared_only_when_it_was_sent():
         ("numValue", "UNDECLARED", "")]
 
 
+def test_one_e_three_needs_exactly_device_1_and_dm_1000():
+    sent = {"p": "1e3"}
+    for exp, act in ((1, 999), (2, 1000), (1, 1000.5)):
+        assert classes(conf.compare_dms([dm(num=exp)], [dm(num=act)], ctx(sent=sent))) == [
+            ("numValue", "UNDECLARED", "")]
+
+
 def test_one_e_three_does_not_excuse_another_attribute():
     actual = dm(num=1000, controlledProperty=prop("other"))
     diffs = conf.compare_dms([dm(num=1)], [actual], ctx(sent={"p": "1e3"}))
@@ -145,6 +167,17 @@ def test_hex_value_stale_dm_is_declared():
     stale = dm(num=9, dateObserved=prop("2026-01-01T09:00:00Z"))
     diffs = conf.compare_dms([dm(num=16)], [stale], ctx(sent={"p": "0x10"}))
     assert diffs and all(d.classification == "declared" and d.label == "0x10" for d in diffs)
+
+
+def test_hex_value_is_declared_only_when_the_dm_is_unchanged_and_the_device_changed():
+    stale = dm(num=9)
+    sent = {"p": "0x10"}
+    changed_dm = ctx(sent=sent, unchanged=())
+    assert {d.classification for d in conf.compare_dms([dm(num=16)], [stale], changed_dm)} == {"UNDECLARED"}
+    no_device = ctx(sent=sent, device_changed=False)
+    assert {d.classification for d in conf.compare_dms([dm(num=16)], [stale], no_device)} == {"UNDECLARED"}
+    assert classes(conf.compare_dms([dm(num=16)], [], ctx(sent=sent, unchanged=()))) == [
+        ("<entity>", "UNDECLARED", "")]
 
 
 def test_hex_declaration_is_per_entity():
@@ -209,7 +242,7 @@ def test_agent_document_comparison_uses_cutover_normalisation():
     assert conf.agent_document_equal({}, expected) is False
 
 
-# -- settle -------------------------------------------------------------------------------
+# -- waiting ------------------------------------------------------------------------------
 
 class Clock:
     def __init__(self):
@@ -222,32 +255,59 @@ class Clock:
         self.t += s
 
 
-def test_settle_waits_for_change_then_for_quiet():
+def test_await_outcome_reports_latency_and_waits_for_quiet():
     clock = Clock()
-    seq = iter([{"a": "1"}, {"a": "1"}, {"a": "2"}, {"a": "3"}, {"a": "3"}, {"a": "3"}, {"a": "3"}] + [{"a": "3"}] * 50)
-    last = {}
-
-    def read():
-        last["v"] = next(seq)
-        return last["v"]
-
-    snap, changed = conf.settle(read, {"a": "1"}, sleep=clock.sleep, now=clock.now)
-    assert changed is True and snap == {"a": "3"}
+    seq = iter([{"a": "1"}, {"a": "1"}, {"a": "2"}, {"a": "3"}] + [{"a": "3"}] * 50)
+    snap, done_at = conf.await_outcome(lambda: next(seq), lambda s: s["a"] == "3",
+                                       sleep=clock.sleep, now=clock.now)
+    assert snap == {"a": "3"} and done_at == 2.0 and clock.t == 3.5
 
 
-def test_settle_gives_up_when_nothing_changes():
+def test_await_outcome_gives_up_at_the_deadline_without_the_outcome():
     clock = Clock()
-    snap, changed = conf.settle(lambda: {"a": "1"}, {"a": "1"}, sleep=clock.sleep, now=clock.now,
-                                first_change=4.0)
-    assert changed is False and snap == {"a": "1"} and 4.0 <= clock.t < 6.0
+    snap, done_at = conf.await_outcome(lambda: {"a": "1"}, lambda s: False, sleep=clock.sleep,
+                                       now=clock.now, deadline=20.0)
+    assert done_at is None and clock.t == 20.0
 
 
-def test_settle_has_a_deadline_when_it_never_goes_quiet():
+def test_await_outcome_stops_at_the_deadline_if_it_never_goes_quiet():
     clock = Clock()
     counter = iter(range(10_000))
-    snap, changed = conf.settle(lambda: {"a": str(next(counter))}, {"a": "x"}, sleep=clock.sleep,
-                                now=clock.now, deadline=10.0)
-    assert changed is True and clock.t <= 10.5
+    snap, done_at = conf.await_outcome(lambda: {"a": str(next(counter))}, lambda s: True,
+                                       sleep=clock.sleep, now=clock.now, deadline=10.0)
+    assert done_at is not None and clock.t <= 10.5
+
+
+def test_hold_waits_the_fixed_time_and_sees_a_late_change():
+    clock = Clock()
+    reads = iter([{"a": "1"}] * 5 + [{"a": "2"}] * 100)
+    snap = conf.hold(lambda: next(reads), 10.0, sleep=clock.sleep, now=clock.now)
+    assert clock.t == 10.0 and snap == {"a": "2"}
+
+
+def case(name="c", writes=(), must_change=None, message=None):
+    return conf.Case(name, message or {"p": 1}, frozenset(writes),
+                     bool(writes) if must_change is None else must_change)
+
+
+def test_outcome_violations_are_exact():
+    ok = dict(device_changed=True, changed_names={"pressure"}, existing_names={"pressure"},
+              expected_existing={"pressure"})
+    assert conf.outcome_violations(case(writes={"pressure"}), **ok) == []
+    # nothing happened although something must
+    nothing = dict(ok, device_changed=False, changed_names=set())
+    assert conf.outcome_violations(case(writes={"pressure"}), **nothing)
+    # something happened although nothing may
+    assert conf.outcome_violations(case(), **ok)
+    # the wrong DM changed, or one too many
+    assert conf.outcome_violations(case(writes={"pressure"}), **dict(ok, changed_names={"status"}))
+    assert conf.outcome_violations(case(writes={"pressure"}), **dict(ok, changed_names={"pressure", "status"}))
+    # the Device moves, the DM stays (the "0x10" shape)
+    hexcase = case(must_change=True)
+    assert conf.outcome_violations(hexcase, **dict(ok, changed_names=set())) == []
+    # the set of existing DM is exactly the accumulated writes
+    assert conf.outcome_violations(case(writes={"pressure"}), **dict(ok, existing_names={"pressure", "x"}))
+    assert conf.outcome_violations(case(writes={"pressure"}), **dict(ok, expected_existing={"pressure", "y"}))
 
 
 # -- channels, cases ----------------------------------------------------------------------
@@ -293,6 +353,18 @@ def test_cases_use_distinct_values_and_cover_the_brief():
     values = [m for c in cases for k, m in c.message.items() if k == "p" and isinstance(m, float)]
     assert len(values) == len(set(values))
     assert cases[0].message.keys() == {"p", "TimeInstant"}
+    by = {c.name: c for c in cases}
+    assert by["all-channels"].writes == {"airTemperature", "airTemperatureMin", "airTemperatureMax", "pressure",
+                                         "relativeHumidity", "soilMoisture", "status", "windSpeed"}
+    assert by["partial-with-time"].writes == {"airTemperatureMax"}
+    assert by["alias-only"].writes == {"relativeHumidity"}
+    for label in ("null", "ERR", "12abc", "empty"):
+        c = by[f"p-invalid-{label}"]
+        assert c.writes == frozenset() and c.must_change is False
+    assert by["p-invalid-zero"].writes == {"pressure"}
+    assert by["p-invalid-1e3"].writes == {"pressure"}
+    assert by["p-invalid-0x10"].writes == frozenset() and by["p-invalid-0x10"].must_change is True
+    assert all(c.must_change for c in cases if c.writes)
 
 
 # -- hash ---------------------------------------------------------------------------------
@@ -304,6 +376,14 @@ def test_generator_hash_depends_on_both_files(tmp_path):
     assert len(h1) == 64 and conf.generator_hash(tmp_path) == h1
     (tmp_path / "device_measurement_shape.py").write_text("c")
     assert conf.generator_hash(tmp_path) != h1
+
+
+def test_generator_hash_ignores_line_endings(tmp_path):
+    (tmp_path / "device_measurement_shape.py").write_text("b\n")
+    (tmp_path / "iota_dm_mappings.py").write_bytes(b"a\nb\n")
+    unix = conf.generator_hash(tmp_path)
+    (tmp_path / "iota_dm_mappings.py").write_bytes(b"a\r\nb\r\n")
+    assert conf.generator_hash(tmp_path) == unix
 
 
 def test_recorded_hash_matches_the_generator_modules():

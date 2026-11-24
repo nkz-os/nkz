@@ -50,7 +50,9 @@ class Resp:
 class World:
     """Just enough broker and agent to run the whole series."""
 
-    def __init__(self, *, south_status=200, agent_extra=None, leave_dm_on_delete=False):
+    def __init__(self, *, south_status=200, agent_extra=None, leave_dm_on_delete=False, noop=False,
+                 defer=None, on_south=None):
+        self.noop, self.defer, self.on_south, self.deferred = noop, defer, on_south, []
         self.entities, self.agent, self.log = {}, {}, []
         self.mod = 0
         self.south_status = south_status
@@ -110,7 +112,13 @@ class World:
             assert params["k"] == APIKEY
             if self.south_status != 200:
                 return Resp(self.south_status, {"message": f"boom {params['k']}"})
-            self._apply(params["i"], json)
+            if self.on_south:
+                self.on_south()
+            for late in self.deferred:   # a write that lands one message late
+                self.entities[late["id"]] = late
+            self.deferred = []
+            if not self.noop:
+                self._apply(params["i"], json)
             return Resp(200)
         raise AssertionError(f"POST {url}")
 
@@ -138,13 +146,19 @@ class World:
         parts = urn.split(":")
         channels = conf.live_channels(parts[3], ":".join(parts[4:]))
         at = message.get("TimeInstant") or SERVER_NOW
-        touched = set()
+        touched, dirty, override = set(), False, {}
         for ch in channels:
             if ch.key not in message:
                 continue
             raw = message[ch.key]
             if ch.expression:
                 raw = eval(ch.expression, {}, {k: v for k, v in message.items()})
+            if ch.kind == "number" and isinstance(raw, str) and raw.startswith("0x"):
+                device[ch.name] = {"type": "Property", "value": float(int(raw, 16)), "observedAt": at}
+                dirty = True   # the Device takes 16, the DM is not written
+                continue
+            if ch.kind == "number" and raw == "1e3":
+                raw, override[ch.dm_id] = 1.0, 1000.0   # Device 1, DM 1000
             if ch.kind == "number":
                 try:
                     if isinstance(raw, bool) or raw is None or raw == "":
@@ -156,7 +170,7 @@ class World:
                 continue
             device[ch.name] = {"type": "Property", "value": raw, "observedAt": at}
             touched.add(ch.dm_id)
-        if not touched:
+        if not touched and not dirty:
             return
         device["TimeInstant"] = {"type": "Property", "value": at}
         self._stamp(device)
@@ -170,8 +184,13 @@ class World:
                     v["observedAt"] = at
             if "TimeInstant" not in message:
                 dm["timeSource"]["value"] = "server"
+            if dm["id"] in override:
+                dm["numValue"]["value"] = override[dm["id"]]
             self._stamp(dm)
-            self.entities[dm["id"]] = dm
+            if self.defer and dm["id"].endswith(self.defer):
+                self.deferred.append(dm)
+            else:
+                self.entities[dm["id"]] = dm
 
 
 @pytest.fixture(autouse=True)
@@ -197,7 +216,7 @@ def run(world, argv=None, environ=None):
     with patch.object(sys.modules["common.iot_agent"], "requests", world):
         code = conf.main(argv or ["--tenant", "acme", "--south-url", SOUTH], http=world,
                          sleep=clock.sleep, now=clock.now, say=out.append, environ=environ or ENV,
-                         new_id=lambda: "conf-iota-dm-test01")
+                         new_id=lambda: "conf-iota-dm-0a1b2c3d")
     return code, out
 
 
@@ -218,7 +237,7 @@ def test_clean_run_conforms_and_deletes_everything():
     labels = {d["label"] for d in s["differences"]}
     assert "observedAt" in labels and "timeSource-server" in labels
     assert s["time_instant_first"] < s["time_instant_last"]
-    assert s["dm_ids"] and all(i.startswith("urn:ngsi-ld:DeviceMeasurement:acme:conf-iota-dm-test01:")
+    assert s["dm_ids"] and all(i.startswith("urn:ngsi-ld:DeviceMeasurement:acme:conf-iota-dm-0a1b2c3d:")
                                for i in s["dm_ids"])
 
 
@@ -268,10 +287,10 @@ def test_agent_document_difference_is_its_own_failed_check():
 
 def test_refuses_to_start_when_the_device_exists():
     world = World()
-    world.entities["urn:ngsi-ld:Device:acme:conf-iota-dm-test01"] = {"id": "x", "type": "Device"}
+    world.entities["urn:ngsi-ld:Device:acme:conf-iota-dm-0a1b2c3d"] = {"id": "x", "type": "Device"}
     code, out = run(world)
     assert code == 1 and any("exists" in line for line in out)
-    assert "urn:ngsi-ld:Device:acme:conf-iota-dm-test01" in world.entities  # not deleted by a refused run
+    assert "urn:ngsi-ld:Device:acme:conf-iota-dm-0a1b2c3d" in world.entities  # not deleted by a refused run
 
 
 def test_refuses_sdm_and_missing_arguments():
@@ -285,13 +304,13 @@ def test_refuses_sdm_and_missing_arguments():
 def test_cleanup_only_removes_leftovers_and_refuses_other_ids():
     world = World()
     run(world)  # leaves nothing
-    urn = "urn:ngsi-ld:Device:acme:conf-iota-dm-test01"
-    dm = "urn:ngsi-ld:DeviceMeasurement:acme:conf-iota-dm-test01:pressure"
+    urn = "urn:ngsi-ld:Device:acme:conf-iota-dm-0a1b2c3d"
+    dm = "urn:ngsi-ld:DeviceMeasurement:acme:conf-iota-dm-0a1b2c3d:pressure"
     world.entities[urn] = {"id": urn, "type": "Device"}
     world.entities[dm] = {"id": dm, "type": "DeviceMeasurement"}
     other = "urn:ngsi-ld:DeviceMeasurement:acme:real-sensor:pressure"
     world.entities[other] = {"id": other, "type": "DeviceMeasurement"}
-    code, out = run(world, ["--tenant", "acme", "--cleanup-only", "conf-iota-dm-test01"])
+    code, out = run(world, ["--tenant", "acme", "--cleanup-only", "conf-iota-dm-0a1b2c3d"])
     assert code == 0 and list(world.entities) == [other]
     assert run(world, ["--tenant", "acme", "--cleanup-only", "real-sensor"])[0] == 2
 
@@ -305,3 +324,87 @@ def test_record_file_written_only_on_a_clean_run(tmp_path):
     bad = tmp_path / "bad.json"
     code, _ = run(World(south_status=500), ["--tenant", "acme", "--south-url", SOUTH, "--record", str(bad)])
     assert code == 1 and not bad.exists()
+
+
+# -- the cases assert their outcome ---------------------------------------------------------
+
+def test_a_run_where_nothing_is_written_fails_every_changing_case():
+    world = World(noop=True)
+    code, out = run(world)
+    s = summary(out)
+    changing = [c for c in s["cases"] if c["must_change"]]
+    assert code == 1 and changing and all(c["outcome_violations"] for c in changing)
+    assert world.entities == {} and world.agent == {}
+
+
+def test_a_write_that_lands_late_is_a_failure_and_not_carried_into_the_next_case():
+    world = World(defer="relativeHumidity")
+    code, out = run(world)
+    s = summary(out)
+    by = {c["name"]: c for c in s["cases"]}
+    assert code == 1
+    assert by["all-channels"]["outcome_violations"]            # its DM did not land in time
+    assert any(c["late_write"] or c["outcome_violations"] for c in s["cases"])
+
+
+def test_a_change_where_none_may_happen_fails_the_case():
+    world = World()
+    original = world._apply
+
+    def sneaky(dev_id, message):
+        original(dev_id, message)
+        if message.get("p") == "ERR":
+            world.entities["urn:ngsi-ld:Device:acme:conf-iota-dm-0a1b2c3d"]["pressure"] = {
+                "type": "Property", "value": 1.0}
+            world._stamp(world.entities["urn:ngsi-ld:Device:acme:conf-iota-dm-0a1b2c3d"])
+
+    world._apply = sneaky
+    code, out = run(world)
+    by = {c["name"]: c for c in summary(out)["cases"]}
+    assert code == 1 and by["p-invalid-ERR"]["outcome_violations"]
+
+
+def test_quiet_cases_wait_the_fixed_time_and_it_is_checked_against_the_latency():
+    code, out = run(World(), ["--tenant", "acme", "--south-url", SOUTH, "--quiet-wait", "10"])
+    s = summary(out)
+    assert code == 0 and s["quiet_wait"] == 10.0 and 0 < s["max_latency"] <= 3
+    quiet = [c for c in s["cases"] if not c["must_change"]]
+    assert quiet and all(c["quiet_wait"] == 10.0 for c in quiet)
+    assert any("waited 10s" in line for line in out)
+    assert all(c["latency"] is not None for c in s["cases"] if c["must_change"])
+    code, out = run(World(), ["--tenant", "acme", "--south-url", SOUTH, "--quiet-wait", "0.5"])
+    assert code == 1 and summary(out)["quiet_wait_ok"] is False
+
+
+def test_sigterm_runs_the_cleanup():
+    import os
+    import signal
+    world = World()
+    calls = []
+
+    def kill():
+        calls.append(1)
+        if len(calls) == 3:
+            os.kill(os.getpid(), signal.SIGTERM)
+
+    world.on_south = kill
+    code, out = run(world)
+    assert code == 1 and world.entities == {} and world.agent == {}
+    assert any("interrupted" in line for line in out)
+
+
+def test_the_shape_flag_and_the_sigterm_handler_are_put_back(monkeypatch):
+    import signal
+    monkeypatch.setenv(conf.SDM_SHAPE_FLAG, "true")
+    before = signal.getsignal(signal.SIGTERM)
+    run(World())
+    import os
+    assert os.environ[conf.SDM_SHAPE_FLAG] == "true" and signal.getsignal(signal.SIGTERM) is before
+    monkeypatch.delenv(conf.SDM_SHAPE_FLAG)
+    run(World())
+    assert conf.SDM_SHAPE_FLAG not in os.environ
+
+
+def test_cleanup_only_takes_only_the_ids_the_script_makes():
+    for bad in ("conf-iota-dm-test01", "conf-iota-dm-0a1b2c3", "conf-iota-dm-0A1B2C3D", "conf-iota-dm-0a1b2c3d9"):
+        assert run(World(), ["--tenant", "acme", "--cleanup-only", bad])[0] == 2
