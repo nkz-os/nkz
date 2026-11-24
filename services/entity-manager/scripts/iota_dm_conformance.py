@@ -360,14 +360,15 @@ def group_diffs(diffs: Sequence[Diff]) -> List[Dict[str, Any]]:
     return out
 
 
+_WHOLE_SECOND_Z = re.compile(r"(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2})Z")
+
+
 def broker_instant(instant: str) -> str:
-    """An instant in the notation the broker returns (milliseconds, `Z`): the same instant as
-    the message's, spelled the way a value read back from the broker is."""
-    parsed = _parse_instant(instant)
-    if parsed is None:
-        return instant
-    parsed = parsed.astimezone(timezone.utc)
-    return parsed.strftime("%Y-%m-%dT%H:%M:%S.") + f"{parsed.microsecond // 1000:03d}Z"
+    """Respell a whole-second `Z` instant (the form this script generates) the way the broker
+    returns it (`.000Z`). Anything else is returned untouched, so the result can never equal
+    another instant or depend on the local zone."""
+    found = _WHOLE_SECOND_Z.fullmatch(instant) if isinstance(instant, str) else None
+    return f"{found.group(1)}.000Z" if found else instant
 
 
 def canonical_device(entity: Mapping[str, Any]) -> Dict[str, Any]:

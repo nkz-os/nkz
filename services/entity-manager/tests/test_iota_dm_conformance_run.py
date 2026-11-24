@@ -65,6 +65,8 @@ class World:
         self.refuse_device = False
         self.baseline_device_wrote = True
         self.dm_value_shift = 0
+        self.dm_unit = None
+        self.dm_at_shift = 0
         self.mapped = False
         self.on_delete, self.no_modified_at = on_delete, no_modified_at
         self.noop, self.defer, self.on_south, self.deferred = noop, defer, on_south, []
@@ -173,6 +175,10 @@ class World:
         urn = self.agent[dev_id]["entity_name"]
         parts = urn.split(":")
         at = orion_instant(message.get("TimeInstant") or datetime.now(timezone.utc).isoformat())
+        if self.dm_at_shift:
+            from datetime import timedelta
+            at = orion_instant((datetime.fromisoformat(at.replace("Z", "+00:00"))
+                                + timedelta(seconds=self.dm_at_shift)).isoformat())
         device = {k: v for k, v in self.entities[urn].items()}
         touched = set()
         for ch in conf.live_channels(parts[3], ":".join(parts[4:])):
@@ -186,6 +192,8 @@ class World:
                 for k, v in dm.items():
                     if isinstance(v, dict):
                         v["observedAt"] = at
+                if self.dm_unit and "numValue" in dm:
+                    dm["numValue"]["unitCode"] = self.dm_unit
                 if self.dm_value_shift and "numValue" in dm:
                     dm["numValue"]["value"] += self.dm_value_shift
                 self._stamp(dm)
@@ -685,3 +693,17 @@ def test_device_refused_needs_the_status_to_be_expected_for_the_case(monkeypatch
     code, out = run(_refuse_world(baseline_device_wrote=False))
     why = [x for x in out if "device-refused rejected" in x]
     assert code == 1 and why and "status" in why[0]
+
+
+def test_device_refused_is_rejected_for_a_wrong_unit_code():
+    code, out = run(_refuse_world(baseline_device_wrote=False, dm_unit="ZZZ"))
+    why = [x for x in out if "device-refused rejected" in x]
+    assert code == 1 and len(why) == 1 and "unitCode" in why[0]
+
+
+def test_device_refused_is_rejected_for_a_wrong_instant():
+    code, out = run(_refuse_world(baseline_device_wrote=False, dm_at_shift=1))
+    why = [x for x in out if "device-refused rejected" in x]
+    assert code == 1 and len(why) == 1
+    mixed = {c["name"]: c for c in summary(out)["cases"]}["empty-with-valid-others"]
+    assert not [d for d in mixed["diffs"] if d["label"] == "device-refused"]

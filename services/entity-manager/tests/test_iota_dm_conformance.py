@@ -382,6 +382,13 @@ def test_device_keys_are_canonicalised_like_build_measurements_does():
     assert both == {"relativeHumidity": b}
 
 
+def test_broker_instant_respells_only_whole_second_z_instants():
+    assert conf.broker_instant("2026-11-24T09:15:18Z") == "2026-11-24T09:15:18.000Z"
+    for untouched in ("2026-11-24T09:15:18.250Z", "2026-11-24T09:15:18.000Z", "2026-11-24T09:15:18+02:00",
+                      "2026-11-24T09:15:18", "2026-11-24T09:15:18+00:00", "nonsense", ""):
+        assert conf.broker_instant(untouched) == untouched
+
+
 def test_status_check():
     assert conf.status_violations(case(), 200) == []
     assert conf.status_violations(case(), 207)
