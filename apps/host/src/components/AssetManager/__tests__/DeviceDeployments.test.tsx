@@ -235,9 +235,27 @@ describe('DeviceDeployments', () => {
     const deviceId = 'urn:ngsi-ld:Device:acme:d1';
     const old = 'urn:ngsi-ld:DeviceProfile:old';
 
-    it('reads the short name first, normalized or keyValues', () => {
-      expect(readDeviceProfileCode({ id: deviceId, refDeviceModel: { type: 'Relationship', object: model }, profileCode: 'p', hasDeviceProfile: old })).toBe('m-1.v2');
+    it('reads the short name before hasDeviceProfile, normalized or keyValues', () => {
+      expect(readDeviceProfileCode({ id: deviceId, refDeviceModel: { type: 'Relationship', object: model }, hasDeviceProfile: old })).toBe('m-1.v2');
       expect(readDeviceProfileCode({ refDeviceModel: model })).toBe('m-1.v2');
+    });
+
+    it('profileCode wins when the two codes differ', () => {
+      const ref = { type: 'Relationship', object: model };
+      for (const profileCode of ['p', { type: 'Property', value: 'p' }]) {
+        expect(readDeviceProfileCode({ id: deviceId, refDeviceModel: ref, profileCode, hasDeviceProfile: old })).toBe('p');
+        expect(
+          readDeviceProfileCode({ 'https://smartdatamodels.org/dataModel.Device/refDeviceModel': ref, profileCode }),
+        ).toBe('p');
+      }
+      expect(readDeviceProfileCode({ id: deviceId, refDeviceModel: ref, profileCode: 'm-1.v2' })).toBe('m-1.v2');
+    });
+
+    it('reads the model when profileCode is not usable', () => {
+      for (const value of ['', null, 5]) {
+        expect(readDeviceProfileCode({ refDeviceModel: model, profileCode: { type: 'Property', value } })).toBe('m-1.v2');
+        expect(readDeviceProfileCode({ refDeviceModel: model, profileCode: value })).toBe('m-1.v2');
+      }
     });
 
     it('reads the full IRI term', () => {

@@ -53,18 +53,22 @@ function deviceModelCode(e: Record<string, unknown>): string | null {
 }
 
 /**
- * Profile code of a device: the `refDeviceModel` code, else the `profileCode` Property written at registration (the term
- * may come back as a full IRI when it is not in the platform context), else the
- * `hasDeviceProfile` / `refDeviceProfile` URN suffix.
+ * Profile code of a device: the `profileCode` Property (the term may come back as a full IRI when it is
+ * not in the platform context), else the `refDeviceModel` code, else the `hasDeviceProfile` /
+ * `refDeviceProfile` URN suffix.
+ *
+ * Same rule as the server (`device_profile_code`): when the two codes differ `profileCode` wins, because
+ * only a writer that knows nothing but `profileCode` makes them differ, so it is the fresher one. The
+ * release that stops writing `profileCode` turns this round.
  */
 export function readDeviceProfileCode(entity: unknown): string | null {
   if (!entity || typeof entity !== 'object') return null;
   const e = entity as Record<string, unknown>;
-  const modelCode = deviceModelCode(e);
-  if (modelCode) return modelCode;
   const prop = e.profileCode ?? e['https://nkz-os.org/ns/profileCode'];
   const code = prop && typeof prop === 'object' ? (prop as { value?: unknown }).value : prop;
   if (typeof code === 'string' && code) return code;
+  const modelCode = deviceModelCode(e);
+  if (modelCode) return modelCode;
   const [urn] = relationshipTargets(e.hasDeviceProfile ?? e.refDeviceProfile);
   if (!urn) return null;
   return urn.startsWith('urn:ngsi-ld:DeviceProfile:') ? urn.slice('urn:ngsi-ld:DeviceProfile:'.length) : urn;
