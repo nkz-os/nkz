@@ -826,7 +826,11 @@ def change_device_profile(tenant: str, urn: str, code: str) -> None:
     old_ms = _profile_measurements(tenant, old_code) if old_code else None
     is_device = is_device_type(urn)
     if is_device:
-        device_models.profile_attrs(tenant, profile)  # 400 before anything is written
+        # 400 before anything is written. The Device would get a sensor DeviceModel made of the
+        # profile of something else.
+        if (profile.get('sdm_entity_type') or 'Device') != 'Device':
+            raise ApiError(400, f'Profile "{code}" is not for a Device')
+        device_models.profile_attrs(tenant, profile)
 
     def restore(last_state: Optional[tuple]) -> None:
         if old_ms is not None:

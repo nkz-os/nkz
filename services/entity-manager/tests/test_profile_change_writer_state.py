@@ -200,7 +200,7 @@ def test_a_delete_that_fails_alone_is_502_and_restores_nothing(state):
                                             if f"{URN}/attrs/" in url else None) or delete(url, **kw)
         r = _change(w, _entity(ON_P["model-only"]))
         assert [a for _, a in st.iota_attrs] == [_attributes(state, "p2", NEW)]
-    assert r.status_code == 502 and r.get_json()["step"] == "orion_profile", r.get_json()
+    assert r.status_code == 502 and r.get_json()["step"] == "orion_profile_leftover", r.get_json()
     assert w.orion.entities[URN]["refDeviceModel"] == _ref("p2")
 
 

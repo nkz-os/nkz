@@ -350,7 +350,8 @@ def test_change_profile_does_not_undo_when_only_the_stale_attribute_stays(fail):
 
         w.orion.delete = _delete
         r = _change_profile(URN)
-        assert r.status_code == 502 and r.get_json()["step"] == "orion_profile", r.get_json()
+        # Its own step: the client must know that the profile did change.
+        assert r.status_code == 502 and r.get_json()["step"] == "orion_profile_leftover", r.get_json()
         assert w.sent == [["stemDiameter"]]
         assert w.orion.entities[URN]["profileCode"] == _prop("p2")
         assert "controlledProperty" in w.orion.entities[URN]
@@ -380,6 +381,44 @@ def test_change_to_a_profile_code_that_fits_no_model_id_is_400_before_any_write(
         r = _change_profile(URN, "bad:code")
     assert r.status_code == 400, r.get_json()
     assert w.sent == [] and _orion_log(st) == []
+
+
+@pytest.mark.parametrize("type_", ["ManufacturingMachine", "AgriSensor"])
+def test_a_device_cannot_move_to_a_profile_of_another_type(type_):
+    """Its DeviceModel would be a sensor made of a machine's profile."""
+    st = _state(p2=SOIL)
+    st.profiles["p2"]["sdm_entity_type"] = type_
+    with _changing(st, _device()) as w:
+        r = _change_profile(URN)
+    assert r.status_code == 400 and "p2" in r.get_json()["error"], r.get_json()
+    assert w.sent == [] and st.log == []
+    assert w.orion.entities[URN] == _device() and w.orion.device_models == {}
+
+
+@pytest.mark.parametrize("type_", ["Device", None, ""])
+def test_a_profile_without_a_type_is_for_a_device(type_):
+    st = _state(p2=SOIL)
+    st.profiles["p2"]["sdm_entity_type"] = type_
+    with _changing(st, _device()) as w:
+        assert _change_profile(URN).status_code == 200
+    assert w.sent == [["soilMoisture"]]
+
+
+def test_a_device_that_is_not_there_is_404_whatever_the_type_of_the_profile():
+    st = _machine_state()
+    with _changing(st, _device()) as w:
+        del w.orion.entities[URN]
+        assert _change_profile(URN, "machine").status_code == 404
+
+
+@pytest.mark.parametrize("type_", ["Device", "ManufacturingMachine", None, "AgriSensor"])
+def test_a_machine_moves_to_a_profile_of_any_type_as_always(type_):
+    st = _machine_state()
+    st.profiles["machine2"]["sdm_entity_type"] = type_
+    with _changing(st, _machine_entity()) as w:
+        assert _change_profile(MACHINE, "machine2").status_code == 200
+    assert w.sent == [["soilMoisture"]]
+    assert [e for e in st.log if e[0] in ("iota", "orion")] == [("iota", "update", "M1"), ("orion", "patch")]
 
 
 def test_an_unexpected_error_after_the_iot_agent_update_also_restores_it():
@@ -660,6 +699,69 @@ def test_an_edit_uses_the_stored_maker_of_the_profile():
     assert model["manufacturerName"] == _prop("Acme Instruments")
     assert model["brandName"] == _prop("AcmeSense")
     assert model["modelName"] == _prop("p2")
+
+
+@contextmanager
+def _while_the_agent_is_updated(st, then):
+    """Run `then` between saving the profile and refreshing Orion."""
+    reprovision = dataloggers.reprovision_profile_devices
+
+    def _reprovision(*a):
+        out = reprovision(*a)
+        then()
+        return out
+
+    with patch.object(dataloggers, "reprovision_profile_devices", _reprovision):
+        yield
+
+
+def test_the_refresh_writes_the_stored_profile_not_the_request():
+    """A concurrent edit was saved later: the DeviceModel and the Devices must end on its content."""
+    st = _state(p2=SOIL)
+    later = {"name": "Later", "mapping": UNMAPPED, "manufacturer_name": "Acme Instruments"}
+    with _editing(st, _on_p2()) as w, \
+         _while_the_agent_is_updated(st, lambda: st.profiles["p2"].update(later)):
+        r = _put_profile(AIR, name="Sooner")
+    assert _refresh(r) == {"refreshed": [URN], "skipped": [], "refresh_failed": []}
+    model = w.orion.device_models[MODEL2]
+    assert (model["name"], model["manufacturerName"]) == (_prop("Later"), _prop("Acme Instruments"))
+    assert "controlledProperty" not in model and "controlledProperty" not in w.orion.entities[URN]
+    assert w.orion.attr_posts == []
+    assert r.get_json()["name"] == "Sooner"  # the answer is about what this request saved
+
+
+def test_the_undated_check_uses_the_stored_profile():
+    st = _state(p2=SOIL)
+    with _editing(st, _on_p2(stemDiameter=_prop(1.5), controlledProperty=None)) as w, \
+         _while_the_agent_is_updated(st, lambda: st.profiles["p2"].update(
+             mapping={"measurements": SOIL["measurements"] + UNMAPPED["measurements"]})):
+        assert _refresh(_put_profile())["skipped"] == [URN]
+    assert w.orion.attr_posts == []
+
+
+def test_a_profile_that_is_gone_is_logged_and_nothing_is_written(caplog):
+    st = _state(p2=SOIL)
+    with _editing(st, _on_p2(controlledProperty=None)) as w, caplog.at_level(logging.WARNING), \
+         _while_the_agent_is_updated(st, lambda: st.profiles.pop("p2")):
+        r = _put_profile(AIR)
+    assert _refresh(r) == {"refreshed": [], "skipped": [], "refresh_failed": []}
+    assert r.get_json()["error"] == "profile_not_found" and r.get_json()["reprovisioned"] == [URN]
+    assert _orion_log(st) == [] and w.orion.entities[URN] == _on_p2(controlledProperty=None)
+    assert any(TENANT in rec.getMessage() and "p2" in rec.getMessage() and "refresh" in rec.getMessage()
+               for rec in caplog.records if rec.name == "device_models")
+
+
+def test_a_profile_that_cannot_be_read_again_never_fails_the_edit(caplog):
+    st = _state(p2=SOIL)
+    with _editing(st, _on_p2(controlledProperty=None)) as w, caplog.at_level(logging.ERROR), \
+         patch.object(dataloggers, "read_profile", side_effect=dataloggers.ApiError(502, "Database error", "db")):
+        r = _put_profile(AIR)
+    assert _refresh(r) == {"refreshed": [], "skipped": [], "refresh_failed": []}
+    assert r.get_json()["error"] == "profile_read_failed" and r.get_json()["reprovisioned"] == [URN]
+    assert st.profiles["p2"]["mapping"]["measurements"][0]["sdmAttribute"] == "airTemperature"
+    assert _orion_log(st) == [] and w.orion.attr_posts == []
+    assert any("p2" in rec.getMessage() and TENANT in rec.getMessage() for rec in caplog.records
+               if rec.name == "device_models")
 
 
 def test_an_edit_touches_only_linked_devices_on_that_profile():

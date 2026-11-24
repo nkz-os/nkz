@@ -1174,8 +1174,7 @@ def update_sensor_profile(code):
         logger.error("profile %s: devices could not be listed for re-provisioning: %s",
                      code, type(exc).__name__)
         result['error'] = 'device_listing_failed'
-    result.update(device_models.refresh_profile(
-        tenant, {'code': code, 'name': name, 'mapping': mapping, **maker}))
+    result.update(device_models.refresh_profile(tenant, code))
     return jsonify({'code': code, 'name': name, 'mapping': mapping, **_maker_json(maker),
                     **result}), 200
 

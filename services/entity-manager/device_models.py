@@ -35,7 +35,8 @@ class StaleAttributeError(ApiError):
     """The profile's attributes are on the Device, but one it no longer has could not be deleted.
 
     The Device is already on the new profile, so the caller must not undo the IoT Agent;
-    repeating the call finishes the job.
+    repeating the call finishes the job. The step `orion_profile_leftover` tells the client apart
+    from `orion_profile`, where nothing changed.
     """
 
 
@@ -184,7 +185,7 @@ def write_profile_attrs(tenant: str, urn: str, profile: Mapping, extra: Optional
         except Exception as exc:
             logger.error("stale profile attribute not removed: tenant=%s device=%s profile=%s "
                          "attribute=%s error=%s", tenant, urn, profile.get('code'), attr, why(exc))
-            raise StaleAttributeError(502, _DEVICE_ERROR, 'orion_profile') from None
+            raise StaleAttributeError(502, _DEVICE_ERROR, 'orion_profile_leftover') from None
 
 
 # ── differences and undated readings ───────────────────────────────────
@@ -252,8 +253,10 @@ def undated_readings(profile: Mapping, entity: Mapping) -> list[str]:
 
 # ── profile edit ───────────────────────────────────────────────────────
 
-def refresh_profile(tenant: str, profile: Mapping) -> dict:
+def refresh_profile(tenant: str, code: str) -> dict:
     """Bring Orion in line with an edited profile: its DeviceModel, then the Devices on it.
+
+    The profile is read again first, so two edits at the same time both write what was saved last.
 
     The DeviceModel is refreshed only if it exists, and Devices are the tenant's linked ones
     (the selection of `reprovision_profile_devices`). Only attributes that are missing or
@@ -263,13 +266,23 @@ def refresh_profile(tenant: str, profile: Mapping) -> dict:
     Best effort and never raises: the profile is already saved. What failed is logged and listed
     in `refresh_failed`; saving the profile again retries it.
     """
-    code = profile.get('code')
     out: dict = {'refreshed': [], 'skipped': [], 'refresh_failed': []}
     try:
         model_id = device_model_id(tenant, code)
     except ValueError as exc:
         logger.error("profile not refreshed: tenant=%s profile=%s error=%s", tenant, code, exc)
         out['error'] = 'profile_code_unusable'
+        return out
+    try:
+        profile = dataloggers.read_profile(tenant, code)
+    except Exception as exc:
+        logger.error("profile not refreshed, it could not be read again: tenant=%s profile=%s error=%s",
+                     tenant, code, why(exc))
+        out['error'] = 'profile_read_failed'
+        return out
+    if not profile:
+        logger.warning("profile not refreshed, it is gone: tenant=%s profile=%s", tenant, code)
+        out['error'] = 'profile_not_found'
         return out
     model_exists = False
     try:
