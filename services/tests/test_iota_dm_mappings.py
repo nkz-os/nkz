@@ -153,7 +153,10 @@ def test_literals_are_escaped():
         "(controlledProperty != null && (controlledProperty|parsefloat) == controlledProperty"
         " && (controlledProperty|parsefloat) < 1000000000000000"
         " && (controlledProperty|parsefloat) > -1000000000000000) ? 'a\\'b\\\\c' : null")
-    assert exprs["refDevice"].endswith("? 'urn:x\\'y' : null")
+    assert exprs["refDevice"] == (
+        "(refDevice != null && (refDevice|parsefloat) == refDevice"
+        " && (refDevice|parsefloat) < 1000000000000000"
+        " && (refDevice|parsefloat) > -1000000000000000) ? 'urn:x\\'y' : null")
 
 
 def test_alias_and_canonical_one_set_per_key_canonical_last():

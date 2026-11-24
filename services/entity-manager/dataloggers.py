@@ -20,6 +20,8 @@ from psycopg2.extras import RealDictCursor
 
 from common import iot_agent, mqtt_dynsec, mqtt_endpoint
 from common.context_aliases import canonical_attribute
+from common.device_measurement_shape import SHAPES, measurement_channels
+from common.iota_dm_mappings import device_attributes
 from common.ngsi_headers import inject_fiware_headers
 from common.window_statistics import gateway_statistics
 from db_helper import get_db_connection_with_tenant
@@ -566,13 +568,64 @@ def undo_link(tenant: str, urn: str) -> None:
                             "reconcile it", link['datalogger_id'], urn)
 
 
+@in_step('db', 'Database error')
+def device_dm_state(tenant: str, urn: str) -> tuple:
+    """`(dm_writer, dm_shape)` of a device; no row means `("em", None)` (the default)."""
+    with get_db_connection_with_tenant(tenant) as conn:
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        cur.execute("SELECT dm_writer, dm_shape FROM iot_datalogger_devices "
+                    "WHERE tenant_id = %s AND device_urn = %s", (tenant, urn))
+        row = cur.fetchone()
+    if not row:
+        return 'em', None
+    return row['dm_writer'], row['dm_shape']
+
+
+_VALIDATION_URN = 'urn:ngsi-ld:Device:validation:validation'
+
+
+def validate_profile_mappings(measurements: list) -> None:
+    """Build the mappings of a profile in every shape with placeholder ids; nothing is written.
+
+    Raises ValueError (invalid key, unsupported channel, unknown unit) or KeyError (a
+    measurement with neither incomingKey nor type); callers answer 400.
+    """
+    for shape in SHAPES:
+        channels = measurement_channels(
+            measurements, tenant='validation', external_id='validation',
+            device_urn=_VALIDATION_URN, profile_code='validation', shape=shape)
+        device_attributes(measurements, channels, device_urn=_VALIDATION_URN)
+
+
+def iota_attributes_for(tenant: str, urn: str, external_id: str, profile_code: Optional[str],
+                        measurements: list) -> list:
+    """The IoT Agent attributes of a device: the only builder used by the entity-manager.
+
+    `em` devices get the Device mappings only. `iota` devices also get the
+    DeviceMeasurement mappings of their provisioned shape: the entity-manager skips them,
+    so a Device-only list would drop every reading. A state that cannot be read or is
+    incomplete is an error, never a guess.
+    """
+    writer, shape = device_dm_state(tenant, urn)
+    if writer == 'em':
+        return iot_agent.build_iota_attributes(measurements)
+    if writer != 'iota' or shape not in SHAPES:
+        logger.error("device %s has dm_writer=%r dm_shape=%r", external_id, writer, shape)
+        raise ApiError(500, 'Device measurement writer state is incomplete', 'dm_state')
+    channels = measurement_channels(
+        measurements, tenant=tenant, external_id=external_id, device_urn=urn,
+        profile_code=profile_code, shape=shape)
+    return device_attributes(measurements, channels, device_urn=urn)
+
+
 def provision_iota_device(tenant: str, apikey: str, external_id: str, urn: str,
-                          entity_type: str, measurements: list) -> None:
+                          entity_type: str, measurements: list,
+                          profile_code: Optional[str] = None) -> None:
+    attributes = iota_attributes_for(tenant, urn, external_id, profile_code, measurements)
     try:
         iot_agent.provision_device(
             iota_url(), iota_headers(tenant), apikey=apikey, device_id=external_id,
-            entity_name=urn, entity_type=entity_type,
-            attributes=iot_agent.build_iota_attributes(measurements))
+            entity_name=urn, entity_type=entity_type, attributes=attributes)
     except Exception as exc:
         logger.error("IoT Agent provisioning failed: device=%s error=%s", external_id, type(exc).__name__)
         raise ApiError(502, 'IoT Agent device provisioning failed', 'iota_device')
@@ -668,9 +721,11 @@ def change_device_profile(tenant: str, urn: str, code: str) -> None:
     old_code = _prop(entity, 'profileCode')
     old_ms = _profile_measurements(tenant, old_code) if old_code else None
     try:
-        new_attrs = iot_agent.build_iota_attributes(new_ms)
+        new_attrs = iota_attributes_for(tenant, urn, external_id, code, new_ms)
     except KeyError:
         raise ApiError(400, 'Profile has measurements without sdmAttribute')
+    except ValueError as exc:
+        raise ApiError(400, str(exc))
     try:
         iot_agent.update_device_attributes(iota_url(), iota_headers(tenant), external_id, new_attrs)
     except Exception as exc:
@@ -690,7 +745,8 @@ def change_device_profile(tenant: str, urn: str, code: str) -> None:
         if old_ms is not None:
             _run_undo(lambda: iot_agent.update_device_attributes(
                 iota_url(), iota_headers(tenant), external_id,
-                iot_agent.build_iota_attributes(old_ms)), 'restore_iota_attributes')
+                iota_attributes_for(tenant, urn, external_id, old_code, old_ms)),
+                'restore_iota_attributes')
         else:
             logger.critical("INCONSISTENCY: device %s keeps IoT Agent attributes of profile %s "
                             "but the entity still has profile %s (previous profile not readable)",
@@ -720,7 +776,7 @@ def reprovision_profile_devices(tenant: str, code: str, measurements: list) -> d
         if _prop(entities.get(urn), 'profileCode') != code:
             continue
         try:
-            attrs = iot_agent.build_iota_attributes(measurements)
+            attrs = iota_attributes_for(tenant, urn, link['external_id'], code, measurements)
             iot_agent.update_device_attributes(iota_url(), iota_headers(tenant),
                                                link['external_id'], attrs)
             out['reprovisioned'].append(urn)

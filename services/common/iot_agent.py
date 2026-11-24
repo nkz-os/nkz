@@ -19,6 +19,13 @@ from common.window_statistics import expand_measurements
 logger = logging.getLogger(__name__)
 
 
+# Entity types the agent may be given. The main type is the device itself; the multi-entity
+# types are the other entities a mapping may write (`entity_type` of an attribute). All of
+# them must also be in config/entity-types/allowed.txt (a test enforces it).
+ALLOWED_ENTITY_TYPES = frozenset({"Device", "ManufacturingMachine"})
+ALLOWED_MULTI_ENTITY_TYPES = frozenset({"DeviceMeasurement"})
+
+
 class IotAgentError(Exception):
     """The IoT Agent answered with a non-2xx status."""
 
@@ -118,10 +125,24 @@ def build_iota_attributes(measurements: list) -> list:
     return attributes
 
 
+def _check_entity_types(entity_type: Optional[str], attributes: list) -> None:
+    """Raise ValueError for a type outside the whitelists, before any request is made."""
+    if entity_type is not None and entity_type not in ALLOWED_ENTITY_TYPES:
+        raise ValueError(f"Entity type {entity_type!r} is not allowed for IoT Agent devices")
+    for attr in attributes:
+        multi = attr.get("entity_type")
+        if multi is not None and multi not in ALLOWED_MULTI_ENTITY_TYPES:
+            raise ValueError(f"Entity type {multi!r} is not allowed in IoT Agent mappings")
+
+
 def provision_device(iota_url: str, headers: dict, *, apikey: str, device_id: str,
                      entity_name: str, entity_type: str, attributes: list,
                      static_attributes: Optional[list] = None) -> None:
-    """Register a device in the IoT Agent. Raises IotAgentError on non-2xx (409 included)."""
+    """Register a device in the IoT Agent. Raises IotAgentError on non-2xx (409 included).
+
+    Raises ValueError for an entity type outside the whitelists.
+    """
+    _check_entity_types(entity_type, attributes)
     body = {
         "devices": [{
             "device_id": device_id,
@@ -149,8 +170,14 @@ def delete_device(iota_url: str, headers: dict, device_id: str) -> bool:
 
 def update_device_attributes(iota_url: str, headers: dict, device_id: str,
                              attributes: list) -> None:
-    """Replace a device's attribute mappings. Raises IotAgentError on non-2xx."""
+    """Replace a device's attribute mappings.
+
+    Succeeds only on 204: for a device whose entity is missing the agent answers 200 with an
+    error body and applies nothing. Raises IotAgentError otherwise, ValueError for an
+    attribute entity type outside the whitelist (checked before the request).
+    """
+    _check_entity_types(None, attributes)
     resp = requests.put(f"{iota_url}/iot/devices/{device_id}",
                         json={"attributes": attributes}, headers=headers, timeout=10)
-    if not 200 <= resp.status_code < 300:
+    if resp.status_code != 204:
         raise IotAgentError(resp.status_code, resp.text)
