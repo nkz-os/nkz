@@ -4,6 +4,7 @@ import json
 import pathlib
 
 import pytest
+from unittest.mock import MagicMock
 
 from tests.telemetry_fakes import (AUTH, PROFILE, TENANT, FakeState, _resp, client, post_json,  # noqa: I001
                                    seed_datalogger, seed_device, wired)
@@ -224,6 +225,26 @@ def test_profile_update_rejects_before_touching_devices():
                          content_type="application/json", data=json.dumps(body))
     assert r.status_code == 400
     assert not any(e[0] == "iota" for e in st.log)
+
+
+def test_register_rejects_an_entity_type_outside_the_whitelist_before_any_write():
+    st = FakeState()
+    seed_datalogger(st, dl_id=DL)
+    st.profiles["p"] = {"sdm_entity_type": "Bogus", "mapping": {"measurements": [
+        {"type": "x", "sdmAttribute": "soilMoisture", "unit": "%"}]}}
+    with wired(st) as w:
+        r = post_json(client(), "/api/sensors/register", BASE)
+    assert r.status_code == 400
+    assert w.orion.posted_urls == [] and not any(e[0] in ("orion", "iota", "db") for e in st.log)
+
+
+def test_provision_with_an_entity_type_outside_the_whitelist_is_400():
+    st, urn = _state()
+    with wired(st) as w:
+        w.iota.provision_device = MagicMock(side_effect=ValueError("not allowed"))
+        with pytest.raises(dataloggers.ApiError) as e:
+            dataloggers.provision_iota_device(TENANT, "k", "S1", urn, "Bogus", PROFILE["mapping"]["measurements"], "p")
+    assert e.value.status == 400
 
 
 def test_register_rejects_a_stored_profile_with_a_reserved_key_before_writing():

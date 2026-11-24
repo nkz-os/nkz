@@ -24,6 +24,7 @@ measurements`) does need it, applied the same way, for the same reason.
 
 import importlib.util
 import json
+import logging
 import os
 import sys
 from unittest.mock import MagicMock, patch
@@ -82,6 +83,8 @@ from blueprints.notifications import (  # noqa: E402
     notifications_bp,
     _handle_device_measurement_notification,
 )
+import blueprints.notifications as notif  # noqa: E402
+from nkz_platform_sdk.notify_auth import TOKEN_HEADER, notification_token  # noqa: E402
 
 _app = Flask(__name__)
 _app.register_blueprint(notifications_bp)
@@ -248,7 +251,6 @@ class TestHandleDeviceMeasurementNotification:
 # instead of the master secret. Werkzeug's test client sends Host: localhost, so
 # that is the host the token binds to here.
 
-from nkz_platform_sdk.notify_auth import TOKEN_HEADER, notification_token  # noqa: E402
 
 _DERIVED = notification_token("test-secret", "tenant-a", "localhost")
 _NOTIFY = "/api/internal/notify/measurements"
@@ -274,7 +276,6 @@ def test_measurements_refuse_the_token_of_another_tenant(client, monkeypatch):
 
 
 def test_measurement_registrar_gets_the_master_and_the_derived_flag(monkeypatch):
-    import blueprints.notifications as notif
 
     monkeypatch.setenv("NKZ_NOTIFY_DERIVED_TOKENS", "true")
     with patch.object(notif, "SubscriptionRegistrar") as reg, \
@@ -289,7 +290,6 @@ def test_measurement_registrar_gets_the_master_and_the_derived_flag(monkeypatch)
 
 
 def test_ensure_subscriptions_can_target_given_tenants_only():
-    import blueprints.notifications as notif
 
     with patch.object(notif, "SubscriptionRegistrar") as reg, \
          patch.object(notif, "_get_active_tenants", return_value=["tenant-a", "tenant-b"]) as active, \
@@ -301,7 +301,6 @@ def test_ensure_subscriptions_can_target_given_tenants_only():
 
 
 def test_ensure_subscriptions_defaults_to_every_active_tenant():
-    import blueprints.notifications as notif
 
     with patch.object(notif, "SubscriptionRegistrar") as reg, \
          patch.object(notif, "_get_active_tenants", return_value=["tenant-a", "tenant-b"]), \
@@ -312,7 +311,6 @@ def test_ensure_subscriptions_defaults_to_every_active_tenant():
 
 
 def test_ensure_subscriptions_with_an_empty_list_does_not_fall_back_to_all():
-    import blueprints.notifications as notif
 
     with patch.object(notif, "SubscriptionRegistrar") as reg, \
          patch.object(notif, "_get_active_tenants", return_value=["tenant-a"]) as active, \
@@ -324,8 +322,6 @@ def test_ensure_subscriptions_with_an_empty_list_does_not_fall_back_to_all():
 
 
 def test_ensure_subscriptions_returns_the_registrar_result_and_logs_errors(caplog):
-    import logging
-    import blueprints.notifications as notif
 
     result = {"created": 0, "skipped": 0, "errors": [{"tenant": "tenant-a", "error": "500"}]}
     with patch.object(notif, "SubscriptionRegistrar"), \
@@ -338,9 +334,7 @@ def test_ensure_subscriptions_returns_the_registrar_result_and_logs_errors(caplo
 
 # --- dm_writer: devices written by the IoT Agent are skipped ----------------
 
-import logging  # noqa: E402
 
-import blueprints.notifications as _notif  # noqa: E402
 
 
 class _FakeCursor:
@@ -384,8 +378,8 @@ class _FakeConn:
 
 
 def _patched_connect(conn):
-    return patch.object(_notif.psycopg2, "connect", return_value=conn), patch.object(
-        _notif, "POSTGRES_URL", "postgresql://x/y"
+    return patch.object(notif.psycopg2, "connect", return_value=conn), patch.object(
+        notif, "POSTGRES_URL", "postgresql://x/y"
     )
 
 
@@ -472,6 +466,6 @@ class TestDmWriterSkip:
         assert log[sel_idx][1] == ("acmefarm", DEVICE_ENTITY["id"])
 
     def test_profile_read_failure_behaves_as_before(self):
-        p1 = patch.object(_notif.psycopg2, "connect", side_effect=RuntimeError("down"))
-        with p1, patch.object(_notif, "POSTGRES_URL", "postgresql://x/y"):
+        p1 = patch.object(notif.psycopg2, "connect", side_effect=RuntimeError("down"))
+        with p1, patch.object(notif, "POSTGRES_URL", "postgresql://x/y"):
             assert _handle_device_measurement_notification("acmefarm", DEVICE_ENTITY) is True

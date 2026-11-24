@@ -1,7 +1,7 @@
 """Move devices between the two writers of their DeviceMeasurement entities.
 
     python -m dm_writer_cutover --tenant T [--device URN] --to iota|em [--shape legacy|sdm]
-                                (--dry-run | --apply) [--verify]
+                                [--settle SECONDS | --no-settle] (--dry-run | --apply) [--verify]
     python -m dm_writer_cutover --tenant T [--device URN] --verify
 
 `--to iota` makes the IoT Agent write the DeviceMeasurement entities of a device in the
@@ -15,6 +15,9 @@ type name without Link counts zero) and runs two separate checks:
       with no channel in the current profile is judged for the keys any channel may carry. An
       `iota` device with no entity in the broker fails; with no `iota` device (b) is NOT RUN.
       Entities are matched to devices by the id prefix (longest wins).
+  (c) the IoT Agent's own document of every `iota` device matches the expected mappings;
+  (d) the `numValue`/`textValue` of those entities carry `observedAt`.
+With `--device`, a device that is not on `iota` is a failure (not "NOT RUN").
 The term to IRI mapping comes from the platform context document at CONTEXT_URL (required;
 without it, or without a term, the verification fails). `--device` narrows check (b).
 
@@ -24,7 +27,15 @@ Order of the writes. A moment where two writers write is acceptable (a reading m
 twice; the worker drops repeated readings only when the message carries its own time
 (`TimeInstant`), without it a duplicate row is possible and accepted); a moment where nobody
 writes is not.
-  * to iota: PUT the new mappings, update the row, PUT again. Between the first PUT and the
+  * to iota, per batch: PUT the new mappings of every selected device, wait ONCE (`--settle`,
+    default 60 s; 0 only with the explicit `--no-settle`), then per device update the row and
+    PUT again. The wait is there because a notification of a message the entity-manager
+    handled before the first PUT can still be queued when the row commits; the entity-manager
+    would then skip it (a reading lost) or handle it twice. A device whose first PUT failed is
+    left out and listed. A crash during the wait leaves row `em` with both mappings in the
+    agent (duplicates only) and a rerun finishes the move; an interrupt or SIGTERM during the
+    wait puts the Device-only mappings back on every device not committed yet and lists them.
+    Per device: PUT the new mappings, update the row, PUT again. Between the first PUT and the
     commit both write. The second PUT, after the commit, re-reads the profile and rebuilds the
     mappings: a profile change that ran `push_iota_attributes` while the row still said `em`
     would otherwise leave Device-only mappings on a device the entity-manager now skips.
@@ -50,6 +61,7 @@ import json
 import logging
 import os
 import sys
+import time
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
@@ -65,6 +77,8 @@ from db_helper import get_db_connection_with_tenant
 logger = logging.getLogger("dm_writer_cutover")
 
 PAGE = 1000
+DEFAULT_SETTLE = 60.0
+_sleep = time.sleep
 SYSTEM_KEYS = frozenset({"id", "type", "@context", "createdAt", "modifiedAt"})
 DEFAULT_VOCABULARY = "https://uri.etsi.org/ngsi-ld/default-context/"
 _CONTEXT_TERMS = ("refDevice", "controlledProperty", "measurementType", "deviceType", "numValue",
@@ -251,13 +265,49 @@ def _fail(row: Row, text: str) -> Outcome:
     return Outcome(row.urn, 'failed', text)
 
 
-def _move_to_iota(tenant: str, item: Item, target) -> Outcome:
+def _restore_previous(tenant: str, item: Item) -> None:
+    """Put the previous mappings back, rebuilt from a fresh profile read when possible.
+
+    The plan-time ones are the fallback (logged). Raises when the PUT fails.
+    """
+    row = item.row
+    attrs = item.old_attrs
+    try:
+        entity = dataloggers._orion_devices(tenant, [row.urn]).get(row.urn)
+        code = dataloggers._prop(entity, 'profileCode') if entity else None
+        measurements = dataloggers._profile_measurements(tenant, code) if code else None
+        if measurements is None:
+            raise RuntimeError("profile not readable")
+        attrs = _build(tenant, row, row.state, code, measurements)
+    except Exception as exc:
+        logger.warning("dm_cutover: fresh profile read for the restore failed (%s); using the "
+                       "plan-time mappings: device=%s", type(exc).__name__, row.external_id)
+    if attrs is None:
+        raise RuntimeError("previous mappings not buildable")
+    _put(tenant, row.external_id, attrs)
+
+
+def _first_put(tenant: str, item: Item, target) -> Optional[Outcome]:
+    """First PUT of a move to iota; a failed Outcome when it did not go through.
+
+    A PUT that raised may still have been applied (a timeout), so the previous mappings are
+    put back as far as possible and the device is reported with its state unknown.
+    """
     row = item.row
     try:
-        new_attrs = _build(tenant, row, target, item.code, item.measurements)
-        _put(tenant, row.external_id, new_attrs)
+        _put(tenant, row.external_id, _build(tenant, row, target, item.code, item.measurements))
+        return None
     except Exception as exc:
-        return _fail(row, f"first PUT failed ({type(exc).__name__}); nothing changed")
+        try:
+            _restore_previous(tenant, item)
+        except Exception as exc2:
+            logger.error("dm_cutover: previous mappings not restored after a failed first PUT: "
+                         "device=%s error=%s", row.external_id, type(exc2).__name__)
+        return _fail(row, f"first PUT failed ({type(exc).__name__}); state unknown, rerun")
+
+
+def _commit_and_finish(tenant: str, item: Item, target) -> Outcome:
+    row = item.row
     try:
         set_state(tenant, row.urn, target)
     except Exception as exc:
@@ -292,21 +342,8 @@ def _after_db_failure(tenant: str, item: Item, target, exc: Exception) -> Outcom
                         row.external_id, row.urn, row.state, target)
         return _fail(row, "row update failed and the state could not be confirmed; the new "
                           "mappings were left in the agent; check the row, then rerun")
-    restore_attrs = item.old_attrs
     try:
-        entity = dataloggers._orion_devices(tenant, [row.urn]).get(row.urn)
-        code = dataloggers._prop(entity, 'profileCode') if entity else None
-        measurements = dataloggers._profile_measurements(tenant, code) if code else None
-        if measurements is None:
-            raise RuntimeError("profile not readable")
-        restore_attrs = _build(tenant, row, row.state, code, measurements)
-    except Exception as exc3:
-        logger.warning("dm_cutover: fresh profile read for the restore failed (%s); using the "
-                       "plan-time mappings: device=%s", type(exc3).__name__, row.external_id)
-    try:
-        if restore_attrs is None:
-            raise RuntimeError("previous mappings not buildable")
-        _put(tenant, row.external_id, restore_attrs)
+        _restore_previous(tenant, item)
     except Exception as exc2:
         logger.critical("INCONSISTENCY: row update failed and the previous mappings were not "
                         "restored: device=%s urn=%s previous=%r target=%r error=%s",
@@ -314,6 +351,57 @@ def _after_db_failure(tenant: str, item: Item, target, exc: Exception) -> Outcom
         return _fail(row, "row update failed and the previous mappings could NOT be restored; "
                           "the agent holds the new ones; rerun")
     return _fail(row, f"row update failed ({type(exc).__name__}); previous mappings restored")
+
+
+def apply_iota(tenant: str, items: List[Item], shape: str, settle: float) -> List[Outcome]:
+    """Move a batch to iota: first PUT of every device, ONE wait, then commit + final PUT each.
+
+    The wait lets a notification of a message the entity-manager handled before the first PUT
+    drain: while it is still queued, the row commit would make the entity-manager skip it
+    (a reading lost) or process it twice. An interrupt (or termination) during the wait or
+    between devices puts the previous mappings back on every device not committed yet; the
+    device being committed at that moment has an unknown state and is listed.
+    """
+    target = ('iota', shape)
+    outcomes: Dict[str, Outcome] = {}
+    pending: List[Item] = []
+    for it in items:
+        if it.action == 'move':
+            failed = _first_put(tenant, it, target)
+            if failed:
+                outcomes[it.row.urn] = failed
+            else:
+                pending.append(it)
+        else:
+            outcomes[it.row.urn] = apply_item(tenant, it, 'iota', shape)
+    inflight: Optional[Item] = None
+    try:
+        if pending and settle > 0:
+            _say(f"waiting {settle:g} s for in-flight notifications before committing the rows")
+            _sleep(settle)
+        while pending:
+            inflight = pending[0]
+            outcomes[inflight.row.urn] = _commit_and_finish(tenant, inflight, target)
+            pending.pop(0)
+            inflight = None
+    except KeyboardInterrupt:
+        for it in pending:
+            if it is inflight:
+                outcomes[it.row.urn] = _fail(it.row, "interrupted while committing; state unknown, "
+                                                     "check the row and rerun")
+                continue
+            try:
+                _restore_previous(tenant, it)
+                outcomes[it.row.urn] = _fail(it.row, "interrupted during the settle; previous "
+                                                     "mappings restored")
+            except Exception as exc:
+                logger.critical("INCONSISTENCY: interrupted before the row update and the previous "
+                                "mappings were not restored: device=%s urn=%s previous=%r "
+                                "target=%r error=%s", it.row.external_id, it.row.urn,
+                                it.row.state, target, type(exc).__name__)
+                outcomes[it.row.urn] = _fail(it.row, "interrupted during the settle and the previous "
+                                                     "mappings could NOT be restored; rerun")
+    return [outcomes[it.row.urn] for it in items]
 
 
 def _move_to_em(tenant: str, item: Item, target) -> Outcome:
@@ -344,7 +432,9 @@ def apply_item(tenant: str, item: Item, to: str, shape: Optional[str]) -> Outcom
         except Exception as exc:
             return _fail(row, f"PUT failed ({type(exc).__name__}); rerun")
         return Outcome(row.urn, 'repaired', item.reason)
-    return _move_to_iota(tenant, item, target) if to == 'iota' else _move_to_em(tenant, item, target)
+    if to == 'iota':
+        return _first_put(tenant, item, target) or _commit_and_finish(tenant, item, target)
+    return _move_to_em(tenant, item, target)
 
 
 # -- verify -------------------------------------------------------------------------------
@@ -465,8 +555,18 @@ def _is_time_instant(key: str) -> bool:
     return key == 'TimeInstant' or key.endswith('/TimeInstant')
 
 
-def verify(tenant: str, rows: List[Row], only_urn: Optional[str]) -> bool:
-    """Run both checks; prints the result of each; True when both pass."""
+def verify(tenant: str, rows: List[Row], only_urn: Optional[str], require_iota: bool = True) -> bool:
+    """Run the checks (a)-(d); prints the result of each; True when all pass.
+
+    (c) the agent's own device document of every selected `iota` device matches the expected
+    mappings; (d) the `numValue`/`textValue` of their DMs carry `observedAt`. With
+    `require_iota` a `--device` that is not on `iota` is a failure, not a NOT RUN.
+    """
+    if only_urn and require_iota:
+        chosen = next((r for r in rows if r.urn == only_urn), None)
+        if chosen is None or chosen.state[0] != 'iota':
+            _say(f"verify FAILED: {only_urn} is not on iota")
+            return False
     try:
         terms = load_terms()
         dms = read_dms(tenant, terms['DeviceMeasurement'])
@@ -493,17 +593,34 @@ def verify(tenant: str, rows: List[Row], only_urn: Optional[str]) -> bool:
     profiles: Dict[str, Optional[Dict[str, Any]]] = {}
     problems: List[str] = []
     orphans: List[str] = []
+    bad_d: List[str] = []
     judged = 0
+
+    profile_data: Dict[str, Optional[tuple]] = {}
+
+    def profile_of(row: Row):
+        if row.urn not in profile_data:
+            result = None
+            try:
+                ent = dataloggers._orion_devices(tenant, [row.urn]).get(row.urn)
+                code = dataloggers._prop(ent, 'profileCode') if ent else None
+                ms = dataloggers._profile_measurements(tenant, code) if code else None
+                if ms is not None:
+                    result = (code, ms)
+            except Exception as exc:
+                logger.warning("verify: profile of %s not readable: %s", row.external_id,
+                               type(exc).__name__)
+            profile_data[row.urn] = result
+        return profile_data[row.urn]
 
     def channels_of(row: Row):
         if row.urn in profiles:
             return profiles[row.urn]
         result = None
         try:
-            ent = dataloggers._orion_devices(tenant, [row.urn]).get(row.urn)
-            code = dataloggers._prop(ent, 'profileCode') if ent else None
-            ms = dataloggers._profile_measurements(tenant, code) if code else None
-            if ms is not None:
+            data = profile_of(row)
+            if data is not None:
+                code, ms = data
                 chans = measurement_channels(ms, tenant=tenant, external_id=row.external_id,
                                              device_urn=row.urn, profile_code=code,
                                              shape=row.state[1])
@@ -524,6 +641,10 @@ def verify(tenant: str, rows: List[Row], only_urn: Optional[str]) -> bool:
         if row.urn not in selected:
             continue
         judged += 1
+        for term in ('numValue', 'textValue'):
+            val = e.get(terms[term])
+            if val is not None and not (isinstance(val, dict) and val.get('observedAt')):
+                bad_d.append(f"  {dm_id}: {term} has no observedAt")
         keys = {k for k in e if k not in SYSTEM_KEYS}
         issues = []
         offending = sorted(k for k in keys if _is_default_vocabulary(k))
@@ -570,13 +691,38 @@ def verify(tenant: str, rows: List[Row], only_urn: Optional[str]) -> bool:
         for i in orphans:
             _say(f"  {i}")
     if not selected:
-        _say("check (b): NOT RUN (no iota devices)")
+        for name in ("(b)", "(c)", "(d)"):
+            _say(f"check {name}: NOT RUN (no iota devices)")
         return not bad_a
     _say("check (b): ok" + f" ({judged} entities of iota devices judged)" if not problems else
          f"check (b): FAILED ({len(problems)} problem(s), {judged} entities judged)")
     for line in problems:
         _say(line)
-    return not bad_a and not problems
+    bad_c: List[str] = []
+    for row in rows:
+        if row.urn not in selected:
+            continue
+        data = profile_of(row)
+        if data is None:
+            bad_c.append(f"  {row.urn}: expected mappings unknown (profile not readable)")
+            continue
+        try:
+            expected = _build(tenant, row, row.state, data[0], data[1])
+        except Exception as exc:
+            bad_c.append(f"  {row.urn}: expected mappings not buildable ({type(exc).__name__})")
+            continue
+        if not _agent_matches(tenant, row.external_id, expected):
+            bad_c.append(f"  {row.urn}: the IoT Agent's mappings differ from the expected ones "
+                         "(or cannot be read)")
+    _say("check (c): ok (agent mappings match)" if not bad_c else
+         f"check (c): FAILED ({len(bad_c)} device(s))")
+    for line in bad_c:
+        _say(line)
+    _say("check (d): ok (observedAt on every value)" if not bad_d else
+         f"check (d): FAILED ({len(bad_d)} value(s))")
+    for line in bad_d:
+        _say(line)
+    return not (bad_a or problems or bad_c or bad_d)
 
 
 # -- command ------------------------------------------------------------------------------
@@ -588,6 +734,9 @@ def _parser() -> argparse.ArgumentParser:
     p.add_argument("--device", help="device URN (default: every linked device of the tenant)")
     p.add_argument("--to", choices=("iota", "em"))
     p.add_argument("--shape", choices=SHAPES)
+    p.add_argument("--settle", type=float, metavar="SECONDS",
+                   help=f"--to iota: wait between the first PUTs and the row commits (default {DEFAULT_SETTLE:g})")
+    p.add_argument("--no-settle", action="store_true", help="--to iota: do not wait (needed for 0)")
     mode = p.add_mutually_exclusive_group()
     mode.add_argument("--dry-run", action="store_true", help="validate and print the plan; write nothing")
     mode.add_argument("--apply", action="store_true")
@@ -605,6 +754,14 @@ def _args(argv: Optional[List[str]]) -> argparse.Namespace:
             p.error("--shape is required with --to iota")
         if a.to == 'em' and a.shape:
             p.error("--shape is refused with --to em (the entity-manager has no shape)")
+        if a.to == 'em' and (a.settle is not None or a.no_settle):
+            p.error("--settle/--no-settle only apply to --to iota")
+        if a.settle is not None and a.no_settle:
+            p.error("--settle and --no-settle exclude each other")
+        if a.settle is not None and a.settle < 0:
+            p.error("--settle must not be negative")
+        if a.settle is not None and a.settle == 0:
+            p.error("--settle 0 needs the explicit --no-settle")
     elif not a.verify:
         p.error("one of --dry-run, --apply or --verify is required")
     return a
@@ -650,11 +807,17 @@ def main(argv: Optional[List[str]] = None) -> int:
                     _say(f"  {it.row.urn}: {problem}")
             return 1
         _report_plan(items, dry=args.dry_run)
+        if args.dry_run and args.to == 'iota' and any(it.action == 'move' for it in items):
+            wait = 0.0 if args.no_settle else (DEFAULT_SETTLE if args.settle is None else args.settle)
+            _say(f"would wait {wait:g} s between the first PUTs and the row commits")
         if args.apply:
-            outcomes = []
-            for it in items:
-                out = apply_item(tenant, it, args.to, args.shape)
-                outcomes.append(out)
+            if args.to == 'iota':
+                settle = 0.0 if args.no_settle else (
+                    DEFAULT_SETTLE if args.settle is None else args.settle)
+                outcomes = apply_iota(tenant, items, args.shape, settle)
+            else:
+                outcomes = [apply_item(tenant, it, 'em', None) for it in items]
+            for out in outcomes:
                 if out.status != 'unchanged':
                     _say(f"{out.urn}: {'FAILED' if out.status == 'failed' else out.status} - {out.text}")
             failed = [o for o in outcomes if o.status == 'failed']
@@ -666,9 +829,15 @@ def main(argv: Optional[List[str]] = None) -> int:
         except Exception as exc:
             _say(f"verify FAILED: cannot read the devices: {type(exc).__name__}")
             return 1
-        ok = verify(tenant, rows, args.device) and ok
+        ok = verify(tenant, rows, args.device, require_iota=args.to != 'em') and ok
     return 0 if ok else 1
 
 
 if __name__ == "__main__":
+    import signal
+
+    def _terminate(signum, frame):
+        raise KeyboardInterrupt
+
+    signal.signal(signal.SIGTERM, _terminate)
     sys.exit(main())

@@ -528,6 +528,7 @@ def register_sensor():
         raise dataloggers.ApiError(404, f'Profile "{profile_code}" not found')
 
     sdm_entity_type = profile_row.get('sdm_entity_type') or 'Device'
+    dataloggers.check_entity_type(sdm_entity_type)
     # tractor / implement / robot / harvester for machines, NULL for devices: the
     # one attribute that tells machines of the same type apart.
     device_category = profile_row.get('sdm_device_category')

@@ -693,9 +693,16 @@ def push_iota_attributes(tenant: str, urn: str, external_id: str, profile_code: 
     raise WriterStateError('Device writer state kept changing', state)
 
 
+def check_entity_type(entity_type: str) -> None:
+    """400 for a main entity type the IoT Agent may not be given (before any write)."""
+    if entity_type not in DEVICE_TYPES:
+        raise ApiError(400, f'Entity type "{entity_type}" is not allowed for IoT Agent devices')
+
+
 def provision_iota_device(tenant: str, apikey: str, external_id: str, urn: str,
                           entity_type: str, measurements: list,
                           profile_code: Optional[str] = None) -> None:
+    check_entity_type(entity_type)
     try:
         attributes = iota_attributes_for(tenant, urn, external_id, profile_code, measurements)
     except ValueError as exc:
@@ -704,6 +711,8 @@ def provision_iota_device(tenant: str, apikey: str, external_id: str, urn: str,
         iot_agent.provision_device(
             iota_url(), iota_headers(tenant), apikey=apikey, device_id=external_id,
             entity_name=urn, entity_type=entity_type, attributes=attributes)
+    except ValueError as exc:
+        raise ApiError(400, str(exc))
     except Exception as exc:
         logger.error("IoT Agent provisioning failed: device=%s error=%s", external_id, type(exc).__name__)
         raise ApiError(502, 'IoT Agent device provisioning failed', 'iota_device')

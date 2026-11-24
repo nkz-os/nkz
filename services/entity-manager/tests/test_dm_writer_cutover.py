@@ -52,6 +52,7 @@ class World:
         self.state_read_fail = False
         self.get_fail = False
         self.orion_fail = False
+        self.on_sleep = None
 
     def add(self, ext, writer="em", shape=None, code="p", ms=None, entity=True):
         urn = urn_of(ext)
@@ -192,6 +193,21 @@ def world(monkeypatch):
     monkeypatch.setattr(dataloggers, "_orion_devices", orion_devices)
     monkeypatch.setattr(dataloggers, "_profile_measurements", profile_measurements)
     return w
+
+
+@pytest.fixture(autouse=True)
+def sleeps(world, monkeypatch):
+    """The settle wait never really sleeps; it lands in the event log."""
+    seen = []
+
+    def fake_sleep(seconds):
+        seen.append(seconds)
+        world.log.append(("sleep", seconds))
+        if world.on_sleep:
+            world.on_sleep(seconds)
+
+    monkeypatch.setattr(cut, "_sleep", fake_sleep)
+    return seen
 
 
 def run(*argv):
@@ -532,6 +548,7 @@ class Http:
 
 def dm(ext, name, *, shape="legacy", mtype="t", value="num", drop=(), extra=None, tenant=TENANT):
     prop = {"type": "Property", "value": 1}
+    val = {"type": "Property", "value": 1, "observedAt": "2026-01-01T00:00:00Z"}
     attrs = {
         DEV + "hasDevice": {"type": "Relationship", "object": urn_of(ext)},
         DEV + "controlledProperty": prop, DEV + "deviceType": prop,
@@ -542,9 +559,9 @@ def dm(ext, name, *, shape="legacy", mtype="t", value="num", drop=(), extra=None
     if shape == "sdm":
         attrs["https://schema.org/name"] = prop
     if value in ("num", "both"):
-        attrs[DEV + "numValue"] = prop
+        attrs[DEV + "numValue"] = val
     if value in ("text", "both"):
-        attrs[DEV + "textValue"] = prop
+        attrs[DEV + "textValue"] = val
     for k in drop:
         attrs.pop(k)
     attrs.update(extra or {})
@@ -554,11 +571,12 @@ def dm(ext, name, *, shape="legacy", mtype="t", value="num", drop=(), extra=None
 
 
 @pytest.fixture
-def http(monkeypatch):
+def http(monkeypatch, world):
     monkeypatch.setenv("CONTEXT_URL", CTX_URL)
     holder = SimpleNamespace(h=None)
 
     def install(h):
+        world.settle_agent()     # the agent holds what rows and profiles call for
         holder.h = h
         monkeypatch.setattr(cut, "requests", h)
         monkeypatch.setattr(cut, "inject_fiware_headers", _fake_headers)
@@ -890,3 +908,192 @@ def test_restore_falls_back_to_plan_time_mappings_and_says_so(world, caplog):
         assert run(*BASE, "--to", "iota", "--shape", "legacy", "--apply") == 1
     assert world.agent["S1"] == before
     assert "plan-time" in caplog.text
+
+
+# -- settle (batch) -----------------------------------------------------------------------
+
+def test_settle_defaults_to_60_and_waits_once_per_batch(world, sleeps):
+    a, b = world.add("S1"), world.add("S2")
+    assert run(*BASE, "--to", "iota", "--shape", "legacy", "--apply") == 0
+    assert sleeps == [60.0]
+    kinds = [e[0] for e in world.log if e[0] in ("put", "sleep", "update")]
+    assert kinds == ["put", "put", "sleep", "update", "put", "update", "put"]
+    assert world.rows[a]["dm_writer"] == world.rows[b]["dm_writer"] == "iota"
+
+
+def test_settle_seconds_is_used(world, sleeps):
+    world.add("S1")
+    assert run(*BASE, "--to", "iota", "--shape", "legacy", "--settle", "7", "--apply") == 0
+    assert sleeps == [7.0]
+
+
+def test_zero_settle_needs_the_explicit_flag(world, sleeps):
+    world.add("S1")
+    with pytest.raises(SystemExit) as e:
+        run(*BASE, "--to", "iota", "--shape", "legacy", "--settle", "0", "--apply")
+    assert e.value.code == 2
+    assert run(*BASE, "--to", "iota", "--shape", "legacy", "--no-settle", "--apply") == 0
+    assert sleeps == []
+
+
+def test_no_settle_with_a_settle_value_is_refused(world):
+    with pytest.raises(SystemExit) as e:
+        run(*BASE, "--to", "iota", "--shape", "legacy", "--settle", "5", "--no-settle", "--apply")
+    assert e.value.code == 2
+
+
+def test_negative_settle_is_refused(world):
+    with pytest.raises(SystemExit) as e:
+        run(*BASE, "--to", "iota", "--shape", "legacy", "--settle", "-1", "--apply")
+    assert e.value.code == 2
+
+
+def test_to_em_does_not_wait(world, sleeps):
+    world.add("S1", writer="iota", shape="legacy")
+    world.settle_agent()
+    assert run(*BASE, "--to", "em", "--apply") == 0
+    assert sleeps == []
+
+
+def test_dry_run_does_not_wait_and_says_it_would(world, sleeps, capsys):
+    world.add("S1")
+    assert run(*BASE, "--to", "iota", "--shape", "legacy", "--dry-run") == 0
+    assert sleeps == [] and "60" in capsys.readouterr().out
+
+
+def test_device_whose_first_put_failed_is_left_out_and_listed(world, sleeps, capsys):
+    a, b = world.add("S1"), world.add("S2")
+    world.put_fail = lambda n, ext: ext == "S1"
+    assert run(*BASE, "--to", "iota", "--shape", "legacy", "--apply") == 1
+    assert world.rows[a]["dm_writer"] == "em" and world.rows[b]["dm_writer"] == "iota"
+    assert sleeps == [60.0] and a in capsys.readouterr().out
+    assert [e for e in world.events("update") if e[1] == a] == []
+
+
+def test_no_wait_when_no_first_put_succeeded(world, sleeps):
+    world.add("S1")
+    world.put_fail = lambda n, ext: True
+    assert run(*BASE, "--to", "iota", "--shape", "legacy", "--apply") == 1
+    assert sleeps == []
+
+
+def test_first_put_failure_tries_to_restore_and_says_state_unknown(world, capsys):
+    urn = world.add("S1")
+    world.settle_agent()
+    before = copy.deepcopy(world.agent["S1"])
+    world.put_fail = lambda n, ext: n == 1
+    assert run(*BASE, "--to", "iota", "--shape", "legacy", "--apply") == 1
+    assert "state unknown, rerun" in capsys.readouterr().out
+    assert world.agent["S1"] == before and world.rows[urn]["dm_writer"] == "em"
+
+
+def test_profile_change_during_the_settle_is_picked_up_by_the_second_put(world):
+    urn = world.add("S1")
+
+    def change(seconds):
+        world.profiles["p"] = copy.deepcopy(ONE_MS)
+
+    world.on_sleep = change
+    assert run(*BASE, "--to", "iota", "--shape", "legacy", "--apply") == 0
+    assert world.agent["S1"] == dataloggers._attributes_for_state(
+        ("iota", "legacy"), TENANT, urn, "S1", "p", ONE_MS)
+
+
+def test_crash_during_the_settle_leaves_duplicates_only_and_the_rerun_repairs(world):
+    urn = world.add("S1")
+
+    def crash(seconds):
+        raise RuntimeError("killed")
+
+    world.on_sleep = crash
+    with pytest.raises(RuntimeError):
+        run(*BASE, "--to", "iota", "--shape", "legacy", "--apply")
+    assert world.rows[urn]["dm_writer"] == "em"
+    assert any(a.get("entity_type") == "DeviceMeasurement" for a in world.agent["S1"])
+    world.on_sleep = None
+    assert run(*BASE, "--to", "iota", "--shape", "legacy", "--apply") == 0
+    assert world.rows[urn]["dm_writer"] == "iota"
+    assert world.agent["S1"] == dataloggers._attributes_for_state(
+        ("iota", "legacy"), TENANT, urn, "S1", "p", MS)
+
+
+def test_interrupt_during_the_settle_restores_every_uncommitted_device(world, capsys):
+    a, b = world.add("S1"), world.add("S2")
+    world.settle_agent()
+    before = {k: copy.deepcopy(v) for k, v in world.agent.items()}
+
+    def interrupt(seconds):
+        raise KeyboardInterrupt
+
+    world.on_sleep = interrupt
+    assert run(*BASE, "--to", "iota", "--shape", "legacy", "--apply") == 1
+    assert world.rows[a]["dm_writer"] == world.rows[b]["dm_writer"] == "em"
+    assert world.agent == before
+    out = capsys.readouterr().out
+    assert a in out and b in out and "interrupted" in out
+
+
+def test_interrupt_restore_failure_is_critical(world, caplog):
+    urn = world.add("S1")
+
+    def interrupt(seconds):
+        world.put_fail = lambda n, ext: True
+        raise KeyboardInterrupt
+
+    world.on_sleep = interrupt
+    with caplog.at_level(logging.CRITICAL):
+        assert run(*BASE, "--to", "iota", "--shape", "legacy", "--apply") == 1
+    assert any(urn in r.getMessage() for r in caplog.records if r.levelno == logging.CRITICAL)
+
+
+# -- verify, fix wave ---------------------------------------------------------------------
+
+def test_verify_fails_when_the_agent_mappings_differ(world, http, capsys):
+    iota_world(world)
+    http(Http([dm("S1", "airTemperature")]))
+    world.agent["S1"][0] = dict(world.agent["S1"][0], expression="x * 2")
+    assert run(*BASE, "--verify") == 1
+    out = capsys.readouterr().out
+    assert "check (c): FAILED" in out and urn_of("S1") in out
+    assert "check (b): ok" in out and "check (d): ok" in out
+
+
+def test_verify_fails_when_the_agent_document_is_unreadable(world, http, capsys):
+    iota_world(world)
+    http(Http([dm("S1", "airTemperature")]))
+    world.get_fail = True
+    assert run(*BASE, "--verify") == 1
+    assert "check (c): FAILED" in capsys.readouterr().out
+
+
+def test_verify_requires_observed_at_on_the_values(world, http, capsys):
+    iota_world(world)
+    d = dm("S1", "airTemperature")
+    d[DEV + "numValue"] = {"type": "Property", "value": 1}
+    http(Http([d]))
+    assert run(*BASE, "--verify") == 1
+    out = capsys.readouterr().out
+    assert "check (d): FAILED" in out and d["id"] in out and "check (c): ok" in out
+
+
+def test_verify_checks_c_and_d_are_not_run_without_iota_devices(world, http, capsys):
+    world.add("S1", writer="em")
+    http(Http([dm("S1", "airTemperature")]))
+    assert run(*BASE, "--verify") == 0
+    out = capsys.readouterr().out
+    assert "check (c): NOT RUN" in out and "check (d): NOT RUN" in out
+
+
+def test_verify_device_not_on_iota_is_an_explicit_failure(world, http, capsys):
+    world.add("S1", writer="em")
+    http(Http([dm("S1", "airTemperature")]))
+    assert run(*BASE, "--device", urn_of("S1"), "--verify") == 1
+    out = capsys.readouterr().out
+    assert "not on iota" in out and "NOT RUN" not in out
+
+
+def test_verify_unknown_device_exits_1(world, http, capsys):
+    iota_world(world)
+    http(Http([]))
+    assert run(*BASE, "--device", urn_of("nope"), "--verify") == 1
+    assert "not linked" in capsys.readouterr().out
