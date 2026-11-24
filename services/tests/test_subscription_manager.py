@@ -84,6 +84,5 @@ def test_app_uses_periodic_check():
     with open(source_path) as f:
         src = f.read()
     assert "ensure_subscriptions_for_all_tenants" in src
-    assert "_periodic_subscription_check" in src
-    assert "asyncio.sleep(3600)" in src
+    assert "run_periodic_reconcile(ensure_subscriptions_for_all_tenants)" in src
     assert "periodic_task.cancel()" in src

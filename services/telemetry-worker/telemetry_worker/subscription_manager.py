@@ -1,6 +1,8 @@
+import asyncio
 import os
 import logging
 import re
+import time
 import requests
 
 from prometheus_client import Counter
@@ -42,7 +44,11 @@ DEFAULT_TENANT = os.getenv("DEFAULT_TENANT", "platform")
 # term yet; the entry is then replaced or extended here, with no logic touched.
 GEOMETRY_ENTITY_TYPES = ("AgriParcel", "AgriParcelZone", "AgriPlant", "AgriGreenhouse")
 
-# NGSI-LD subscriptions — no watchedAttributes = trigger on ANY attribute change
+# NGSI-LD subscriptions — no watchedAttributes = trigger on ANY attribute change.
+# The six "... history" subscriptions carry no "throttling": Orion applies it per
+# subscription, covering every entity of the type in the tenant, so any window drops
+# changes of the other entities and those changes are stored as history. Their
+# descriptions are new so the ids are new (see REPLACED_DESCRIPTIONS).
 SUBSCRIPTIONS = [
     {
         # DeviceMeasurement is what entity-manager writes from Device/ManufacturingMachine
@@ -128,7 +134,7 @@ SUBSCRIPTIONS = [
         "isActive": True,
     },
     {
-        "description": "Telemetry Worker - CropHealthAssessment updates",
+        "description": "Telemetry Worker - CropHealthAssessment history",
         "type": "Subscription",
         "entities": [{"type": "CropHealthAssessment"}],
         "notification": {
@@ -138,11 +144,10 @@ SUBSCRIPTIONS = [
             },
             "format": "normalized",
         },
-        "throttling": 5,
         "isActive": True,
     },
     {
-        "description": "Telemetry Worker - WeatherObserved virtual stations",
+        "description": "Telemetry Worker - WeatherObserved history",
         "type": "Subscription",
         "entities": [{"type": "WeatherObserved"}],
         "notification": {
@@ -152,15 +157,10 @@ SUBSCRIPTIONS = [
             },
             "format": "normalized",
         },
-        # throttle=1: the weather-worker creates one WeatherObserved per parcel
-        # in a ~40s burst per cycle (~2.5s apart). A 30s throttle dropped most
-        # of those notifications, leaving most parcels without telemetry in
-        # timeseries (new tenants only, which lack the legacy weather_observations).
-        "throttling": 1,
         "isActive": True,
     },
     {
-        "description": "Telemetry Worker - WeatherForecast daily aggregates",
+        "description": "Telemetry Worker - WeatherForecast history",
         "type": "Subscription",
         "entities": [{"type": "WeatherForecast"}],
         "notification": {
@@ -170,11 +170,10 @@ SUBSCRIPTIONS = [
             },
             "format": "normalized",
         },
-        "throttling": 1,
         "isActive": True,
     },
     {
-        "description": "Telemetry Worker - WeatherAlert updates",
+        "description": "Telemetry Worker - WeatherAlert history",
         "type": "Subscription",
         "entities": [{"type": "WeatherAlert"}],
         "notification": {
@@ -184,11 +183,10 @@ SUBSCRIPTIONS = [
             },
             "format": "normalized",
         },
-        "throttling": 10,
         "isActive": True,
     },
     {
-        "description": "Telemetry Worker - AgriSoil water budget attributes",
+        "description": "Telemetry Worker - AgriSoil history",
         "type": "Subscription",
         "entities": [{"type": "AgriSoil"}],
         "watchedAttributes": ["currentMoisture", "deficitMm", "fieldCapacity", "awc"],
@@ -208,11 +206,10 @@ SUBSCRIPTIONS = [
                 "lastComputed"
             ],
         },
-        "throttling": 5,
         "isActive": True,
     },
     {
-        "description": "Telemetry Worker - Weather zonal stats (AgriParcelRecord)",
+        "description": "Telemetry Worker - AgriParcelRecord history",
         "type": "Subscription",
         "entities": [{"type": "AgriParcelRecord"}],
         "watchedAttributes": ["eto", "solarRadiation", "soilMoistureVwc"],
@@ -234,7 +231,6 @@ SUBSCRIPTIONS = [
                 "relativeHumidity",
             ],
         },
-        "throttling": 5,
         "isActive": True,
     },
     {
@@ -290,6 +286,36 @@ RETIRED_DESCRIPTIONS = frozenset({
     "Telemetry Worker - AgriSensor updates",
     "Telemetry Worker - AgriDevice updates",
 })
+
+# Declared subscriptions that replace an older definition with another id. Orion cannot
+# drop "throttling" with a PATCH, and deleting and recreating one id loses notifications
+# while the broker's per-replica cache is stale, so the new one is created first and the
+# old one (exact description) is deleted only once the new one is proven active.
+REPLACED_DESCRIPTIONS = {
+    "Telemetry Worker - CropHealthAssessment updates":
+        "Telemetry Worker - CropHealthAssessment history",
+    "Telemetry Worker - Weather zonal stats (AgriParcelRecord)":
+        "Telemetry Worker - AgriParcelRecord history",
+    "Telemetry Worker - AgriSoil water budget attributes":
+        "Telemetry Worker - AgriSoil history",
+    "Telemetry Worker - WeatherObserved virtual stations":
+        "Telemetry Worker - WeatherObserved history",
+    "Telemetry Worker - WeatherForecast daily aggregates":
+        "Telemetry Worker - WeatherForecast history",
+    "Telemetry Worker - WeatherAlert updates":
+        "Telemetry Worker - WeatherAlert history",
+}
+
+# Orion caches subscriptions for about a minute per replica: the old one is deleted
+# only this long after this process first saw (or created) its replacement.
+RETIRE_MIN_AGE_S = 180
+# One early extra reconcile pass, so old and new coexist minutes, not an hour.
+FIRST_EXTRA_PASS_DELAY_S = 240
+RECONCILE_INTERVAL_S = 3600
+
+_monotonic = time.monotonic
+# (tenant, subscription id) -> monotonic time this process first saw or created it.
+_FIRST_SEEN: dict = {}
 
 
 INTERNAL_SERVICE_SECRET = os.getenv("INTERNAL_SERVICE_SECRET", "")
@@ -397,7 +423,8 @@ def _replace_subscription(headers: dict, sub_def: dict, tenant_id: str, sub_id: 
         logger.error("Refresh failed: %s for %s: %s", sub_def["description"], tenant_id, e)
 
 
-def _create_subscription(headers: dict, sub_def: dict, tenant_id: str) -> None:
+def _create_subscription(headers: dict, sub_def: dict, tenant_id: str) -> bool:
+    """POST the subscription; True when it now exists (created or already there)."""
     res = requests.post(
         f"{ORION_URL}/ngsi-ld/v1/subscriptions",
         json=_subscription_body(sub_def, tenant_id),
@@ -406,6 +433,7 @@ def _create_subscription(headers: dict, sub_def: dict, tenant_id: str) -> None:
     )
     if res.status_code in (200, 201, 409):  # 409 = concurrent create won
         logger.info("Subscription '%s' ensured for %s", sub_def["description"], tenant_id)
+        return True
     else:
         SUBSCRIPTION_CREATION_FAILED.labels(
             tenant_id=tenant_id, reason=f"http_{res.status_code}"
@@ -414,6 +442,7 @@ def _create_subscription(headers: dict, sub_def: dict, tenant_id: str) -> None:
             "Failed: %s for %s: %s %s",
             sub_def["description"], tenant_id, res.status_code, res.text[:200],
         )
+        return False
 
 
 def _make_headers(tenant_id: str) -> dict:
@@ -493,12 +522,21 @@ def _ensure_tenant_subscriptions(tenant_id: str):
     """Reconcile this tenant's subscriptions against their deterministic ids."""
     headers = _make_headers(tenant_id)
     headers["Content-Type"] = "application/json"  # needed for POST below
+    existing_subs = None
+    by_id: dict = {}
     try:
         existing_subs = _fetch_all_subscriptions(headers) or []
         by_id = {s.get("id"): s for s in existing_subs if s.get("id")}
         by_description: dict = {}
         for existing in existing_subs:
             by_description.setdefault(existing.get("description"), []).append(existing)
+
+        # Start the clock of every replacement already in the broker; one created
+        # below starts it at its creation.
+        for new_desc in REPLACED_DESCRIPTIONS.values():
+            for sub in SUBSCRIPTIONS:
+                if sub["description"] == new_desc and _subscription_id(sub) in by_id:
+                    _FIRST_SEEN.setdefault((tenant_id, _subscription_id(sub)), _monotonic())
 
         # Before the declared ones, so a failure further down cannot skip it.
         # _delete_subscription counts a 404 as done and logs any other failure
@@ -522,7 +560,8 @@ def _ensure_tenant_subscriptions(tenant_id: str):
             ]
 
             if canonical is None:
-                _create_subscription(headers, sub, tenant_id)
+                if _create_subscription(headers, sub, tenant_id):
+                    _FIRST_SEEN.setdefault((tenant_id, sub_id), _monotonic())
             elif _matches_are_stale([canonical], tenant_id):
                 logger.info(
                     "Refreshing subscription '%s' for %s", sub["description"], tenant_id
@@ -546,6 +585,75 @@ def _ensure_tenant_subscriptions(tenant_id: str):
             tenant_id=tenant_id, reason="exception"
         ).inc()
         logger.error(f"Error managing subscriptions for {tenant_id}: {e}")
+
+    if existing_subs is not None:
+        try:
+            _retire_replaced_subscriptions(headers, tenant_id, existing_subs, by_id)
+        except Exception as e:
+            logger.error(f"Error retiring replaced subscriptions for {tenant_id}: {e}")
+
+
+def _replacement_is_proven(tenant_id: str, new_id: str, by_id: dict):
+    """(proven, reason). Proof is the listing taken at the start of the pass showing the
+    replacement active, and this process having known it for RETIRE_MIN_AGE_S.
+
+    Stricter than health.is_firing on purpose: there a missing status counts as firing
+    (re-arming a healthy one is harmless); here a missing status would delete the only
+    working subscription on a guess, so it is not proof.
+    """
+    new = by_id.get(new_id)
+    if new is None:
+        return False, "replacement missing"
+    if new.get("isActive") is not True or new.get("status") != "active":
+        return False, "replacement not active"
+    first_seen = _FIRST_SEEN.get((tenant_id, new_id))
+    if first_seen is None or _monotonic() - first_seen < RETIRE_MIN_AGE_S:
+        return False, "replacement too recent"
+    return True, ""
+
+
+def _retire_replaced_subscriptions(headers: dict, tenant_id: str, existing_subs: list, by_id: dict):
+    new_ids = {}
+    for sub in SUBSCRIPTIONS:
+        new_ids[sub["description"]] = _subscription_id(sub)
+    for old in existing_subs:
+        new_desc = REPLACED_DESCRIPTIONS.get(old.get("description"))
+        old_id = old.get("id")
+        if new_desc is None or not old_id:
+            continue
+        try:
+            new_id = new_ids[new_desc]
+            proven, reason = _replacement_is_proven(tenant_id, new_id, by_id)
+            if not proven:
+                logger.info(
+                    "Keeping replaced subscription %s for %s: %s (%s)",
+                    old_id, tenant_id, reason, new_id,
+                )
+                continue
+            logger.info(
+                "Retired replaced subscription tenant=%s old_id=%s new_id=%s",
+                tenant_id, old_id, new_id,
+            )
+            _delete_subscription(headers, old_id)
+        except Exception as e:
+            logger.error("Retiring %s for %s failed: %s", old_id, tenant_id, e)
+
+
+async def run_periodic_reconcile(reconcile, sleep=asyncio.sleep):
+    """One extra pass shortly after start, then one per interval, for ever.
+
+    A failing pass is logged and the loop goes on. Cancellation propagates (the caller
+    cancels and awaits the task; no wait_for, which on 3.11 can swallow it).
+    """
+    delay = FIRST_EXTRA_PASS_DELAY_S
+    while True:
+        await sleep(delay)
+        delay = RECONCILE_INTERVAL_S
+        try:
+            await asyncio.get_running_loop().run_in_executor(None, reconcile)
+            logger.info("Periodic subscription check completed")
+        except Exception as e:
+            logger.warning(f"Periodic subscription check failed: {e}")
 
 
 def managed_tenants() -> list:
