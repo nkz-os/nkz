@@ -373,6 +373,15 @@ def test_the_device_is_not_required_when_the_case_says_so():
     assert conf.outcome_violations(case(writes={"pressure"}, device_required=False), **only_dm) == []
 
 
+def test_device_keys_are_canonicalised_like_build_measurements_does():
+    a, b, c = prop(1), prop(2), prop(3)
+    assert conf.canonical_device({"id": "x", "humidity": a, "p": c}) == {"id": "x", "relativeHumidity": a, "p": c}
+    both = conf.canonical_device({"humidity": a, "relativeHumidity": b})
+    assert both == {"relativeHumidity": b}
+    both = conf.canonical_device({"relativeHumidity": b, "humidity": a})
+    assert both == {"relativeHumidity": b}
+
+
 def test_status_check():
     assert conf.status_violations(case(), 200) == []
     assert conf.status_violations(case(), 207)

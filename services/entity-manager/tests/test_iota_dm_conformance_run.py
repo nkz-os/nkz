@@ -55,6 +55,10 @@ class World:
                  defer=None, on_south=None, bad_ti=False):
         self.bad_ti = bad_ti
         self.south_ok = 200
+        self.alias_device = False
+        self.refuse_device = False
+        self.baseline_device_wrote = True
+        self.dm_value_shift = 0
         self.mapped = False
         self.on_delete, self.no_modified_at = on_delete, no_modified_at
         self.noop, self.defer, self.on_south, self.deferred = noop, defer, on_south, []
@@ -123,6 +127,13 @@ class World:
             for late in self.deferred:   # a write that lands one message late
                 self.entities[late["id"]] = late
             self.deferred = []
+            if "" in json.values() and self.refuse_device:
+                # the Device is refused; a mapped agent still writes the DM of the valid channels
+                if self.mapped and not self.noop:
+                    self._write_dms_only(params["i"], json)
+                elif not self.mapped and self.baseline_device_wrote and not self.noop:
+                    self._apply(params["i"], {k: v for k, v in json.items() if v != ""})
+                return Resp(207, {"name": "BatchOperationResult"})
             if "" in json.values():   # the broker refuses a null attribute: batch answer 207
                 if not self.noop:
                     self._apply(params["i"], {k: v for k, v in json.items() if v != ""})
@@ -151,6 +162,28 @@ class World:
         if self.leave_dm_on_delete and ":DeviceMeasurement:" in urn:
             return Resp(204)
         return Resp(204) if self.entities.pop(urn, None) else Resp(404)
+
+    def _write_dms_only(self, dev_id, message):
+        urn = self.agent[dev_id]["entity_name"]
+        parts = urn.split(":")
+        at = message.get("TimeInstant") or datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        device = {k: v for k, v in self.entities[urn].items()}
+        touched = set()
+        for ch in conf.live_channels(parts[3], ":".join(parts[4:])):
+            if ch.key in message and message[ch.key] not in ("", None):
+                device[ch.name] = {"type": "Property", "value": message[ch.key], "observedAt": at}
+                touched.add(ch.dm_id)
+        built = build_measurements({**device, "profileCode": {"type": "Property", "value": conf.PROFILE_CODE}},
+                                   conf.LIVE_PROFILE)
+        for dm in built:
+            if dm["id"] in touched:
+                for k, v in dm.items():
+                    if isinstance(v, dict):
+                        v["observedAt"] = at
+                if self.dm_value_shift and "numValue" in dm:
+                    dm["numValue"]["value"] += self.dm_value_shift
+                self._stamp(dm)
+                self.entities[dm["id"]] = {**self.entities.get(dm["id"], {}), **dm}
 
     # -- the agent
     def _apply(self, dev_id, message):
@@ -181,7 +214,8 @@ class World:
                     continue
             elif raw is None or (ch.kind == "runtime" and isinstance(raw, bool)):
                 continue
-            device[ch.name] = {"type": "Property", "value": raw, "observedAt": at}
+            key = "humidity" if self.alias_device and ch.name == "relativeHumidity" else ch.name
+            device[key] = {"type": "Property", "value": raw, "observedAt": at}
             touched.add(ch.dm_id)
         if not touched and not dirty:
             if "TimeInstant" in message:   # the Device records the instant; no DM has a reading
@@ -542,3 +576,69 @@ def test_the_summary_counts_cases_and_prints_each_undeclared_difference_once():
 def test_the_merged_expectation_follows_number_then_text_in_the_broker():
     code, out = run(World())
     assert code == 0, "\n".join(out)
+
+
+def test_a_device_read_under_the_alias_key_is_canonicalised():
+    world = World()
+    world.alias_device = True
+    code, out = run(world)
+    s = summary(out)
+    assert code == 0, "\n".join(out)
+    assert not [d for d in s["differences"] if d["classification"] == "UNDECLARED"]
+
+
+def _refuse_world(**kw):
+    world = World()
+    world.refuse_device = True
+    for k, v in kw.items():
+        setattr(world, k, v)
+    return world
+
+
+def test_dms_written_while_the_device_is_refused_are_declared_when_the_baseline_wrote_nothing():
+    world = _refuse_world(baseline_device_wrote=False)
+    code, out = run(world)
+    s = summary(out)
+    assert code == 0, "\n".join(out)
+    assert s["baseline"]["device_written"] is False
+    mixed = {c["name"]: c for c in s["cases"]}["empty-with-valid-others"]
+    assert mixed["device_written"] is False and mixed["status"] == 207
+    labels = {d["label"] for d in mixed["diffs"] if d["classification"] == "declared"}
+    assert "device-refused" in labels
+    assert not [d for d in s["differences"] if d["classification"] == "UNDECLARED"]
+
+
+def test_the_merged_expectation_carries_on_after_a_device_refused_case(monkeypatch):
+    real = conf.build_cases
+
+    def more(ti, val):
+        return real(ti, val) + [conf.Case("after-p", {"p": 5.5, "TimeInstant": "2026-01-01T09:58:00Z"},
+                                          frozenset({"pressure"}), True),
+                                conf.Case("after", {"tMax": 7.5, "TimeInstant": "2026-01-01T09:59:00Z"},
+                                          frozenset({"airTemperatureMax"}), True)]
+
+    monkeypatch.setattr(conf, "build_cases", more)
+    code, out = run(_refuse_world(baseline_device_wrote=False))
+    assert code == 0, "\n".join(out)
+
+
+def test_device_refused_is_not_declared_when_the_baseline_wrote_the_device():
+    code, out = run(_refuse_world(baseline_device_wrote=True))
+    s = summary(out)
+    assert code == 1 and s["baseline"]["device_written"] is True
+    mixed = {c["name"]: c for c in s["cases"]}["empty-with-valid-others"]
+    assert not [d for d in mixed["diffs"] if d["label"] == "device-refused"]
+    assert [d for d in mixed["diffs"] if d["classification"] == "UNDECLARED"]
+
+
+def test_device_refused_is_not_declared_when_the_dm_differs():
+    code, out = run(_refuse_world(baseline_device_wrote=False, dm_value_shift=1))
+    mixed = {c["name"]: c for c in summary(out)["cases"]}["empty-with-valid-others"]
+    assert code == 1 and not [d for d in mixed["diffs"] if d["label"] == "device-refused"]
+    assert [d for d in mixed["diffs"] if d["classification"] == "UNDECLARED"]
+
+
+def test_the_baseline_is_printed_again_in_the_summary():
+    code, out = run(World())
+    lines = [x for x in out if x.startswith("baseline device-only")]
+    assert len(lines) == 2 and lines[0].split(":", 1)[1] == lines[1].split(":", 1)[1]

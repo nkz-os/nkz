@@ -54,6 +54,7 @@ for _p in (_HERE.parent, _HERE.parent.parent):
 import requests  # noqa: E402
 
 from blueprints.measurements import SDM_SHAPE_FLAG, build_measurements  # noqa: E402
+from common.context_aliases import canonical_attribute  # noqa: E402
 from common.device_measurement_shape import Channel, measurement_channels  # noqa: E402
 from common.iot_agent import (  # noqa: E402
     IotAgentError, _check_entity_types, delete_device, get_device, get_or_create_service_group,
@@ -359,6 +360,22 @@ def group_diffs(diffs: Sequence[Diff]) -> List[Dict[str, Any]]:
     return out
 
 
+def canonical_device(entity: Mapping[str, Any]) -> Dict[str, Any]:
+    """The Device with one reading per canonical name, the canonical key winning (what
+    `build_measurements` does); the broker may return a channel under its context alias."""
+    out: Dict[str, Any] = {}
+    for key, value in entity.items():
+        canon = canonical_attribute(key)
+        if canon not in out or key == canon:
+            out[canon] = value
+    return out
+
+
+def baseline_line(b: Mapping[str, Any]) -> str:
+    return (f"baseline device-only: status={b['status']} device_written={b['device_written']} "
+            f"other_channels_written={b['other_channels_written']}")
+
+
 def status_violations(case: Case, status: int) -> List[str]:
     if status in case.ok_statuses:
         return []
@@ -512,6 +529,7 @@ class Conformance:
         self.last_write: Dict[Tuple[str, str], Tuple[Optional[str], datetime]] = {}
         self.expected: Dict[str, Dict[str, Any]] = {}
         self.seen_undeclared: Set[Tuple[str, ...]] = set()
+        self.baseline: Optional[Dict[str, Any]] = None
         self.expected_existing: Set[str] = set()
         self.last_final: Optional[Dict[str, str]] = None
         self.prev_result: Optional[Dict[str, Any]] = None
@@ -669,13 +687,13 @@ class Conformance:
         read = lambda: self.snapshot(self.state())  # noqa: E731
         await_outcome(read, lambda snap: snap.get(self.urn) != before_snap.get(self.urn),
                       sleep=self.sleep, now=self.now)
-        device = self.state()[0] or {}
+        device = canonical_device(self.state()[0] or {})
         others = {k: v for k, v in message.items() if k in KEY_DM and v != ""}
         written = {k: (device.get(KEY_DM[k]) or {}).get("value") == v for k, v in others.items()}
         out = {"status": status, "device_written": device.get("modifiedAt") != before_snap.get(self.urn),
                "other_channels_written": bool(written) and all(written.values())}
-        self.say(f"baseline device-only: status={status} device_written={out['device_written']} "
-                 f"other_channels_written={out['other_channels_written']}")
+        self.baseline = out
+        self.say(baseline_line(out))
         return out
 
     def stable_state(self, gap: float = 1.0) -> Tuple[Optional[dict], List[dict]]:
@@ -739,7 +757,8 @@ class Conformance:
         if case.must_change and latency is None:
             violations.append(f"the change did not complete within {CHANGE_TIMEOUT_S:.0f} s")
         entity = strip_sys(device)
-        before_device = strip_sys(before[0] or {})
+        before_device = canonical_device(strip_sys(before[0] or {}))
+        entity = canonical_device(entity)
         entity["profileCode"] = {"type": "Property", "value": PROFILE_CODE}
         built = {e["id"]: e for e in build_measurements(entity, LIVE_PROFILE)}
         for dm_id, dm in built.items():
@@ -748,13 +767,18 @@ class Conformance:
             name = dm_id.rsplit(":", 1)[-1]
             if before_device.get(name) != entity.get(name):
                 self.expected[dm_id] = merge_expected(self.expected.get(dm_id), dm)
+        refused_ids = self._device_refused(case, status, device_changed, entity, built, dms, unchanged)
+        written_from = {**built, **refused_ids}
         for name in case.writes:   # the attributes this message was required to write
-            for attr in built.get(self.prefix + name, {}):
+            for attr in written_from.get(self.prefix + name, {}):
                 if attr not in ("id", "type"):
                     self.last_write[(self.prefix + name, attr)] = (case.message.get("TimeInstant"), sent_at)
         ctx = Context(case.message, frozenset(self.server_stamped), keys_by_dm(self.channels),
                       unchanged, device_changed, dict(self.last_write))
         diffs = compare_dms(list(self.expected.values()), [strip_sys(d) for d in dms], ctx)
+        for dm_id in sorted(refused_ids):
+            diffs.append(Diff(dm_id, "<entity>", "written-without-device", "not written (the Device was refused)",
+                              "written", "declared", "device-refused"))
         grouped = group_diffs(diffs)
         for d in grouped:
             d["case"] = case.name
@@ -770,6 +794,43 @@ class Conformance:
         self.last_final, self.prev_result = final_snap, result
         self._print_case(result)
         return result
+
+    def _device_refused(self, case: Case, status: int, device_changed: bool, entity: Dict[str, Any],
+                        built: Mapping[str, Mapping[str, Any]], dms: Sequence[dict],
+                        unchanged: FrozenSet[str]) -> Dict[str, Mapping[str, Any]]:
+        """The agent refused the Device (207, not written) but wrote the DM of the valid
+        channels. Declared (an improvement: today the whole message is lost) only when the
+        baseline showed the Device-only agent writing nothing and each such DM equals
+        `build_measurements` over the last Device overlaid with the message's valid values and
+        its TimeInstant. Returns the expected-DM entities it adopted ({} when not declared)."""
+        instant = case.message.get("TimeInstant")
+        if (status != 207 or device_changed or not case.writes or not instant or self.baseline is None
+                or self.baseline["device_written"] is not False):
+            return {}
+        channels = {c.name: c for c in self.channels}
+        synthetic = dict(entity)
+        for key, value in case.message.items():
+            name = KEY_DM.get(key)
+            if name is None or value in ("", None) or channels[name].expression:
+                continue
+            synthetic[name] = {"type": "Property", "value": value, "observedAt": instant}
+        synth_built = {e["id"]: e for e in build_measurements(synthetic, LIVE_PROFILE)}
+        actual = {d["id"]: strip_sys(d) for d in dms}
+        candidates: Dict[str, Dict[str, Any]] = {}
+        for name in case.writes:
+            dm_id = self.prefix + name
+            if dm_id not in synth_built or dm_id not in actual or dm_id in unchanged:
+                return {}
+            candidates[dm_id] = merge_expected(self.expected.get(dm_id), synth_built[dm_id])
+        ctx = Context(case.message, frozenset(self.server_stamped), keys_by_dm(self.channels),
+                      frozenset(), device_changed,
+                      {**self.last_write, **{(i, a): (instant, None)
+                                             for i in candidates for a in synth_built[i]}})
+        diffs = compare_dms(list(candidates.values()), [actual[i] for i in candidates], ctx)
+        if any(d.classification != "declared" for d in diffs):
+            return {}
+        self.expected.update(candidates)
+        return {i: synth_built[i] for i in candidates}
 
     def finish(self) -> None:
         """After the last case: the state must still be the one that case left."""
@@ -1010,6 +1071,8 @@ def _main(argv: Optional[Sequence[str]] = None, *, http: Any = requests, sleep: 
     summary_rows = summarize_undeclared(flat)
     say(f"cases: {len(results)}; differences: {len(flat)} ({len(undeclared)} UNDECLARED, "
         f"{len(summary_rows)} distinct); check failures: {check_failures or 'none'}")
+    if baseline is not None:
+        say(baseline_line(baseline))
     for row in summary_rows:
         say(f"   distinct UNDECLARED: {row['dm'].rsplit(':', 1)[-1]}.{row['attr']}.{row['aspect']} "
             f"expected={json.dumps(row['expected'])} actual={json.dumps(row['actual'])} "
