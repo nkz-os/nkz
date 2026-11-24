@@ -49,6 +49,7 @@ def clock(monkeypatch):
     c = Clock()
     monkeypatch.setattr(sm, "_monotonic", c)
     monkeypatch.setattr(sm, "_FIRST_SEEN", {})
+    monkeypatch.setattr(sm, "_PENDING", {})
     return c
 
 
@@ -292,3 +293,202 @@ def test_a_failing_delete_does_not_skip_the_others(monkeypatch, clock):
     with patch.object(sm.requests, "delete", side_effect=delete):
         sm._ensure_tenant_subscriptions("tenant-a")
     assert sorted(tried) == sorted(OLD_IDS.values())
+
+
+# ---- review round 1 ------------------------------------------------------------
+
+def test_the_minimum_age_is_pinned():
+    assert sm.RETIRE_MIN_AGE_S == 180
+
+
+def test_real_schedule_create_at_zero_retire_at_the_extra_pass(monkeypatch, clock):
+    listing_without = _declared(skip=[_new_desc()]) + [_old()]
+    assert _deletes(_pass(monkeypatch, listing_without)) == []  # t=0: created
+    clock.t += sm.FIRST_EXTRA_PASS_DELAY_S  # t=240
+    assert _deletes(_pass(monkeypatch, _declared() + [_old()])) == [OLD_IDS[SOME_OLD]]
+
+
+def test_paused_at_pass_one_then_active_restarts_the_clock(monkeypatch, clock):
+    others = [s for s in _declared() if s["description"] != _new_desc()]
+    paused = others + [_live(_new_def(), status="paused", isActive=False), _old()]
+    assert _deletes(_pass(monkeypatch, paused)) == []
+    clock.t += 10_000
+    active = others + [_live(_new_def()), _old()]
+    assert _deletes(_pass(monkeypatch, active)) == []  # seen active only now
+    clock.t += sm.RETIRE_MIN_AGE_S
+    assert _deletes(_pass(monkeypatch, active)) == [OLD_IDS[SOME_OLD]]
+
+
+def test_replacement_removed_and_recreated_in_process_restarts_the_clock(monkeypatch, clock):
+    full = _declared() + [_old()]
+    _pass(monkeypatch, full)
+    clock.t += 10_000
+    # the replacement vanishes from the broker: it is created again, now
+    assert _deletes(_pass(monkeypatch, _declared(skip=[_new_desc()]) + [_old()])) == []
+    clock.t += 5
+    assert _deletes(_pass(monkeypatch, full)) == []
+
+
+def test_creation_409_starts_the_clock(monkeypatch, clock):
+    assert _deletes(_pass(monkeypatch, _declared(skip=[_new_desc()]) + [_old()], post_status=409)) == []
+    assert (("tenant-a", sm._subscription_id(_new_def()))) in sm._FIRST_SEEN
+    clock.t += sm.RETIRE_MIN_AGE_S
+    assert _deletes(_pass(monkeypatch, _declared() + [_old()])) == [OLD_IDS[SOME_OLD]]
+
+
+def test_expired_replacement_is_not_proof(monkeypatch, clock):
+    existing = [s for s in _declared() if s["description"] != _new_desc()]
+    existing += [_live(_new_def(), status="expired"), _old()]
+    _pass(monkeypatch, existing)
+    clock.t += 10_000
+    assert _deletes(_pass(monkeypatch, existing)) == []
+
+
+def _with_watch(sub, entities=None, watched="keep"):
+    out = dict(sub)
+    if entities is not None:
+        out["entities"] = entities
+    if watched != "keep":
+        if watched is None:
+            out.pop("watchedAttributes", None)
+        else:
+            out["watchedAttributes"] = watched
+    return out
+
+
+def test_old_is_kept_when_the_replacement_watches_another_type(monkeypatch, clock, caplog):
+    existing = _declared() + [_with_watch(_old(), entities=[{"type": "https://example.org/Other"}])]
+    existing = [
+        _with_watch(s, entities=[{"type": "https://example.org/A"}]) if s["description"] == _new_desc() else s
+        for s in existing
+    ]
+    _pass(monkeypatch, existing)
+    clock.t += 10_000
+    with caplog.at_level("ERROR"):
+        assert _deletes(_pass(monkeypatch, existing)) == []
+    assert any(r.levelname == "ERROR" and OLD_IDS[SOME_OLD] in r.getMessage() for r in caplog.records)
+
+
+def test_old_is_kept_when_watched_attributes_differ(monkeypatch, clock, caplog):
+    old = _with_watch(_old(), entities=_new_def()["entities"], watched=["a"])
+    existing = _declared() + [old]
+    existing = [
+        _with_watch(s, entities=_new_def()["entities"], watched=["a", "b"]) if s["description"] == _new_desc() else s
+        for s in existing
+    ]
+    _pass(monkeypatch, existing)
+    clock.t += 10_000
+    with caplog.at_level("ERROR"):
+        assert _deletes(_pass(monkeypatch, existing)) == []
+    assert any(r.levelname == "ERROR" for r in caplog.records)
+
+
+def test_equal_watch_in_any_order_is_accepted(monkeypatch, clock):
+    ents = [{"type": "T1"}, {"type": "T2"}]
+    old = _with_watch(_old(), entities=ents, watched=["a", "b"])
+    existing = [
+        _with_watch(s, entities=list(reversed(ents)), watched=["b", "a"]) if s["description"] == _new_desc() else s
+        for s in _declared()
+    ] + [old]
+    _pass(monkeypatch, existing)
+    clock.t += sm.RETIRE_MIN_AGE_S
+    assert _deletes(_pass(monkeypatch, existing)) == [OLD_IDS[SOME_OLD]]
+
+
+def test_a_declared_new_id_is_never_retired(monkeypatch, clock, caplog):
+    new_id = sm._subscription_id(_new_def())
+    clashing = _old(SOME_OLD, new_id)
+    existing = _declared() + [clashing]
+    _pass(monkeypatch, existing)
+    clock.t += 10_000
+    with caplog.at_level("ERROR"):
+        assert _deletes(_pass(monkeypatch, existing)) == []
+    assert any(r.levelname == "ERROR" for r in caplog.records)
+
+
+def test_retired_is_logged_only_after_a_successful_delete(monkeypatch, clock, caplog):
+    existing = _declared() + [_old()]
+    _pass(monkeypatch, existing)
+    clock.t += sm.RETIRE_MIN_AGE_S
+    monkeypatch.setattr(sm, "INTERNAL_SERVICE_SECRET", "")
+    monkeypatch.setattr(sm, "_fetch_all_subscriptions", lambda headers: list(existing))
+    monkeypatch.setattr(sm, "reactivate_if_paused", lambda *a, **k: None)
+    with patch.object(sm.requests, "delete", return_value=_resp(500)), caplog.at_level("INFO"):
+        sm._ensure_tenant_subscriptions("tenant-a")
+    assert not [r for r in caplog.records if "Retired replaced" in r.getMessage()]
+    assert [r for r in caplog.records if r.levelname == "WARNING" and OLD_IDS[SOME_OLD] in r.getMessage()]
+
+
+def test_delete_helper_reports_success(monkeypatch):
+    for status, ok in ((204, True), (200, True), (404, True), (500, False)):
+        with patch.object(sm.requests, "delete", return_value=_resp(status)):
+            assert sm._delete_subscription({}, "urn:x") is ok
+    with patch.object(sm.requests, "delete", side_effect=sm.requests.RequestException("x")):
+        assert sm._delete_subscription({}, "urn:x") is False
+
+
+def test_listing_failure_with_old_ones_present_deletes_nothing(monkeypatch, clock):
+    calls = []
+    monkeypatch.setattr(sm, "INTERNAL_SERVICE_SECRET", "")
+
+    def boom(headers):
+        raise sm.requests.RequestException("listing down")
+
+    monkeypatch.setattr(sm, "_fetch_all_subscriptions", boom)
+    with patch.object(sm.requests, "delete", side_effect=lambda *a, **k: calls.append(a) or _resp(204)):
+        sm._ensure_tenant_subscriptions("tenant-a")
+    assert calls == []
+
+
+def test_pending_retirement_is_tracked(monkeypatch, clock):
+    existing = _declared() + [_old()]
+    _pass(monkeypatch, existing)
+    assert sm.has_pending_retirements() is True
+    clock.t += sm.RETIRE_MIN_AGE_S
+    _pass(monkeypatch, existing)
+    assert sm.has_pending_retirements() is False
+
+
+def test_the_six_bodies_carry_the_derived_token(monkeypatch):
+    monkeypatch.setattr(sm, "INTERNAL_SERVICE_SECRET", "s3cret")
+    monkeypatch.setenv("NKZ_NOTIFY_DERIVED_TOKENS", "true")
+    for desc in sm.REPLACED_DESCRIPTIONS.values():
+        d = next(x for x in sm.SUBSCRIPTIONS if x["description"] == desc)
+        info = sm._subscription_body(d, "tenant-a")["notification"]["endpoint"]["receiverInfo"]
+        assert [h["key"] for h in info] == ["X-Notification-Token"]
+        assert info[0]["value"] != "s3cret"
+
+
+# Literal copy of what the six declared before, minus "throttling" and the description.
+_SOIL_ATTRS = ["currentMoisture", "deficitMm", "fieldCapacity", "awc", "wiltingPoint",
+               "forecast7d", "lastComputed"]
+_RECORD_ATTRS = ["eto", "solarRadiation", "soilMoistureVwc", "waterBalance", "frostRisk",
+                 "airTemperatureAvg", "airTemperatureMin", "soilTemperature", "relativeHumidity"]
+_PLAIN = {"format": "normalized"}
+
+
+def _expected(types, watched=None, attrs=None):
+    notification = {"endpoint": {"uri": sm.NOTIFICATION_URL, "accept": "application/json"},
+                    "format": "normalized"}
+    if attrs:
+        notification["attributes"] = attrs
+    out = {"type": "Subscription", "entities": [{"type": types}],
+           "notification": notification, "isActive": True}
+    if watched:
+        out["watchedAttributes"] = watched
+    return out
+
+
+@pytest.mark.parametrize("old,expected", [
+    ("Telemetry Worker - CropHealthAssessment updates", _expected("CropHealthAssessment")),
+    ("Telemetry Worker - WeatherObserved virtual stations", _expected("WeatherObserved")),
+    ("Telemetry Worker - WeatherForecast daily aggregates", _expected("WeatherForecast")),
+    ("Telemetry Worker - WeatherAlert updates", _expected("WeatherAlert")),
+    ("Telemetry Worker - AgriSoil water budget attributes",
+     _expected("AgriSoil", ["currentMoisture", "deficitMm", "fieldCapacity", "awc"], _SOIL_ATTRS)),
+    ("Telemetry Worker - Weather zonal stats (AgriParcelRecord)",
+     _expected("AgriParcelRecord", ["eto", "solarRadiation", "soilMoistureVwc"], _RECORD_ATTRS)),
+])
+def test_the_six_are_unchanged_apart_from_description_and_throttling(old, expected):
+    d = next(x for x in sm.SUBSCRIPTIONS if x["description"] == sm.REPLACED_DESCRIPTIONS[old])
+    assert {k: v for k, v in d.items() if k != "description"} == expected

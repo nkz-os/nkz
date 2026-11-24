@@ -1356,8 +1356,8 @@ class ParcelWeatherEngine:
         their latest closable day cost nothing. A stored day is written ONCE: only
         days after the entity's ``dateObserved`` are published, yesterday only from
         ``CLOSED_DAY_SETTLE_HOURS`` local, and a parcel whose entity cannot be read
-        is skipped until the next cycle. Writes go through a pacer so the
-        WeatherObserved subscription (throttling 1 s) never drops a notification.
+        is skipped until the next cycle. Writes go through a pacer so a
+        throttled WeatherObserved subscription never drops a notification.
 
         Missed days are recovered (#1043 review): the in-memory done flag alone
         cannot know what was published before a restart, so for a parcel not yet

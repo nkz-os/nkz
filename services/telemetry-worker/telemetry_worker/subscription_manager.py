@@ -316,6 +316,13 @@ RECONCILE_INTERVAL_S = 3600
 _monotonic = time.monotonic
 # (tenant, subscription id) -> monotonic time this process first saw or created it.
 _FIRST_SEEN: dict = {}
+# tenant -> old ids kept at the last pass because their replacement is not yet proven.
+_PENDING: dict = {}
+MAX_SHORT_PASSES = 10
+
+
+def has_pending_retirements() -> bool:
+    return any(_PENDING.values())
 
 
 INTERNAL_SERVICE_SECRET = os.getenv("INTERNAL_SERVICE_SECRET", "")
@@ -384,17 +391,21 @@ def _matches_are_stale(matches: list, tenant_id=None) -> bool:
     return key != MASTER_HEADER and MASTER_HEADER in present
 
 
-def _delete_subscription(headers: dict, sub_id: str) -> None:
+def _delete_subscription(headers: dict, sub_id: str) -> bool:
+    """True when the subscription is gone (200/204/404); False on any failure."""
     if not sub_id:
-        return
+        return False
     try:
         res = requests.delete(
             f"{ORION_URL}/ngsi-ld/v1/subscriptions/{sub_id}", headers=headers, timeout=30
         )
         if res.status_code not in (200, 204, 404):
             logger.warning("Delete subscription %s: HTTP %s", sub_id, res.status_code)
+            return False
+        return True
     except requests.RequestException as e:
         logger.warning("Delete subscription %s failed: %s", sub_id, e)
+        return False
 
 
 def _replace_subscription(headers: dict, sub_def: dict, tenant_id: str, sub_id: str) -> None:
@@ -531,12 +542,18 @@ def _ensure_tenant_subscriptions(tenant_id: str):
         for existing in existing_subs:
             by_description.setdefault(existing.get("description"), []).append(existing)
 
-        # Start the clock of every replacement already in the broker; one created
-        # below starts it at its creation.
+        # The clock measures "seen ACTIVE": started only while the listing shows the
+        # replacement active, dropped as soon as it does not (absent, paused, expired);
+        # one created below starts it at its creation.
         for new_desc in REPLACED_DESCRIPTIONS.values():
             for sub in SUBSCRIPTIONS:
-                if sub["description"] == new_desc and _subscription_id(sub) in by_id:
-                    _FIRST_SEEN.setdefault((tenant_id, _subscription_id(sub)), _monotonic())
+                if sub["description"] != new_desc:
+                    continue
+                key = (tenant_id, _subscription_id(sub))
+                if _is_active(by_id.get(key[1])):
+                    _FIRST_SEEN.setdefault(key, _monotonic())
+                else:
+                    _FIRST_SEEN.pop(key, None)
 
         # Before the declared ones, so a failure further down cannot skip it.
         # _delete_subscription counts a 404 as done and logs any other failure
@@ -561,7 +578,7 @@ def _ensure_tenant_subscriptions(tenant_id: str):
 
             if canonical is None:
                 if _create_subscription(headers, sub, tenant_id):
-                    _FIRST_SEEN.setdefault((tenant_id, sub_id), _monotonic())
+                    _FIRST_SEEN[(tenant_id, sub_id)] = _monotonic()
             elif _matches_are_stale([canonical], tenant_id):
                 logger.info(
                     "Refreshing subscription '%s' for %s", sub["description"], tenant_id
@@ -593,29 +610,44 @@ def _ensure_tenant_subscriptions(tenant_id: str):
             logger.error(f"Error retiring replaced subscriptions for {tenant_id}: {e}")
 
 
-def _replacement_is_proven(tenant_id: str, new_id: str, by_id: dict):
-    """(proven, reason). Proof is the listing taken at the start of the pass showing the
-    replacement active, and this process having known it for RETIRE_MIN_AGE_S.
+def _is_active(sub) -> bool:
+    """Stricter than health.is_firing on purpose: there a missing status counts as
+    firing (re-arming a healthy one is harmless); here a missing status would delete the
+    only working subscription on a guess, so it is not proof."""
+    return bool(sub) and sub.get("isActive") is True and sub.get("status") == "active"
 
-    Stricter than health.is_firing on purpose: there a missing status counts as firing
-    (re-arming a healthy one is harmless); here a missing status would delete the only
-    working subscription on a guess, so it is not proof.
-    """
+
+def _watch_signature(sub: dict):
+    """What a subscription watches: entity types and watchedAttributes (absent = None)."""
+    types = frozenset(e.get("type") for e in sub.get("entities") or [])
+    watched = sub.get("watchedAttributes")
+    return types, (frozenset(watched) if watched is not None else None)
+
+
+def _replacement_is_proven(tenant_id: str, old: dict, new_id: str, by_id: dict):
+    """(proven, reason, level): the start-of-pass listing shows the replacement active,
+    watching what the old one watched, and this process has seen it active for
+    RETIRE_MIN_AGE_S."""
     new = by_id.get(new_id)
     if new is None:
-        return False, "replacement missing"
-    if new.get("isActive") is not True or new.get("status") != "active":
-        return False, "replacement not active"
+        return False, "replacement missing", logging.INFO
+    if not _is_active(new):
+        return False, "replacement not active", logging.INFO
+    if _watch_signature(new) != _watch_signature(old):
+        return False, (
+            f"replacement watches {_watch_signature(new)!r} but the old one {_watch_signature(old)!r}"
+        ), logging.ERROR
     first_seen = _FIRST_SEEN.get((tenant_id, new_id))
     if first_seen is None or _monotonic() - first_seen < RETIRE_MIN_AGE_S:
-        return False, "replacement too recent"
-    return True, ""
+        return False, "replacement too recent", logging.INFO
+    return True, "", logging.INFO
 
 
 def _retire_replaced_subscriptions(headers: dict, tenant_id: str, existing_subs: list, by_id: dict):
-    new_ids = {}
-    for sub in SUBSCRIPTIONS:
-        new_ids[sub["description"]] = _subscription_id(sub)
+    new_ids = {sub["description"]: _subscription_id(sub) for sub in SUBSCRIPTIONS}
+    declared_ids = set(new_ids.values())
+    pending = set()
+    _PENDING[tenant_id] = pending
     for old in existing_subs:
         new_desc = REPLACED_DESCRIPTIONS.get(old.get("description"))
         old_id = old.get("id")
@@ -623,37 +655,53 @@ def _retire_replaced_subscriptions(headers: dict, tenant_id: str, existing_subs:
             continue
         try:
             new_id = new_ids[new_desc]
-            proven, reason = _replacement_is_proven(tenant_id, new_id, by_id)
+            if old_id in declared_ids:
+                logger.error(
+                    "Not retiring %s for %s: it is a declared id", old_id, tenant_id,
+                )
+                continue
+            pending.add(old_id)
+            proven, reason, level = _replacement_is_proven(tenant_id, old, new_id, by_id)
             if not proven:
-                logger.info(
-                    "Keeping replaced subscription %s for %s: %s (%s)",
+                logger.log(
+                    level, "Keeping replaced subscription %s for %s: %s (new %s)",
                     old_id, tenant_id, reason, new_id,
                 )
                 continue
-            logger.info(
-                "Retired replaced subscription tenant=%s old_id=%s new_id=%s",
-                tenant_id, old_id, new_id,
-            )
-            _delete_subscription(headers, old_id)
+            if _delete_subscription(headers, old_id):
+                pending.discard(old_id)
+                logger.info(
+                    "Retired replaced subscription tenant=%s old_id=%s new_id=%s",
+                    tenant_id, old_id, new_id,
+                )
         except Exception as e:
             logger.error("Retiring %s for %s failed: %s", old_id, tenant_id, e)
 
 
-async def run_periodic_reconcile(reconcile, sleep=asyncio.sleep):
+async def run_periodic_reconcile(reconcile, sleep=asyncio.sleep, pending=None):
     """One extra pass shortly after start, then one per interval, for ever.
 
+    While a replaced subscription is still waiting to be retired (``pending()``), the
+    short delay is kept, at most MAX_SHORT_PASSES times, then the hourly one.
     A failing pass is logged and the loop goes on. Cancellation propagates (the caller
     cancels and awaits the task; no wait_for, which on 3.11 can swallow it).
     """
+    pending = pending or has_pending_retirements
     delay = FIRST_EXTRA_PASS_DELAY_S
+    short_passes = 0
     while True:
         await sleep(delay)
-        delay = RECONCILE_INTERVAL_S
+        if delay == FIRST_EXTRA_PASS_DELAY_S:
+            short_passes += 1
         try:
             await asyncio.get_running_loop().run_in_executor(None, reconcile)
             logger.info("Periodic subscription check completed")
         except Exception as e:
             logger.warning(f"Periodic subscription check failed: {e}")
+        if short_passes < MAX_SHORT_PASSES and pending():
+            delay = FIRST_EXTRA_PASS_DELAY_S
+        else:
+            delay = RECONCILE_INTERVAL_S
 
 
 def managed_tenants() -> list:
