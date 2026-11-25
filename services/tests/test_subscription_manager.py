@@ -55,7 +55,7 @@ def test_has_postgres_url():
     with open(source_path) as f:
         src = f.read()
     assert "POSTGRES_URL" in src
-    assert "SELECT DISTINCT tenant_id FROM tenants" in src
+    assert "cur.execute(ACTIVE_TENANT_IDS_SQL" in src
 
 
 def test_cleanup_targets_port_8080():

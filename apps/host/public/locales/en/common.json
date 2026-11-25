@@ -232,6 +232,8 @@
     "purge_tenant_button": "Purge",
     "restore_tenant": "Restore",
     "confirm_restore": "Confirm restore",
+    "suspend_partial": "Tenant suspended, but some user or sensor could not be closed. Restore it and suspend it again.",
+    "restore_partial": "Tenant restored, but some user or sensor could not be reopened. Suspend it and restore it again.",
     "restore_failed": "Couldn't restore the tenant. Try again.",
     "reset_password": "Reset password",
     "confirm_reset_password": "Reset this user's password? A temporary password will be generated.",

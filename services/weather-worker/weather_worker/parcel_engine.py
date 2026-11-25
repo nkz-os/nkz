@@ -27,6 +27,7 @@ for p in sys_paths:
     if p not in sys.path:
         sys.path.insert(0, p)
 
+from common.active_tenants import TENANT_IS_ACTIVE_SQL
 from common.ngsi_headers import inject_fiware_headers
 
 
@@ -134,6 +135,7 @@ class ParcelWeatherEngine:
                     "WHERE module_id = 'weather' AND is_enabled = true "
                     "AND tenant_id IS NOT NULL AND tenant_id != '' "
                     "AND tenant_id != 'platform' "
+                    f"AND {TENANT_IS_ACTIVE_SQL} "
                     "ORDER BY tenant_id"
                 )
                 tenants = [row[0] for row in cur.fetchall()]

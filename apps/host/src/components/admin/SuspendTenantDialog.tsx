@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Loader2, AlertTriangle } from 'lucide-react';
 import client from '@/services/api';
+import { useToastContext } from '@/context/ToastContext';
 import { Button, Input } from '@nekazari/ui-kit';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -24,6 +25,7 @@ export const SuspendTenantDialog: React.FC<SuspendTenantDialogProps> = ({
   tenantId, tenantName, onClose, onSuspended,
 }) => {
   const { t } = useTranslation();
+  const toast = useToastContext();
   const [loading, setLoading] = useState(true);
   const [inventory, setInventory] = useState<InventoryData | null>(null);
   const [confirmName, setConfirmName] = useState('');
@@ -50,9 +52,12 @@ export const SuspendTenantDialog: React.FC<SuspendTenantDialogProps> = ({
     if (confirmName !== tenantName) return;
     setSuspending(true);
     try {
-      await client.post(`/api/admin/tenants/${tenantId}/suspend`, {
+      const { data } = await client.post(`/api/admin/tenants/${tenantId}/suspend`, {
         deletion_notes: notes,
-      });
+      }, { timeout: 300000 });
+      if (data?.accounts === 'failed' || data?.ingestion === 'failed') {
+        toast.warning(t('admin.suspend_partial'));
+      }
       onSuspended();
     } catch (e: any) {
       setError(e?.response?.data?.error || e.message || 'Suspension failed');

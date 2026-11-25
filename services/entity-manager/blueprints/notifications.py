@@ -13,6 +13,7 @@ import requests
 from flask import Blueprint, jsonify, request
 from psycopg2.extras import RealDictCursor
 
+from common.active_tenants import ACTIVE_TENANT_IDS_SQL
 from nkz_platform_sdk import SubscriptionRegistrar, SyncOrionClient
 from nkz_platform_sdk.notify_auth import (
     accept_master_from_env,
@@ -52,9 +53,7 @@ def _get_active_tenants() -> list:
         conn = psycopg2.connect(POSTGRES_URL)
         try:
             cur = conn.cursor()
-            cur.execute(
-                'SELECT DISTINCT tenant_id FROM tenants WHERE tenant_id IS NOT NULL'
-            )
+            cur.execute(ACTIVE_TENANT_IDS_SQL)
             rows = cur.fetchall()
             cur.close()
             return [r[0] for r in rows]

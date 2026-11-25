@@ -190,6 +190,8 @@
     "purge_tenant_button": "Purger",
     "restore_tenant": "Restaurer",
     "confirm_restore": "Confirmer la restauration",
+    "suspend_partial": "Tenant suspendu, mais un utilisateur ou un capteur n'a pas pu être fermé. Restaurez-le et suspendez-le à nouveau.",
+    "restore_partial": "Tenant restauré, mais un utilisateur ou un capteur n'a pas pu être rouvert. Suspendez-le et restaurez-le à nouveau.",
     "restore_failed": "Impossible de restaurer le tenant. Veuillez réessayer.",
     "reset_password": "Réinitialiser le mot de passe",
     "confirm_reset_password": "Réinitialiser le mot de passe de cet utilisateur ? Un mot de passe temporaire sera généré.",

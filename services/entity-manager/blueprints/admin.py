@@ -2,6 +2,8 @@
 """
 Admin Blueprint - Extracted from entity_management_api.py
 """
+import re
+import hmac
 import os
 import sys
 import json
@@ -301,6 +303,32 @@ def admin_purge_tenant_deprecated(tenant_id):
         'error': 'This endpoint is deprecated. Purge is now handled by tenant-webhook.',
         'migrated_to': 'DELETE /api/admin/tenants/{id}/purge -> tenant-webhook',
     }), 410
+
+
+@admin_bp.route('/api/internal/tenants/<tenant_id>/ingestion', methods=['POST'])
+def set_tenant_ingestion(tenant_id):
+    """Open or close a tenant's MQTT accounts (suspend / restore).
+
+    Auth: X-Internal-Service-Secret. 200 when every account changed, 207 when
+    some did not (call again: it is idempotent).
+    """
+    expected = os.getenv('INTERNAL_SERVICE_SECRET', '')
+    provided = request.headers.get('X-Internal-Service-Secret', '')
+    if not expected or not hmac.compare_digest(provided.encode(), expected.encode()):
+        return jsonify({'error': 'Unauthorized'}), 401
+    body = request.get_json(silent=True)
+    enabled = body.get('enabled') if isinstance(body, dict) else None
+    if not isinstance(enabled, bool) or not re.fullmatch(r'[a-z0-9]+(?:-[a-z0-9]+)*', tenant_id):
+        return jsonify({'error': 'Bad request'}), 400
+    import dataloggers
+    try:
+        result = dataloggers.set_tenant_ingestion(tenant_id, enabled)
+    except dataloggers.ApiError as exc:
+        return jsonify(exc.body()), exc.status
+    except Exception as exc:
+        logger.error("ingestion change failed: tenant=%s error=%s", tenant_id, type(exc).__name__)
+        return jsonify({'error': 'unavailable'}), 503
+    return jsonify(result), 207 if result['failed'] else 200
 
 
 @admin_bp.route('/api/admin/tenants/<tenant_id>/inventory', methods=['GET'])

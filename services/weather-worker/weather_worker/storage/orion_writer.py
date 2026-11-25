@@ -13,6 +13,7 @@ import requests
 # Add common directory to path
 sys.path.insert(0, "/app/common")
 
+from common.active_tenants import TENANT_IS_ACTIVE_SQL
 from common.ngsi_headers import inject_fiware_headers
 
 try:
@@ -142,7 +143,7 @@ def get_parcels_by_location(
         try:
             with conn.cursor() as cur:
                 cur.execute(
-                    "SELECT tenant_id FROM public.tenants WHERE status = 'active'"
+                    "SELECT tenant_id FROM public.tenants WHERE status = 'active' AND deleted_at IS NULL"
                 )
                 rows = cur.fetchall()
                 if rows:
@@ -170,6 +171,7 @@ def get_parcels_by_location(
                 with conn.cursor() as cur:
                     cur.execute(
                         "SELECT DISTINCT tenant_id FROM tenant_weather_locations"
+                        f" WHERE {TENANT_IS_ACTIVE_SQL}"
                     )
                     rows = cur.fetchall()
                     tenant_ids = [r[0] for r in rows] if rows else [tenant_id]
