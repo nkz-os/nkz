@@ -771,6 +771,17 @@ PAT_ENTITIES_DEFAULT_LIMIT = 100
 PAT_EXPORT_MAX_ROWS = 10000
 
 
+def _capped_pat_limit(raw):
+    """Page size of a PAT request: the one asked for, within bounds."""
+    try:
+        limit = int(raw) if raw else PAT_ENTITIES_DEFAULT_LIMIT
+    except (ValueError, TypeError):
+        limit = PAT_ENTITIES_DEFAULT_LIMIT
+    if limit < 1:
+        return PAT_ENTITIES_DEFAULT_LIMIT
+    return min(limit, PAT_ENTITIES_MAX_LIMIT)
+
+
 @app.before_request
 def enforce_pat_pagination():
     """Cap pagination and max_rows for PAT requests to entities/export endpoints."""
@@ -784,42 +795,13 @@ def enforce_pat_pagination():
     if "entities" in scopes:
         # GET /ngsi-ld/v1/entities — cap query param 'limit'
         if request.method == "GET" and path.startswith("/ngsi-ld/v1/entities"):
-            limit_raw = request.args.get("limit") if request.args else None
-            if limit_raw:
-                try:
-                    limit = int(limit_raw)
-                except (ValueError, TypeError):
-                    limit = PAT_ENTITIES_DEFAULT_LIMIT
-                if limit > PAT_ENTITIES_MAX_LIMIT:
-                    limit = PAT_ENTITIES_MAX_LIMIT
-                elif limit < 1:
-                    limit = PAT_ENTITIES_DEFAULT_LIMIT
-            else:
-                limit = PAT_ENTITIES_DEFAULT_LIMIT
-
             # Store capped limit for route handlers (request.args is immutable)
-            g.pat_entity_limit = limit
+            g.pat_entity_limit = _capped_pat_limit(request.args.get("limit"))
             return None
 
-        # POST /ngsi-ld/v1/entityOperations/query — cap JSON body 'limit'
+        # POST /ngsi-ld/v1/entityOperations/query — the broker pages it by URL too
         if request.method == "POST" and path == "/ngsi-ld/v1/entityOperations/query":
-            if request.is_json:
-                body = request.get_json(silent=True) or {}
-                limit = body.get("limit")
-                if limit is not None:
-                    try:
-                        limit = int(limit)
-                    except (ValueError, TypeError):
-                        limit = PAT_ENTITIES_DEFAULT_LIMIT
-                    if limit > PAT_ENTITIES_MAX_LIMIT:
-                        limit = PAT_ENTITIES_MAX_LIMIT
-                    elif limit < 1:
-                        limit = PAT_ENTITIES_DEFAULT_LIMIT
-                else:
-                    limit = PAT_ENTITIES_DEFAULT_LIMIT
-                body["limit"] = limit
-                g.pat_modified_body = body
-
+            g.pat_entity_limit = _capped_pat_limit(request.args.get("limit"))
             return None
 
     # Export scope: cap max_rows
@@ -1478,9 +1460,6 @@ def entities():
 @app.route("/ngsi-ld/v1/entityOperations/query", methods=["POST", "GET"])
 def entity_operations_query():
     """Proxy NGSI-LD entityOperations/query to Orion-LD (complex queries with filters in body)."""
-    # Use PAT-modified body if present (from pagination interceptor)
-    json_body = getattr(g, "pat_modified_body", None)
-
     # header_mode="canonical" matches this route's pre-existing header build
     # 1:1 in both branches (PAT: gw_jwt + X-Delegated-Tenant-ID + X-Tenant-ID
     # + inject_fiware_headers; JWT: inject_fiware_headers + X-Tenant-ID +
@@ -1496,8 +1475,7 @@ def entity_operations_query():
     if err:
         return err
 
-    if json_body is None:
-        json_body = request.get_json(silent=True) or {}
+    json_body = request.get_json(silent=True) or {}
 
     try:
         orion_url = f"{ORION_URL}/ngsi-ld/v1/entityOperations/query"
@@ -1508,8 +1486,11 @@ def entity_operations_query():
             )
         else:
             headers["Content-Type"] = "application/json"
+            params = request.args.to_dict()
+            if hasattr(g, "pat_entity_limit"):
+                params["limit"] = str(g.pat_entity_limit)
             response = requests.post(
-                orion_url, headers=headers, json=json_body, timeout=60
+                orion_url, headers=headers, params=params, json=json_body, timeout=60
             )
 
         if response.status_code >= 400:
