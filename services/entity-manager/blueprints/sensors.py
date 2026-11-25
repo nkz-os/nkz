@@ -33,6 +33,7 @@ import device_models
 import device_profile
 import observation_catalogue
 from common.context_aliases import canonical_attribute
+from common.ngsi_read_guard import MAX_URI_CHARS, valid_identifier
 from common.observation_context import validate_channel_overrides, validate_observation_context
 from common.jexl_expressions import validate_jexl_expression
 from common.unit_codes import to_unit_code
@@ -72,6 +73,14 @@ def _extract_prop_value(entity: dict, key: str):
     return prop
 
 
+def _is_entity_id(value) -> bool:
+    """True for an id that stands for itself in a URL."""
+    # ASSUMPTION: an entity id holds no percent escape and at most MAX_URI_CHARS characters,
+    # as in every id this platform builds (the longest is far below).
+    return (isinstance(value, str) and len(value) <= MAX_URI_CHARS and '%' not in value
+            and valid_identifier(value))
+
+
 def _patch_command_status(
     tenant_id: str,
     entity_id: str,
@@ -79,6 +88,9 @@ def _patch_command_status(
     response_data: dict | None = None,
 ) -> bool:
     """PATCH a DeviceCommand entity status in Orion-LD."""
+    if not _is_entity_id(entity_id):
+        logger.error("DeviceCommand status not written: invalid entity id, status=%s", status)
+        return False
     try:
         patch_body = {
             'status': {
@@ -180,7 +192,11 @@ def _body() -> dict:
 
 
 def _parcel_links(value) -> list:
-    """Ordered, de-duplicated parcel URNs from a string, {'object': ...} or a list of those."""
+    """Ordered, de-duplicated parcel URNs from a string, {'object': ...} or a list of those.
+
+    An entry of any other kind gives one None.
+    """
+    # ASSUMPTION: an empty entry (null or '') names nothing and is left out.
     if value is None:
         return []
     items = value if isinstance(value, list) else [value]
@@ -188,7 +204,10 @@ def _parcel_links(value) -> list:
     for item in items:
         if isinstance(item, dict):
             urns.extend(_parcel_links(item.get('object')))
-        elif isinstance(item, str) and item:
+        elif not isinstance(item, str):
+            if item is not None:
+                urns.append(None)
+        elif item:
             urns.append(item)
     return list(dict.fromkeys(urns))
 
@@ -287,12 +306,47 @@ def _location_pair(raw) -> Optional[tuple]:
     return (_coordinate(raw.get('lon'), 'lon'), _coordinate(raw.get('lat'), 'lat'))
 
 
+def _named_ids(obs: dict) -> list:
+    """(field, value) for every place of `obs` that names an entity, in order.
+
+    `obs` may be a request body as it came: what is not an object names nothing here.
+    """
+    overrides = obs.get('channelOverrides')
+    overrides = [o for o in overrides.values() if isinstance(o, dict)] \
+        if isinstance(overrides, dict) else []
+    named = [('observesFeature', obs.get('observesFeature'))]
+    named.extend(('channelOverrides.*.observesFeature', o.get('observesFeature'))
+                 for o in overrides)
+    contexts = [('observationContext', obs.get('observationContext'))]
+    contexts.extend(('channelOverrides.*.observationContext', o.get('observationContext'))
+                    for o in overrides)
+    for name, ctx in contexts:
+        if isinstance(ctx, dict):
+            named.extend((f'{name}.{field}', ctx.get(field)) for field in _URN_CONTEXT_FIELDS)
+    return named
+
+
+def _invalid_id(field: str) -> dataloggers.ApiError:
+    return dataloggers.ApiError(422, f'{field} is not a valid entity id')
+
+
+def _check_named_ids(data: dict) -> None:
+    """422 for an NGSI-LD URN that is not a valid entity id; it reads nothing.
+
+    Any other value is left to the validation that follows.
+    """
+    for field, value in _named_ids(data):
+        if isinstance(value, str) and value.startswith('urn:ngsi-ld:') and not _is_entity_id(value):
+            raise _invalid_id(field)
+
+
 def _validated_observation(data: dict, attributes: set) -> dict:
     """Validate the observation keys present in `data`; absent keys stay absent.
 
     `observesFeature: null` is meaningful (no feature); null for the other keys means
     "not supplied". An empty `observationContext` means "none declared".
     """
+    _check_named_ids(data)
     out = {}
     if 'observesFeature' in data:
         feature = data['observesFeature']
@@ -318,22 +372,14 @@ def _validated_observation(data: dict, attributes: set) -> dict:
 
 def _named_urns(obs: dict) -> list:
     """Every entity URN the request refers to, in order, without repeats."""
-    urns = []
-    if obs.get('observesFeature'):
-        urns.append(obs['observesFeature'])
-    contexts = [obs.get('observationContext') or {}]
-    for override in (obs.get('channelOverrides') or {}).values():
-        if override.get('observesFeature'):
-            urns.append(override['observesFeature'])
-        contexts.append(override.get('observationContext') or {})
-    for ctx in contexts:
-        urns.extend(ctx[f] for f in _URN_CONTEXT_FIELDS if ctx.get(f))
-    return list(dict.fromkeys(urns))
+    return list(dict.fromkeys(value for _, value in _named_ids(obs) if value))
 
 
 @dataloggers.in_step('orion_read', 'Could not read the context broker')
 def _orion_get_entity(tenant_id: str, urn: str) -> Optional[dict]:
     """Tenant-scoped read of the FULL entity (an `attrs` filter 404s on an existing one)."""
+    if not _is_entity_id(urn):
+        raise dataloggers.ApiError(422, 'Not a valid entity id')
     resp = requests.get(
         f"{ORION_URL}/ngsi-ld/v1/entities/{urn}",
         headers=inject_fiware_headers({}, tenant=tenant_id, has_context_in_body=False),
@@ -491,11 +537,15 @@ def register_sensor():
     lat = _coordinate(location.get('lat'), 'lat')
     lon = _coordinate(location.get('lon'), 'lon')
     parcels = _parcel_links(data.get('controlledAsset'))
-    if (not parcels
-            or not all(u.startswith('urn:ngsi-ld:') for u in parcels)
-            or not any(u.startswith('urn:ngsi-ld:AgriParcel:') for u in parcels)):
+    urns = [u for u in parcels if u is not None]
+    if (not urns
+            or not all(u.startswith('urn:ngsi-ld:') for u in urns)
+            or not any(u.startswith('urn:ngsi-ld:AgriParcel:') for u in urns)):
         raise dataloggers.ApiError(
             400, 'controlledAsset must hold NGSI-LD URNs and at least one AgriParcel.')
+    if not all(_is_entity_id(u) for u in parcels):
+        raise _invalid_id('controlledAsset')
+    _check_named_ids(data)
 
     valid_from = _past_instant(data.get('validFrom'), 'validFrom')
 
@@ -786,6 +836,7 @@ def move_device_deployment(device_urn):
     data = _body()
     reason = _reason(data)
     valid_from = _past_instant(data.get('validFrom'), 'validFrom')
+    _check_named_ids(data)
 
     device = _orion_get_entity(tenant_id, device_urn)
     if device is None:
@@ -855,6 +906,7 @@ def correct_device_deployment(deployment_id):
             400, f"cannot correct: {', '.join(unknown)} (open a new deployment to change mobility)")
     if not any(k in data for k in _CORRECTION_KEYS):
         raise dataloggers.ApiError(400, 'No changes given')
+    _check_named_ids(data)
 
     before = deployments.get_deployment(tenant_id, deployment_id)
     if before is None:

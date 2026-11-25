@@ -29,7 +29,7 @@ def seed_real_common(names=("unit_codes", "context_aliases", "jexl_expressions",
     # dataloggers import them at module level, so every caller needs them whatever names it
     # asked for. Order matters: each one imports the ones before it.
     for name in ("controlled_property", "device_model", "device_measurement_shape", "iot_agent",
-                 "iota_dm_mappings"):
+                 "iota_dm_mappings", "ngsi_read_guard"):
         key = f"common.{name}"
         if key in sys.modules:
             continue
