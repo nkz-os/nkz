@@ -202,3 +202,140 @@ def test_put_reprovisions_linked_devices_on_that_profile_best_effort(caplog):
     assert not any(e == ("iota", "update", "S3") for e in st.log)
     assert any("re-provision failed" in rec.getMessage() and rec.levelno == logging.ERROR
                for rec in caplog.records)
+
+
+# ---- the writer move lock (shared): saving a profile against a writer move ---------------------
+import logging  # noqa: E402
+from unittest.mock import patch  # noqa: E402
+
+import pytest  # noqa: E402
+
+import blueprints.sensors as sensors_module  # noqa: E402
+import dataloggers  # noqa: E402
+import device_models  # noqa: E402
+from tests.test_profile_change_writer_state import (  # noqa: E402
+    LOCK_ALIVE, _after, _Clock, _kill, _traced)
+
+BUSY = ("lock", "busy")
+
+
+def _station(st, w, devices=("S1",), code="station-a", profile_code=None):
+    """A saved profile of the tenant and Devices linked on it (the profile of the entity is `code`)."""
+    from tests.telemetry_fakes import seed_datalogger, seed_device
+    dl = seed_datalogger(st)
+    post_json(client(), "/api/sensors/profiles", _body())
+    urns = []
+    for ext in devices:
+        urn = seed_device(st, dl, ext)
+        w.orion.entities[urn] = {"id": urn, "type": "Device",
+                                 "profileCode": {"type": "Property", "value": profile_code or code}}
+        urns.append(urn)
+    return urns
+
+
+
+def _logged_visible(st):
+    real = sensors_module._profile_visible
+
+    def visible(*a, **kw):
+        st.log.append(("read", "profile_visible"))
+        return real(*a, **kw)
+    return patch.object(sensors_module, "_profile_visible", visible)
+
+
+def test_saving_a_profile_during_a_move_is_409_and_touches_nothing(move_lock):
+    st = FakeState()
+    with wired(st) as w:
+        _station(st, w)
+        before = dict(st.profiles["station-a"])
+        st.iota_attrs.clear()
+        with _traced(st, move_lock), _logged_visible(st):
+            move_lock.plan = ["busy"]
+            r = _put(client(), "station-a", _body([M_H], name="Renamed"))
+        assert r.status_code == 409
+        assert r.get_json() == {"error": "Sensors are being moved; try again in a few minutes",
+                                "step": "writer_move"}
+        assert st.profiles["station-a"] == before and st.iota_attrs == []
+        assert w.orion.attr_posts == [] and w.orion.device_models == {}
+    assert st.log == [BUSY, ("lock", "released")]  # not even a read
+
+
+def test_saving_a_profile_with_the_database_down_is_502_db(move_lock):
+    st = FakeState()
+    with wired(st) as w:
+        _station(st, w)
+        before = dict(st.profiles["station-a"])
+        with _traced(st, move_lock):
+            move_lock.plan = ["unavailable"]
+            r = _put(client(), "station-a", _body([M_H], name="Renamed"))
+        assert r.status_code == 502 and r.get_json() == {"error": "Database error", "step": "db"}
+        assert st.profiles["station-a"] == before
+
+
+@pytest.mark.parametrize("body", [
+    {"code": "other"},
+    {"name": ""},
+    {"mapping": {"measurements": [dict(M_T, unit="furlongs")]}},
+], ids=["code", "name", "mapping"])
+def test_a_body_that_is_not_valid_is_400_without_taking_the_lock(body, move_lock):
+    st = FakeState()
+    with wired(st) as w:
+        _station(st, w)
+        with _traced(st, move_lock):
+            move_lock.plan = ["busy"]  # a 409 would show the lock was asked for first
+            r = _put(client(), "station-a", {**_body([M_H]), **body})
+    assert r.status_code == 400, r.get_json()
+    assert st.log == []
+
+
+def test_the_lock_covers_a_save_from_the_first_read_to_the_device_model(move_lock):
+    st = FakeState()
+    with wired(st) as w:
+        urns = _station(st, w)
+        model = device_models.device_model_id(TENANT, "station-a")
+        w.orion.device_models[model] = {"id": model, "type": "DeviceModel"}  # refreshed only if it exists
+        with _traced(st, move_lock), _logged_visible(st):
+            r = _put(client(), "station-a", _body([M_H], name="Renamed"))
+        assert r.status_code == 200, r.get_json()
+    log = [e for e in st.log if e != LOCK_ALIVE]
+    assert log[0] == ("lock", "taken") and log[1] == ("read", "profile_visible")
+    assert log[-1] == ("lock", "released")
+    pushes = [i for i, e in enumerate(log) if e == ("iota", "update", "S1")]
+    upserts = [i for i, e in enumerate(log) if e == ("orion", "upsert", model)]
+    assert pushes and upserts and 1 < pushes[0] < upserts[0] < len(log) - 1
+    assert st.log[st.log.index(("iota", "update", "S1")) - 1] == LOCK_ALIVE
+    assert st.profiles["station-a"]["name"] == "Renamed" and urns
+
+
+def test_a_lock_error_on_release_does_not_hide_the_save(move_lock, monkeypatch):
+    st = FakeState()
+    with wired(st) as w:
+        _station(st, w)
+        monkeypatch.setattr(type(move_lock.connect()), "close_error", RuntimeError("boom"))
+        r = _put(client(), "station-a", _body([M_H], name="Renamed"))
+    assert r.status_code == 200, r.get_json()
+
+
+def test_reprovision_stops_when_the_lock_is_lost(move_lock, caplog):
+    st, clock = FakeState(), _Clock()
+    with wired(st) as w:
+        _station(st, w, devices=("S1", "S2", "S3"))
+        with _traced(st, move_lock, clock), caplog.at_level(logging.ERROR):
+            _after(st, ("iota", "update", "S1"), 1, lambda: _kill(st, move_lock, clock))
+            r = _put(client(), "station-a", _body([M_H], name="Renamed"))
+    assert r.status_code == 200, r.get_json()
+    body = r.get_json()
+    assert len(body["reprovisioned"]) == 1 and len(body["failed"]) == 2
+    updates = [e for e in st.log if e[:2] == ("iota", "update")]
+    assert updates == [("iota", "update", "S1")]
+    after = st.log[st.log.index(("iota", "update", "S1")):]
+    assert ("read", "device_dm_state") not in after[2:]  # the rest were not even looked at
+    assert sum("stopped" in x.getMessage() for x in caplog.records) == 1
+
+
+def test_reprovision_without_a_lock_is_as_before():
+    st = FakeState()
+    with wired(st) as w:
+        urns = _station(st, w, devices=("S1", "S2"))
+        out = dataloggers.reprovision_profile_devices(TENANT, "station-a", [M_H])
+    assert out == {"reprovisioned": urns, "failed": []}

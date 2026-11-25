@@ -468,7 +468,13 @@ def _push_fresh(holder: _LockHolder, tenant: str, row: Row) -> None:
             raise _LockLost()
         if holder.generation != generation:
             continue
-        dataloggers.push_iota_attributes(tenant, row.urn, row.external_id, code, measurements)
+
+        def before_put() -> None:
+            if not holder.ensure() or holder.generation != generation:
+                raise _LockLost()
+
+        dataloggers.push_iota_attributes(tenant, row.urn, row.external_id, code, measurements,
+                                         before_put)
         return
     raise _LockLost()
 
