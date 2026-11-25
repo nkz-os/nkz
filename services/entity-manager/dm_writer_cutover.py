@@ -37,27 +37,34 @@ twice; the worker drops repeated readings only when the message carries its own 
 (`TimeInstant`), without it a duplicate row is possible and accepted); a moment where nobody
 writes is not.
   * to iota, per batch: PUT the new mappings of every selected device, wait ONCE (`--settle`,
-    60-600 s, default 60), then per device update the row and PUT again. The wait is there because a notification of a message the entity-manager
-    handled before the first PUT can still be queued when the row commits; the entity-manager
-    would then skip it (a reading lost) or handle it twice. A device whose first PUT failed is
-    left out and listed. A crash during the wait leaves row `em` with both mappings in the
-    agent (duplicates only) and a rerun finishes the move; an interrupt or SIGTERM during the
-    wait puts the Device-only mappings back on every device not committed yet and lists them.
-    Per device: PUT the new mappings, update the row, PUT again. Between the first PUT and the
-    commit both write. The second PUT, after the commit, re-reads the profile and rebuilds the
-    mappings: a profile change that ran `push_iota_attributes` while the row still said `em`
-    would otherwise leave Device-only mappings on a device the entity-manager now skips.
-  * to em: update the row, then PUT the Device-only mappings (profile re-read after the
-    commit). Between the commit and the PUT both write. The other order would leave a gap in
-    which the agent has stopped and the entity-manager still skips the device. A concurrent
-    `push_iota_attributes` that read `iota` before the commit re-reads the state after its
-    push, sees `em` and pushes again, so it converges to Device-only.
-  * If the row update fails after the first PUT (to iota), the previous mappings are put back,
-    but only when the previous state is confirmed by a re-read: when the commit may have gone
-    through, restoring would risk the gap, so the new mappings stay and the device is listed.
-  * A failure of the PUT after the commit is its own outcome: the row is already updated, the
-    device is listed as failed with that text, and a rerun is not a no-op for it (the agent's
-    own device document is compared with the expected mappings, so it pushes again).
+    60-600 s, default 60), then per device update the row and PUT again. The wait is there because
+    a notification of a message the entity-manager handled before the first PUT can still be queued
+    when the row commits; the entity-manager would then skip it (a reading lost) or handle it twice.
+    The second PUT, after the commit, re-reads the profile and rebuilds the mappings: a profile
+    change that ran `push_iota_attributes` while the row still said `em` would otherwise leave
+    Device-only mappings on a device the entity-manager now skips.
+  * to em: update the row, then PUT the Device-only mappings (profile re-read after the commit).
+    Between the commit and the PUT both write. The other order would leave a gap in which the agent
+    has stopped and the entity-manager still skips the device. A concurrent `push_iota_attributes`
+    that read `iota` before the commit re-reads the state after its push, sees `em` and pushes
+    again, so it converges to Device-only. There is nothing to undo: an interrupt reads the row of
+    the device in flight (`em`: push; otherwise the agent was not touched) and lists the rest.
+
+Undo (`_undo`), the only way mappings are put back. It needs the exclusive lock, checked right
+before every PUT of the command. A lock found lost is replaced ONCE per run; after a loss nothing
+more is committed and no first PUT is sent, the batch ends and every device with a first PUT and no
+outcome is undone. The row is read through the lock and decides:
+  * the state the plan read: the mappings of THAT state (an `iota` shape included, never
+    Device-only) are put back, rebuilt from a fresh profile read (plan-time ones as the fallback,
+    and the outcome says so);
+  * the target state: the commit went through, the final PUT is sent and the device is `moved`;
+  * anything else, no row, an unreadable row or no lock: the new mappings stay in the agent
+    (duplicates, no gap), CRITICAL, the device is listed and the text says rerun.
+SIGINT and SIGTERM are caught around the whole apply: the first raises KeyboardInterrupt, later
+ones (and every one while an undo runs) only write a line to stderr; the undo always finishes.
+A PUT that failed after the commit is its own outcome: the row is already updated, the device is
+listed as failed with that text, and a rerun is not a no-op for it (the agent's own device document
+is compared with the expected mappings, so it pushes again).
 
 Never run inside the serving entity-manager pod (it starts no Flask app). Nothing here prints
 or logs a key or a secret; only ids.
@@ -69,8 +76,10 @@ import json
 import logging
 import math
 import os
+import signal
 import sys
 import time
+from contextlib import ExitStack, contextmanager
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
@@ -266,13 +275,185 @@ def build_plan(tenant: str, rows: List[Row], to: str, shape: Optional[str]) -> L
 
 # -- apply --------------------------------------------------------------------------------
 
-def _push_fresh(tenant: str, row: Row) -> None:
-    """Re-read the profile and push what the row's committed state calls for."""
+_ALREADY_UNDOING = b"already undoing; please wait\n"
+_LOCK_LOST_LEFT = ("lock lost; the new mappings were left in the agent (no gap, duplicates "
+                   "possible); rerun")
+
+
+class _Signals:
+    """SIGINT and SIGTERM around the apply phase; the previous handlers are restored on exit.
+
+    Not held: the FIRST signal raises KeyboardInterrupt, every later one only writes a line to
+    stderr (`os.write`: a `print` from a handler that interrupted a `print` raises, stdout is not
+    re-entrant). Held (an undo is running): the signal is recorded and the line written; leaving
+    the outermost `hold()` raises KeyboardInterrupt once, except for the final undo, which never
+    raises. After the first KeyboardInterrupt no signal raises again.
+    """
+
+    def __init__(self):
+        self._depth = 0
+        self._pending = False
+        self._raised = False
+        self._previous: Dict[int, Any] = {}
+
+    def __enter__(self) -> "_Signals":
+        try:
+            for sig in (signal.SIGINT, signal.SIGTERM):
+                self._previous[sig] = signal.signal(sig, self._handle)
+        except BaseException:
+            self._restore()
+            raise
+        return self
+
+    def __exit__(self, exc_type, exc, tb) -> bool:
+        self._restore()
+        return False
+
+    def _restore(self) -> None:
+        previous, self._previous = self._previous, {}
+        for sig, old in previous.items():
+            signal.signal(sig, signal.SIG_DFL if old is None else old)
+
+    def _handle(self, signum, frame) -> None:
+        if self._depth == 0 and not self._raised:
+            self._raised = True
+            raise KeyboardInterrupt
+        if self._depth > 0:
+            self._pending = True
+        try:
+            os.write(2, _ALREADY_UNDOING)
+        except OSError:
+            pass
+
+    def mark_raised(self) -> None:
+        """A KeyboardInterrupt that did not come from the handler was seen: none follows."""
+        self._raised = True
+
+    @contextmanager
+    def hold(self, final: bool = False):
+        self._depth += 1
+        try:
+            yield
+        finally:
+            self._depth -= 1
+        if self._depth == 0 and self._pending:
+            self._pending = False
+            if not final and not self._raised:
+                self._raised = True
+                raise KeyboardInterrupt
+
+
+class _LockLost(Exception):
+    """No exclusive lock right before a PUT: nothing was sent."""
+
+
+class _LockHolder:
+    """The exclusive lock of the run. It may be replaced ONCE (through `_exclusive_lock`).
+
+    `ensure()`: True while the lock is alive, or when the single re-take just succeeded; False
+    otherwise and for ever after. `lost` is sticky: once the lock was found dead nothing more is
+    committed and no first PUT is sent, even if the re-take worked (the plan is no longer
+    protected). `generation` counts the replacements.
+    """
+
+    def __init__(self, tenant: str, lock):
+        self.tenant = tenant
+        self.current = lock
+        self.lost = False
+        self.generation = 0
+        self._retaken = False
+        self._dead = False
+        self._second = None
+
+    def _alive(self) -> bool:
+        try:
+            return bool(self.current.alive())
+        except Exception as exc:
+            logger.error("dm_cutover: lock check failed (%s): tenant=%s", type(exc).__name__,
+                         self.tenant)
+            return False
+
+    def ensure(self) -> bool:
+        if self._dead:
+            return False
+        if self._alive():
+            return True
+        self.lost = True
+        if self._retaken:
+            self._dead = True
+            return False
+        self._retaken = True                  # spent before the attempt: an interrupted one counts
+        logger.error("dm_cutover: the exclusive lock was lost; taking it once more: tenant=%s",
+                     self.tenant)
+        new = _exclusive_lock(self.tenant)
+        self._second = new                    # closed by `close()` even when the enter fails
+        try:
+            new.__enter__()
+        except Exception as exc:
+            logger.critical("dm_cutover: the exclusive lock could not be taken again (%s): tenant=%s",
+                            type(exc).__name__, self.tenant)
+            self._dead = True
+            return False
+        self.current = new
+        self.generation += 1
+        return True
+
+    def can_commit(self) -> bool:
+        """A row is committed only while the original lock has never been lost."""
+        if self.lost or self._dead:
+            return False
+        if not self._alive():
+            self.lost = True
+            return False
+        return True
+
+    def close(self) -> None:
+        second, self._second = self._second, None
+        if second is not None:
+            try:
+                second.__exit__(None, None, None)
+            except Exception as exc:
+                logger.warning("dm_cutover: closing the second lock failed (%s)", type(exc).__name__)
+
+
+@contextmanager
+def _holding(tenant: str, lock):
+    """The holder of `lock` (a raw lock is wrapped; its owner closes the second lock)."""
+    if isinstance(lock, _LockHolder):
+        yield lock
+        return
+    holder = _LockHolder(tenant, lock)
+    try:
+        yield holder
+    finally:
+        holder.close()
+
+
+class _Unreadable(Exception):
+    pass
+
+
+@dataclass(frozen=True)
+class _NeedsUndo:
+    why: str
+
+
+def _join(*parts: str) -> str:
+    return "; ".join(p for p in parts if p)
+
+
+def _push_fresh(holder: _LockHolder, tenant: str, row: Row) -> None:
+    """Re-read the profile and push what the row's committed state calls for.
+
+    The lock is checked right before the PUT: lost and not obtained again, nothing is sent
+    (`_LockLost`)."""
     entity = dataloggers._orion_devices(tenant, [row.urn]).get(row.urn)
     code = entity_profile_code(tenant, entity)
     measurements = dataloggers._profile_measurements(tenant, code) if code else None
     if measurements is None:
         raise RuntimeError("profile not readable")
+    if not holder.ensure():
+        raise _LockLost()
     dataloggers.push_iota_attributes(tenant, row.urn, row.external_id, code, measurements)
 
 
@@ -291,45 +472,133 @@ def _fail(row: Row, text: str) -> Outcome:
     return Outcome(row.urn, 'failed', text)
 
 
-def _restore_previous(tenant: str, item: Item) -> None:
-    """Put the previous mappings back, rebuilt from a fresh profile read when possible.
+def _critical(row: Row, target, what: str) -> None:
+    logger.critical("INCONSISTENCY: %s: device=%s urn=%s previous=%r target=%r; check the row "
+                    "and rerun", what, row.external_id, row.urn, row.state, target)
 
-    The plan-time ones are the fallback (logged). Raises when the PUT fails.
-    """
+
+def _previous_mappings(tenant: str, item: Item) -> Tuple[Optional[list], bool]:
+    """(mappings of the state the plan read, True when they are the plan-time ones).
+
+    Rebuilt from a fresh profile read; the plan-time ones are the fallback."""
     row = item.row
-    attrs = item.old_attrs
     try:
         entity = dataloggers._orion_devices(tenant, [row.urn]).get(row.urn)
         code = entity_profile_code(tenant, entity)
         measurements = dataloggers._profile_measurements(tenant, code) if code else None
         if measurements is None:
             raise RuntimeError("profile not readable")
-        attrs = _build(tenant, row, row.state, code, measurements)
+        return _build(tenant, row, row.state, code, measurements), False
     except Exception as exc:
         logger.warning("dm_cutover: fresh profile read for the restore failed (%s); using the "
                        "plan-time mappings: device=%s", type(exc).__name__, row.external_id)
-    if attrs is None:
-        raise RuntimeError("previous mappings not buildable")
-    _put(tenant, row.external_id, attrs)
+        return item.old_attrs, True
 
 
-def _first_put(tenant: str, item: Item, target) -> Optional[Outcome]:
-    """First PUT of a move to iota; a failed Outcome when it did not go through.
+def _read_row(holder: _LockHolder, urn: str) -> Optional[tuple]:
+    """The state of the row through the lock; None when there is no row. One retry."""
+    for attempt in (0, 1):
+        try:
+            return holder.current.read_state(urn)
+        except Exception as exc:
+            if attempt == 0 and holder.ensure():
+                continue
+            raise _Unreadable(type(exc).__name__) from None
+    raise _Unreadable("unreadable")
 
-    A PUT that raised may still have been applied (a timeout), so the previous mappings are
-    put back as far as possible and the device is reported with its state unknown.
+
+def _after_commit(holder: _LockHolder, tenant: str, row: Row, target, stays: str) -> Outcome:
+    """The row is committed: send the final PUT. `stays` says what the agent keeps if it fails."""
+    try:
+        _push_fresh(holder, tenant, row)
+    except _LockLost:
+        return _fail(row, f"row updated to {target}; final PUT not sent (lock lost); {stays}rerun")
+    except Exception as exc:
+        return _fail(row, f"row already updated to {target} but the final PUT failed "
+                          f"({type(exc).__name__}); {stays}rerun")
+    return Outcome(row.urn, 'moved', f"{row.state} -> {target}")
+
+
+def _undo(holder: _LockHolder, tenant: str, item: Item, target, why: str = '') -> Outcome:
+    """Settle a device of a move to iota whose first PUT went out and that has no outcome.
+
+    Needs the exclusive lock (one re-take for the whole run); without it nothing is put back. The
+    row, read through the lock, decides: the state the plan read, the mappings of THAT state are
+    put back (never Device-only for an `iota` shape); the target, the commit went through and the
+    final PUT is sent; anything else, no row or unreadable, the new mappings stay (duplicates, no
+    gap). Never raises.
     """
     row = item.row
     try:
-        _put(tenant, row.external_id, _build(tenant, row, target, item.code, item.measurements))
+        return _undo_with_lock(holder, tenant, item, target, why)
+    except Exception as exc:
+        _critical(row, target, f"undo failed ({type(exc).__name__})")
+        return _fail(row, _join(why, f"undo failed ({type(exc).__name__}); the new mappings may "
+                                     "be in the agent; rerun"))
+
+
+def _undo_with_lock(holder: _LockHolder, tenant: str, item: Item, target, why: str) -> Outcome:
+    row = item.row
+
+    def left(text: str) -> Outcome:
+        _critical(row, target, text)
+        return _fail(row, _join(why, text))
+
+    for _ in range(2):          # a re-take between the read and the PUT means reading again
+        if not holder.ensure():
+            return left(_LOCK_LOST_LEFT)
+        generation = holder.generation
+        try:
+            state = _read_row(holder, row.urn)
+        except _Unreadable as exc:
+            return left(f"the row could not be read ({exc}); the new mappings were left in the "
+                        "agent (duplicates, no gap); rerun")
+        if state is None:
+            return left("the row does not exist; the new mappings were left in the agent "
+                        "(duplicates, no gap); rerun")
+        if state not in (row.state, target):
+            return left(f"the row is now {state!r}, not the state the plan read; the new "
+                        "mappings were left in the agent (duplicates, no gap); check the row, "
+                        "then rerun")
+        if state == target:
+            if not holder.ensure():
+                return left(_LOCK_LOST_LEFT)
+            if holder.generation != generation:
+                continue
+            return _after_commit(holder, tenant, row, target, "the first mappings stay in the agent; ")
+        attrs, from_plan = _previous_mappings(tenant, item)
+        if attrs is None:
+            return left("previous mappings not buildable; the new mappings were left in the "
+                        "agent; rerun")
+        if not holder.ensure():
+            return left(_LOCK_LOST_LEFT)
+        if holder.generation != generation:
+            continue
+        try:
+            _put(tenant, row.external_id, attrs)
+        except Exception as exc:
+            _critical(row, target, f"the previous mappings were not restored "
+                                   f"({type(exc).__name__})")
+            return _fail(row, _join(why, "the previous mappings could NOT be restored; the agent "
+                                         "holds the new ones; rerun"))
+        text = ("previous mappings restored from the plan (the profile could not be read again)"
+                if from_plan else "previous mappings restored")
+        return _fail(row, _join(why, text))
+    return left(_LOCK_LOST_LEFT)
+
+
+def _first_put(holder: _LockHolder, tenant: str, item: Item, target):
+    """First PUT of a move to iota. None: sent. An Outcome: nothing was sent (no lock).
+    `_NeedsUndo`: the PUT raised and may still have been applied (a timeout)."""
+    row = item.row
+    try:
+        attrs = _build(tenant, row, target, item.code, item.measurements)
+        if not holder.ensure() or holder.lost:
+            return _fail(row, "lock lost; the first PUT was not sent; nothing was changed; rerun")
+        _put(tenant, row.external_id, attrs)
         return None
     except Exception as exc:
-        try:
-            _restore_previous(tenant, item)
-        except Exception as exc2:
-            logger.error("dm_cutover: previous mappings not restored after a failed first PUT: "
-                         "device=%s error=%s", row.external_id, type(exc2).__name__)
-        return _fail(row, f"first PUT failed ({type(exc).__name__}); state unknown, rerun")
+        return _NeedsUndo(f"first PUT failed ({type(exc).__name__}); state unknown, rerun")
 
 
 def _row_changed(row: Row, text: str) -> Outcome:
@@ -338,119 +607,126 @@ def _row_changed(row: Row, text: str) -> Outcome:
     return _fail(row, f"the row changed since the plan; nothing was committed; {text}")
 
 
-def _commit_and_finish(lock, tenant: str, item: Item, target) -> Outcome:
+def _commit_and_finish(holder: _LockHolder, tenant: str, item: Item, target):
+    """Commit the row on the lock connection, then the final PUT. An Outcome, or `_NeedsUndo`."""
     row = item.row
     try:
-        lock.commit_state(row.urn, row.state, target)
+        holder.current.commit_state(row.urn, row.state, target)
     except writer_move_lock.RowChanged:
-        # Someone else moved the row: restoring the old mappings could leave nobody writing.
-        return _row_changed(row, "the new mappings were left in the agent (duplicates, no gap); "
-                                 "check the row, then rerun")
+        logger.error("dm_cutover: the row changed since the plan, nothing was committed: "
+                     "device=%s urn=%s planned=%r", row.external_id, row.urn, row.state)
+        return _NeedsUndo("the row changed since the plan; nothing was committed")
     except Exception as exc:
-        return _after_db_failure(tenant, item, target, exc)
-    try:
-        _push_fresh(tenant, row)
-    except Exception as exc:
-        return _fail(row, f"row already updated to {target} but the final PUT failed "
-                          f"({type(exc).__name__}); the first mappings stay in the agent; rerun")
-    return Outcome(row.urn, 'moved', f"{row.state} -> {target}")
+        return _NeedsUndo(f"row update failed ({type(exc).__name__})")
+    return _after_commit(holder, tenant, row, target, "the first mappings stay in the agent; ")
 
 
-def _after_db_failure(tenant: str, item: Item, target, exc: Exception) -> Outcome:
-    row = item.row
-    try:
-        current = dataloggers.device_dm_state(tenant, row.urn)
-    except Exception:
-        current = None
-    if current == target:
-        logger.warning("dm_cutover: update reported %s but the row is in %s: device=%s",
-                       type(exc).__name__, target, row.external_id)
-        try:
-            _push_fresh(tenant, row)
-        except Exception as exc2:
-            return _fail(row, f"row already updated to {target} but the final PUT failed "
-                              f"({type(exc2).__name__}); rerun")
-        return Outcome(row.urn, 'moved', f"{row.state} -> {target}")
-    if current != row.state:
-        logger.critical("INCONSISTENCY: row update failed and the state cannot be confirmed: "
-                        "device=%s urn=%s previous=%r target=%r; the new mappings were left "
-                        "in the agent (no gap, duplicates possible); check the row and rerun",
-                        row.external_id, row.urn, row.state, target)
-        return _fail(row, "row update failed and the state could not be confirmed; the new "
-                          "mappings were left in the agent; check the row, then rerun")
-    try:
-        _restore_previous(tenant, item)
-    except Exception as exc2:
-        logger.critical("INCONSISTENCY: row update failed and the previous mappings were not "
-                        "restored: device=%s urn=%s previous=%r target=%r error=%s",
-                        row.external_id, row.urn, row.state, target, type(exc2).__name__)
-        return _fail(row, "row update failed and the previous mappings could NOT be restored; "
-                          "the agent holds the new ones; rerun")
-    return _fail(row, f"row update failed ({type(exc).__name__}); previous mappings restored")
-
-
-def apply_iota(lock, tenant: str, items: List[Item], shape: str, settle: float) -> List[Outcome]:
+def apply_iota(lock, tenant: str, items: List[Item], shape: str, settle: float,
+               signals: Optional[_Signals] = None) -> List[Outcome]:
     """Move a batch to iota: first PUT of every device, ONE wait, then commit + final PUT each.
 
-    `lock` is the held exclusive lock: every row is committed on its connection. Each outcome is
-    printed when it is known.
-
-    The wait lets a notification of a message the entity-manager handled before the first PUT
-    drain: while it is still queued, the row commit would make the entity-manager skip it
-    (a reading lost) or process it twice. An interrupt (or termination) during the wait or
-    between devices puts the previous mappings back on every device not committed yet; the
-    device being committed at that moment has an unknown state and is listed.
+    `lock` is the held exclusive lock: every row is committed on its connection. One outcome per
+    device, printed when it is known. Never raises KeyboardInterrupt: an interrupt (or a signal)
+    ends the batch, every device with a first PUT and no outcome goes through `_undo` and the
+    devices never touched are listed "not started".
     """
-    target = ('iota', shape)
+    if (isinstance(settle, bool) or not isinstance(settle, (int, float))
+            or not math.isfinite(settle) or not MIN_SETTLE <= settle <= MAX_SETTLE):
+        raise ValueError(f"settle must be between {MIN_SETTLE:g} and {MAX_SETTLE:g} seconds")
+    with ExitStack() as stack:
+        if signals is None:
+            signals = stack.enter_context(_Signals())
+        holder = stack.enter_context(_holding(tenant, lock))
+        return _apply_iota(holder, tenant, items, ('iota', shape), settle, signals)
+
+
+def _apply_iota(holder: _LockHolder, tenant: str, items: List[Item], target, settle: float,
+                signals: _Signals) -> List[Outcome]:
     outcomes: Dict[str, Outcome] = {}
-    pending: List[Item] = []
+    touched: List[Item] = []        # added BEFORE the first PUT
+    inflight_repair: Optional[Item] = None
 
-    def record(out: Outcome) -> None:
+    def record(out: Outcome, quiet: bool = False) -> None:
         outcomes[out.urn] = out
-        _report_outcome(out)
+        if not quiet:
+            _report_outcome(out)
+            return
+        try:                        # the final undo never stops for a failing line
+            _report_outcome(out)
+        except KeyboardInterrupt:
+            pass
+        except Exception as exc:
+            logger.warning("dm_cutover: outcome not printed (%s)", type(exc).__name__)
 
-    for it in items:
-        if it.action == 'move':
-            failed = _first_put(tenant, it, target)
-            if failed:
-                record(failed)
-            else:
-                pending.append(it)
-        else:
-            record(apply_item(lock, tenant, it, 'iota', shape))
-    inflight: Optional[Item] = None
+    def undo_one(it: Item, why: str) -> None:
+        with signals.hold():
+            record(_undo(holder, tenant, it, target, why))     # recorded before a deferred interrupt
+
+    interrupted = False
     try:
-        if pending and settle > 0:
+        for it in items:
+            if it.action == 'unchanged':
+                record(apply_item(holder, tenant, it, 'iota', target[1]))
+                continue
+            if holder.lost:
+                break
+            if it.action == 'repair':
+                inflight_repair = it
+                record(apply_item(holder, tenant, it, 'iota', target[1]))
+                inflight_repair = None
+                continue
+            touched.append(it)
+            res = _first_put(holder, tenant, it, target)
+            if isinstance(res, _NeedsUndo):
+                undo_one(it, res.why)
+            elif res is not None:
+                record(res)
+        pending = [it for it in touched if it.row.urn not in outcomes]
+        if pending and not holder.lost:
             _say(f"waiting {settle:g} s for in-flight notifications before committing the rows")
             _sleep(settle)
-        while pending:
-            inflight = pending[0]
-            record(_commit_and_finish(lock, tenant, inflight, target))
-            pending.pop(0)
-            inflight = None
-    except KeyboardInterrupt:
         for it in pending:
-            if it is inflight:
-                record(_fail(it.row, "interrupted while committing; state unknown, "
-                                     "check the row and rerun"))
+            if not holder.can_commit():
+                break
+            res = _commit_and_finish(holder, tenant, it, target)
+            if isinstance(res, _NeedsUndo):
+                undo_one(it, res.why)
+            else:
+                record(res)
+    except KeyboardInterrupt:
+        signals.mark_raised()
+        interrupted = True
+    why = "interrupted" if interrupted else "the batch was stopped (lock lost)"
+    rest = [it for it in touched if it.row.urn not in outcomes]
+    with signals.hold(final=True):
+        for it in rest:
+            for attempt in (0, 1):      # an interrupt that is not ours gets one more try
+                try:
+                    record(_undo(holder, tenant, it, target, why), quiet=True)
+                    break
+                except KeyboardInterrupt:
+                    if attempt:
+                        _critical(it.row, target, "interrupted during the undo")
+                        record(_fail(it.row, _join(why, "interrupted during the undo; the new "
+                                                        "mappings may be in the agent; rerun")),
+                               quiet=True)
+        for it in items:
+            if it.row.urn in outcomes:
                 continue
-            try:
-                _restore_previous(tenant, it)
-                record(_fail(it.row, "interrupted during the settle; previous mappings restored"))
-            except Exception as exc:
-                logger.critical("INCONSISTENCY: interrupted before the row update and the previous "
-                                "mappings were not restored: device=%s urn=%s previous=%r "
-                                "target=%r error=%s", it.row.external_id, it.row.urn,
-                                it.row.state, target, type(exc).__name__)
-                record(_fail(it.row, "interrupted during the settle and the previous "
-                                     "mappings could NOT be restored; rerun"))
+            if it is inflight_repair:
+                text = "interrupted during the repair; rerun"
+            else:
+                text = f"not started ({why})"
+            record(_fail(it.row, text), quiet=True)
     return [outcomes[it.row.urn] for it in items]
 
 
-def _move_to_em(lock, tenant: str, item: Item, target) -> Outcome:
+def _move_to_em(holder: _LockHolder, tenant: str, item: Item, target) -> Outcome:
     row = item.row
+    if not holder.can_commit():
+        return _fail(row, "lock lost; nothing was committed; the agent was not touched; rerun")
     try:
-        lock.commit_state(row.urn, row.state, target)
+        holder.current.commit_state(row.urn, row.state, target)
     except writer_move_lock.RowChanged:
         return _row_changed(row, "the agent was not touched")
     except Exception as exc:
@@ -458,7 +734,10 @@ def _move_to_em(lock, tenant: str, item: Item, target) -> Outcome:
                           f"if the commit went through the agent still has the DM mappings "
                           f"(duplicates, no gap); rerun")
     try:
-        _push_fresh(tenant, row)
+        _push_fresh(holder, tenant, row)
+    except _LockLost:
+        return _fail(row, f"row updated to {target}; the PUT was not sent (lock lost); the agent "
+                          f"still has the DM mappings (duplicate writes, no gap); rerun")
     except Exception as exc:
         return _fail(row, f"row already updated to {target} but the PUT failed "
                           f"({type(exc).__name__}); the agent still has the DM mappings "
@@ -474,13 +753,79 @@ def apply_item(lock, tenant: str, item: Item, to: str, shape: Optional[str]) -> 
     target = _target(to, shape)
     if item.action == 'unchanged':
         return Outcome(row.urn, 'unchanged', item.reason)
-    if item.action == 'repair':
+    with _holding(tenant, lock) as holder:
+        if item.action == 'repair':
+            try:
+                _push_fresh(holder, tenant, row)
+            except _LockLost:
+                return _fail(row, "PUT not sent (lock lost); rerun")
+            except Exception as exc:
+                return _fail(row, f"PUT failed ({type(exc).__name__}); rerun")
+            return Outcome(row.urn, 'repaired', item.reason)
+        return _move_to_em(holder, tenant, item, target)
+
+
+def apply_em(lock, tenant: str, items: List[Item], signals: Optional[_Signals] = None) -> List[Outcome]:
+    """Move a batch to em: per device the row first, then the PUT. There is nothing to undo
+    (duplicates only). An interrupt reads the row of the device in flight (`em`: the PUT is
+    sent; otherwise the agent was not touched) and lists the rest as not started."""
+    with ExitStack() as stack:
+        if signals is None:
+            signals = stack.enter_context(_Signals())
+        holder = stack.enter_context(_holding(tenant, lock))
+        outcomes: Dict[str, Outcome] = {}
+        inflight: Optional[Item] = None
+
+        def record(out: Outcome, quiet: bool = False) -> None:
+            outcomes[out.urn] = out
+            try:
+                _report_outcome(out)
+            except KeyboardInterrupt:
+                if not quiet:
+                    raise
+            except Exception as exc:
+                if not quiet:
+                    raise
+                logger.warning("dm_cutover: outcome not printed (%s)", type(exc).__name__)
+
+        interrupted = False
         try:
-            _push_fresh(tenant, row)
-        except Exception as exc:
-            return _fail(row, f"PUT failed ({type(exc).__name__}); rerun")
-        return Outcome(row.urn, 'repaired', item.reason)
-    return _move_to_em(lock, tenant, item, target)
+            for it in items:
+                if holder.lost:
+                    break
+                inflight = it
+                record(apply_item(holder, tenant, it, 'em', None))
+                inflight = None
+        except KeyboardInterrupt:
+            signals.mark_raised()
+            interrupted = True
+        why = "interrupted" if interrupted else "the batch was stopped (lock lost)"
+        with signals.hold(final=True):
+            if inflight is not None and inflight.row.urn not in outcomes:
+                record(_settle_em(holder, tenant, inflight, why), quiet=True)
+            for it in items:
+                if it.row.urn not in outcomes:
+                    record(_fail(it.row, f"not started ({why})"), quiet=True)
+        return [outcomes[it.row.urn] for it in items]
+
+
+def _settle_em(holder: _LockHolder, tenant: str, item: Item, why: str) -> Outcome:
+    """The device in flight when a move to em stopped: the row says how far it got. Never raises."""
+    row = item.row
+    try:
+        if item.action != 'move':
+            return _fail(row, _join(why, "during the repair; rerun"))
+        if not holder.ensure():
+            return _fail(row, _join(why, "lock lost; the row may be updated and the agent still "
+                                         "has the DM mappings (duplicates, no gap); rerun"))
+        state = _read_row(holder, row.urn)
+        if state == ('em', None):
+            return _after_commit(holder, tenant, row, state, "the agent still has the DM mappings "
+                                                              "(duplicate writes, no gap); ")
+        return _fail(row, _join(why, "the agent was not touched"))
+    except Exception as exc:
+        return _fail(row, _join(why, f"the row could not be read ({type(exc).__name__}); the agent "
+                                     "may still have the DM mappings (duplicates, no gap); rerun"))
 
 
 # -- verify -------------------------------------------------------------------------------
@@ -828,9 +1173,11 @@ def _report_plan(items: List[Item], dry: bool) -> None:
             _say(f"{it.row.urn}: {verb} ({it.reason})")
 
 
-def _plan_and_apply(args: argparse.Namespace, tenant: str, lock) -> Tuple[Optional[int], bool]:
+def _plan_and_apply(args: argparse.Namespace, tenant: str, lock, signals: Optional[_Signals] = None,
+                    progress: Optional[list] = None) -> Tuple[Optional[int], bool]:
     """Everything up to and including the writes. (exit code, ok): a code ends the command; None
-    carries on to the verification. `lock` is the held exclusive lock with --apply, else None."""
+    carries on to the verification. `lock` is the held exclusive lock with --apply, else None.
+    `progress` gets an item when the apply phase starts (before that, nothing was written)."""
     if args.apply and args.to == 'iota':
         try:
             suspended = tenant_suspended(tenant)
@@ -871,14 +1218,12 @@ def _plan_and_apply(args: argparse.Namespace, tenant: str, lock) -> Tuple[Option
         if args.dry_run and args.to == 'iota' and any(it.action == 'move' for it in items):
             _say(f"would wait {settle:g} s between the first PUTs and the row commits")
         if args.apply:
+            if progress is not None:
+                progress.append(True)
             if args.to == 'iota':
-                outcomes = apply_iota(lock, tenant, items, args.shape, settle)
+                outcomes = apply_iota(lock, tenant, items, args.shape, settle, signals)
             else:
-                outcomes = []
-                for it in items:
-                    out = apply_item(lock, tenant, it, 'em', None)
-                    _report_outcome(out)
-                    outcomes.append(out)
+                outcomes = apply_em(lock, tenant, items, signals)
             failed = [o for o in outcomes if o.status == 'failed']
             _say(f"done: {len(outcomes) - len(failed)} ok, {len(failed)} failed")
             ok = not failed
@@ -891,9 +1236,16 @@ def main(argv: Optional[List[str]] = None) -> int:
     tenant = args.tenant
     if args.apply:
         # The lock is taken BEFORE the plan is read, and held until the last row is committed.
+        progress: list = []
         try:
-            with _exclusive_lock(tenant) as lock:
-                code, ok = _plan_and_apply(args, tenant, lock)
+            with _Signals() as signals:
+                with _exclusive_lock(tenant) as lock:
+                    code, ok = _plan_and_apply(args, tenant, lock, signals, progress)
+        except KeyboardInterrupt:
+            # Before the apply phase (lock wait, plan) nothing was written. Later, apply_iota and
+            # apply_em have already settled and listed every device; this is a late signal.
+            _say("interrupted" if progress else "interrupted; nothing was written")
+            return 1
         except writer_move_lock.MoveInProgress:
             _say("a profile change or another move is running; nothing was written")
             return 1
@@ -915,8 +1267,6 @@ def main(argv: Optional[List[str]] = None) -> int:
 
 
 if __name__ == "__main__":
-    import signal
-
     def _terminate(signum, frame):
         raise KeyboardInterrupt
 

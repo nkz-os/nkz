@@ -3,6 +3,8 @@ import copy
 import importlib.util
 import logging
 import os
+import signal
+import sys
 from contextlib import contextmanager
 from types import SimpleNamespace
 from unittest.mock import MagicMock
@@ -56,6 +58,8 @@ class World:
         self.commit_lies = False      # COMMIT fails but the row IS written (outcome unknown)
         self.before_commit = None     # callback(urn) run on the lock connection before the UPDATE
         self.lock_busy = False
+        self.dead_after_commit = False
+        self.after_read = None        # callback(urn) after a read through the lock, before it returns
         self.lock_unavailable = False
         self.tenants = {TENANT: None}  # tenant -> deleted_at; absent = no row
         self.tenant_read_fail = False
@@ -63,6 +67,36 @@ class World:
         self.get_fail = False
         self.orion_fail = False
         self.on_sleep = None
+        self.before_put = None        # callback(n, ext) run before the PUT is applied
+        self.locks = []               # every FakeLock the command created
+        self.read_state_fail = False  # reads through the lock fail (the lock stays alive)
+        self.retake_refused = False   # after a lock is lost, taking it again is refused
+        self.inject = []              # [(kind, index, effect)]: faults at the nth op of a kind
+        self.counts = {}              # kind -> number of ops seen
+
+    def tick(self, kind):
+        """Count one operation of `kind`; run the injected fault that is due at it."""
+        n = self.counts.get(kind, 0)
+        self.counts[kind] = n + 1
+        for k, i, effect in self.inject:
+            if k == kind and i == n:
+                if effect == "ki":
+                    raise KeyboardInterrupt
+                if effect == "lost":
+                    self.lose_lock()
+                elif effect == "db":
+                    raise psycopg2.OperationalError("statement timeout")
+                elif effect == "unknown":
+                    raise wml.CommitOutcomeUnknown("commit failed (OperationalError)")
+                else:
+                    raise AssertionError(effect)
+
+    def lose_lock(self):
+        """The newest live lock connection dies (the lock is gone with it)."""
+        live = [lk for lk in self.locks if lk.held and not lk.dead]
+        if live:
+            live[-1].dead = True
+        self.lock_busy = self.retake_refused
 
     def add(self, ext, writer="em", shape=None, code="p", ms=None, entity=True):
         urn = urn_of(ext)
@@ -146,6 +180,30 @@ class FakeLock:
         self.world = world
         self.tenant = tenant
         self.held = False
+        self.dead = False
+        world.locks.append(self)
+
+    def alive(self):
+        return self.held and not self.dead
+
+    def _live(self):
+        assert self.held, "used a lock that is not held"
+        if self.dead:
+            raise psycopg2.OperationalError("connection lost")
+
+    def read_state(self, urn):
+        w = self.world
+        self._live()
+        w.log.append(("read_state", urn))
+        w.tick("read")
+        self._live()
+        if w.state_read_fail or w.read_state_fail:
+            raise psycopg2.OperationalError("state read failed")
+        r = w.rows.get(urn)
+        state = (r["dm_writer"], r["dm_shape"]) if r else None
+        if w.after_read:
+            w.after_read(urn)
+        return state
 
     def __enter__(self):
         w = self.world
@@ -158,15 +216,18 @@ class FakeLock:
         return self
 
     def __exit__(self, exc_type, exc, tb):
+        if self.held:
+            self.world.log.append(("unlock",))
         self.held = False
-        self.world.log.append(("unlock",))
         return False
 
     def commit_state(self, urn, previous, target):
         w = self.world
-        assert self.held, "commit on a lock that is not held"
+        self._live()
         if w.before_commit:
             w.before_commit(urn)
+        w.tick("commit_before")
+        self._live()
         if w.update_fail:
             raise psycopg2.OperationalError("update failed")
         row = w.rows.get(urn)
@@ -177,6 +238,9 @@ class FakeLock:
             raise wml.CommitOutcomeUnknown("commit failed (OperationalError)")
         row["dm_writer"], row["dm_shape"] = target
         w.log.append(("commit",))
+        w.tick("commit_after")
+        if w.dead_after_commit:
+            raise psycopg2.OperationalError("connection lost")
         if w.commit_lies:
             raise wml.CommitOutcomeUnknown("commit failed (OperationalError)")
 
@@ -194,6 +258,9 @@ def _fake_iota(world):
     def update(url, headers, device_id, attributes):
         world.puts += 1
         n = world.puts
+        if world.before_put:
+            world.before_put(n, device_id)
+        world.tick("put_before")
         if world.put_fail(n, device_id):
             world.log.append(("put_failed", device_id))
             raise _IotaError(500)
@@ -202,6 +269,7 @@ def _fake_iota(world):
         world.log.append(("put", device_id, tuple(kinds)))
         if world.after_put:
             world.after_put(n, device_id)
+        world.tick("put_after")
 
     def get(url, headers, device_id):
         if world.get_fail or device_id not in world.agent:
@@ -267,6 +335,7 @@ def sleeps(world, monkeypatch):
     def fake_sleep(seconds):
         seen.append(seconds)
         world.log.append(("sleep", seconds))
+        world.tick("sleep")
         if world.on_sleep:
             world.on_sleep(seconds)
 
@@ -1300,7 +1369,7 @@ def _interrupt_in_planning(world, monkeypatch):
 @pytest.mark.parametrize("scenario", [
     "success", "validation-failure", "device-failure", "interrupt-in-settle",
     "crash-in-settle", "interrupt-in-planning", "to-em-success", "to-em-failure"])
-def test_lock_is_released_after_success_failure_and_interrupt(world, monkeypatch, scenario):
+def test_lock_is_released_after_success_failure_and_interrupt(world, monkeypatch, scenario, capsys):
     iota = ("--to", "iota", "--shape", "legacy", "--apply")
     world.add("S1")
     expect = None
@@ -1315,7 +1384,6 @@ def test_lock_is_released_after_success_failure_and_interrupt(world, monkeypatch
         expect = RuntimeError
     elif scenario == "interrupt-in-planning":
         _interrupt_in_planning(world, monkeypatch)
-        expect = KeyboardInterrupt
     elif scenario.startswith("to-em"):
         world.rows[urn_of("S1")].update(dm_writer="iota", dm_shape="legacy")
         world.settle_agent()
@@ -1325,7 +1393,10 @@ def test_lock_is_released_after_success_failure_and_interrupt(world, monkeypatch
         with pytest.raises(expect):
             run(*BASE, *iota)
     else:
-        run(*BASE, *iota)
+        rc = run(*BASE, *iota)
+        if scenario == "interrupt-in-planning":      # ruling 6: exit 1, not a traceback
+            assert rc == 1 and "interrupted; nothing was written" in capsys.readouterr().out
+            assert world.puts == 0
     assert len(world.events("lock")) == 1 and len(world.events("unlock")) == 1
     assert world.log[-1] == ("unlock",)
 
@@ -1465,3 +1536,726 @@ def test_apply_item_refuses_a_move_to_iota(world):
 
 def test_set_state_is_gone():
     assert not hasattr(cut, "set_state")
+
+
+# -- undo and interruptions (task 3) ----------------------------------------------------------
+
+def _attrs(urn, ext, state, ms=None):
+    return dataloggers._attributes_for_state(state, TENANT, urn, ext, "p", MS if ms is None else ms)
+
+
+def _dm_only(attrs):
+    return [a for a in attrs if a.get("entity_type") == "DeviceMeasurement"]
+
+
+def _snapshot(world):
+    return {k: copy.deepcopy(v) for k, v in world.agent.items()}
+
+
+def _ki_on_put(world, n, after=False):
+    def hook(k, ext):
+        if k == n:
+            raise KeyboardInterrupt
+    if after:
+        world.after_put = hook
+    else:
+        world.before_put = hook
+
+
+IOTA_SDM = ("--to", "iota", "--shape", "sdm", "--apply")
+IOTA_LEGACY = ("--to", "iota", "--shape", "legacy", "--apply")
+
+
+def test_interrupted_shape_move_puts_the_old_iota_shape_back_not_device_only(world, capsys):
+    """Review focus 3: a move between two iota shapes, interrupted at the commit of the device
+    after it was put, ends with the OLD iota shape in the agent."""
+    a = world.add("S1", writer="iota", shape="legacy")
+    b = world.add("S2", writer="iota", shape="legacy")
+    world.settle_agent()
+    old_b = _attrs(b, "S2", ("iota", "legacy"))
+    assert _dm_only(old_b)
+
+    def interrupt(urn):
+        if urn == b:
+            raise KeyboardInterrupt
+
+    world.before_commit = interrupt
+    assert run(*BASE, *IOTA_SDM) == 1
+    assert world.rows[a]["dm_shape"] == "sdm" and world.rows[b]["dm_shape"] == "legacy"
+    assert world.agent["S2"] == old_b                         # the exact old iota mappings
+    assert _dm_only(world.agent["S2"]) and len(world.agent["S2"]) > len(_dm_only(world.agent["S2"]))
+    assert world.agent["S1"] == _attrs(a, "S1", ("iota", "sdm"))
+    out = capsys.readouterr().out
+    assert b in out and "previous mappings restored" in out
+
+
+@pytest.mark.parametrize("after", [False, True], ids=["put-not-applied", "put-applied"])
+def test_interrupt_in_the_first_put_loop_undoes_the_devices_already_put(world, capsys, after):
+    urns = [world.add(f"S{i}") for i in (1, 2, 3)]
+    world.settle_agent()
+    before = _snapshot(world)
+    _ki_on_put(world, 3, after=after)           # the third device is in flight
+    assert run(*BASE, *IOTA_SDM) == 1
+    assert world.agent == before                # in-flight one included
+    assert all(world.rows[u]["dm_writer"] == "em" for u in urns)
+    assert not world.events("update") and world.puts == 6
+    out = capsys.readouterr().out
+    assert all(u in out for u in urns) and "interrupted" in out
+
+
+def test_devices_never_touched_are_listed_not_started(world, capsys):
+    urns = [world.add(f"S{i}") for i in (1, 2, 3)]
+    world.settle_agent()
+    before = _snapshot(world)
+    _ki_on_put(world, 2, after=True)
+    assert run(*BASE, *IOTA_SDM) == 1
+    assert world.agent == before and world.puts == 4      # 2 first PUTs + 2 restores
+    lines = capsys.readouterr().out.splitlines()
+    assert [ln for ln in lines if urns[2] in ln and "not started" in ln]
+    assert sum(1 for ln in lines if "FAILED" in ln) == 3
+
+
+def test_interrupt_while_committing_reads_the_row_committed(world, capsys):
+    urn = world.add("S1")
+    world.settle_agent()
+    world.inject = [("commit_after", 0, "ki")]          # the row is written, then the interrupt
+    assert run(*BASE, *IOTA_SDM) == 0
+    assert world.rows[urn]["dm_writer"] == "iota"
+    assert world.agent["S1"] == _attrs(urn, "S1", ("iota", "sdm"))
+    assert "moved" in capsys.readouterr().out and world.puts == 2
+
+
+def test_interrupt_while_committing_reads_the_row_not_committed(world, capsys):
+    urn = world.add("S1")
+    world.settle_agent()
+    before = _snapshot(world)
+    world.inject = [("commit_before", 0, "ki")]
+    assert run(*BASE, *IOTA_SDM) == 1
+    assert world.rows[urn]["dm_writer"] == "em" and world.agent == before
+    assert "previous mappings restored" in capsys.readouterr().out
+    assert ("read_state", urn) in world.log
+
+
+def test_interrupt_while_committing_reads_the_row_unreadable(world, capsys, caplog):
+    urn = world.add("S1")
+    world.settle_agent()
+    world.inject = [("commit_before", 0, "ki")]
+    world.read_state_fail = True
+    with caplog.at_level(logging.CRITICAL):
+        assert run(*BASE, *IOTA_SDM) == 1
+    assert world.puts == 1                                  # nothing put back
+    assert _dm_only(world.agent["S1"])                      # the new mappings stay: no gap
+    assert any(urn in r.getMessage() for r in caplog.records if r.levelno == logging.CRITICAL)
+    assert "rerun" in capsys.readouterr().out
+
+
+@pytest.fixture
+def sentinels():
+    """Stand-ins for SIGINT/SIGTERM: a missing handler records a hit instead of killing pytest."""
+    hits = []
+
+    def sentinel(signum, frame):
+        hits.append(signum)
+
+    old = {s: signal.signal(s, sentinel) for s in (signal.SIGINT, signal.SIGTERM)}
+    yield SimpleNamespace(hits=hits, handler=sentinel)
+    for s, h in old.items():
+        signal.signal(s, h)
+
+
+@pytest.mark.parametrize("sig", [signal.SIGINT, signal.SIGTERM])
+def test_sigterm_behaves_like_ctrl_c(world, sentinels, capsys, sig):
+    urns = [world.add("S1"), world.add("S2")]
+    world.settle_agent()
+    before = _snapshot(world)
+    world.on_sleep = lambda seconds: os.kill(os.getpid(), sig)
+    assert run(*BASE, *IOTA_SDM) == 1
+    assert sentinels.hits == []                       # our handler took it, not the stand-in
+    assert world.agent == before and all(world.rows[u]["dm_writer"] == "em" for u in urns)
+    assert "interrupted" in capsys.readouterr().out
+    assert world.log[-1] == ("unlock",)
+
+
+class _FragileStdout:
+    """Not re-entrant, like a real buffered stdout: a write inside a write raises. Can fire a
+    signal in the middle of the first write that carries every string of `needle`."""
+
+    def __init__(self, needle=None, sig=signal.SIGINT):
+        self.needle, self.sig, self.busy, self.fired, self.text = needle, sig, False, False, []
+
+    def write(self, text):
+        if self.busy:
+            raise RuntimeError("reentrant call to stdout")
+        self.busy = True
+        try:
+            self.text.append(text)
+            if self.needle and all(n in text for n in self.needle) and not self.fired:
+                self.fired = True
+                os.kill(os.getpid(), self.sig)
+        finally:
+            self.busy = False
+        return len(text)
+
+    def flush(self):
+        pass
+
+
+def test_second_signal_does_not_stop_the_undo(world, sentinels, capfd, monkeypatch):
+    urns = [world.add(f"S{i}") for i in (1, 2, 3)]
+    world.settle_agent()
+    before = _snapshot(world)
+    out = _FragileStdout(needle=("S2", "FAILED"))     # a signal while the outcome of S2 is printed
+    monkeypatch.setattr(sys, "stdout", out)
+    world.on_sleep = lambda seconds: os.kill(os.getpid(), signal.SIGINT)      # the first one
+
+    def second(n, ext):
+        if n == 5:                                                              # the 2nd restore PUT
+            os.kill(os.getpid(), signal.SIGTERM)
+
+    world.before_put = second
+    assert run(*BASE, *IOTA_SDM) == 1
+    assert sentinels.hits == [] and out.fired
+    assert world.agent == before                         # all three restored
+    assert world.puts == 6
+    err = capfd.readouterr().err
+    assert err.count("already undoing; please wait") == 2
+    assert not any("already undoing" in t for t in out.text)    # stdout is not used by the handler
+    assert all(world.rows[u]["dm_writer"] == "em" for u in urns)
+
+
+def test_a_signal_in_a_single_device_undo_is_held_and_raises_after_it(world, sentinels, capfd):
+    """No signal aborts the restore PUT of a device being undone: it is recorded, the PUT goes
+    out exactly once, and the interrupt follows when the undo is over."""
+    world.add("S1")
+    world.add("S2")
+    world.settle_agent()
+    before = _snapshot(world)
+    world.update_fail = True              # the commit of S1 fails: an ordinary undo of that device
+
+    def kill_in_restore(n, ext):
+        if n == 3:                         # S1's restore PUT (S1, S2 first PUTs are 1 and 2)
+            os.kill(os.getpid(), signal.SIGINT)
+
+    world.before_put = kill_in_restore
+    assert run(*BASE, *IOTA_SDM) == 1
+    assert sentinels.hits == []
+    assert "already undoing; please wait" in capfd.readouterr().err
+    assert world.agent == before
+    assert world.puts == 4                 # exactly one restore PUT per device (no repeated undo)
+
+
+def test_signals_hold_records_and_raises_once(sentinels, capfd):
+    with cut._Signals() as sg:
+        with pytest.raises(KeyboardInterrupt):
+            with sg.hold():
+                with sg.hold():                       # nested: only the outermost raises
+                    os.kill(os.getpid(), signal.SIGINT)
+                assert True
+        os.kill(os.getpid(), signal.SIGTERM)            # after the first raise none raises again
+        with sg.hold():
+            os.kill(os.getpid(), signal.SIGINT)
+    assert sentinels.hits == []
+    assert capfd.readouterr().err.count("already undoing; please wait") == 3
+
+
+def test_signals_not_held_raise_the_first_time_only(sentinels, capfd):
+    with cut._Signals():
+        with pytest.raises(KeyboardInterrupt):
+            os.kill(os.getpid(), signal.SIGINT)
+        os.kill(os.getpid(), signal.SIGTERM)
+    assert sentinels.hits == [] and "already undoing" in capfd.readouterr().err
+
+
+def test_the_final_hold_never_raises(sentinels):
+    with cut._Signals() as sg:
+        with sg.hold(final=True):
+            os.kill(os.getpid(), signal.SIGINT)
+    assert sentinels.hits == []
+
+
+def test_handlers_are_restored_on_exit(world, sentinels):
+    world.add("S1")
+    world.settle_agent()
+    world.on_sleep = lambda seconds: os.kill(os.getpid(), signal.SIGINT)
+    for argv in (IOTA_SDM, IOTA_SDM):
+        assert run(*BASE, *argv) == 1
+        assert signal.getsignal(signal.SIGINT) is sentinels.handler
+        assert signal.getsignal(signal.SIGTERM) is sentinels.handler
+    world.on_sleep = None
+    assert run(*BASE, *IOTA_SDM) == 0
+    assert signal.getsignal(signal.SIGINT) is sentinels.handler
+    assert signal.getsignal(signal.SIGTERM) is sentinels.handler
+
+
+def test_a_signal_during_the_plan_exits_1_and_releases_the_lock(world, sentinels, monkeypatch, capsys):
+    world.add("S1")
+
+    def kill(tenant, urns):
+        os.kill(os.getpid(), signal.SIGTERM)
+        return {}
+
+    monkeypatch.setattr(dataloggers, "_orion_devices", kill)
+    assert run(*BASE, *IOTA_SDM) == 1
+    assert sentinels.hits == [] and world.puts == 0
+    assert "interrupted; nothing was written" in capsys.readouterr().out
+    assert world.log[-1] == ("unlock",)
+
+
+def test_connection_lost_between_devices_stops_the_batch(world, capsys):
+    """Review focus 4. S1 commits; then the lock connection dies (whether the commit of S2 raised
+    or the loss showed after S1). No later row is committed; the new lock only puts back."""
+    urns = [world.add(f"S{i}") for i in (1, 2, 3)]
+    world.settle_agent()
+    before = _snapshot(world)
+    world.inject = [("commit_after", 0, "lost")]
+    assert run(*BASE, *IOTA_SDM) == 1
+    assert [e[1] for e in world.events("update")] == [urns[0]]
+    assert world.rows[urns[0]]["dm_writer"] == "iota"
+    assert world.rows[urns[1]]["dm_writer"] == world.rows[urns[2]]["dm_writer"] == "em"
+    assert world.agent["S2"] == before["S2"] and world.agent["S3"] == before["S3"]
+    assert world.agent["S1"] == _attrs(urns[0], "S1", ("iota", "sdm"))     # finished under the new lock
+    assert len(world.locks) == 2 and not any(lk.held for lk in world.locks)
+
+
+def test_a_connection_error_in_the_commit_stops_the_batch(world):
+    urns = [world.add(f"S{i}") for i in (1, 2, 3)]
+    world.settle_agent()
+    before = _snapshot(world)
+    world.inject = [("commit_before", 1, "lost")]       # S2's commit finds a dead connection
+    assert run(*BASE, *IOTA_SDM) == 1
+    assert [e[1] for e in world.events("update")] == [urns[0]]      # S3 is never committed
+    assert world.rows[urns[2]]["dm_writer"] == "em"
+    assert world.agent["S2"] == before["S2"] and world.agent["S3"] == before["S3"]
+    assert len(world.locks) == 2 and not any(lk.held for lk in world.locks)
+
+
+def test_a_database_error_with_the_lock_alive_only_fails_that_device(world, capsys):
+    """Ruling 1: a statement timeout is an ordinary failure; the batch goes on."""
+    a, b = world.add("S1"), world.add("S2")
+    world.settle_agent()
+    before = _snapshot(world)
+    world.inject = [("commit_before", 0, "db")]
+    assert run(*BASE, *IOTA_SDM) == 1
+    assert world.rows[a]["dm_writer"] == "em" and world.agent["S1"] == before["S1"]
+    assert world.rows[b]["dm_writer"] == "iota" and len(world.locks) == 1
+
+
+def test_lock_lost_and_retaken_commits_nothing_more(world):
+    a, b = world.add("S1"), world.add("S2")
+    world.settle_agent()
+    world.on_sleep = lambda seconds: world.lose_lock()
+    assert run(*BASE, *IOTA_SDM) == 1
+    assert not world.events("update")                   # the plan is no longer protected
+    assert world.rows[a]["dm_writer"] == world.rows[b]["dm_writer"] == "em"
+    assert len(world.locks) == 2
+
+
+def test_the_lock_is_retaken_once_per_run(world, capsys):
+    urns = [world.add(f"S{i}") for i in (1, 2)]
+    world.settle_agent()
+
+    def lose(seconds):
+        world.lose_lock()
+
+    world.on_sleep = lose
+    state = {"restores": 0}
+
+    def lose_again(n, ext):                 # the first restore PUT is done; the new lock dies too
+        state["restores"] += 1
+        if state["restores"] == 3:          # 2 first PUTs + the first restore
+            world.lose_lock()
+
+    world.after_put = lose_again
+    assert run(*BASE, *IOTA_SDM) == 1
+    assert len(world.locks) == 2            # never a third lock
+    assert world.puts == 3                  # the second device got nothing put back
+    out = capsys.readouterr().out
+    assert "lock lost; the new mappings were left in the agent" in out and urns
+
+
+def test_nothing_is_put_back_without_the_lock(world, capsys, caplog):
+    urns = [world.add("S1"), world.add("S2")]
+    world.settle_agent()
+    world.retake_refused = True
+    seen = {}
+
+    def lose(seconds):
+        seen["puts"] = world.puts
+        world.lose_lock()
+
+    world.on_sleep = lose
+    with caplog.at_level(logging.CRITICAL):
+        assert run(*BASE, *IOTA_SDM) == 1
+    assert world.puts == seen["puts"] == 2               # zero PUTs after the loss
+    out = capsys.readouterr().out
+    assert out.count("lock lost; the new mappings were left in the agent (no gap, duplicates "
+                     "possible); rerun") == 2
+    assert all(u in out for u in urns)
+    assert len([r for r in caplog.records if r.levelno == logging.CRITICAL]) >= 2
+    assert all(_dm_only(world.agent[e]) for e in ("S1", "S2"))
+    assert not any(lk.held for lk in world.locks)
+
+
+def test_the_final_put_is_not_sent_without_the_lock(world, capsys):
+    urn = world.add("S1")
+    world.settle_agent()
+    world.retake_refused = True
+    world.inject = [("commit_after", 0, "lost")]        # committed, then the connection dies
+    assert run(*BASE, *IOTA_SDM) == 1
+    assert world.rows[urn]["dm_writer"] == "iota" and world.puts == 1
+    assert "row updated" in (out := capsys.readouterr().out)
+    assert "final PUT not sent (lock lost)" in out and "rerun" in out
+
+
+def test_the_lock_is_checked_right_before_the_restore_put(world):
+    """The lock dies between the row read and the restore PUT: the row is read again through the
+    new lock before anything is put back."""
+    urn = world.add("S1")
+    world.settle_agent()
+    before = _snapshot(world)
+    world.update_fail = True
+    state = {"reads": 0}
+
+    def die_after_first_read(u):
+        state["reads"] += 1
+        if state["reads"] == 1:
+            world.lose_lock()
+
+    world.after_read = die_after_first_read
+    assert run(*BASE, *IOTA_SDM) == 1
+    assert state["reads"] == 2 and world.agent["S1"] == before["S1"]
+    assert world.puts == 2 and len(world.locks) == 2 and urn
+
+
+def test_a_restore_put_is_not_sent_when_the_lock_dies_before_it_and_cannot_be_taken(world):
+    world.add("S1")
+    world.settle_agent()
+    world.update_fail = True
+    world.retake_refused = True
+    world.after_read = lambda u: world.lose_lock()
+    assert run(*BASE, *IOTA_SDM) == 1
+    assert world.puts == 1                         # the first PUT only
+    assert _dm_only(world.agent["S1"])
+
+
+def test_row_moved_by_someone_else_is_left_alone(world, capsys, caplog):
+    urn = world.add("S1")
+    world.settle_agent()
+
+    def someone_else(seconds):
+        world.rows[urn].update(dm_writer="iota", dm_shape="legacy")
+        raise KeyboardInterrupt
+
+    world.on_sleep = someone_else
+    with caplog.at_level(logging.CRITICAL):
+        assert run(*BASE, *IOTA_SDM) == 1
+    assert world.puts == 1                          # nothing restored, nothing finished
+    assert world.rows[urn]["dm_shape"] == "legacy"
+    assert "check the row" in capsys.readouterr().out
+    assert any(urn in r.getMessage() for r in caplog.records if r.levelno == logging.CRITICAL)
+
+
+def test_a_vanished_row_is_left_alone(world, capsys):
+    urn = world.add("S1")
+    world.settle_agent()
+
+    def vanish(seconds):
+        del world.rows[urn]
+        raise KeyboardInterrupt
+
+    world.on_sleep = vanish
+    assert run(*BASE, *IOTA_SDM) == 1
+    assert world.puts == 1 and "does not exist" in capsys.readouterr().out
+
+
+def test_commit_that_went_through_is_finished_not_undone(world, capsys):
+    urn = world.add("S1")
+    world.settle_agent()
+    world.commit_lies = True                          # COMMIT raised after the row was written
+    assert run(*BASE, *IOTA_SDM) == 0
+    assert world.rows[urn]["dm_writer"] == "iota" and world.puts == 2
+    assert world.agent["S1"] == _attrs(urn, "S1", ("iota", "sdm"))
+    assert "moved" in capsys.readouterr().out
+
+
+def test_commit_followed_by_a_dead_connection_is_finished_under_the_new_lock(world):
+    urn = world.add("S1")
+    world.settle_agent()
+    world.dead_after_commit = True
+    world.inject = [("commit_after", 0, "lost")]
+    assert run(*BASE, *IOTA_SDM) == 0
+    assert world.rows[urn]["dm_writer"] == "iota" and world.puts == 2
+    assert world.agent["S1"] == _attrs(urn, "S1", ("iota", "sdm"))
+
+
+def test_restore_with_plan_time_mappings_says_so(world, capsys, caplog):
+    world.add("S1")
+    world.settle_agent()
+    before = _snapshot(world)
+    world.after_put = lambda n, ext: setattr(world, "orion_fail", True)
+    world.update_fail = True
+    with caplog.at_level(logging.WARNING):
+        assert run(*BASE, *IOTA_SDM) == 1
+    assert world.agent == before
+    assert ("previous mappings restored from the plan (the profile could not be read again)"
+            in capsys.readouterr().out)
+
+
+def test_restore_with_a_fresh_profile_does_not_say_plan(world, capsys):
+    world.add("S1")
+    world.settle_agent()
+    world.update_fail = True
+    assert run(*BASE, *IOTA_SDM) == 1
+    out = capsys.readouterr().out
+    assert "previous mappings restored" in out and "from the plan" not in out
+
+
+def test_first_put_that_raised_is_undone_under_the_lock(world, capsys):
+    """The PUT applied and then raised (a timeout): the row says what to do, not the exception."""
+    urn = world.add("S1")
+    world.settle_agent()
+    before = _snapshot(world)
+
+    def applied_then_timeout(n, ext):
+        if n == 1:
+            raise _IotaError(504)
+
+    world.after_put = applied_then_timeout
+    assert run(*BASE, *IOTA_SDM) == 1
+    assert world.agent == before and ("read_state", urn) in world.log
+    assert "state unknown, rerun" in capsys.readouterr().out
+
+
+def test_first_put_that_raised_with_the_lock_lost_puts_nothing_back(world):
+    world.add("S1")
+    world.settle_agent()
+    world.retake_refused = True
+
+    def applied_then_timeout(n, ext):
+        world.lose_lock()
+        raise _IotaError(504)
+
+    world.after_put = applied_then_timeout
+    assert run(*BASE, *IOTA_SDM) == 1
+    assert world.puts == 1 and _dm_only(world.agent["S1"])
+
+
+def test_an_unreadable_row_is_read_once_more_with_the_lock(world):
+    world.add("S1")
+    world.settle_agent()
+    before = _snapshot(world)
+    world.update_fail = True
+    world.inject = [("read", 0, "db")]
+    assert run(*BASE, *IOTA_SDM) == 1
+    assert world.agent == before and world.counts["read"] == 2
+
+
+def test_a_row_that_stays_unreadable_is_left_alone(world, capsys):
+    world.add("S1")
+    world.settle_agent()
+    world.update_fail = True
+    world.read_state_fail = True
+    assert run(*BASE, *IOTA_SDM) == 1
+    assert world.puts == 1 and "rerun" in capsys.readouterr().out
+
+
+def test_apply_iota_refuses_a_settle_outside_the_range(world):
+    world.add("S1")
+    items = cut.build_plan(TENANT, cut.list_rows(TENANT), "iota", "sdm")
+    for bad in (0, 59.9, 600.1, float("nan"), float("inf"), True, "60", None):
+        with FakeLock(world, TENANT) as lock:
+            with pytest.raises(ValueError):
+                cut.apply_iota(lock, TENANT, items, "sdm", bad)
+    assert world.puts == 0
+
+
+def test_the_docstring_describes_the_undo_and_not_the_old_paragraph():
+    doc = cut.__doc__
+    assert "Undo (`_undo`)" in doc and "SIGINT and SIGTERM" in doc
+    assert "puts the Device-only mappings back on every device" not in doc
+    assert doc.count("Order of the writes") == 1
+
+
+# -- to em: nothing to undo -------------------------------------------------------------------
+
+def test_to_em_interrupt_after_the_row_was_written_sends_the_put(world, capsys):
+    a = world.add("S1", writer="iota", shape="legacy")
+    b = world.add("S2", writer="iota", shape="legacy")
+    world.settle_agent()
+    before = _snapshot(world)
+    world.inject = [("commit_after", 0, "ki")]
+    assert run(*BASE, "--to", "em", "--apply") == 1
+    assert world.rows[a]["dm_writer"] == "em"
+    assert world.agent["S1"] == _attrs(a, "S1", ("em", None))
+    assert world.rows[b]["dm_writer"] == "iota" and world.agent["S2"] == before["S2"]
+    out = capsys.readouterr().out
+    assert [ln for ln in out.splitlines() if b in ln and "not started" in ln]
+
+
+def test_to_em_interrupt_before_the_row_is_written_leaves_the_agent_alone(world, capsys):
+    a = world.add("S1", writer="iota", shape="legacy")
+    world.add("S2", writer="iota", shape="legacy")
+    world.settle_agent()
+    before = _snapshot(world)
+    world.inject = [("commit_before", 0, "ki")]
+    assert run(*BASE, "--to", "em", "--apply") == 1
+    assert world.agent == before and world.puts == 0 and world.rows[a]["dm_writer"] == "iota"
+    assert "the agent was not touched" in capsys.readouterr().out
+
+
+def test_to_em_put_is_not_sent_without_the_lock(world, capsys):
+    a = world.add("S1", writer="iota", shape="legacy")
+    world.settle_agent()
+    world.retake_refused = True
+    world.inject = [("commit_after", 0, "lost")]
+    assert run(*BASE, "--to", "em", "--apply") == 1
+    assert world.rows[a]["dm_writer"] == "em" and world.puts == 0
+    assert "lock lost" in capsys.readouterr().out
+
+
+def test_to_em_stops_after_a_lost_lock(world):
+    a = world.add("S1", writer="iota", shape="legacy")
+    b = world.add("S2", writer="iota", shape="legacy")
+    world.settle_agent()
+    world.inject = [("commit_after", 0, "lost")]
+    assert run(*BASE, "--to", "em", "--apply") == 1
+    assert world.rows[a]["dm_writer"] == "em" and world.rows[b]["dm_writer"] == "iota"
+    assert [e[1] for e in world.events("update")] == [a]
+
+
+def test_a_repair_put_is_not_sent_without_the_lock(world, capsys):
+    urn = world.add("S1", writer="iota", shape="sdm")
+    world.agent["S1"] = _attrs(urn, "S1", ("em", None))          # the agent differs: a repair
+    items = cut.build_plan(TENANT, cut.list_rows(TENANT), "iota", "sdm")
+    assert items[0].action == "repair"
+    world.retake_refused = True
+    with FakeLock(world, TENANT) as lock:
+        world.lose_lock()
+        out = cut.apply_item(lock, TENANT, items[0], "iota", "sdm")
+    assert out.status == "failed" and "lock lost" in out.text and world.puts == 0
+
+
+# -- every injection point (property) ---------------------------------------------------------
+
+def assert_no_silent_device(world, items, outcomes, strict=True):
+    """One outcome per device; no `iota` row whose agent lacks the DeviceMeasurement mappings of
+    the row's shape; no `em` row with an empty agent; every lock closed.
+
+    With `strict` False (a second loss, or a refused re-take) the rulings leave the NEW mappings
+    in the agent on purpose: an `iota` row may then hold the other shape's DeviceMeasurement
+    mappings, but only when its outcome lists it as failed."""
+    assert [o.urn for o in outcomes] == [it.row.urn for it in items]
+    assert len({o.urn for o in outcomes}) == len(items)
+    for it, out in zip(items, outcomes):
+        row = world.rows[it.row.urn]
+        state = (row["dm_writer"], row["dm_shape"])
+        agent = world.agent[it.row.external_id]
+        if state[0] == "iota":
+            want = _dm_only(_attrs(it.row.urn, it.row.external_id, state, world.profiles["p"]))
+            missing = [a for a in want if a not in agent]
+            if missing:
+                assert not strict, (it.row.external_id, state, out)
+                assert _dm_only(agent) and out.status == "failed", (it.row.external_id, state, out)
+                assert "rerun" in out.text, out
+        else:
+            assert any(a.get("entity_type", "Device") != "DeviceMeasurement" for a in agent), \
+                (it.row.external_id, "agent has no Device mappings", out)
+    assert not any(lk.held for lk in world.locks)
+
+
+EFFECTS = {
+    "put_before": ("ki", "lost"), "put_after": ("ki", "lost"), "sleep": ("ki", "lost"),
+    "commit_before": ("ki", "lost", "db", "unknown"), "commit_after": ("ki", "lost", "unknown"),
+    "read": ("ki", "lost", "db"), "print": ("ki", "lost"),
+}
+
+
+def _batch_run(world, monkeypatch, injects, refused=False):
+    """Three devices: S1 em -> iota, S2 iota legacy -> iota sdm, S3 already iota sdm."""
+    world.add("S1")
+    world.add("S2", writer="iota", shape="legacy")
+    world.add("S3", writer="iota", shape="sdm")
+    world.settle_agent()
+    items = cut.build_plan(TENANT, cut.list_rows(TENANT), "iota", "sdm")
+    assert [it.action for it in items] == ["move", "move", "unchanged"]
+    real_say = cut._say
+
+    def say(text):
+        world.tick("print")
+        real_say(text)
+
+    monkeypatch.setattr(cut, "_say", say)
+    world.retake_refused = refused
+    world.inject = list(injects)
+    world.counts.clear()
+    with FakeLock(world, TENANT) as lock:
+        outcomes = cut.apply_iota(lock, TENANT, items, "sdm", 60.0)
+    return items, outcomes
+
+
+def _points(world, monkeypatch, base):
+    _batch_run(world, monkeypatch, base)
+    return [(k, i) for k, n in world.counts.items() for i in range(n) if k in EFFECTS]
+
+
+def _fresh(monkeypatch):
+    """A new world wired like the `world` fixture (the property test builds many)."""
+    w = World()
+
+    @contextmanager
+    def db(tenant):
+        yield _Conn(w)
+
+    def orion_devices(tenant, urns):
+        return {u: {"id": u, "profileCode": {"type": "Property", "value": w.entities[u]}}
+                for u in urns if u in w.entities and w.entities[u] is not None}
+
+    iota = _fake_iota(w)
+    monkeypatch.setattr(dataloggers, "get_db_connection_with_tenant", db)
+    monkeypatch.setattr(cut, "get_db_connection_with_tenant", db)
+    monkeypatch.setattr(dataloggers, "iot_agent", iota)
+    monkeypatch.setattr(cut, "iot_agent", iota)
+    monkeypatch.setattr(dataloggers, "_orion_devices", orion_devices)
+    monkeypatch.setattr(dataloggers, "_profile_measurements",
+                        lambda tenant, code: copy.deepcopy(w.profiles.get(code)))
+    monkeypatch.setattr(cut, "_exclusive_lock", lambda tenant: FakeLock(w, tenant))
+    monkeypatch.setattr(cut, "_sleep", lambda seconds: w.tick("sleep"))
+    monkeypatch.setattr(cut, "_say", lambda text: None)
+    return w
+
+
+BASES = {
+    "clean": [],
+    "db-error-in-the-first-commit": [("commit_before", 0, "db")],
+    "interrupt-in-the-settle": [("sleep", 0, "ki")],
+    "lock-lost-in-the-settle": [("sleep", 0, "lost")],
+}
+
+
+@pytest.mark.parametrize("base_name", list(BASES))
+@pytest.mark.parametrize("refused", [False, True], ids=["retake-ok", "retake-refused"])
+def test_no_injection_point_leaves_a_silent_device(monkeypatch, base_name, refused, sentinels):
+    base = BASES[base_name]
+    points = None
+    cases = 0
+    probe = _fresh(monkeypatch)
+    points = _points(probe, monkeypatch, base)
+    assert points, "the batch has no injection point"
+    kinds = {k for k, _ in points}
+    if base_name == "clean":
+        assert {"put_before", "put_after", "sleep", "commit_before", "commit_after", "print"} <= kinds
+    for kind, index in points:
+        for effect in EFFECTS[kind]:
+            injects = base + [(kind, index, effect)]
+            world = _fresh(monkeypatch)
+            items, outcomes = _batch_run(world, monkeypatch, injects, refused=refused)
+            losses = sum(1 for _, _, e in injects if e == "lost")
+            strict = losses <= 1 and not refused
+            where = (base_name, refused, kind, index, effect)
+            try:
+                assert_no_silent_device(world, items, outcomes, strict=strict)
+            except AssertionError as exc:
+                raise AssertionError(f"{where}: {exc}") from None
+            cases += 1
+    assert cases >= 20
+    print(f"property cases ({base_name}, refused={refused}): {cases}")
