@@ -289,7 +289,7 @@ def test_a_device_registered_before_the_official_attributes_changes_profile():
         "profileCode": _prop("p2"), "sensorType": _prop("p2"), "refDeviceModel": _rel(MODEL2),
         "deviceCategory": _prop(["sensor"]), "controlledProperty": _prop(["soilMoisture"])})]
     assert [e for e in st.log if e[0] in ("iota", "orion")] == [
-        ("iota", "update", "S1"), ("orion", "upsert", MODEL2), ("orion", "attrs", URN)]
+        ("orion", "upsert", MODEL2), ("iota", "update", "S1"), ("orion", "attrs", URN)]
     ent = w.orion.entities[URN]
     assert ent["installedAt"] == _prop("2026-01-01T00:00:00Z") and ent["status"] == _prop("active")
     assert w.orion.device_models[MODEL2]["controlledProperty"] == _prop(["soilMoisture"])
@@ -315,13 +315,14 @@ def test_change_to_a_profile_that_maps_to_nothing_removes_the_old_controlled_pro
     {"upsert": [{"entityId": MODEL2, "error": {"status": 400}}]},
     {"orion_attr_delete": 500},
 ], ids=["network", "partial-207", "model-attr-delete"])
-def test_change_profile_restores_the_iot_agent_when_the_device_model_fails(fail):
+def test_change_profile_leaves_the_iot_agent_alone_when_the_device_model_fails(fail):
+    """The DeviceModel is written before the agent push: its failure sends nothing, restores nothing."""
     st = _state(p2=UNMAPPED)
     st.fail.update(fail)
     with _changing(st, _device()) as w:
         r = _change_profile(URN)
     assert r.status_code == 502 and r.get_json()["step"] == "device_model", r.get_json()
-    assert w.sent == [["stemDiameter"], ["airTemperature", "relativeHumidity"]]
+    assert w.sent == [] and _iota_updates(st) == []
     assert w.orion.entities[URN] == _device() and w.orion.attr_posts == []
 
 
@@ -364,15 +365,25 @@ def test_change_profile_does_not_undo_when_only_the_stale_attribute_stays(fail):
         assert "controlledProperty" not in w.orion.entities[URN]
 
 
-@pytest.mark.parametrize("fail", [{"upsert": RuntimeError("down")}, {"orion_attrs": 500}])
-def test_change_profile_logs_critical_when_there_is_nothing_to_restore(fail, caplog):
+def test_change_profile_logs_critical_when_there_is_nothing_to_restore(caplog):
     st = _state(p2=SOIL)
-    st.fail.update(fail)
+    st.fail.update({"orion_attrs": 500})
     with _changing(st, _legacy_device("vanished")) as w:
         r = _change_profile(URN)
     assert r.status_code == 502
     assert w.sent == [["soilMoisture"]]
     assert any(rec.levelname == "CRITICAL" and "S1" in rec.getMessage() for rec in caplog.records)
+
+
+def test_a_failed_model_has_nothing_to_restore_and_is_not_critical(caplog):
+    """The model is written first, so a legacy device with no previous profile loses nothing."""
+    st = _state(p2=SOIL)
+    st.fail.update({"upsert": RuntimeError("down")})
+    with _changing(st, _legacy_device("vanished")) as w:
+        r = _change_profile(URN)
+    assert r.status_code == 502 and r.get_json()["step"] == "device_model"
+    assert w.sent == []
+    assert not [rec for rec in caplog.records if rec.levelname == "CRITICAL"]
 
 
 def test_change_to_a_profile_code_that_fits_no_model_id_is_400_before_any_write():

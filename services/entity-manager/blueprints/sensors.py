@@ -1143,40 +1143,41 @@ def update_sensor_profile(code):
     # value is left alone.
     columns = {'name': name, 'description': description, 'mapping': Json(mapping),
                **_validated_maker(data)}
-    row = _profile_visible(tenant, code)
-    if not row:
-        raise dataloggers.ApiError(404, 'Profile not found')
-    if row.get('tenant_id') is None:
-        raise dataloggers.ApiError(403, 'Global profiles are read-only')
-    try:
-        with get_db_connection_with_tenant(tenant) as conn:
-            cur = conn.cursor(cursor_factory=RealDictCursor)
-            assignments = ', '.join(f'{column} = %s' for column in columns)
-            cur.execute(f"""
-                UPDATE sensor_profiles SET {assignments}
-                WHERE code = %s AND tenant_id = %s
-                RETURNING manufacturer_name, brand_name, model_name
-            """, (*columns.values(), code, tenant))
-            maker = cur.fetchone()
-            conn.commit()
-            cur.close()
-    except Exception as exc:
-        logger.error("profile update failed: %s", type(exc).__name__)
-        raise dataloggers.ApiError(502, 'Database error', 'db')
-    if not maker:
-        raise dataloggers.ApiError(404, 'Profile not found')
-    result = {'reprovisioned': [], 'failed': []}
-    try:
-        result = dataloggers.reprovision_profile_devices(
-            tenant, code, mapping.get('measurements') or [])
-    except Exception as exc:
-        # The profile row is saved; the devices keep their old attributes until re-saved.
-        logger.error("profile %s: devices could not be listed for re-provisioning: %s",
-                     code, type(exc).__name__)
-        result['error'] = 'device_listing_failed'
-    result.update(device_models.refresh_profile(tenant, code))
-    return jsonify({'code': code, 'name': name, 'mapping': mapping, **_maker_json(maker),
-                    **result}), 200
+    with dataloggers.profile_change_lock(tenant) as lock:
+        row = _profile_visible(tenant, code)
+        if not row:
+            raise dataloggers.ApiError(404, 'Profile not found')
+        if row.get('tenant_id') is None:
+            raise dataloggers.ApiError(403, 'Global profiles are read-only')
+        try:
+            with get_db_connection_with_tenant(tenant) as conn:
+                cur = conn.cursor(cursor_factory=RealDictCursor)
+                assignments = ', '.join(f'{column} = %s' for column in columns)
+                cur.execute(f"""
+                    UPDATE sensor_profiles SET {assignments}
+                    WHERE code = %s AND tenant_id = %s
+                    RETURNING manufacturer_name, brand_name, model_name
+                """, (*columns.values(), code, tenant))
+                maker = cur.fetchone()
+                conn.commit()
+                cur.close()
+        except Exception as exc:
+            logger.error("profile update failed: %s", type(exc).__name__)
+            raise dataloggers.ApiError(502, 'Database error', 'db')
+        if not maker:
+            raise dataloggers.ApiError(404, 'Profile not found')
+        result = {'reprovisioned': [], 'failed': []}
+        try:
+            result = dataloggers.reprovision_profile_devices(
+                tenant, code, mapping.get('measurements') or [], lock)
+        except Exception as exc:
+            # The profile row is saved; the devices keep their old attributes until re-saved.
+            logger.error("profile %s: devices could not be listed for re-provisioning: %s",
+                         code, type(exc).__name__)
+            result['error'] = 'device_listing_failed'
+        result.update(device_models.refresh_profile(tenant, code))
+        return jsonify({'code': code, 'name': name, 'mapping': mapping, **_maker_json(maker),
+                        **result}), 200
 
 
 @sensors_bp.route('/api/sensors/profiles', methods=['GET'])

@@ -11,7 +11,9 @@ import logging
 import os
 import re
 import secrets
+import time
 import uuid
+from contextlib import ExitStack, contextmanager
 from functools import wraps
 from typing import Callable, List, Optional
 
@@ -28,6 +30,7 @@ from db_helper import get_db_connection_with_tenant
 from device_profile import entity_profile_code
 from device_urn import DEVICE_TYPES, EXTERNAL_ID_RE, external_id_of, is_device_type  # noqa: F401
 from helpers import ORION_URL
+import writer_move_lock
 
 logger = logging.getLogger(__name__)
 
@@ -684,8 +687,10 @@ class WriterStateError(ApiError):
 
     The first push has been applied, so the caller must restore the previous attributes.
     Always HTTP 502, step `dm_state`. `last_state` is the last `(dm_writer, dm_shape)` the
-    pushed attributes were built from (None when unknown): a restore that cannot read the
-    state builds the previous attributes from it.
+    pushed attributes were built from: a restore that cannot read the state builds the previous
+    attributes from it. `push_iota_attributes` always sets it. It is None only when a caller
+    raises this error without having built attributes; a restore then has nothing to build from
+    and puts nothing back blindly.
     """
 
     def __init__(self, message: str, last_state: Optional[tuple] = None):
@@ -702,8 +707,12 @@ def _late_failure(exc: Exception, external_id: str, what: str, state: tuple) -> 
     return WriterStateError(f'Device writer state could not be confirmed ({what})', state)
 
 
+def _no_check() -> None:
+    return None
+
+
 def push_iota_attributes(tenant: str, urn: str, external_id: str, profile_code: Optional[str],
-                         measurements: list) -> tuple:
+                         measurements: list, before_put: Callable[[], None] = _no_check) -> tuple:
     """Replace a device's IoT Agent attributes and make sure they match its writer state.
 
     The state is read, the attributes built from it, then pushed; the state is read again
@@ -718,15 +727,20 @@ def push_iota_attributes(tenant: str, urn: str, external_id: str, profile_code: 
     out, ANY later failure (re-read, rebuild, another push, or a state that never settles)
     is a WriterStateError, so the caller restores the previous attributes. Returns the
     state the attributes were finally built from.
+
+    `before_put` is called right before EVERY PUT. Before the first one its exception propagates
+    as it is (nothing was applied); before a later one it is a late failure, like a failing push.
     """
     state = device_dm_state(tenant, urn)
     attrs = _attributes_for_state(state, tenant, urn, external_id, profile_code, measurements)
     for push in range(_PUSH_ROUNDS):
         if push == 0:
+            before_put()
             iot_agent.update_device_attributes(iota_url(), iota_headers(tenant), external_id,
                                                attrs)
         else:
             try:
+                before_put()
                 iot_agent.update_device_attributes(iota_url(), iota_headers(tenant),
                                                    external_id, attrs)
             except Exception as exc:
@@ -859,17 +873,88 @@ def _profile_measurements(tenant: str, code: str) -> Optional[list]:
     return _measurements_of(read_profile(tenant, code))
 
 
+# ── the writer move lock, shared, for profile changes ──────────────────
+
+# seconds: a PUT started under a live lock is EXPECTED to land before a move that took the lock
+# afterwards can commit (the move waits at least MIN_SETTLE). Not covered: the DNS lookup, the
+# separate connect/send/read timeouts of a request, and an agent that applies a PUT late.
+_FALLBACK_WINDOW = 30
+
+
+@contextmanager
+def profile_change_lock(tenant: str):
+    """The shared writer-move lock of the tenant, held for the whole body; yields the SharedLock.
+
+    A move in progress is 409, a lock that cannot be taken or queried is 502 `db`. Exceptions of
+    the body pass unchanged.
+    """
+    with ExitStack() as stack:
+        try:
+            lock = stack.enter_context(writer_move_lock.shared(tenant))
+        except writer_move_lock.MoveInProgress:
+            raise ApiError(409, 'Sensors are being moved; try again in a few minutes',
+                           'writer_move') from None
+        except writer_move_lock.LockUnavailable:
+            raise ApiError(502, 'Database error', 'db') from None
+        yield lock
+
+
+def _lock_alive(lock) -> bool:
+    try:
+        return bool(lock.alive())
+    except Exception as exc:  # a lock that cannot say it is alive is lost
+        logger.error("writer move lock check failed (%s)", type(exc).__name__)
+        return False
+
+
+def _guard(lock) -> Callable[[], None]:
+    """A `before_put`: raises ApiError(502, db) when the lock is no longer alive."""
+    def check() -> None:
+        if not _lock_alive(lock):
+            raise ApiError(502, 'Database error', 'db')
+    return check
+
+
+def _push_from_last_state(tenant: str, urn: str, external_id: str, old_code: Optional[str],
+                          old_ms: list, last_state: tuple) -> None:
+    """Put the old profile's attributes back, built from the last known writer state.
+
+    For when the state cannot be read: leaving the new profile's mappings on the device while
+    Orion keeps the old profile loses every reading.
+    """
+    logger.critical(
+        "device=%s urn=%s: writer state unreadable while restoring the profile mappings; "
+        "pushing the old profile's attributes built from the last known state %r; "
+        "save the profile again once the database answers", external_id, urn, last_state)
+    iot_agent.update_device_attributes(
+        iota_url(), iota_headers(tenant), external_id,
+        _attributes_for_state(last_state, tenant, urn, external_id, old_code, old_ms))
+
+
 def change_device_profile(tenant: str, urn: str, code: str) -> None:
     """Re-provision the IoT Agent attributes, then write the profile on the entity; undo the first
-    if the second fails.
+    if the second fails. A Device's DeviceModel comes before both (idempotent, never undone): a
+    failure of it leaves the agent untouched, and the mappings are built (a 400 leaves nothing
+    behind) before it.
+
+    The shared writer-move lock is held from before the first read until after the undo. Every
+    IoT Agent PUT is preceded by a check that the lock is alive; a lost lock before the first PUT
+    changes nothing but possibly the DeviceModel (idempotent, kept), a lost lock later is a failed write that is restored (see `restore`).
 
     For a Device the official attributes go with `profileCode`, after its DeviceModel. The one
     failure that is not undone is a leftover attribute that could not be deleted: IoT Agent and
     entity are both on the new profile by then, and repeating the call finishes the job.
     """
+    external_id = parse_device_urn(tenant, urn)   # reads nothing
+    with profile_change_lock(tenant) as lock:
+        _change_device_profile_locked(tenant, urn, code, external_id, lock)
+
+
+def _change_device_profile_locked(tenant: str, urn: str, code: str, external_id: str,
+                                  lock) -> None:
     import device_models  # it imports this module
 
-    external_id = parse_device_urn(tenant, urn)
+    guard = _guard(lock)
     profile = read_profile(tenant, code)
     new_ms = _measurements_of(profile)
     if new_ms is None:
@@ -886,27 +971,71 @@ def change_device_profile(tenant: str, urn: str, code: str) -> None:
         if (profile.get('sdm_entity_type') or 'Device') != 'Device':
             raise ApiError(400, f'Profile "{code}" is not for a Device')
         device_models.profile_attrs(tenant, profile)
+        try:
+            # The mappings are built (for the device's writer state now) before anything is
+            # written: a 400 leaves no DeviceModel and no PUT.
+            iota_attributes_for(tenant, urn, external_id, code, new_ms)
+        except KeyError:
+            raise ApiError(400, 'Profile has measurements without sdmAttribute')
+        except ValueError as exc:
+            raise ApiError(400, str(exc))
+        except ApiError:
+            raise
+        except Exception as exc:
+            logger.error("IoT Agent update failed: device=%s error=%s", external_id,
+                         type(exc).__name__)
+            raise ApiError(502, 'IoT Agent device update failed', 'iota_device')
+
+    def fallback(in_use, last_state: tuple) -> None:
+        """The blind restore: only under a lock that answers now or answered within 30 s."""
+        if _lock_alive(in_use) or time.monotonic() - in_use.last_alive <= _FALLBACK_WINDOW:
+            _push_from_last_state(tenant, urn, external_id, old_code, old_ms, last_state)
+        else:
+            logger.critical(
+                "INCONSISTENCY: the lock was lost more than %d s ago and the device state "
+                "cannot be read; the IoT Agent attributes of device=%s urn=%s were not put back "
+                "(profile %s -> %s); save the profile again once the database answers",
+                _FALLBACK_WINDOW, external_id, urn, old_code, code)
 
     def restore(last_state: Optional[tuple]) -> None:
         if old_ms is not None:
             def push_old():
                 try:
-                    try:
-                        push_iota_attributes(tenant, urn, external_id, old_code, old_ms)
-                    except ApiError as exc:
-                        # The state cannot even be read: leaving the new profile's mappings
-                        # on the device while Orion keeps the old profile loses every reading,
-                        # so push the old attributes built from the last known state.
-                        if isinstance(exc, WriterStateError) or exc.step != 'db' or last_state is None:
-                            raise
-                        logger.critical(
-                            "device=%s urn=%s: writer state unreadable while restoring the "
-                            "profile mappings; pushing the old profile's attributes built "
-                            "from the last known state %r", external_id, urn, last_state)
-                        iot_agent.update_device_attributes(
-                            iota_url(), iota_headers(tenant), external_id,
-                            _attributes_for_state(last_state, tenant, urn, external_id,
-                                                  old_code, old_ms))
+                    with ExitStack() as stack:
+                        current = lock
+                        if not _lock_alive(lock):
+                            logger.error("profile change: the lock was lost; taking it again to "
+                                         "restore: device=%s urn=%s", external_id, urn)
+                            try:
+                                current = stack.enter_context(writer_move_lock.shared(tenant))
+                            except writer_move_lock.MoveInProgress:
+                                # Only a move that includes this device puts its mappings right
+                                # (its second PUT applies the entity's profile, still the old one);
+                                # another device's move, or one that stops before this device, leaves
+                                # the new profile's mappings. Waiting would hold the service's only
+                                # worker for as long as the move runs.
+                                logger.critical(
+                                    "INCONSISTENCY: a move holds the lock; the IoT Agent attributes "
+                                    "of device=%s urn=%s were not put back (profile %s -> %s); if the "
+                                    "move does not include this device it keeps the new profile's "
+                                    "mappings; save the profile again once the move ends",
+                                    external_id, urn, old_code, code)
+                                return
+                            except writer_move_lock.LockUnavailable:
+                                if last_state is None:
+                                    raise
+                                fallback(lock, last_state)
+                                return
+                        try:
+                            push_iota_attributes(tenant, urn, external_id, old_code, old_ms,
+                                                 _guard(current))
+                        except ApiError as exc:
+                            # The state cannot even be read: leaving the new profile's mappings
+                            # on the device while Orion keeps the old profile loses every reading,
+                            # so push the old attributes built from the last known state.
+                            if isinstance(exc, WriterStateError) or exc.step != 'db' or last_state is None:
+                                raise
+                            fallback(current, last_state)
                 except Exception:
                     logger.critical("INCONSISTENCY: could not restore IoT Agent attributes: "
                                     "device=%s urn=%s old_profile=%s new_profile=%s",
@@ -918,8 +1047,14 @@ def change_device_profile(tenant: str, urn: str, code: str) -> None:
                             "but the entity still has profile %s (previous profile not readable)",
                             external_id, code, old_code)
 
+    if is_device:
+        # The DeviceModel first: it is idempotent and never undone, so a failure here leaves the
+        # agent untouched and there is nothing to restore; and the window between the agent push and
+        # the Device write shrinks to one request.
+        guard()
+        device_models.ensure_device_model(tenant, profile)
     try:
-        pushed_state = push_iota_attributes(tenant, urn, external_id, code, new_ms)
+        pushed_state = push_iota_attributes(tenant, urn, external_id, code, new_ms, guard)
     except KeyError:
         raise ApiError(400, 'Profile has measurements without sdmAttribute')
     except ValueError as exc:
@@ -941,9 +1076,10 @@ def change_device_profile(tenant: str, urn: str, code: str) -> None:
     # request it always had: do not unify the two branches.
     try:
         if is_device:
-            device_models.ensure_device_model(tenant, profile)
+            guard()
             device_models.write_profile_attrs(tenant, urn, profile, extra=profile_codes)
         else:
+            guard()
             resp = requests.patch(
                 f"{ORION_URL}/ngsi-ld/v1/entities/{urn}/attrs", json=profile_codes,
                 headers=inject_fiware_headers({}, tenant=tenant, has_context_in_body=False), timeout=10)
@@ -982,16 +1118,24 @@ def links_on_profile(tenant: str, code: str) -> list:
     return [d for d in links if is_on_profile(tenant, entities.get(d['device_urn']), code)]
 
 
-def reprovision_profile_devices(tenant: str, code: str, measurements: list) -> dict:
+def reprovision_profile_devices(tenant: str, code: str, measurements: list, lock=None) -> dict:
     """Push a profile's new attributes to the IoT Agent device of every device on it.
 
-    Best effort per device: a failure is logged and listed, never raised.
+    Best effort per device: a failure is logged and listed, never raised. With a `lock` every PUT
+    is guarded and, once the lock is lost, the remaining devices are listed in `failed` untouched.
     """
     out = {'reprovisioned': [], 'failed': []}
-    for link in links_on_profile(tenant, code):
+    guard = _guard(lock) if lock is not None else _no_check
+    links = links_on_profile(tenant, code)
+    for index, link in enumerate(links):
         urn = link['device_urn']
+        if lock is not None and not _lock_alive(lock):
+            logger.error("profile re-provision stopped, the writer move lock was lost: profile=%s "
+                         "not_done=%d", code, len(links) - index)
+            out['failed'].extend(rest['device_urn'] for rest in links[index:])
+            break
         try:
-            push_iota_attributes(tenant, urn, link['external_id'], code, measurements)
+            push_iota_attributes(tenant, urn, link['external_id'], code, measurements, guard)
             out['reprovisioned'].append(urn)
         except Exception as exc:
             logger.error("profile re-provision failed: device=%s profile=%s error=%s",
