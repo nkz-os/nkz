@@ -12,6 +12,7 @@ from ngsi_read_guard import (
     types_params,
     valid_entity_path,
     valid_filter,
+    valid_identifier,
     valid_name,
 )
 
@@ -320,3 +321,20 @@ def test_names(name):
 @pytest.mark.parametrize("name", ["", "a b", "a,b", "a&b", "a" * 129, "1a", "a\n", None, 3])
 def test_other_names(name):
     assert valid_name(name) is False
+
+
+@pytest.mark.parametrize(
+    "value",
+    ["urn:ngsi-ld:Device:tenant-a:logger:1", "urn:ngsi-ld:Device:a b", "urn:ngsi-ld:Device:a%20b", "urn:ngsi-ld:Device:ñ",
+     "https://example.org/d/1", "https://example.org/a..b/c.d", "a...b", "robot-1", "da36ccd2-85d2-4c76-b552-c5c835a987c1", "Vineyard"],
+)
+def test_identifiers(value):
+    assert valid_identifier(value) is True
+
+
+@pytest.mark.parametrize(
+    "value",
+    ["", "/", "a?b", "a#b", 'a"b', "a%22b", "a%2522b", "a\\b", "a%5Cb", "a\x00", "a%00", "a%2500", "a\n", "a%0A", "a%3Fb", "a%253Fb", "..", ".", "a/../b", "a/./b", "urn:a:b/..", "a%2F..%2Fb", "a%2F%2E%2E%2Fb", "a/%252E%252E/b", None, 3, ["a"]],
+)
+def test_other_identifiers(value):
+    assert valid_identifier(value) is False

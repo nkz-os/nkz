@@ -337,4 +337,14 @@ def valid_entity_path(path: str) -> bool:
     if not path.strip("/") or "?" in path or "#" in path:
         return False
     decoded = percent_decoded(path)
-    return decoded is not None and _CONTROL.search(decoded) is None
+    if decoded is None or _CONTROL.search(decoded):
+        return False
+    return not {".", ".."} & set(decoded.split("/"))
+
+
+def valid_identifier(value: object) -> bool:
+    """True for an id that is only an id: in a path, or between quotes in a filter."""
+    if not isinstance(value, str) or not valid_entity_path(value):
+        return False
+    decoded = percent_decoded(value)
+    return decoded is not None and not set(decoded) & set('?#"\\')

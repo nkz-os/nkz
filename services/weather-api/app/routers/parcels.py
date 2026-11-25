@@ -11,7 +11,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 import requests
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import JSONResponse
 from nkz_platform_sdk.crypto import generate_hmac_signature
 from psycopg2.extras import RealDictCursor
@@ -26,6 +26,7 @@ from app.services.agro_status import (
     _extract_float,
 )
 from common.ngsi_headers import inject_fiware_headers
+from common.ngsi_read_guard import valid_identifier
 
 logger = logging.getLogger(__name__)
 
@@ -238,6 +239,12 @@ def _orion_headers(tenant_id: str) -> dict:
     return inject_fiware_headers({}, tenant=tenant_id, has_context_in_body=False)
 
 
+def check_parcel_id(parcel_id: str) -> None:
+    """400 for an id that is not only an id."""
+    if parcel_id and not valid_identifier(parcel_id):
+        raise HTTPException(status_code=400, detail="Invalid parcel id")
+
+
 def _normalize_parcel_id(parcel_id: str) -> str:
     """Callers pass either the full NGSI-LD URN or the bare id.
 
@@ -245,6 +252,7 @@ def _normalize_parcel_id(parcel_id: str) -> str:
     agro-status route then misreports as a 500. Normalize to the canonical
     AgriParcel URN shape (no tenant segment — parcel URNs are tenant-less).
     """
+    check_parcel_id(parcel_id)
     if not parcel_id or not parcel_id.startswith("urn:"):
         return f"urn:ngsi-ld:AgriParcel:{parcel_id}"
     return parcel_id

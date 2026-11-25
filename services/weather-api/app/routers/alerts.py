@@ -19,6 +19,7 @@ from fastapi.responses import JSONResponse
 from app.auth import require_auth
 from app.config import settings
 from app.geo import active_alert_filter, parcel_centroid
+from app.routers.parcels import check_parcel_id
 from common.api_errors import fastapi_internal_error
 from common.ngsi_headers import inject_fiware_headers
 
@@ -138,6 +139,7 @@ def get_parcel_alerts(
     Parcel geometry is read from the caller's tenant store; alerts are geo-queried
     in tenant 'shared' (georel=intersects, Point = parcel centroid).
     """
+    check_parcel_id(parcel_id)
     try:
         # 1. Fetch the parcel from the caller's tenant store to get its geometry.
         p_headers = _orion_headers(tenant_id)
