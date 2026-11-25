@@ -79,18 +79,17 @@ export const RegistrationWizard: React.FC<RegistrationWizardProps> = ({
     setStep(2);
   }, []);
 
+  // Both paths need the password, which is asked in the security step.
   const handleStep2Next = () => {
-    if (verificationMethod === 'code') {
-      // Activation code path: submit immediately
-      handleActivationSubmit();
-    } else {
-      // OTP path: go to security step
-      setStep(3);
-    }
+    setStep(3);
   };
 
   const handleStep3Submit = async () => {
-    await handleOtpSubmit();
+    if (verificationMethod === 'code') {
+      await handleActivationSubmit();
+    } else {
+      await handleOtpSubmit();
+    }
   };
 
   const handleActivationSubmit = async () => {
@@ -132,11 +131,18 @@ export const RegistrationWizard: React.FC<RegistrationWizardProps> = ({
         setTimeout(() => login(), 3000);
       }
     } catch (err: unknown) {
-      const error = err as { response?: { data?: { error?: string; reason?: string } }; message?: string };
+      const error = err as {
+        response?: { data?: { error?: string; reason?: string; error_code?: string } };
+        message?: string;
+      };
       const msg = error.response?.data?.error || error.message || t('activation.error_activating');
       setError(msg);
       setErrorDetail(error.response?.data?.reason || '');
-      if (msg.includes('Invalid or expired')) {
+      if (error.response?.data?.error_code === 'TENANT_UNAVAILABLE') {
+        setError(t('activation.tenant_unavailable'));
+      } else if (error.response?.data?.error_code === 'DB_UNAVAILABLE') {
+        setError(t('registration.unavailable'));
+      } else if (msg.includes('Invalid or expired')) {
         setError(t('activation.invalid_code'));
       }
     } finally {
@@ -177,11 +183,21 @@ export const RegistrationWizard: React.FC<RegistrationWizardProps> = ({
         }, 3000);
       }
     } catch (err: unknown) {
-      const error = err as { response?: { data?: { error?: string }; status?: number }; message?: string };
-      if (error.response?.status === 409) {
+      const error = err as {
+        response?: { data?: { error?: string; error_code?: string }; status?: number };
+        message?: string;
+      };
+      const status = error.response?.status;
+      if (status === 409 && error.response?.data?.error_code === 'TENANT_EXISTS') {
+        setError(t('registration.org_name_taken'));
+      } else if (status === 409) {
         setError(t('registration.email_exists') || 'El email ya está registrado');
-      } else if (error.response?.status === 401) {
+      } else if (status === 401) {
         setError(t('registration.otp_invalid') || 'Código de verificación inválido o expirado.');
+      } else if (status === 429) {
+        setError(t('registration.rate_limit'));
+      } else if (status === 403 || status === 503) {
+        setError(t('registration.unavailable'));
       } else {
         setError(error.response?.data?.error || error.message || 'Registration failed');
       }

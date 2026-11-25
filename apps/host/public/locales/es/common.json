@@ -1422,6 +1422,7 @@
     "error": "Error al solicitar la recuperación de contraseña"
   },
   "activation": {
+    "tenant_unavailable": "Esta cuenta no está disponible. Contacta con soporte.",
     "create_account": "Crear Cuenta",
     "register_email": "Email de Registro",
     "org_name": "Nombre de la Organización / Empresa",
@@ -1506,6 +1507,7 @@
     "last_updated": "Última actualización: {{date}}"
   },
   "registration": {
+    "unavailable": "El registro no está disponible en este momento. Inténtalo más tarde.",
     "processing": "Procesando registro...",
     "creating": "Creando cuenta y recursos...",
     "finalizing": "Finalizando configuración...",

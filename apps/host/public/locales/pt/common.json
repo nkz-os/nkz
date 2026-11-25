@@ -1446,6 +1446,7 @@
     "error": "Erro ao solicitar a recuperação da senha"
   },
   "activation": {
+    "tenant_unavailable": "Esta conta não está disponível. Contacte o suporte.",
     "create_account": "Criar conta",
     "register_email": "E-mail de registo",
     "org_name": "Nome da organização / empresa",
@@ -1530,6 +1531,7 @@
     "view_terms": "Ver termos e condições"
   },
   "registration": {
+    "unavailable": "O registo não está disponível neste momento. Tente novamente mais tarde.",
     "processing": "A processar registo...",
     "creating": "A criar conta e recursos...",
     "finalizing": "A concluir a configuração...",
