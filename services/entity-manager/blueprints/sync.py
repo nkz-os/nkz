@@ -18,6 +18,7 @@ import redis
 from common.auth_middleware import require_auth, inject_fiware_headers
 from common.api_errors import internal_error
 from db_helper import get_db_connection_with_tenant, return_db_connection
+from ngsi_read_guard import valid_identifier
 
 # Import shared helpers
 from helpers import ORION_URL, _extract_number, log_entity_operation
@@ -31,6 +32,10 @@ _REDIS_URL = os.getenv('REDIS_URL', 'redis://redis-service:6379/0')
 # Redis requires auth in this cluster (redis-secret/password). Kept as a separate
 # env instead of embedding it in REDIS_URL so rotation only touches the Secret.
 _REDIS_PASSWORD = os.getenv('REDIS_PASSWORD', '')
+
+
+def _is_syncable_urn(value) -> bool:
+    return isinstance(value, str) and value.startswith('urn:') and valid_identifier(value)
 
 
 def _calculate_centroid(geometry):
@@ -649,7 +654,7 @@ def _core_vector_sync_push():
                 for item in parcels['updated']:
                     sync_id = str(item.get('id') or '')
                     entity_id = item.get('remote_id') or item.get('id')
-                    if not entity_id or not str(entity_id).startswith('urn:'):
+                    if not _is_syncable_urn(entity_id):
                         if sync_id:
                             parcel_rejected.append(sync_id)
                         logger.warning('Push skip: non-URN parcel id %s', entity_id)

@@ -9,6 +9,7 @@ which is how the generic entity editor saves a parcel.
 import os
 import sys
 from unittest.mock import MagicMock, patch
+from urllib.parse import unquote
 
 import pytest
 
@@ -168,3 +169,26 @@ def test_unknown_parcel_is_404(orion):
     orion["patch"].return_value = _resp(404)
 
     assert _patch({"notes": "x"}).status_code == 404
+
+
+@pytest.mark.parametrize("name", ["hasAgriParcel", "nkz:zone", "https://example.org/n", "https://example.org/a#b"])
+def test_a_removed_name_is_one_path_segment(orion, name):
+    assert _patch({"remove": [name]}).status_code == 200
+    prefix, segment = orion["delete"].call_args.args[0].rsplit("/", 1)
+    assert prefix == f"http://orion:1026/ngsi-ld/v1/entities/{PARCEL}/attrs"
+    assert unquote(segment) == name and "#" not in segment
+
+
+OTHER_NAMES = [
+    "", ".", "..", "a/b", "../x", "../../urn:ngsi-ld:Device:d1", "../../../x/y", "a?b", "a#b", "a%2Fb", "a%00", "a\x00", "a b", "a\n", "a.b",
+    "https://example.org/../x", "https://example.org/a/./b", "https://example.org/a?b", "https://example.org/a%2Fb", "x" * 129,
+]
+
+
+@pytest.mark.parametrize("name", OTHER_NAMES)
+def test_other_names_are_not_removed(orion, name):
+    response = _patch({"notes": "kept", "remove": ["notes2", name]})
+    assert response.status_code == 400
+    assert response.get_json() == {"error": "remove must be a list of attribute names"}
+    orion["delete"].assert_not_called()
+    orion["patch"].assert_not_called()
