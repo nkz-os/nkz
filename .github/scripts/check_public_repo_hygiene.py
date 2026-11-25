@@ -26,7 +26,8 @@ import sys
 STRUCTURAL: list[tuple[str, re.Pattern, str, str]] = [
     (
         "image digest",
-        re.compile(r"\bsha256:[0-9a-f]{64}\b"),
+        # pip's own hash syntax in a pinned requirements file names a package, not a deployment.
+        re.compile(r"(?<!--hash=)\bsha256:[0-9a-f]{64}\b"),
         "pins a specific build of the running system",
         "digests belong in the private deploy configuration",
     ),
