@@ -60,8 +60,12 @@ outcome is undone. The row is read through the lock and decides:
   * the target state: the commit went through, the final PUT is sent and the device is `moved`;
   * anything else, no row, an unreadable row or no lock: the new mappings stay in the agent
     (duplicates, no gap), CRITICAL, the device is listed and the text says rerun.
-SIGINT and SIGTERM are caught around the whole apply: the first raises KeyboardInterrupt, later
-ones (and every one while an undo runs) only write a line to stderr; the undo always finishes.
+SIGINT and SIGTERM during the apply phase never raise: the handler sets a flag and writes one line to
+stderr. The batch looks at the flag before each device's first PUT, during the wait (slices of at
+most 0.5 s), before each commit and between the devices of `--to em`; a step in progress finishes and
+a committed row always gets its final PUT. After a stop (or any unexpected error) the final undo runs
+to the end and every device gets exactly one outcome; exit code 1. Printing never stops the batch.
+Before the apply phase (lock wait, plan) a signal is an ordinary interrupt: nothing was written.
 A PUT that failed after the commit is its own outcome: the row is already updated, the device is
 listed as failed with that text, and a rerun is not a no-op for it (the agent's own device document
 is compared with the expected mappings, so it pushes again).
@@ -79,7 +83,7 @@ import os
 import signal
 import sys
 import time
-from contextlib import ExitStack, contextmanager
+from contextlib import contextmanager
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
@@ -275,25 +279,19 @@ def build_plan(tenant: str, rows: List[Row], to: str, shape: Optional[str]) -> L
 
 # -- apply --------------------------------------------------------------------------------
 
-_ALREADY_UNDOING = b"already undoing; please wait\n"
+_STOPPING = b"stopping after the current step; please wait\n"
 _LOCK_LOST_LEFT = ("lock lost; the new mappings were left in the agent (no gap, duplicates "
                    "possible); rerun")
 
 
 class _Signals:
-    """SIGINT and SIGTERM around the apply phase; the previous handlers are restored on exit.
-
-    Not held: the FIRST signal raises KeyboardInterrupt, every later one only writes a line to
-    stderr (`os.write`: a `print` from a handler that interrupted a `print` raises, stdout is not
-    re-entrant). Held (an undo is running): the signal is recorded and the line written; leaving
-    the outermost `hold()` raises KeyboardInterrupt once, except for the final undo, which never
-    raises. After the first KeyboardInterrupt no signal raises again.
-    """
+    """SIGINT and SIGTERM during the apply phase: the handler never raises. It sets a flag and writes
+    one line with `os.write` (a `print` from a handler that interrupted a `print` raises: stdout is
+    not re-entrant). The batch reads the flag at defined points (`stop_requested`). The previous
+    handlers are restored on exit."""
 
     def __init__(self):
-        self._depth = 0
-        self._pending = False
-        self._raised = False
+        self._stop = False
         self._previous: Dict[int, Any] = {}
 
     def __enter__(self) -> "_Signals":
@@ -315,32 +313,14 @@ class _Signals:
             signal.signal(sig, signal.SIG_DFL if old is None else old)
 
     def _handle(self, signum, frame) -> None:
-        if self._depth == 0 and not self._raised:
-            self._raised = True
-            raise KeyboardInterrupt
-        if self._depth > 0:
-            self._pending = True
+        self._stop = True
         try:
-            os.write(2, _ALREADY_UNDOING)
-        except OSError:
+            os.write(2, _STOPPING)
+        except Exception:
             pass
 
-    def mark_raised(self) -> None:
-        """A KeyboardInterrupt that did not come from the handler was seen: none follows."""
-        self._raised = True
-
-    @contextmanager
-    def hold(self, final: bool = False):
-        self._depth += 1
-        try:
-            yield
-        finally:
-            self._depth -= 1
-        if self._depth == 0 and self._pending:
-            self._pending = False
-            if not final and not self._raised:
-                self._raised = True
-                raise KeyboardInterrupt
+    def stop_requested(self) -> bool:
+        return self._stop
 
 
 class _LockLost(Exception):
@@ -382,12 +362,17 @@ class _LockHolder:
         if self._retaken:
             self._dead = True
             return False
-        self._retaken = True                  # spent before the attempt: an interrupted one counts
+        self._retaken = True
         logger.error("dm_cutover: the exclusive lock was lost; taking it once more: tenant=%s",
                      self.tenant)
-        new = _exclusive_lock(self.tenant)
-        self._second = new                    # closed by `close()` even when the enter fails
         try:
+            self.current.__exit__(None, None, None)    # a slow server may still hold the old session
+        except Exception as exc:
+            logger.warning("dm_cutover: closing the lost lock failed (%s)", type(exc).__name__)
+        new = None
+        try:
+            new = _exclusive_lock(self.tenant)
+            self._second = new                # closed by `close()` even when the enter fails
             new.__enter__()
         except Exception as exc:
             logger.critical("dm_cutover: the exclusive lock could not be taken again (%s): tenant=%s",
@@ -457,6 +442,29 @@ def _push_fresh(holder: _LockHolder, tenant: str, row: Row) -> None:
     dataloggers.push_iota_attributes(tenant, row.urn, row.external_id, code, measurements)
 
 
+def _say_safe(text: str) -> None:
+    """Printing never stops a batch."""
+    try:
+        _say(text)
+    except Exception as exc:
+        logger.warning("dm_cutover: output failed (%s)", type(exc).__name__)
+
+
+_SLICE = 0.5
+
+
+def _wait(settle: float, signals: "_Signals") -> bool:
+    """Sleep `settle` seconds in slices of at most `_SLICE`; False when a stop was requested."""
+    slept = 0.0
+    while slept < settle:
+        if signals.stop_requested():
+            return False
+        step = min(_SLICE, settle - slept)
+        _sleep(step)
+        slept += step
+    return True
+
+
 def _put(tenant: str, external_id: str, attrs: list) -> None:
     iot_agent.update_device_attributes(dataloggers.iota_url(), dataloggers.iota_headers(tenant),
                                        external_id, attrs)
@@ -464,7 +472,7 @@ def _put(tenant: str, external_id: str, attrs: list) -> None:
 
 def _report_outcome(out: Outcome) -> None:
     if out.status != 'unchanged':
-        _say(f"{out.urn}: {'FAILED' if out.status == 'failed' else out.status} - {out.text}")
+        _say_safe(f"{out.urn}: {'FAILED' if out.status == 'failed' else out.status} - {out.text}")
 
 
 def _fail(row: Row, text: str) -> Outcome:
@@ -621,23 +629,27 @@ def _commit_and_finish(holder: _LockHolder, tenant: str, item: Item, target):
     return _after_commit(holder, tenant, row, target, "the first mappings stay in the agent; ")
 
 
-def apply_iota(lock, tenant: str, items: List[Item], shape: str, settle: float,
-               signals: Optional[_Signals] = None) -> List[Outcome]:
+def apply_iota(lock, tenant: str, items: List[Item], shape: str, settle: float) -> List[Outcome]:
     """Move a batch to iota: first PUT of every device, ONE wait, then commit + final PUT each.
 
     `lock` is the held exclusive lock: every row is committed on its connection. One outcome per
-    device, printed when it is known. Never raises KeyboardInterrupt: an interrupt (or a signal)
-    ends the batch, every device with a first PUT and no outcome goes through `_undo` and the
-    devices never touched are listed "not started".
+    device, printed when it is known. Nothing escapes: a stop request, a lost lock or any
+    unexpected error ends the batch, every device with a first PUT and no outcome goes through
+    `_undo` and the devices never touched are listed "not started".
     """
     if (isinstance(settle, bool) or not isinstance(settle, (int, float))
             or not math.isfinite(settle) or not MIN_SETTLE <= settle <= MAX_SETTLE):
         raise ValueError(f"settle must be between {MIN_SETTLE:g} and {MAX_SETTLE:g} seconds")
-    with ExitStack() as stack:
-        if signals is None:
-            signals = stack.enter_context(_Signals())
-        holder = stack.enter_context(_holding(tenant, lock))
+    with _Signals() as signals, _holding(tenant, lock) as holder:
         return _apply_iota(holder, tenant, items, ('iota', shape), settle, signals)
+
+
+def _stop_reason(signals: "_Signals", failure: Optional[Exception]) -> str:
+    if failure is not None:
+        return f"stopped by an unexpected {type(failure).__name__}"
+    if signals.stop_requested():
+        return "interrupted"
+    return "the batch was stopped (lock lost)"
 
 
 def _apply_iota(holder: _LockHolder, tenant: str, items: List[Item], target, settle: float,
@@ -645,30 +657,21 @@ def _apply_iota(holder: _LockHolder, tenant: str, items: List[Item], target, set
     outcomes: Dict[str, Outcome] = {}
     touched: List[Item] = []        # added BEFORE the first PUT
     inflight_repair: Optional[Item] = None
+    failure: Optional[Exception] = None
 
-    def record(out: Outcome, quiet: bool = False) -> None:
+    def record(out: Outcome) -> None:
         outcomes[out.urn] = out
-        if not quiet:
-            _report_outcome(out)
-            return
-        try:                        # the final undo never stops for a failing line
-            _report_outcome(out)
-        except KeyboardInterrupt:
-            pass
-        except Exception as exc:
-            logger.warning("dm_cutover: outcome not printed (%s)", type(exc).__name__)
+        _report_outcome(out)
 
-    def undo_one(it: Item, why: str) -> None:
-        with signals.hold():
-            record(_undo(holder, tenant, it, target, why))     # recorded before a deferred interrupt
+    def halted() -> bool:
+        return signals.stop_requested() or holder.lost
 
-    interrupted = False
     try:
         for it in items:
             if it.action == 'unchanged':
                 record(apply_item(holder, tenant, it, 'iota', target[1]))
                 continue
-            if holder.lost:
+            if halted():
                 break
             if it.action == 'repair':
                 inflight_repair = it
@@ -678,46 +681,32 @@ def _apply_iota(holder: _LockHolder, tenant: str, items: List[Item], target, set
             touched.append(it)
             res = _first_put(holder, tenant, it, target)
             if isinstance(res, _NeedsUndo):
-                undo_one(it, res.why)
+                record(_undo(holder, tenant, it, target, res.why))
             elif res is not None:
                 record(res)
         pending = [it for it in touched if it.row.urn not in outcomes]
-        if pending and not holder.lost:
-            _say(f"waiting {settle:g} s for in-flight notifications before committing the rows")
-            _sleep(settle)
+        if pending and not halted():
+            _say_safe(f"waiting {settle:g} s for in-flight notifications before committing the rows")
+            _wait(settle, signals)
         for it in pending:
-            if not holder.can_commit():
+            if halted() or not holder.can_commit():
                 break
             res = _commit_and_finish(holder, tenant, it, target)
             if isinstance(res, _NeedsUndo):
-                undo_one(it, res.why)
+                record(_undo(holder, tenant, it, target, res.why))
             else:
                 record(res)
-    except KeyboardInterrupt:
-        signals.mark_raised()
-        interrupted = True
-    why = "interrupted" if interrupted else "the batch was stopped (lock lost)"
-    rest = [it for it in touched if it.row.urn not in outcomes]
-    with signals.hold(final=True):
-        for it in rest:
-            for attempt in (0, 1):      # an interrupt that is not ours gets one more try
-                try:
-                    record(_undo(holder, tenant, it, target, why), quiet=True)
-                    break
-                except KeyboardInterrupt:
-                    if attempt:
-                        _critical(it.row, target, "interrupted during the undo")
-                        record(_fail(it.row, _join(why, "interrupted during the undo; the new "
-                                                        "mappings may be in the agent; rerun")),
-                               quiet=True)
-        for it in items:
-            if it.row.urn in outcomes:
-                continue
-            if it is inflight_repair:
-                text = "interrupted during the repair; rerun"
-            else:
-                text = f"not started ({why})"
-            record(_fail(it.row, text), quiet=True)
+    except Exception as exc:
+        failure = exc
+        logger.critical("dm_cutover: unexpected %s in the batch; undoing what is not settled: "
+                        "tenant=%s", type(exc).__name__, tenant)
+    why = _stop_reason(signals, failure)
+    for it in [it for it in touched if it.row.urn not in outcomes]:
+        record(_undo(holder, tenant, it, target, why))
+    for it in items:
+        if it.row.urn not in outcomes:
+            record(_fail(it.row, "interrupted during the repair; rerun" if it is inflight_repair
+                         else f"not started ({why})"))
     return [outcomes[it.row.urn] for it in items]
 
 
@@ -765,47 +754,37 @@ def apply_item(lock, tenant: str, item: Item, to: str, shape: Optional[str]) -> 
         return _move_to_em(holder, tenant, item, target)
 
 
-def apply_em(lock, tenant: str, items: List[Item], signals: Optional[_Signals] = None) -> List[Outcome]:
+def apply_em(lock, tenant: str, items: List[Item]) -> List[Outcome]:
     """Move a batch to em: per device the row first, then the PUT. There is nothing to undo
-    (duplicates only). An interrupt reads the row of the device in flight (`em`: the PUT is
-    sent; otherwise the agent was not touched) and lists the rest as not started."""
-    with ExitStack() as stack:
-        if signals is None:
-            signals = stack.enter_context(_Signals())
-        holder = stack.enter_context(_holding(tenant, lock))
+    (duplicates only). A stop request is looked at between devices; a failure reads the row of the
+    device in flight (`em`: the PUT is sent; otherwise the agent was not touched) and lists the
+    rest as not started."""
+    with _Signals() as signals, _holding(tenant, lock) as holder:
         outcomes: Dict[str, Outcome] = {}
         inflight: Optional[Item] = None
+        failure: Optional[Exception] = None
 
-        def record(out: Outcome, quiet: bool = False) -> None:
+        def record(out: Outcome) -> None:
             outcomes[out.urn] = out
-            try:
-                _report_outcome(out)
-            except KeyboardInterrupt:
-                if not quiet:
-                    raise
-            except Exception as exc:
-                if not quiet:
-                    raise
-                logger.warning("dm_cutover: outcome not printed (%s)", type(exc).__name__)
+            _report_outcome(out)
 
-        interrupted = False
         try:
             for it in items:
-                if holder.lost:
+                if signals.stop_requested() or holder.lost:
                     break
                 inflight = it
                 record(apply_item(holder, tenant, it, 'em', None))
                 inflight = None
-        except KeyboardInterrupt:
-            signals.mark_raised()
-            interrupted = True
-        why = "interrupted" if interrupted else "the batch was stopped (lock lost)"
-        with signals.hold(final=True):
-            if inflight is not None and inflight.row.urn not in outcomes:
-                record(_settle_em(holder, tenant, inflight, why), quiet=True)
-            for it in items:
-                if it.row.urn not in outcomes:
-                    record(_fail(it.row, f"not started ({why})"), quiet=True)
+        except Exception as exc:
+            failure = exc
+            logger.critical("dm_cutover: unexpected %s in the batch: tenant=%s",
+                            type(exc).__name__, tenant)
+        why = _stop_reason(signals, failure)
+        if inflight is not None and inflight.row.urn not in outcomes:
+            record(_settle_em(holder, tenant, inflight, why))
+        for it in items:
+            if it.row.urn not in outcomes:
+                record(_fail(it.row, f"not started ({why})"))
         return [outcomes[it.row.urn] for it in items]
 
 
@@ -1173,7 +1152,7 @@ def _report_plan(items: List[Item], dry: bool) -> None:
             _say(f"{it.row.urn}: {verb} ({it.reason})")
 
 
-def _plan_and_apply(args: argparse.Namespace, tenant: str, lock, signals: Optional[_Signals] = None,
+def _plan_and_apply(args: argparse.Namespace, tenant: str, lock,
                     progress: Optional[list] = None) -> Tuple[Optional[int], bool]:
     """Everything up to and including the writes. (exit code, ok): a code ends the command; None
     carries on to the verification. `lock` is the held exclusive lock with --apply, else None.
@@ -1221,11 +1200,11 @@ def _plan_and_apply(args: argparse.Namespace, tenant: str, lock, signals: Option
             if progress is not None:
                 progress.append(True)
             if args.to == 'iota':
-                outcomes = apply_iota(lock, tenant, items, args.shape, settle, signals)
+                outcomes = apply_iota(lock, tenant, items, args.shape, settle)
             else:
-                outcomes = apply_em(lock, tenant, items, signals)
+                outcomes = apply_em(lock, tenant, items)
             failed = [o for o in outcomes if o.status == 'failed']
-            _say(f"done: {len(outcomes) - len(failed)} ok, {len(failed)} failed")
+            _say_safe(f"done: {len(outcomes) - len(failed)} ok, {len(failed)} failed")
             ok = not failed
     return None, ok
 
@@ -1238,12 +1217,11 @@ def main(argv: Optional[List[str]] = None) -> int:
         # The lock is taken BEFORE the plan is read, and held until the last row is committed.
         progress: list = []
         try:
-            with _Signals() as signals:
-                with _exclusive_lock(tenant) as lock:
-                    code, ok = _plan_and_apply(args, tenant, lock, signals, progress)
+            with _exclusive_lock(tenant) as lock:
+                code, ok = _plan_and_apply(args, tenant, lock, progress)
         except KeyboardInterrupt:
-            # Before the apply phase (lock wait, plan) nothing was written. Later, apply_iota and
-            # apply_em have already settled and listed every device; this is a late signal.
+            # Before the apply phase (lock wait, plan) nothing was written. During it the handler of
+            # `_Signals` never raises; this is a signal in the instants around that phase.
             _say("interrupted" if progress else "interrupted; nothing was written")
             return 1
         except writer_move_lock.MoveInProgress:

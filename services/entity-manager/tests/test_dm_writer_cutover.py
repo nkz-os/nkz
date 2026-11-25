@@ -59,6 +59,7 @@ class World:
         self.before_commit = None     # callback(urn) run on the lock connection before the UPDATE
         self.lock_busy = False
         self.dead_after_commit = False
+        self.losses = 0               # locks that really died
         self.after_read = None        # callback(urn) after a read through the lock, before it returns
         self.lock_unavailable = False
         self.tenants = {TENANT: None}  # tenant -> deleted_at; absent = no row
@@ -80,10 +81,16 @@ class World:
         self.counts[kind] = n + 1
         for k, i, effect in self.inject:
             if k == kind and i == n:
-                if effect == "ki":
-                    raise KeyboardInterrupt
-                if effect == "lost":
+                if effect == "signal":
+                    os.kill(os.getpid(), signal.SIGINT)
+                elif effect == "lost":
                     self.lose_lock()
+                elif effect == "boom":
+                    raise RuntimeError("unexpected")
+                elif effect == "pipe":
+                    raise BrokenPipeError("closed pipe")
+                elif effect == "valerr":
+                    raise ValueError("I/O operation on closed file")
                 elif effect == "db":
                     raise psycopg2.OperationalError("statement timeout")
                 elif effect == "unknown":
@@ -96,6 +103,7 @@ class World:
         live = [lk for lk in self.locks if lk.held and not lk.dead]
         if live:
             live[-1].dead = True
+            self.losses += 1
         self.lock_busy = self.retake_refused
 
     def add(self, ext, writer="em", shape=None, code="p", ms=None, entity=True):
@@ -184,6 +192,7 @@ class FakeLock:
         world.locks.append(self)
 
     def alive(self):
+        self.world.tick("alive")
         return self.held and not self.dead
 
     def _live(self):
@@ -209,6 +218,8 @@ class FakeLock:
         w = self.world
         if w.lock_busy:
             raise wml.MoveInProgress(self.tenant)
+        if any(lk.held for lk in w.locks if lk is not self):
+            raise wml.MoveInProgress(self.tenant)      # another session (even a dead one) holds it
         if w.lock_unavailable:
             raise wml.LockUnavailable("cannot connect (OperationalError)")
         self.held = True
@@ -345,6 +356,12 @@ def sleeps(world, monkeypatch):
 
 def run(*argv):
     return cut.main(list(argv))
+
+
+def _waited(sleeps):
+    """Total of the wait, which is sliced: every slice is at most half a second."""
+    assert sleeps and all(0 < x <= 0.5 for x in sleeps)
+    return sum(sleeps)
 
 
 BASE = ("--tenant", TENANT)
@@ -1041,8 +1058,9 @@ def test_restore_falls_back_to_plan_time_mappings_and_says_so(world, caplog):
 def test_settle_defaults_to_60_and_waits_once_per_batch(world, sleeps):
     a, b = world.add("S1"), world.add("S2")
     assert run(*BASE, "--to", "iota", "--shape", "legacy", "--apply") == 0
-    assert sleeps == [60.0]
+    assert _waited(sleeps) == 60.0
     kinds = [e[0] for e in world.log if e[0] in ("put", "sleep", "update")]
+    kinds = [k for i, k in enumerate(kinds) if i == 0 or not (k == "sleep" == kinds[i - 1])]
     assert kinds == ["put", "put", "sleep", "update", "put", "update", "put"]
     assert world.rows[a]["dm_writer"] == world.rows[b]["dm_writer"] == "iota"
 
@@ -1050,14 +1068,14 @@ def test_settle_defaults_to_60_and_waits_once_per_batch(world, sleeps):
 def test_settle_seconds_is_used(world, sleeps):
     world.add("S1")
     assert run(*BASE, "--to", "iota", "--shape", "legacy", "--settle", "90", "--apply") == 0
-    assert sleeps == [90.0]
+    assert _waited(sleeps) == 90.0
 
 
 @pytest.mark.parametrize("settle", ["60", "600"])
 def test_settle_bounds_are_inclusive(world, sleeps, settle):
     world.add("S1")
     assert run(*BASE, "--to", "iota", "--shape", "legacy", "--settle", settle, "--apply") == 0
-    assert sleeps == [float(settle)]
+    assert _waited(sleeps) == float(settle)
 
 
 @pytest.mark.parametrize("settle", ["nan", "inf", "-inf", "-1", "0", "59.9", "600.1"])
@@ -1114,7 +1132,7 @@ def test_device_whose_first_put_failed_is_left_out_and_listed(world, sleeps, cap
     world.put_fail = lambda n, ext: ext == "S1"
     assert run(*BASE, "--to", "iota", "--shape", "legacy", "--apply") == 1
     assert world.rows[a]["dm_writer"] == "em" and world.rows[b]["dm_writer"] == "iota"
-    assert sleeps == [60.0] and a in capsys.readouterr().out
+    assert _waited(sleeps) == 60.0 and a in capsys.readouterr().out
     assert [e for e in world.events("update") if e[1] == a] == []
 
 
@@ -1147,17 +1165,18 @@ def test_profile_change_during_the_settle_is_picked_up_by_the_second_put(world):
         ("iota", "legacy"), TENANT, urn, "S1", "p", ONE_MS)
 
 
-def test_crash_during_the_settle_leaves_duplicates_only_and_the_rerun_repairs(world):
+def test_crash_during_the_settle_is_undone_and_the_rerun_moves(world):
+    """Ruling 13: an unexpected error ends in the final undo, nothing escapes."""
     urn = world.add("S1")
+    world.settle_agent()
+    before = _snapshot(world)
 
     def crash(seconds):
         raise RuntimeError("killed")
 
     world.on_sleep = crash
-    with pytest.raises(RuntimeError):
-        run(*BASE, "--to", "iota", "--shape", "legacy", "--apply")
-    assert world.rows[urn]["dm_writer"] == "em"
-    assert any(a.get("entity_type") == "DeviceMeasurement" for a in world.agent["S1"])
+    assert run(*BASE, "--to", "iota", "--shape", "legacy", "--apply") == 1
+    assert world.rows[urn]["dm_writer"] == "em" and world.agent == before
     world.on_sleep = None
     assert run(*BASE, "--to", "iota", "--shape", "legacy", "--apply") == 0
     assert world.rows[urn]["dm_writer"] == "iota"
@@ -1171,7 +1190,7 @@ def test_interrupt_during_the_settle_restores_every_uncommitted_device(world, ca
     before = {k: copy.deepcopy(v) for k, v in world.agent.items()}
 
     def interrupt(seconds):
-        raise KeyboardInterrupt
+        os.kill(os.getpid(), signal.SIGINT)
 
     world.on_sleep = interrupt
     assert run(*BASE, "--to", "iota", "--shape", "legacy", "--apply") == 1
@@ -1186,7 +1205,7 @@ def test_interrupt_restore_failure_is_critical(world, caplog):
 
     def interrupt(seconds):
         world.put_fail = lambda n, ext: True
-        raise KeyboardInterrupt
+        os.kill(os.getpid(), signal.SIGINT)
 
     world.on_sleep = interrupt
     with caplog.at_level(logging.CRITICAL):
@@ -1350,7 +1369,7 @@ def test_dry_run_and_verify_take_no_lock(world, http):
 
 def _interrupt_in_settle(world):
     def interrupt(seconds):
-        raise KeyboardInterrupt
+        os.kill(os.getpid(), signal.SIGINT)
     world.on_sleep = interrupt
 
 
@@ -1381,7 +1400,6 @@ def test_lock_is_released_after_success_failure_and_interrupt(world, monkeypatch
         _interrupt_in_settle(world)
     elif scenario == "crash-in-settle":
         _crash_in_settle(world)
-        expect = RuntimeError
     elif scenario == "interrupt-in-planning":
         _interrupt_in_planning(world, monkeypatch)
     elif scenario.startswith("to-em"):
@@ -1555,7 +1573,7 @@ def _snapshot(world):
 def _ki_on_put(world, n, after=False):
     def hook(k, ext):
         if k == n:
-            raise KeyboardInterrupt
+            os.kill(os.getpid(), signal.SIGINT)
     if after:
         world.after_put = hook
     else:
@@ -1567,26 +1585,26 @@ IOTA_LEGACY = ("--to", "iota", "--shape", "legacy", "--apply")
 
 
 def test_interrupted_shape_move_puts_the_old_iota_shape_back_not_device_only(world, capsys):
-    """Review focus 3: a move between two iota shapes, interrupted at the commit of the device
-    after it was put, ends with the OLD iota shape in the agent."""
+    """Review focus 3: a move between two iota shapes, stopped by a signal after the first PUTs and
+    before the commits, ends with the OLD iota shape in the agent; and the same when the commit
+    of the device failed with its outcome unknown and the row was not written."""
     a = world.add("S1", writer="iota", shape="legacy")
     b = world.add("S2", writer="iota", shape="legacy")
     world.settle_agent()
-    old_b = _attrs(b, "S2", ("iota", "legacy"))
-    assert _dm_only(old_b)
-
-    def interrupt(urn):
-        if urn == b:
-            raise KeyboardInterrupt
-
-    world.before_commit = interrupt
+    old = {"S1": _attrs(a, "S1", ("iota", "legacy")), "S2": _attrs(b, "S2", ("iota", "legacy"))}
+    assert _dm_only(old["S2"])
+    world.on_sleep = lambda seconds: os.kill(os.getpid(), signal.SIGINT)
+    assert run(*BASE, *IOTA_SDM) == 1
+    assert world.agent == old                                  # the exact old iota mappings
+    assert all(world.rows[u]["dm_shape"] == "legacy" for u in (a, b))
+    assert len(old["S2"]) > len(_dm_only(old["S2"]))            # not Device-only, not DM-only
+    world.on_sleep = None
+    world.inject = [("commit_before", 1, "signal"), ("commit_before", 1, "unknown")]
     assert run(*BASE, *IOTA_SDM) == 1
     assert world.rows[a]["dm_shape"] == "sdm" and world.rows[b]["dm_shape"] == "legacy"
-    assert world.agent["S2"] == old_b                         # the exact old iota mappings
-    assert _dm_only(world.agent["S2"]) and len(world.agent["S2"]) > len(_dm_only(world.agent["S2"]))
+    assert world.agent["S2"] == old["S2"]
     assert world.agent["S1"] == _attrs(a, "S1", ("iota", "sdm"))
-    out = capsys.readouterr().out
-    assert b in out and "previous mappings restored" in out
+    assert b in capsys.readouterr().out
 
 
 @pytest.mark.parametrize("after", [False, True], ids=["put-not-applied", "put-applied"])
@@ -1618,7 +1636,7 @@ def test_devices_never_touched_are_listed_not_started(world, capsys):
 def test_interrupt_while_committing_reads_the_row_committed(world, capsys):
     urn = world.add("S1")
     world.settle_agent()
-    world.inject = [("commit_after", 0, "ki")]          # the row is written, then the interrupt
+    world.inject = [("commit_after", 0, "signal")]          # the row is written, then the interrupt
     assert run(*BASE, *IOTA_SDM) == 0
     assert world.rows[urn]["dm_writer"] == "iota"
     assert world.agent["S1"] == _attrs(urn, "S1", ("iota", "sdm"))
@@ -1629,7 +1647,7 @@ def test_interrupt_while_committing_reads_the_row_not_committed(world, capsys):
     urn = world.add("S1")
     world.settle_agent()
     before = _snapshot(world)
-    world.inject = [("commit_before", 0, "ki")]
+    world.inject = [("commit_before", 0, "signal"), ("commit_before", 0, "unknown")]
     assert run(*BASE, *IOTA_SDM) == 1
     assert world.rows[urn]["dm_writer"] == "em" and world.agent == before
     assert "previous mappings restored" in capsys.readouterr().out
@@ -1639,7 +1657,7 @@ def test_interrupt_while_committing_reads_the_row_not_committed(world, capsys):
 def test_interrupt_while_committing_reads_the_row_unreadable(world, capsys, caplog):
     urn = world.add("S1")
     world.settle_agent()
-    world.inject = [("commit_before", 0, "ki")]
+    world.inject = [("commit_before", 0, "signal"), ("commit_before", 0, "unknown")]
     world.read_state_fail = True
     with caplog.at_level(logging.CRITICAL):
         assert run(*BASE, *IOTA_SDM) == 1
@@ -1649,7 +1667,7 @@ def test_interrupt_while_committing_reads_the_row_unreadable(world, capsys, capl
     assert "rerun" in capsys.readouterr().out
 
 
-@pytest.fixture
+@pytest.fixture(autouse=True)
 def sentinels():
     """Stand-ins for SIGINT/SIGTERM: a missing handler records a hit instead of killing pytest."""
     hits = []
@@ -1718,14 +1736,12 @@ def test_second_signal_does_not_stop_the_undo(world, sentinels, capfd, monkeypat
     assert world.agent == before                         # all three restored
     assert world.puts == 6
     err = capfd.readouterr().err
-    assert err.count("already undoing; please wait") == 2
-    assert not any("already undoing" in t for t in out.text)    # stdout is not used by the handler
+    assert err.count("stopping after the current step; please wait") == 3
+    assert not any("stopping after" in t for t in out.text)     # stdout is not used by the handler
     assert all(world.rows[u]["dm_writer"] == "em" for u in urns)
 
 
-def test_a_signal_in_a_single_device_undo_is_held_and_raises_after_it(world, sentinels, capfd):
-    """No signal aborts the restore PUT of a device being undone: it is recorded, the PUT goes
-    out exactly once, and the interrupt follows when the undo is over."""
+def test_a_signal_in_a_restore_put_lets_it_finish_and_stops_the_batch(world, sentinels, capfd):
     world.add("S1")
     world.add("S2")
     world.settle_agent()
@@ -1739,38 +1755,36 @@ def test_a_signal_in_a_single_device_undo_is_held_and_raises_after_it(world, sen
     world.before_put = kill_in_restore
     assert run(*BASE, *IOTA_SDM) == 1
     assert sentinels.hits == []
-    assert "already undoing; please wait" in capfd.readouterr().err
+    assert "stopping after the current step; please wait" in capfd.readouterr().err
     assert world.agent == before
-    assert world.puts == 4                 # exactly one restore PUT per device (no repeated undo)
+    assert world.puts == 4                 # exactly one restore PUT per device
+    assert world.counts.get("commit_before", 0) == 1       # S2 was never committed
 
 
-def test_signals_hold_records_and_raises_once(sentinels, capfd):
+def test_the_handler_never_raises_and_only_sets_a_flag(sentinels, capfd):
     with cut._Signals() as sg:
-        with pytest.raises(KeyboardInterrupt):
-            with sg.hold():
-                with sg.hold():                       # nested: only the outermost raises
-                    os.kill(os.getpid(), signal.SIGINT)
-                assert True
-        os.kill(os.getpid(), signal.SIGTERM)            # after the first raise none raises again
-        with sg.hold():
-            os.kill(os.getpid(), signal.SIGINT)
+        assert not sg.stop_requested()
+        for sig in (signal.SIGINT, signal.SIGTERM, signal.SIGINT):
+            os.kill(os.getpid(), sig)                  # no exception, whatever the number
+        assert sg.stop_requested()
     assert sentinels.hits == []
-    assert capfd.readouterr().err.count("already undoing; please wait") == 3
+    assert capfd.readouterr().err.count("stopping after the current step; please wait") == 3
 
 
-def test_signals_not_held_raise_the_first_time_only(sentinels, capfd):
+def test_the_handler_writes_nothing_to_stdout(sentinels, capfd, monkeypatch):
+    out = _FragileStdout(needle=("x",))
+    monkeypatch.setattr(sys, "stdout", out)
     with cut._Signals():
-        with pytest.raises(KeyboardInterrupt):
-            os.kill(os.getpid(), signal.SIGINT)
         os.kill(os.getpid(), signal.SIGTERM)
-    assert sentinels.hits == [] and "already undoing" in capfd.readouterr().err
+    assert out.text == []
 
 
-def test_the_final_hold_never_raises(sentinels):
-    with cut._Signals() as sg:
-        with sg.hold(final=True):
-            os.kill(os.getpid(), signal.SIGINT)
-    assert sentinels.hits == []
+def test_a_signal_before_the_handler_is_installed_and_after_it_is_restored_is_the_previous_one(sentinels):
+    os.kill(os.getpid(), signal.SIGINT)
+    with cut._Signals():
+        pass
+    os.kill(os.getpid(), signal.SIGINT)
+    assert sentinels.hits == [signal.SIGINT, signal.SIGINT]
 
 
 def test_handlers_are_restored_on_exit(world, sentinels):
@@ -1788,7 +1802,13 @@ def test_handlers_are_restored_on_exit(world, sentinels):
 
 
 def test_a_signal_during_the_plan_exits_1_and_releases_the_lock(world, sentinels, monkeypatch, capsys):
+    """Before the apply phase a signal is the default one: the `__main__` handler raises."""
     world.add("S1")
+
+    def terminate(signum, frame):
+        raise KeyboardInterrupt
+
+    signal.signal(signal.SIGTERM, terminate)
 
     def kill(tenant, urns):
         os.kill(os.getpid(), signal.SIGTERM)
@@ -1796,7 +1816,7 @@ def test_a_signal_during_the_plan_exits_1_and_releases_the_lock(world, sentinels
 
     monkeypatch.setattr(dataloggers, "_orion_devices", kill)
     assert run(*BASE, *IOTA_SDM) == 1
-    assert sentinels.hits == [] and world.puts == 0
+    assert world.puts == 0
     assert "interrupted; nothing was written" in capsys.readouterr().out
     assert world.log[-1] == ("unlock",)
 
@@ -1944,7 +1964,7 @@ def test_row_moved_by_someone_else_is_left_alone(world, capsys, caplog):
 
     def someone_else(seconds):
         world.rows[urn].update(dm_writer="iota", dm_shape="legacy")
-        raise KeyboardInterrupt
+        os.kill(os.getpid(), signal.SIGINT)
 
     world.on_sleep = someone_else
     with caplog.at_level(logging.CRITICAL):
@@ -1961,7 +1981,7 @@ def test_a_vanished_row_is_left_alone(world, capsys):
 
     def vanish(seconds):
         del world.rows[urn]
-        raise KeyboardInterrupt
+        os.kill(os.getpid(), signal.SIGINT)
 
     world.on_sleep = vanish
     assert run(*BASE, *IOTA_SDM) == 1
@@ -2083,7 +2103,7 @@ def test_to_em_interrupt_after_the_row_was_written_sends_the_put(world, capsys):
     b = world.add("S2", writer="iota", shape="legacy")
     world.settle_agent()
     before = _snapshot(world)
-    world.inject = [("commit_after", 0, "ki")]
+    world.inject = [("commit_after", 0, "signal")]
     assert run(*BASE, "--to", "em", "--apply") == 1
     assert world.rows[a]["dm_writer"] == "em"
     assert world.agent["S1"] == _attrs(a, "S1", ("em", None))
@@ -2097,10 +2117,11 @@ def test_to_em_interrupt_before_the_row_is_written_leaves_the_agent_alone(world,
     world.add("S2", writer="iota", shape="legacy")
     world.settle_agent()
     before = _snapshot(world)
-    world.inject = [("commit_before", 0, "ki")]
+    world.inject = [("commit_before", 0, "signal"), ("commit_before", 0, "unknown")]
     assert run(*BASE, "--to", "em", "--apply") == 1
     assert world.agent == before and world.puts == 0 and world.rows[a]["dm_writer"] == "iota"
-    assert "the agent was not touched" in capsys.readouterr().out
+    out = capsys.readouterr().out
+    assert "the agent was not touched" in out and "not started" in out
 
 
 def test_to_em_put_is_not_sent_without_the_lock(world, capsys):
@@ -2143,7 +2164,8 @@ def assert_no_silent_device(world, items, outcomes, strict=True):
 
     With `strict` False (a second loss, or a refused re-take) the rulings leave the NEW mappings
     in the agent on purpose: an `iota` row may then hold the other shape's DeviceMeasurement
-    mappings, but only when its outcome lists it as failed."""
+    mappings, but only when its outcome lists it as failed. A restore PUT that itself failed is
+    reported as such ("could NOT be restored") and is accepted in both modes."""
     assert [o.urn for o in outcomes] == [it.row.urn for it in items]
     assert len({o.urn for o in outcomes}) == len(items)
     for it, out in zip(items, outcomes):
@@ -2153,7 +2175,11 @@ def assert_no_silent_device(world, items, outcomes, strict=True):
         if state[0] == "iota":
             want = _dm_only(_attrs(it.row.urn, it.row.external_id, state, world.profiles["p"]))
             missing = [a for a in want if a not in agent]
-            if missing:
+            if missing and out.status == "failed" and "could NOT be restored" in out.text:
+                # the restore PUT itself failed (a one-shot error): CRITICAL and listed, the agent
+                # keeps the other shape's mappings, never Device-only
+                assert _dm_only(agent), (it.row.external_id, state, out)
+            elif missing:
                 assert not strict, (it.row.external_id, state, out)
                 assert _dm_only(agent) and out.status == "failed", (it.row.external_id, state, out)
                 assert "rerun" in out.text, out
@@ -2164,10 +2190,15 @@ def assert_no_silent_device(world, items, outcomes, strict=True):
 
 
 EFFECTS = {
-    "put_before": ("ki", "lost"), "put_after": ("ki", "lost"), "sleep": ("ki", "lost"),
-    "commit_before": ("ki", "lost", "db", "unknown"), "commit_after": ("ki", "lost", "unknown"),
-    "read": ("ki", "lost", "db"), "print": ("ki", "lost"),
+    "put_before": ("signal", "lost", "boom"), "put_after": ("signal", "lost", "boom"),
+    "sleep": ("signal", "lost", "boom"),
+    "commit_before": ("signal", "lost", "db", "unknown", "boom"),
+    "commit_after": ("signal", "lost", "unknown", "boom"),
+    "read": ("signal", "lost", "db", "boom"),
+    "print": ("signal", "lost", "pipe", "valerr", "boom"),
+    "alive": ("signal", "boom"), "orion": ("signal", "boom"),
 }
+CELLS = {"strict": 0, "weak": 0}
 
 
 def _batch_run(world, monkeypatch, injects, refused=False):
@@ -2195,7 +2226,14 @@ def _batch_run(world, monkeypatch, injects, refused=False):
 
 def _points(world, monkeypatch, base):
     _batch_run(world, monkeypatch, base)
-    return [(k, i) for k, n in world.counts.items() for i in range(n) if k in EFFECTS]
+    out = []
+    for k, n in world.counts.items():
+        if k not in EFFECTS:
+            continue
+        # the wait has one tick per half second: first, second, middle and last slice
+        indices = sorted({0, 1, n // 2, n - 1}) if k == "sleep" else range(n)
+        out += [(k, i) for i in indices if 0 <= i < n]
+    return out
 
 
 def _fresh(monkeypatch):
@@ -2215,7 +2253,11 @@ def _fresh(monkeypatch):
     monkeypatch.setattr(cut, "get_db_connection_with_tenant", db)
     monkeypatch.setattr(dataloggers, "iot_agent", iota)
     monkeypatch.setattr(cut, "iot_agent", iota)
-    monkeypatch.setattr(dataloggers, "_orion_devices", orion_devices)
+    def ticking_orion(tenant, urns):
+        w.tick("orion")
+        return orion_devices(tenant, urns)
+
+    monkeypatch.setattr(dataloggers, "_orion_devices", ticking_orion)
     monkeypatch.setattr(dataloggers, "_profile_measurements",
                         lambda tenant, code: copy.deepcopy(w.profiles.get(code)))
     monkeypatch.setattr(cut, "_exclusive_lock", lambda tenant: FakeLock(w, tenant))
@@ -2227,8 +2269,10 @@ def _fresh(monkeypatch):
 BASES = {
     "clean": [],
     "db-error-in-the-first-commit": [("commit_before", 0, "db")],
-    "interrupt-in-the-settle": [("sleep", 0, "ki")],
-    "lock-lost-in-the-settle": [("sleep", 0, "lost")],
+    "signal-in-the-wait": [("sleep", 3, "signal")],
+    "signal-in-the-first-put": [("put_after", 0, "signal")],
+    "lock-lost-in-the-wait": [("sleep", 3, "lost")],
+    "print-fails": [("print", 0, "pipe")],
 }
 
 
@@ -2236,26 +2280,146 @@ BASES = {
 @pytest.mark.parametrize("refused", [False, True], ids=["retake-ok", "retake-refused"])
 def test_no_injection_point_leaves_a_silent_device(monkeypatch, base_name, refused, sentinels):
     base = BASES[base_name]
-    points = None
-    cases = 0
     probe = _fresh(monkeypatch)
     points = _points(probe, monkeypatch, base)
     assert points, "the batch has no injection point"
     kinds = {k for k, _ in points}
     if base_name == "clean":
-        assert {"put_before", "put_after", "sleep", "commit_before", "commit_after", "print"} <= kinds
+        assert {"put_before", "put_after", "sleep", "commit_before", "commit_after", "print",
+                "alive", "orion"} <= kinds
+    cases = 0
     for kind, index in points:
         for effect in EFFECTS[kind]:
             injects = base + [(kind, index, effect)]
             world = _fresh(monkeypatch)
             items, outcomes = _batch_run(world, monkeypatch, injects, refused=refused)
-            losses = sum(1 for _, _, e in injects if e == "lost")
-            strict = losses <= 1 and not refused
-            where = (base_name, refused, kind, index, effect)
+            strict = world.losses == 0           # weak only where a loss really happened
+            CELLS["strict" if strict else "weak"] += 1
             try:
                 assert_no_silent_device(world, items, outcomes, strict=strict)
             except AssertionError as exc:
-                raise AssertionError(f"{where}: {exc}") from None
+                raise AssertionError(f"{(base_name, refused, kind, index, effect)}: {exc}") from None
+            assert sentinels.hits == []
             cases += 1
     assert cases >= 20
-    print(f"property cases ({base_name}, refused={refused}): {cases}")
+    print(f"property cells so far: {CELLS}")
+
+
+# -- cooperative stopping (fix round 1) -------------------------------------------------------
+
+def test_the_wait_sums_exactly_the_settle_when_undisturbed(world, sleeps):
+    world.add("S1")
+    assert run(*BASE, "--to", "iota", "--shape", "legacy", "--settle", "75.25", "--apply") == 0
+    assert _waited(sleeps) == 75.25 and len(sleeps) == 151 and sleeps[-1] == 0.25
+
+
+@pytest.mark.parametrize("k", [0, 1, 7])
+def test_the_wait_stops_within_one_slice_of_a_signal(world, sleeps, k):
+    urn = world.add("S1")
+    world.settle_agent()
+    before = _snapshot(world)
+
+    def maybe(seconds):
+        if len(sleeps) == k + 1:
+            os.kill(os.getpid(), signal.SIGTERM)
+
+    world.on_sleep = maybe
+    assert run(*BASE, *IOTA_SDM) == 1
+    assert len(sleeps) == k + 1                       # the next slice is not slept
+    assert world.agent == before and world.rows[urn]["dm_writer"] == "em"
+
+
+def test_a_row_committed_while_a_signal_arrives_gets_its_final_put(world, capsys):
+    a, b = world.add("S1"), world.add("S2")
+    world.settle_agent()
+    before = _snapshot(world)
+    world.inject = [("commit_before", 0, "signal")]          # the signal lands inside S1's commit
+    assert run(*BASE, *IOTA_SDM) == 1
+    assert world.rows[a]["dm_writer"] == "iota"
+    assert world.agent["S1"] == _attrs(a, "S1", ("iota", "sdm"))      # the final PUT was sent
+    assert world.rows[b]["dm_writer"] == "em" and world.agent["S2"] == before["S2"]
+    assert len(world.events("update")) == 1
+
+
+def test_a_signal_between_the_loop_and_the_final_undo_on_the_lost_lock_path(world, monkeypatch, capsys):
+    """The window the raising handler could not close: the batch loop is over, the lock is lost."""
+    urns = [world.add(f"S{i}") for i in (1, 2)]
+    world.settle_agent()
+    before = _snapshot(world)
+    world.on_sleep = lambda seconds: world.lose_lock()
+    real = cut._stop_reason
+
+    def reason(signals, failure):
+        os.kill(os.getpid(), signal.SIGINT)
+        os.kill(os.getpid(), signal.SIGTERM)
+        return real(signals, failure)
+
+    monkeypatch.setattr(cut, "_stop_reason", reason)
+    assert run(*BASE, *IOTA_SDM) == 1
+    assert world.agent == before and all(world.rows[u]["dm_writer"] == "em" for u in urns)
+    assert not world.events("update")
+
+
+@pytest.mark.parametrize("exc", [BrokenPipeError("pipe"), ValueError("closed file"), RuntimeError("x")])
+def test_printing_never_stops_the_batch(world, monkeypatch, exc):
+    for i in (1, 2, 3):
+        world.add(f"S{i}")
+    world.settle_agent()
+    items = cut.build_plan(TENANT, cut.list_rows(TENANT), "iota", "sdm")
+
+    def broken(text):
+        raise exc
+
+    monkeypatch.setattr(cut, "_say", broken)
+    with FakeLock(world, TENANT) as lock:
+        outcomes = cut.apply_iota(lock, TENANT, items, "sdm", 60.0)
+    assert [o.status for o in outcomes] == ["moved"] * 3
+    assert all(world.rows[u]["dm_shape"] == "sdm" for u in world.rows)
+
+
+@pytest.mark.parametrize("exc", [BrokenPipeError("pipe"), ValueError("closed file")])
+def test_printing_never_stops_a_move_to_em(world, monkeypatch, exc):
+    for i in (1, 2):
+        world.add(f"S{i}", writer="iota", shape="legacy")
+    world.settle_agent()
+    items = cut.build_plan(TENANT, cut.list_rows(TENANT), "em", None)
+    monkeypatch.setattr(cut, "_say", lambda text: (_ for _ in ()).throw(exc))
+    with FakeLock(world, TENANT) as lock:
+        outcomes = cut.apply_em(lock, TENANT, items)
+    assert [o.status for o in outcomes] == ["moved", "moved"]
+
+
+def test_the_lost_lock_is_closed_before_the_re_take(world):
+    """The old session still holds the lock until it is closed: a re-take that comes first waits
+    against itself (the fake refuses it while any session is open)."""
+    urn = world.add("S1")
+    world.settle_agent()
+    before = _snapshot(world)
+    world.on_sleep = lambda seconds: world.lose_lock()
+    assert run(*BASE, *IOTA_SDM) == 1
+    assert len(world.locks) == 2 and world.agent == before        # the re-take worked
+    kinds = [e[0] for e in world.log if e[0] in ("lock", "unlock")]
+    assert kinds[:3] == ["lock", "unlock", "lock"] and urn
+
+
+def test_an_unexpected_error_in_the_loop_is_logged_and_undone(world, caplog):
+    world.add("S1")
+    world.add("S2")
+    world.settle_agent()
+    before = _snapshot(world)
+    world.inject = [("sleep", 5, "boom")]
+    with caplog.at_level(logging.CRITICAL):
+        assert run(*BASE, *IOTA_SDM) == 1
+    assert world.agent == before
+    assert "RuntimeError" in caplog.text
+
+
+def test_the_stop_flag_is_looked_at_between_devices_of_a_move_to_em(world, capsys):
+    a = world.add("S1", writer="iota", shape="legacy")
+    b = world.add("S2", writer="iota", shape="legacy")
+    world.settle_agent()
+    world.inject = [("put_before", 0, "signal")]
+    assert run(*BASE, "--to", "em", "--apply") == 1
+    assert world.rows[a]["dm_writer"] == "em" and world.agent["S1"] == _attrs(a, "S1", ("em", None))
+    assert world.rows[b]["dm_writer"] == "iota"
+    assert [ln for ln in capsys.readouterr().out.splitlines() if b in ln and "not started" in ln]
