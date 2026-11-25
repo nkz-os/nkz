@@ -19,6 +19,7 @@ from common.auth_middleware import require_auth, inject_fiware_headers
 from common.api_errors import internal_error
 from common.ngsi_payload_guard import shorthand_null_attributes
 from db_helper import get_db_connection_with_tenant, return_db_connection, get_db_connection_simple
+from ngsi_read_guard import valid_identifier
 from helpers.geometry import geometry_area_ha
 
 # Import shared helpers
@@ -1000,6 +1001,13 @@ def _validate_geometry(geometry: dict) -> Optional[str]:
     return None
 
 
+def _is_cadastral_reference(value) -> bool:
+    """Absent, or a text that can be compared as it is."""
+    if not isinstance(value, str):
+        return False
+    return not value or (len(value) <= 256 and valid_identifier(value))
+
+
 def _resolve_parent_parcel(tenant: str, raw) -> tuple:
     """(parent URN, None) for an existing parcel of the tenant, else (None, (message, status)).
 
@@ -1008,7 +1016,7 @@ def _resolve_parent_parcel(tenant: str, raw) -> tuple:
     """
     raw = raw.strip() if isinstance(raw, str) else ""
     parent_id = _parcel_urn(raw) if _UUID_RE.match(raw) else raw
-    if not parent_id.startswith("urn:ngsi-ld:AgriParcel:"):
+    if not parent_id.startswith("urn:ngsi-ld:AgriParcel:") or not valid_identifier(parent_id):
         return None, ("parentId must be an AgriParcel id", 422)
     try:
         resp = requests.get(
@@ -1067,12 +1075,17 @@ def create_parcel():
 
     # Dedup by cadastralReference. A subparcel shares its parent's reference, so it is
     # never deduplicated, and a reference only matches a parcel that is not a subparcel.
-    cadastral_ref = (data.get("cadastralReference") or "").strip()
+    cadastral_ref = data.get("cadastralReference") or ""
+    if isinstance(cadastral_ref, str):
+        cadastral_ref = cadastral_ref.strip()
+    if not _is_cadastral_reference(cadastral_ref):
+        return jsonify({"error": "Invalid cadastralReference"}), 422
     if cadastral_ref and not parent_id:
         headers = inject_fiware_headers({}, tenant)
         q = f'cadastralReference=="{cadastral_ref}"'
         existing = requests.get(
-            f"{ORION_URL}/ngsi-ld/v1/entities?type=AgriParcel&q={q}&limit=100&options=keyValues",
+            f"{ORION_URL}/ngsi-ld/v1/entities",
+            params={"type": "AgriParcel", "q": q, "limit": 100, "options": "keyValues"},
             headers=headers, timeout=10,
         )
         if existing.status_code == 200:
@@ -1263,7 +1276,8 @@ def delete_parcel(parcel_id: str):
     # Delete child zones first (hasAgriParcel → this parcel)
     q = f'hasAgriParcel=="{entity_id}"'
     zones_resp = requests.get(
-        f"{ORION_URL}/ngsi-ld/v1/entities?type=AgriParcel&q={q}&limit=100&options=keyValues",
+        f"{ORION_URL}/ngsi-ld/v1/entities",
+        params={"type": "AgriParcel", "q": q, "limit": 100, "options": "keyValues"},
         headers=headers, timeout=10,
     )
     if zones_resp.status_code == 200:

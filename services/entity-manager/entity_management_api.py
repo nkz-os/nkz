@@ -238,6 +238,10 @@ from blueprints.diagnostics import diagnostics_bp
 from notification_handler import notify_bp
 from blueprints.notifications import init_notifications
 
+from helpers.route_identifiers import install_identifier_check  # noqa: E402
+
+install_identifier_check(app)
+
 # weather_bp removed — routes now served by standalone weather-api service
 app.register_blueprint(admin_bp)
 app.register_blueprint(assets_bp)
