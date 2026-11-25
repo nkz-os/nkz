@@ -10,6 +10,7 @@ from typing import Any, Dict, Optional
 import requests
 from common.auth_middleware import inject_fiware_headers
 from db_helper import get_db_connection_simple, return_db_connection
+from ngsi_read_guard import valid_identifier
 
 from helpers.constants import (
     CONTEXT_URL,
@@ -287,7 +288,7 @@ def _sum_parcel_area(entity_type, tenant):
 def _is_subparcel(entity, tenant) -> bool:
     """True when the entity points at an existing parcel of the tenant."""
     parent = _parent_parcel_id(entity)
-    if not parent:
+    if not parent or not valid_identifier(parent):
         return False
     headers = inject_fiware_headers({'Accept': 'application/json'}, tenant)
     try:

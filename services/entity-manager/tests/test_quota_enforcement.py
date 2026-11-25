@@ -1,3 +1,4 @@
+import pytest
 """Test quota enforcement logic."""
 
 import os
@@ -306,3 +307,15 @@ def test_is_subparcel_needs_an_existing_parent_parcel():
     with patch.object(tenant_limits.requests, "get", side_effect=requests.Timeout("hung")):
         assert tenant_limits._is_subparcel(child, "t") is False
     assert tenant_limits._is_subparcel({"name": "x"}, "t") is False
+
+
+@pytest.mark.parametrize("tail", ["?attrs=x", "#x", '"', "/../../types", "%00", "\\"])
+def test_is_subparcel_does_not_ask_for_other_ids(tail):
+    from unittest.mock import MagicMock, patch
+
+    from helpers import tenant_limits
+
+    child = {"hasAgriParcel": {"type": "Relationship", "object": _PARENT + tail}}
+    with patch.object(tenant_limits.requests, "get", MagicMock()) as get:
+        assert tenant_limits._is_subparcel(child, "t") is False
+    get.assert_not_called()
