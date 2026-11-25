@@ -18,7 +18,6 @@ import requests
 from module_routes import module_bp
 from storage_routes import storage_bp
 from module_csp import is_entity_type_allowed, is_timeseries_allowed
-from parcel_guard import is_parcel_id
 import psycopg2
 from psycopg2.extras import RealDictCursor
 from datetime import datetime, timezone
@@ -85,6 +84,7 @@ from hash_utils import api_key_digest, salted_credential_digest  # noqa: E402
 from proxy_helpers import safe_json_proxy_response  # noqa: E402
 from ngsi_payload_guard import shorthand_null_attributes  # noqa: E402
 from entity_type_guard import EntityTypeGuard, declared_types  # noqa: E402
+from parcel_guard import creates_parcel_id, declares_parcel, is_parcel_id  # noqa: E402
 
 # Import Keycloak authentication
 try:
@@ -928,8 +928,8 @@ def enforce_agriparcel_single_writer():
     except Exception:
         body = {}
 
-    # Direct entity body: {"type": "AgriParcel", ...}
-    if isinstance(body, dict) and body.get("type") == "AgriParcel":
+    # Direct entity body: the declared type, or the id when creating
+    if declares_parcel(body) or (request.method == "POST" and creates_parcel_id(body)):
         logger.warning("AgriParcel write blocked: %s %s from %s", request.method, path, request.remote_addr)
         return jsonify({
             "error": "AgriParcel writes must go through entity-manager API",
