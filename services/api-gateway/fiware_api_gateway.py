@@ -2070,7 +2070,12 @@ def get_context():
         context_file = "/config/ngsi-ld-context.json"
         with open(context_file, "r") as f:
             context = json.load(f)
-        return jsonify(context)
+        response = jsonify(context)
+        # Public file, read by JSON-LD tools in any browser. A listed origin gets
+        # its own headers afterwards, so the answer still varies by Origin.
+        response.headers["Access-Control-Allow-Origin"] = "*"
+        response.headers["Vary"] = "Origin"
+        return response
     except Exception as e:
         logger.error(f"Error loading context file: {e}")
         return jsonify({"error": "Context file not found"}), 404
