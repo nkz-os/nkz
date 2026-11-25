@@ -28,7 +28,8 @@ move; if it is not the broker's, add the difference to `--since`. Checks:
       with no channel in the current profile (orphan) is judged, when reported, for the keys any
       channel may carry. An `iota` device with no entity in the broker fails, and so does one
       with no reported entity at all (`delivered NOTHING since TIME`); with no `iota` device (b)
-      is NOT RUN. Entities are matched to devices by the id prefix (longest wins). An entity not
+      is NOT RUN. A channel of the current profile of an `iota` device with no entity in the
+      broker is listed (`no entity yet`), not a failure by itself. Entities are matched to devices by the id prefix (longest wins). An entity not
       reported yet is listed (`not reported since`), not judged and not a failure: a slow channel
       is not a fault;
   (c) the IoT Agent's own document of every `iota` device matches the expected mappings;
@@ -1236,6 +1237,8 @@ class _Findings:
     problems: List[str] = field(default_factory=list)       # check (b)
     bad_d: List[str] = field(default_factory=list)          # check (d)
     seen: set = field(default_factory=set)                  # devices with an entity
+    entity_ids: set = field(default_factory=set)            # ids of the entities of selected devices
+    no_entity: List[str] = field(default_factory=list)      # channels of the profile with no entity
     reported: Dict[str, int] = field(default_factory=dict)  # device -> reported entities
     unreadable: set = field(default_factory=set)            # devices with an unreadable modifiedAt
 
@@ -1255,6 +1258,7 @@ def _judge_entities(dms: List[dict], rows: List[Row], selected: set, terms: Dict
         if row.urn not in selected:
             continue
         found.judged += 1
+        found.entity_ids.add(dm_id)
         v = _judge_entity(e, row, profiles.channels(row), terms, since)
         desc = _describe(e, terms)
         if v.state == 'unreadable':
@@ -1277,6 +1281,9 @@ def _judge_entities(dms: List[dict], rows: List[Row], selected: set, terms: Dict
     for row in rows:
         if row.urn not in selected:
             continue
+        for dm_id in sorted(profiles.channels(row) or {}):
+            if dm_id not in found.entity_ids:
+                found.no_entity.append(f"  {dm_id}: no entity yet")
         if row.urn not in found.seen:
             found.problems.append(f"  {row.urn}: no DeviceMeasurement in the broker (readings lost?)")
         elif not found.reported.get(row.urn) and row.urn not in found.unreadable:
@@ -1334,6 +1341,9 @@ def verify(tenant: str, rows: List[Row], only_urn: Optional[str], since: datetim
     if found.not_updated:
         _say_listing(f"verify: {len(found.not_updated)} entities with a new modifiedAt but a value "
                      f"not updated since {_utc_text(since)} (listed, not judged)", found.not_updated)
+    if found.no_entity:
+        _say_listing(f"verify: {len(found.no_entity)} channel(s) of iota devices with no entity in "
+                     "the broker yet (listed, not a failure by themselves)", found.no_entity)
     if found.orphans:
         _say_listing(f"verify: {len(found.orphans)} orphan entities with no channel in the current "
                      "profile (judged, for the keys any channel may carry, only when reported)",

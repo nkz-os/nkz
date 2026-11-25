@@ -1411,6 +1411,26 @@ def test_channel_not_reported_yet_is_listed_not_failed(world, http, capsys):
     assert "check (b): ok" in out and out.splitlines()[-1] == "verify: OK"
 
 
+def test_a_channel_with_no_entity_in_the_broker_is_listed_not_failed(world, http, capsys):
+    """A channel of the profile that never reported has no entity at all: the verification names it."""
+    iota_world(world, ms=MS)
+    http(Http([dm("S1", "airTemperature")]))
+    assert run(*BASE, *VERIFY) == 0
+    out = capsys.readouterr().out
+    missing = f"urn:ngsi-ld:DeviceMeasurement:{TENANT}:S1:relativeHumidity"
+    assert "1 channel(s) of iota devices with no entity in the broker yet" in out
+    assert f"{missing}: no entity yet" in out
+    assert f"{TENANT}:S1:airTemperature: no entity yet" not in out
+    assert out.splitlines()[-1] == "verify: OK"
+
+
+def test_no_channel_listing_when_every_channel_has_an_entity(world, http, capsys):
+    iota_world(world, ms=MS)
+    http(Http([dm("S1", "airTemperature"), dm("S1", "relativeHumidity")]))
+    assert run(*BASE, *VERIFY) == 0
+    assert "no entity in the broker yet" not in capsys.readouterr().out
+
+
 def test_not_reported_entities_are_still_judged_by_a(world, http, capsys):
     iota_world(world)
     http(Http([dm("S1", "airTemperature"), dm("S1", "gone", modified=OLD, value="none")]))
