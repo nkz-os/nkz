@@ -142,3 +142,12 @@ def test_pat_entity_list_keeps_its_cap(pat):
 def test_pat_export_keeps_its_cap(pat):
     pat("/api/datahub/export", data={"max_rows": 999999})
     assert pat.calls[0]["json"]["max_rows"] == 10000
+
+
+@pytest.mark.parametrize("caller", ["pat", "user"])
+@pytest.mark.parametrize("content_type", ["application/ld+json", "application/json"])
+def test_query_bodies_are_sent_as_json(request, caller, content_type):
+    post = request.getfixturevalue(caller)
+    body = {**BODY, "@context": ["https://example.org/c.jsonld"]}
+    post(QUERY, data=body, content_type=content_type)
+    assert post.calls[0]["headers"]["Content-Type"] == "application/json"
