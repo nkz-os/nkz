@@ -53,7 +53,11 @@ VALID_FILTERS = [
     "(" * 4 + "n==1" + ")" * 4,
     "n==" + ",".join(["1"] * 50),
     "a~=" + "x" * 64,
-    "a~=x.*y",
+    "a~=^x.*y",
+    "a~=^x.*y$",
+    "a~=.*x$",
+    "a~=x.*",
+    "a~=.*",
     'a=="' + "x" * 256 + '"',
     "a" * 128 + "==1",
 ]
@@ -74,7 +78,7 @@ INVALID_FILTERS = [
     ";".join(['a=="' + "x" * 250 + '"'] * 12),
     "a" * 128 + "[" + "b" * 127 + "]==1", "a" * 128 + "." + "b" * 128 + "==1",
     ".".join(["a" * 100] * 3), "a[b][c]==1", 'a=="\x7f"', "d>2026-01-01T00:00:00+0000", "d>2026-01-01T00:00:00",
-    "a~=x.*y.*z", "a~=.*x.*", "a~=x|b~=y|c~=z", "a~=x;b!~=y;c~=z", "a==1);(b==1",
+    "a~=x.*y", "a~=x.*y$", "a~=x.*$", "a~=x.*y.*z", "a~=.*x.*", "a~=x|b~=y|c~=z", "a~=x;b!~=y;c~=z", "a==1);(b==1",
     "a==1)|(b==2", "a~=" + "x" * 63 + ".*",
     "https://example.org/a==1", "a==１", "a>１", "a==٣",
     None, 3, [], {}, b"a==1",
@@ -160,7 +164,7 @@ def test_unknown_list_parameters(name):
         ("offset", "1000000001"), ("offset", "-1"), ("offset", "1.0"),
         ("count", "x"), ("count", "True"), ("options", "bogus"), ("options", ""), ("options", "keyValues,"),
         ("idPattern", "("), ("idPattern", "a{2}"), ("idPattern", "[a]"), ("idPattern", "a+"), ("idPattern", "a" * 129), ("idPattern", ""),
-        ("idPattern", ".*.*"), ("geoproperty", "a b"),
+        ("idPattern", ".*.*"), ("idPattern", "a.*b"), ("idPattern", "a.*$"), ("geoproperty", "a b"),
     ],
 )
 def test_malformed_list_parameters(name, value):

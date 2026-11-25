@@ -64,9 +64,16 @@ class InvalidQuery(ValueError):
         self.parameter = parameter
 
 
+def _valid_wildcard(pattern: str) -> bool:
+    """At most one `.*`: at either end, or anywhere after a leading `^`."""
+    if ".*" not in pattern:
+        return True
+    return pattern.count(".*") == 1 and (pattern.startswith(("^", ".*")) or pattern.endswith(".*"))
+
+
 def _valid_pattern(pattern: str) -> bool:
     body = pattern.removeprefix("^").removesuffix("$")
-    return len(pattern) <= 64 and pattern.count(".*") <= 1 and body == body.strip()
+    return len(pattern) <= 64 and _valid_wildcard(pattern) and body == body.strip()
 
 
 def valid_filter(q: object) -> bool:
@@ -126,7 +133,7 @@ def _is_id_pattern(value: object) -> bool:
     return (
         isinstance(value, str)
         and len(value) <= MAX_PATTERN_CHARS
-        and value.count(".*") <= 1
+        and _valid_wildcard(value)
         and _ID_PATTERN.fullmatch(value) is not None
     )
 
