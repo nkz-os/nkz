@@ -87,7 +87,8 @@ class FakeMoveLock:
 @pytest.fixture(autouse=True)
 def move_lock(request):
     """Every test gets a lock that can be taken, unless it tests the lock module itself."""
-    if request.module.__name__.endswith(("test_writer_move_lock", "test_writer_move_lock_pg")):
+    if request.module.__name__.endswith(("test_writer_move_lock", "test_writer_move_lock_pg",
+                                         "test_writer_move_pg_cross")):
         yield None
         return
     import writer_move_lock
