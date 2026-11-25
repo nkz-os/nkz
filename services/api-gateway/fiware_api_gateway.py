@@ -84,6 +84,7 @@ from hash_utils import api_key_digest, salted_credential_digest  # noqa: E402
 from proxy_helpers import safe_json_proxy_response  # noqa: E402
 from ngsi_payload_guard import shorthand_null_attributes  # noqa: E402
 from entity_type_guard import EntityTypeGuard, declared_types  # noqa: E402
+from parcel_guard import creates_parcel_id, declares_parcel, is_parcel_id  # noqa: E402
 
 # Import Keycloak authentication
 try:
@@ -783,6 +784,9 @@ def enforce_pat_pagination():
     if "entities" in scopes:
         # GET /ngsi-ld/v1/entities — cap query param 'limit'
         if request.method == "GET" and path.startswith("/ngsi-ld/v1/entities"):
+            if any("\x00" in name for name in request.args):
+                return jsonify({"error": "Invalid parameter name"}), 400
+
             limit_raw = request.args.get("limit") if request.args else None
             if limit_raw:
                 try:
@@ -927,8 +931,8 @@ def enforce_agriparcel_single_writer():
     except Exception:
         body = {}
 
-    # Direct entity body: {"type": "AgriParcel", ...}
-    if isinstance(body, dict) and body.get("type") == "AgriParcel":
+    # Direct entity body: the declared type, or the id when creating
+    if declares_parcel(body) or (request.method == "POST" and creates_parcel_id(body)):
         logger.warning("AgriParcel write blocked: %s %s from %s", request.method, path, request.remote_addr)
         return jsonify({
             "error": "AgriParcel writes must go through entity-manager API",
@@ -939,7 +943,7 @@ def enforce_agriparcel_single_writer():
     # Only the id segment counts; attribute names such as /attrs/hasAgriParcel
     # belong to other entities that reference a parcel.
     entity_id = path.split("/ngsi-ld/v1/entities", 1)[1].lstrip("/").split("/", 1)[0]
-    if "AgriParcel" in entity_id and request.method in ("PUT", "PATCH", "DELETE"):
+    if is_parcel_id(entity_id) and request.method in ("PUT", "PATCH", "DELETE"):
         logger.warning("AgriParcel write blocked: %s %s from %s", request.method, path, request.remote_addr)
         return jsonify({
             "error": "AgriParcel writes must go through entity-manager API",
@@ -2088,7 +2092,12 @@ def get_context():
         context_file = "/config/ngsi-ld-context.json"
         with open(context_file, "r") as f:
             context = json.load(f)
-        return jsonify(context)
+        response = jsonify(context)
+        # Public file, read by JSON-LD tools in any browser. A listed origin gets
+        # its own headers afterwards, so the answer still varies by Origin.
+        response.headers["Access-Control-Allow-Origin"] = "*"
+        response.headers["Vary"] = "Origin"
+        return response
     except Exception as e:
         logger.error(f"Error loading context file: {e}")
         return jsonify({"error": "Context file not found"}), 404
