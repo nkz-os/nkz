@@ -1009,6 +1009,33 @@ def test_dm_ids_match_by_prefix_with_colon_in_external_id(world, http):
     assert run(*BASE, *VERIFY) == 1       # the extra key is on the S:1 entity
 
 
+def test_the_longest_id_prefix_owns_the_entity(world, http):
+    """`S:1:airTemperature` belongs to device `S:1`, not to `S`: with the shortest prefix it would be
+    an orphan of `S` and `S:1` would have delivered nothing."""
+    world.add("S:1", writer="iota", shape="legacy", code="p", ms=ONE_MS)
+    world.add("S", writer="iota", shape="legacy", code="p", ms=ONE_MS)
+    http(Http([dm("S:1", "airTemperature"), dm("S", "airTemperature")]))
+    assert run(*BASE, *VERIFY) == 0
+
+
+def test_the_agent_comparison_looks_at_the_metadata_of_an_attribute(world):
+    """A document that differs from the expected one only in `metadata` is a different document."""
+    urn = world.add("S1", writer="iota", shape="legacy")
+    world.settle_agent()
+    expected = _attrs(urn, "S1", ("iota", "legacy"))
+    assert cut._agent_matches(TENANT, "S1", expected)
+    world.agent["S1"][0]["metadata"] = {"TimeInstant": {"type": "DateTime"}}
+    assert not cut._agent_matches(TENANT, "S1", expected)
+
+
+def test_a_lost_lock_never_commits_even_when_it_answers_again(world):
+    world.add("S1")
+    holder = cut._LockHolder(TENANT, FakeLock(world, TENANT).__enter__())
+    assert holder.can_commit()
+    holder.lost = True
+    assert not holder.can_commit()
+
+
 def test_dm_of_no_linked_device_is_counted_not_judged(world, http, capsys):
     iota_world(world)
     http(Http([dm("S1", "airTemperature"),
