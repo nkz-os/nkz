@@ -14,7 +14,15 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 import httpx
 
-from nkz_platform_sdk.crop_cycles import resolve_crop_cycles
+from nkz_platform_sdk.crop_cycles import (
+    ParcelCropData,
+    declared_campaign_entries,
+    has_catalogue_shape,
+    resolve_crop_cycles,  # noqa: F401  (kept importable from here)
+    resolve_parcel_crops,
+    _crop_target,
+    _str_read,
+)
 from nkz_platform_sdk.orion import OrionClient
 
 logger = logging.getLogger(__name__)
@@ -70,25 +78,96 @@ async def _query_all(client: OrionClient, entity_type: str, q: str) -> list[dict
         offset += _PAGE
 
 
-async def load_crop_data(client: OrionClient, parcel_urn: str) -> tuple[dict, list[dict], list[dict]]:
+class CatalogueShapeError(CropDataUnavailable):
+    """The parcel has the catalogue shape: the legacy 3-tuple cannot describe it.
+
+    ``data`` already holds everything that was read, so ``load_parcel_crops`` does not read twice."""
+
+    def __init__(self, data: ParcelCropData):
+        super().__init__("catalogue shape: use load_parcel_crops")
+        self.data = data
+
+
+def _read_error(e: Exception, parcel_urn: str, *, missing: str | None = None) -> CropDataUnavailable:
+    """Map a failed read to the SDK errors. ``missing`` names what a 404 means (default: the parcel)."""
+    if isinstance(e, httpx.HTTPStatusError):
+        status = e.response.status_code if e.response is not None else None
+        if status == 404:
+            if missing:
+                return CropDataUnavailable(f"{missing} not found")
+            return ParcelNotFound(parcel_urn)
+        # 408/429 are the broker being slow or busy, not a bad request.
+        if status is not None and 400 <= status < 500 and status not in (408, 429):
+            return CropDataRejected(f"{status}: {e}")
+        return CropDataUnavailable(f"{status}: {e}")
+    if isinstance(e, httpx.HTTPError):
+        return CropDataUnavailable(str(e))
+    return CropDataUnavailable(f"unreadable answer: {e}")  # a 200 that is not JSON (proxy page, truncated body)
+
+
+async def _read_parcel_crops(client: OrionClient, parcel_urn: str) -> ParcelCropData:
     try:
         parcel = await client.get_entity(parcel_urn, options="keyValues")
         q = f'hasAgriParcel=="{parcel_urn}"'
-        crops = await _query_all(client, "AgriCrop", q)
+        legacy = await _query_all(client, "AgriCrop", q)
         ops = await _query_all(client, "AgriParcelOperation", f"{q};{_BOUNDARY_OPERATIONS}")
-    except httpx.HTTPStatusError as e:
-        status = e.response.status_code if e.response is not None else None
-        if status == 404:
-            raise ParcelNotFound(parcel_urn) from e
-        # 408/429 are the broker being slow or busy, not a bad request.
-        if status is not None and 400 <= status < 500 and status not in (408, 429):
-            raise CropDataRejected(f"{status}: {e}") from e
-        raise CropDataUnavailable(f"{status}: {e}") from e
-    except httpx.HTTPError as e:
-        raise CropDataUnavailable(str(e)) from e
-    except ValueError as e:  # a 200 that is not JSON (proxy page, truncated body)
-        raise CropDataUnavailable(f"unreadable answer: {e}") from e
-    return parcel, crops, ops
+    except (httpx.HTTPError, ValueError) as e:
+        raise _read_error(e, parcel_urn) from e
+
+    # Crops and varieties are read by id, one at a time and never twice: no query grows with the data.
+    legacy_ids = {c.get("id") for c in legacy}
+    targets: dict[str, None] = {}
+    for entity in (*ops, parcel):
+        urn = _crop_target(entity)
+        if urn and urn not in legacy_ids:
+            targets[urn] = None
+    for entry in declared_campaign_entries(parcel):
+        urn = entry.get("crop")
+        urn = urn.get("object") if isinstance(urn, dict) else urn
+        if isinstance(urn, str) and urn and urn not in legacy_ids:
+            targets[urn] = None
+    crops: dict[str, dict] = {}
+    for urn in targets:
+        try:
+            crops[urn] = await client.get_entity(urn, options="keyValues")
+        except (httpx.HTTPError, ValueError) as e:
+            raise _read_error(e, parcel_urn, missing=f"crop {urn}") from e
+
+    products: dict[str, dict] = {}
+    for urn in dict.fromkeys(u for u in (_str_read(o, "hasAgriProductType") for o in ops) if u):
+        try:
+            products[urn] = await client.get_entity(urn, options="keyValues")
+        except httpx.HTTPStatusError as e:
+            if e.response is not None and e.response.status_code == 404:
+                logger.warning("crop catalogue: variety %s not found, cycle without variety", urn)
+                continue
+            raise _read_error(e, parcel_urn) from e
+        except (httpx.HTTPError, ValueError) as e:
+            raise _read_error(e, parcel_urn) from e
+    return ParcelCropData(parcel={"id": parcel_urn, **parcel}, operations=tuple(ops), legacy_crops=tuple(legacy),
+                          crops=crops, products=products)
+
+
+async def load_crop_data(client: OrionClient, parcel_urn: str) -> tuple[dict, list[dict], list[dict]]:
+    """Legacy shape only: (parcel, AgriCrop of the parcel, boundary operations).
+
+    A parcel with the catalogue shape raises ``CatalogueShapeError`` (a ``CropDataUnavailable``)."""
+    data = await _read_parcel_crops(client, parcel_urn)
+    if has_catalogue_shape(data):
+        raise CatalogueShapeError(data)
+    return data.parcel, list(data.legacy_crops), list(data.operations)
+
+
+async def load_parcel_crops(client: OrionClient, parcel_urn: str) -> ParcelCropData:
+    """Parcel, operations, legacy crops, catalogue crops and varieties, for either shape.
+
+    Raises ``ParcelNotFound`` / ``CropDataRejected`` / ``CropDataUnavailable``; a catalogue crop that
+    does not exist is ``CropDataUnavailable``, a variety that does not exist is only absent."""
+    try:
+        parcel, crops, ops = await load_crop_data(client, parcel_urn)
+    except CatalogueShapeError as e:
+        return e.data
+    return ParcelCropData(parcel={"id": parcel_urn, **parcel}, operations=tuple(ops), legacy_crops=tuple(crops))
 
 
 async def fetch_crop_timeline(
@@ -103,7 +182,7 @@ async def fetch_crop_timeline(
     urn = normalize_parcel_urn(parcel_id)
     client = OrionClient(tenant_id, base_url=base_url, context_url=context_url)
     try:
-        parcel, crops, ops = await load_crop_data(client, urn)
+        data = await load_parcel_crops(client, urn)
     except CropDataRejected as e:
         logger.error("crop timeline: broker rejected the request tenant=%s parcel=%s: %s", tenant_id, urn, e)
         return None
@@ -112,4 +191,4 @@ async def fetch_crop_timeline(
         return None
     finally:
         await client.close()
-    return resolve_crop_cycles(urn, crops, ops, at or local_today(parcel)).to_dict()
+    return resolve_parcel_crops(data, at or local_today(data.parcel)).to_dict()
