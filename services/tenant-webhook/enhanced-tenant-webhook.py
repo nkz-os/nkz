@@ -3970,43 +3970,12 @@ def _purge_phase_close(tenant_id: str) -> dict:
 @app.route("/api/admin/tenants/<tenant_id>/purge", methods=["DELETE"])
 @require_platform_admin
 def admin_hard_purge_tenant(tenant_id: str):
-    """7-phase hard purge. Tenant should be suspended first. Each phase is idempotent."""
-    if tenant_id == 'platform':
-        return jsonify({'error': 'The platform tenant cannot be purged.'}), 400
-
-    logger.info(f"HARD PURGE (7-phase) initiated for tenant: {tenant_id}")
-
-    phase_results = []
-    phase_funcs = [
-        ("precheck", _purge_phase_precheck),
-        ("cut_access", _purge_phase_cut_access),
-        ("subscriptions", _purge_phase_subscriptions),
-        ("ngsi_ld_data", _purge_phase_ngsi_ld),
-        ("relational_data", _purge_phase_relational),
-        ("storage", _purge_phase_storage),
-        ("infrastructure", _purge_phase_infrastructure),
-        ("close", _purge_phase_close),
-    ]
-
-    for phase_name, phase_func in phase_funcs:
-        try:
-            result = phase_func(tenant_id)
-            phase_results.append({"phase": phase_name, **result})
-            if not result.get("ok"):
-                logger.error(f"Purge phase {phase_name} failed for {tenant_id}: {result.get('error')}")
-                break
-        except Exception as e:
-            phase_results.append({"phase": phase_name, "ok": False, "error": "phase failed"})
-            logger.exception(f"Purge phase {phase_name} exception for {tenant_id}")
-            break
-
-    all_ok = all(p.get("ok") for p in phase_results)
-
+    """Disabled: answers 409 and runs nothing."""
+    logger.warning(f"Tenant purge requested for {tenant_id!r}: disabled")
     return jsonify({
-        "status": "completed" if all_ok else "partial",
-        "message": f"Tenant {tenant_id} purge {'completed' if all_ok else 'incomplete -- some phases failed'}",
-        "phases": phase_results,
-    }), 200 if all_ok else 207
+        "error": "TENANT_PURGE_DISABLED",
+        "message": "Tenant purge is disabled.",
+    }), 409
 
 
 # =============================================================================
