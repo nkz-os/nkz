@@ -190,6 +190,8 @@
     "purge_tenant_button": "Eliminar definitivamente",
     "restore_tenant": "Restaurar",
     "confirm_restore": "Confirmar recuperação",
+    "suspend_partial": "Tenant suspenso, mas não foi possível fechar algum utilizador ou sensor. Recupere-o e suspenda-o novamente.",
+    "restore_partial": "Tenant recuperado, mas não foi possível reabrir algum utilizador ou sensor. Suspenda-o e recupere-o novamente.",
     "restore_failed": "Não foi possível recuperar o tenant. Tente novamente.",
     "reset_password": "Repor palavra-passe",
     "confirm_reset_password": "Repor a palavra-passe deste utilizador? Será gerada uma palavra-passe temporária.",

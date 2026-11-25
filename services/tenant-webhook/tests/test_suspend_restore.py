@@ -9,14 +9,15 @@ import pytest
 _SRC = Path(__file__).resolve().parents[1] / "enhanced-tenant-webhook.py"
 
 
-def _call(webhook_module, view, deleted_at, ingestion=None):
+def _call(webhook_module, view, deleted_at, ingestion=None, accounts=None):
+    accounts = accounts or MagicMock(return_value="ok")
     svc = webhook_module.webhook_service
     conn = MagicMock()
     cursor = conn.cursor.return_value
     cursor.fetchone.return_value = {"tenant_id": "acme", "deleted_at": deleted_at}
     with patch.object(svc, "get_db_connection", return_value=conn), \
          patch.object(svc, "_apply_admin_context"), \
-         patch.object(svc, "get_keycloak_token", return_value=None), \
+         patch.object(webhook_module, "_set_tenant_accounts", accounts) as acc, \
          patch.object(webhook_module, "_set_tenant_ingestion", ingestion or MagicMock(return_value="ok")) as ing, \
          patch.object(webhook_module.requests, "post"), \
          patch.object(webhook_module, "audit_log"), \
@@ -25,6 +26,7 @@ def _call(webhook_module, view, deleted_at, ingestion=None):
         resp, status = getattr(webhook_module, view).__wrapped__("acme")
     updates = [" ".join(c.args[0].split()) for c in cursor.execute.call_args_list
                if "UPDATE tenants" in c.args[0]]
+    _call.accounts = acc
     return resp.get_json(), status, updates, conn, ing
 
 
@@ -35,6 +37,8 @@ def test_suspend_writes_both_facts(webhook_module):
     assert "deleted_at = NOW()" in updates[0] and "status = CASE WHEN status = 'active' THEN 'suspended' ELSE status END" in updates[0]
     conn.commit.assert_called()
     ing.assert_called_once_with("acme", False)
+    _call.accounts.assert_called_once_with("acme", False)
+    assert body["accounts"] == "ok"
 
 
 def test_restore_writes_both_facts(webhook_module):
@@ -43,6 +47,8 @@ def test_restore_writes_both_facts(webhook_module):
     assert len(updates) == 1
     assert "deleted_at = NULL" in updates[0] and "status = CASE WHEN status = 'suspended' THEN 'active' ELSE status END" in updates[0]
     ing.assert_called_once_with("acme", True)
+    _call.accounts.assert_called_once_with("acme", True)
+    assert body["accounts"] == "ok"
 
 
 @pytest.mark.parametrize("view, deleted_at", [("suspend_tenant", "2026-01-01"), ("restore_tenant", None)])
@@ -53,10 +59,12 @@ def test_twice_is_a_conflict(webhook_module, view, deleted_at):
 
 
 @pytest.mark.parametrize("view, deleted_at", [("suspend_tenant", None), ("restore_tenant", "2026-01-01")])
-def test_the_change_stands_when_ingestion_fails(webhook_module, view, deleted_at):
+def test_the_change_stands_when_the_rest_fails(webhook_module, view, deleted_at):
     body, status, updates, conn, _ = _call(
-        webhook_module, view, deleted_at, MagicMock(return_value="failed"))
-    assert status == 200 and body["ingestion"] == "failed" and len(updates) == 1
+        webhook_module, view, deleted_at, MagicMock(return_value="failed"),
+        MagicMock(return_value="failed"))
+    assert status == 200 and len(updates) == 1
+    assert body["ingestion"] == "failed" and body["accounts"] == "failed"
     conn.commit.assert_called()
 
 

@@ -232,6 +232,8 @@
     "purge_tenant_button": "Purgar",
     "restore_tenant": "Recuperar",
     "confirm_restore": "Confirmar recuperación",
+    "suspend_partial": "Tenant suspendido, pero algún usuario o sensor no se pudo cerrar. Recupéralo y vuelve a suspenderlo.",
+    "restore_partial": "Tenant recuperado, pero algún usuario o sensor no se pudo reabrir. Suspéndelo y vuelve a recuperarlo.",
     "restore_failed": "No se pudo recuperar el tenant. Inténtalo de nuevo.",
     "reset_password": "Restablecer contraseña",
     "confirm_reset_password": "¿Restablecer la contraseña de este usuario? Se generará una contraseña temporal.",

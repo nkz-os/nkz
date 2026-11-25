@@ -167,6 +167,8 @@
     "purge_tenant_button": "Purgatu",
     "restore_tenant": "Berreskuratu",
     "confirm_restore": "Berretsi berreskuratzea",
+    "suspend_partial": "Tenanta eten da, baina erabiltzaile edo sentsoreren bat ezin izan da itxi. Berreskuratu eta eten berriro.",
+    "restore_partial": "Tenanta berreskuratu da, baina erabiltzaile edo sentsoreren bat ezin izan da berriro ireki. Eten eta berreskuratu berriro.",
     "restore_failed": "Ezin izan da tenanta berreskuratu. Saiatu berriro.",
     "reset_password": "Berrezarri pasahitza",
     "confirm_reset_password": "Erabiltzaile honen pasahitza berrezarri nahi duzu? Behin-behineko pasahitz bat sortuko da.",

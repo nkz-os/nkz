@@ -4343,6 +4343,131 @@ def assign_user_to_tenant(tenant_id: str):
         return _internal_error(e, "assign_user_to_tenant", user_message="Failed to assign user")
 
 
+def _load_suspended_accounts(tenant_id: str) -> list[str]:
+    """Keycloak ids disabled by the suspension and not yet enabled again."""
+    conn = webhook_service.get_db_connection()
+    if not conn:
+        raise RuntimeError("database unavailable")
+    try:
+        webhook_service._apply_admin_context(conn)
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT metadata->'suspended_accounts' AS ids FROM tenants WHERE tenant_id = %s",
+            (tenant_id,),
+        )
+        row = cursor.fetchone()
+        cursor.close()
+        return list((row or {}).get("ids") or [])
+    finally:
+        conn.close()
+
+
+def _save_suspended_accounts(tenant_id: str, ids: list[str]) -> None:
+    conn = webhook_service.get_db_connection()
+    if not conn:
+        raise RuntimeError("database unavailable")
+    try:
+        webhook_service._apply_admin_context(conn)
+        cursor = conn.cursor()
+        if ids:
+            cursor.execute(
+                """
+                UPDATE tenants SET metadata = COALESCE(metadata, '{}'::jsonb)
+                    || jsonb_build_object('suspended_accounts', %s::jsonb)
+                WHERE tenant_id = %s
+                """,
+                (json.dumps(ids), tenant_id),
+            )
+        else:
+            cursor.execute(
+                "UPDATE tenants SET metadata = metadata - 'suspended_accounts'"
+                " WHERE tenant_id = %s",
+                (tenant_id,),
+            )
+        conn.commit()
+        cursor.close()
+    finally:
+        conn.close()
+
+
+def _keycloak_pages(url: str, headers: dict[str, str], params: dict | None = None):
+    first, size = 0, 100
+    while True:
+        response = requests.get(
+            url, headers=headers, params={**(params or {}), "first": first, "max": size}, timeout=10
+        )
+        response.raise_for_status()
+        page = response.json()
+        yield from page
+        if len(page) < size:
+            return
+        first += size
+
+
+def _set_tenant_accounts(tenant_id: str, enabled: bool) -> str:
+    """Disable the tenant's logins (suspend) or enable those it disabled
+    (restore). "ok" or "failed"; never raises.
+
+    The gateway refuses a suspended tenant, but not every entry goes through
+    it. Who was disabled is saved before anybody is, so restoring opens exactly
+    those and never an account its admin had closed. Platform admins are left
+    alone. What fails stays listed: suspending and restoring again retries it.
+    """
+    try:
+        token = webhook_service.get_keycloak_token()
+        if not token:
+            raise RuntimeError("no Keycloak admin token")
+        headers = {"Authorization": f"Bearer {token}"}
+        realm = f"{webhook_service._get_keycloak_base_url()}/admin/realms/{KEYCLOAK_REALM}"
+        pending = _load_suspended_accounts(tenant_id)
+        if not enabled:
+            admins = {u["id"] for u in _keycloak_pages(f"{realm}/roles/PlatformAdmin/users", headers)}
+            current = [
+                u["id"]
+                for u in _keycloak_pages(
+                    f"{realm}/users", headers, {"q": f"tenant_id:{tenant_id}"}
+                )
+                if tenant_id in ((u.get("attributes") or {}).get("tenant_id") or [])
+                and u.get("enabled")
+                and u["id"] not in admins
+            ]
+            targets = current
+            pending = pending + [i for i in current if i not in pending]
+            _save_suspended_accounts(tenant_id, pending)
+        else:
+            targets = list(pending)
+    except Exception as e:
+        logger.error(f"Account change failed for {tenant_id} (enabled={enabled}): {e}")
+        return "failed"
+
+    failed = []
+    for user_id in targets:
+        try:
+            response = requests.get(f"{realm}/users/{user_id}", headers=headers, timeout=10)
+            if response.status_code == 404:
+                continue
+            response.raise_for_status()
+            account = response.json()
+            if tenant_id not in ((account.get("attributes") or {}).get("tenant_id") or []):
+                continue  # moved to another tenant meanwhile
+            account["enabled"] = enabled
+            requests.put(
+                f"{realm}/users/{user_id}", headers=headers, json=account, timeout=10
+            ).raise_for_status()
+            if not enabled:
+                requests.post(f"{realm}/users/{user_id}/logout", headers=headers, timeout=10)
+        except Exception as e:
+            logger.error(f"Account change failed for {tenant_id} user {user_id}: {e}")
+            failed.append(user_id)
+    if enabled:
+        try:
+            _save_suspended_accounts(tenant_id, failed)
+        except Exception as e:
+            logger.error(f"Account list not saved for {tenant_id}: {e}")
+            return "failed"
+    return "failed" if failed else "ok"
+
+
 def _set_tenant_ingestion(tenant_id: str, enabled: bool) -> str:
     """Open or close the tenant's MQTT accounts. "ok" or "failed"; never raises:
     the suspension itself does not depend on the broker."""
@@ -4425,22 +4550,6 @@ def suspend_tenant(tenant_id: str):
         except Exception as e:
             logger.warning(f"Redis cache clear failed for suspension key {tenant_id}: {e}")
 
-        # Force logout all users with this tenant_id
-        token = webhook_service.get_keycloak_token()
-        if token:
-            keycloak_url = webhook_service._get_keycloak_base_url()
-            headers = {"Authorization": f"Bearer {token}"}
-            users_url = f"{keycloak_url}/admin/realms/{KEYCLOAK_REALM}/users"
-            resp = requests.get(users_url, headers=headers, params={"max": 1000}, timeout=10)
-            if resp.status_code == 200:
-                for user in resp.json():
-                    user_tid = user.get("attributes", {}).get("tenant_id", [])
-                    if isinstance(user_tid, list) and tenant_id in user_tid:
-                        requests.post(
-                            f"{users_url}/{user['id']}/logout",
-                            headers=headers, timeout=10
-                        )
-
         audit_log(
             action='admin.tenant.suspend',
             resource_type='tenant',
@@ -4448,11 +4557,13 @@ def suspend_tenant(tenant_id: str):
             metadata={'deleted_by': deleted_by, 'notes': deletion_notes},
         )
 
+        accounts = _set_tenant_accounts(tenant_id, False)
         ingestion = _set_tenant_ingestion(tenant_id, False)
 
         return jsonify({
             'success': True,
             'message': f'Tenant {tenant_id} suspended. Users cannot log in.',
+            'accounts': accounts,
             'ingestion': ingestion,
         }), 200
 
@@ -4511,11 +4622,13 @@ def restore_tenant(tenant_id: str):
             resource_id=tenant_id,
         )
 
+        accounts = _set_tenant_accounts(tenant_id, True)
         ingestion = _set_tenant_ingestion(tenant_id, True)
 
         return jsonify({
             'success': True,
             'message': f'Tenant {tenant_id} restored. Users can log in again.',
+            'accounts': accounts,
             'ingestion': ingestion,
         }), 200
 

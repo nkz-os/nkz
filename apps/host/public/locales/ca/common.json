@@ -190,6 +190,8 @@
     "purge_tenant_button": "Purga",
     "restore_tenant": "Recupera",
     "confirm_restore": "Confirma la recuperació",
+    "suspend_partial": "Tenant suspès, però algun usuari o sensor no s'ha pogut tancar. Recupera'l i torna'l a suspendre.",
+    "restore_partial": "Tenant recuperat, però algun usuari o sensor no s'ha pogut reobrir. Suspèn-lo i torna'l a recuperar.",
     "restore_failed": "No s'ha pogut recuperar el tenant. Torna-ho a provar.",
     "reset_password": "Restableix la contrasenya",
     "confirm_reset_password": "Vols restablir la contrasenya d'aquest usuari? Es generarà una contrasenya temporal.",
