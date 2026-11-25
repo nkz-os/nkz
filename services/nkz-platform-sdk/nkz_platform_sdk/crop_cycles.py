@@ -711,6 +711,15 @@ def has_catalogue_shape(data: ParcelCropData) -> bool:
     return any(_catalogue_crop(data, _crop_target(o)) is not None for o in data.operations)
 
 
+def _entry_crop(entry: dict) -> str | None:
+    v = _value(entry.get("crop"))
+    return v if isinstance(v, str) and v else None
+
+
+def _without_crop(o: dict) -> dict:
+    return {k: v for k, v in o.items() if k not in ("hasAgriCrop", "refAgriCrop")}
+
+
 def _entry_campaign(entry: dict) -> int | None:
     v = _value(entry.get("campaign"))
     return v if isinstance(v, int) and not isinstance(v, bool) else None
@@ -960,7 +969,7 @@ def _resolve_catalogue(data: ParcelCropData, parcel_id: str, at: date, campaign_
             continue
         n = seen_campaigns[campaign] = seen_campaigns.get(campaign, 0) + 1
         cid = _DECLARED_ID.format(parcel=parcel_id, campaign=campaign) + ("" if n == 1 else f"-{n}")
-        crop_urn = _value(entry.get("crop")) if isinstance(_value(entry.get("crop")), str) else None
+        crop_urn = _entry_crop(entry)
         crop = data.crops.get(crop_urn) if crop_urn else None
         eppo, name = _crop_identity(crop) if crop else (None, None)
         fallow = _value(entry.get("kind")) == "fallow" or (crop is not None and is_fallow(crop))

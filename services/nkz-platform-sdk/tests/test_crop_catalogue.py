@@ -668,18 +668,36 @@ async def test_more_than_500_operations_are_paged():
 
 @pytest.mark.asyncio
 async def test_a_missing_crop_is_unavailable_and_visible():
-    client = FakeClient(ops=[sow("s", WHEAT, "2026-03-01")])  # WHEAT not in the broker
+    client = FakeClient(ops=[sow("s", WHEAT, "2026-03-01"), sow("b", BARLEY, "2026-03-01")],
+                        entities=[BARLEY])  # WHEAT not in the broker, BARLEY proves the catalogue shape
     with pytest.raises(CropDataUnavailable) as exc:
         await load_parcel_crops(client, P)
     assert not isinstance(exc.value, ParcelNotFound) and WHEAT["id"] in str(exc.value)
 
 
 @pytest.mark.asyncio
-async def test_a_dangling_crop_link_on_the_declared_campaigns_or_the_parcel_is_unavailable_too():
+async def test_the_parcels_own_crop_link_is_never_requested():
+    client = FakeClient(parcel={"hasAgriCrop": WHEAT["id"]})
+    await load_parcel_crops(client, P)
+    assert client.gets == [P]
+
+
+@pytest.mark.asyncio
+async def test_a_catalogue_parcel_with_one_readable_and_one_missing_target_is_unavailable():
+    client = FakeClient(ops=[sow("s1", WHEAT, "2026-03-01"), sow("s2", BARLEY, "2026-03-02")], entities=[WHEAT])
     with pytest.raises(CropDataUnavailable):
-        await load_parcel_crops(FakeClient(parcel={"declaredCampaigns": {"campaign": 2025, "crop": WHEAT["id"]}}), P)
+        await load_parcel_crops(client, P)
+
+
+@pytest.mark.asyncio
+async def test_declared_campaigns_with_a_missing_crop_are_unavailable_only_if_another_declared_crop_exists(caplog):
+    both = {"declaredCampaigns": [{"campaign": 2025, "crop": WHEAT["id"]}, {"campaign": 2024, "crop": BARLEY["id"]}]}
     with pytest.raises(CropDataUnavailable):
-        await load_parcel_crops(FakeClient(parcel={"hasAgriCrop": WHEAT["id"]}), P)
+        await load_parcel_crops(FakeClient(parcel=both, entities=[WHEAT]), P)
+    only = {"declaredCampaigns": {"campaign": 2025, "crop": WHEAT["id"]}}
+    with caplog.at_level(logging.WARNING):
+        d = await load_parcel_crops(FakeClient(parcel=only), P)
+    assert run(d).previous.species is None and any(WHEAT["id"] in r.getMessage() for r in caplog.records)
 
 
 @pytest.mark.asyncio
@@ -746,28 +764,21 @@ async def test_fetch_crop_timeline_reads_the_catalogue_shape(monkeypatch):
     monkeypatch.setattr(ct, "OrionClient", lambda *a, **k: client)
     t = await fetch_crop_timeline("acme", "p1", date(2026, 10, 9))
     assert t["current"]["crop_id"] == oid("s") and t["current"]["crop"] == WHEAT["id"]
-    broken = FakeClient(ops=[sow("s", WHEAT, "2026-03-05")])  # crop missing: visible as None
+    broken = FakeClient(ops=[sow("s", WHEAT, "2026-03-05"), sow("b", BARLEY, "2026-03-05")],
+                        entities=[BARLEY])  # one catalogue crop missing: visible as None
     monkeypatch.setattr(ct, "OrionClient", lambda *a, **k: broken)
     assert await fetch_crop_timeline("acme", "p1", date(2026, 10, 9)) is None
 
 
 @pytest.mark.asyncio
-async def test_a_dangling_crop_link_in_a_legacy_only_parcel_now_makes_the_timeline_none(monkeypatch):
-    """Known cost of reading every target (gate P2): today such a link is ignored."""
+async def test_a_dangling_crop_link_in_a_legacy_only_parcel_keeps_todays_timeline(monkeypatch, caplog):
     import nkz_platform_sdk.crop_timeline as ct
 
-    dangling = FakeClient(ops=[lop("h", "harvesting", "2026-07-01", hasAgriCrop=curn("deleted"))])
-    monkeypatch.setattr(ct, "OrionClient", lambda *a, **k: dangling)
-    assert await fetch_crop_timeline("acme", "p1", date(2026, 10, 9)) is None
-
-
-def test_known_difference_a_sown_cycle_past_its_planned_end_stays_current_in_the_new_shape():
-    """Today a cycle sown through field-operations says ``planned`` and, once its planned end passes
-    unreported, becomes ``previous``; the new shape says ``active`` and keeps it ``current`` (status table)."""
-    legacy = resolve_crop_cycles(
-        P, [lcrop("c", cropRole="cover_crop", status="planned", sowingWindowStart="2026-05-20",
-                  expectedTerminationDate="2026-07-20")], [lop("s", "sowing", "2026-05-22")], date(2026, 9, 1))
-    new = run(data([plan("c", VETCH, "2026-05-20", cropRole="cover_crop", expectedTerminationDate="2026-07-20"),
-                    sow("s", VETCH, "2026-05-22", cropRole="cover_crop")]), date(2026, 9, 1))
-    assert legacy.current is None and legacy.previous is not None
-    assert new.current.crop_id == oid("c") and new.current.status == "active"
+    legacy = lcrop("a", status="planned", plantingDate="2026-03-01", harvestDate="2026-07-01")
+    ops = [lop("s", "sowing", "2026-03-10"), lop("h", "harvesting", "2026-07-01", hasAgriCrop=curn("deleted"))]
+    client = FakeClient(legacy=[legacy], ops=ops)
+    monkeypatch.setattr(ct, "OrionClient", lambda *a, **k: client)
+    with caplog.at_level(logging.WARNING):
+        got = await fetch_crop_timeline("acme", "p1", date(2026, 10, 9))
+    assert got == resolve_crop_cycles(P, [legacy], ops, date(2026, 10, 9)).to_dict()
+    assert any(curn("deleted") in r.getMessage() and r.levelno == logging.WARNING for r in caplog.records)

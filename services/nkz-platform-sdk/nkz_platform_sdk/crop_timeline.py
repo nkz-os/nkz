@@ -21,6 +21,9 @@ from nkz_platform_sdk.crop_cycles import (
     resolve_crop_cycles,  # noqa: F401  (kept importable from here)
     resolve_parcel_crops,
     _crop_target,
+    _entry_crop,
+    _is_catalogue,
+    _without_crop,
     _str_read,
 )
 from nkz_platform_sdk.orion import OrionClient
@@ -115,23 +118,43 @@ async def _read_parcel_crops(client: OrionClient, parcel_urn: str) -> ParcelCrop
         raise _read_error(e, parcel_urn) from e
 
     # Crops and varieties are read by id, one at a time and never twice: no query grows with the data.
+    # The parcel's own hasAgriCrop is the reconciler's output: the timeline never needs it, never read.
     legacy_ids = {c.get("id") for c in legacy}
     targets: dict[str, None] = {}
-    for entity in (*ops, parcel):
+    for entity in ops:
         urn = _crop_target(entity)
         if urn and urn not in legacy_ids:
             targets[urn] = None
     for entry in declared_campaign_entries(parcel):
-        urn = entry.get("crop")
-        urn = urn.get("object") if isinstance(urn, dict) else urn
-        if isinstance(urn, str) and urn and urn not in legacy_ids:
+        urn = _entry_crop(entry)
+        if urn and urn not in legacy_ids:
             targets[urn] = None
     crops: dict[str, dict] = {}
+    dangling: list[str] = []
     for urn in targets:
         try:
             crops[urn] = await client.get_entity(urn, options="keyValues")
+        except httpx.HTTPStatusError as e:
+            if e.response is not None and e.response.status_code == 404:
+                dangling.append(urn)
+                continue
+            raise _read_error(e, parcel_urn) from e
         except (httpx.HTTPError, ValueError) as e:
-            raise _read_error(e, parcel_urn, missing=f"crop {urn}") from e
+            raise _read_error(e, parcel_urn) from e
+    if dangling:
+        # A recreated parcel that lost a catalogue crop must not resolve as "no crop": when another target
+        # proves the catalogue shape it is an error. A legacy parcel with a stale link keeps its timeline:
+        # the link is dropped (the operation has no crop) and logged.
+        if any(_is_catalogue(c) for c in crops.values()):
+            raise CropDataUnavailable(f"catalogue crop not found: {dangling[0]}")
+        gone = set(dangling)
+        for urn in dangling:
+            logger.warning("crop catalogue: dangling crop link dropped tenant=%s parcel=%s target=%s",
+                           getattr(client, "tenant_id", None), parcel_urn, urn)
+        ops = [_without_crop(o) if _crop_target(o) in gone else o for o in ops]
+        entries = [{**e, "crop": None} if _entry_crop(e) in gone else e for e in declared_campaign_entries(parcel)]
+        if entries:
+            parcel = {**parcel, "declaredCampaigns": entries}
 
     products: dict[str, dict] = {}
     for urn in dict.fromkeys(u for u in (_str_read(o, "hasAgriProductType") for o in ops) if u):
