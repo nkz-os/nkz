@@ -29,7 +29,8 @@ def _insert_params(webhook_module, plan, limits, tenant_name="New Tenant"):
     fake_conn = MagicMock()
     fake_conn.cursor.return_value = fake_cursor
 
-    with patch.object(svc, "_apply_admin_context", return_value=None):
+    with patch.object(svc, "_apply_admin_context", return_value=None), \
+         patch.object(svc, "_tenant_id_in_use", return_value=False):
         result = svc.ensure_tenant_record(
             conn=fake_conn,
             email="owner@example.test",
@@ -40,8 +41,8 @@ def _insert_params(webhook_module, plan, limits, tenant_name="New Tenant"):
         )
 
     assert result == "new-tenant"
-    # The INSERT is the third execute call (search, uniqueness, insert).
-    insert_call = fake_cursor.execute.call_args_list[2]
+    insert_call, = [c for c in fake_cursor.execute.call_args_list
+                    if "INSERT INTO tenants" in c[0][0]]
     return insert_call[0][0], insert_call[0][1]
 
 

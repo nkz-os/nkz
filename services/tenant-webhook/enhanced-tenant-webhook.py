@@ -489,6 +489,22 @@ def _send_email_async(path: str, payload: dict, *, purpose: str) -> threading.Th
     return thread
 
 
+class TenantExistsError(Exception):
+    """The requested tenant id is taken."""
+
+
+class TenantSuspendedError(Exception):
+    """The account belongs to a suspended tenant."""
+
+
+class AccountExistsError(Exception):
+    """The email is already the primary email of a tenant."""
+
+
+# Ids with a meaning inside the platform; nobody may create a tenant with one.
+RESERVED_TENANT_IDS = frozenset({"platform", "shared", "default", "master"})
+
+
 @dataclass(frozen=True)
 class TenantProvisioning:
     """Outcome of provisioning a tenant's storage. Immutable."""
@@ -596,12 +612,26 @@ class EnhancedTenantWebhookService:
         tenant_name: str | None,
         source: str,
         plan_level: int | None = None,
+        *,
+        match: str = "email",
+        allow_suspended: bool = False,
+        commit: bool = True,
     ) -> str | None:
         """
         Ensure there's a tenants table record linked to the given email.
 
         Returns the resolved tenant_id so activation codes and API keys can
         reference it without guessing from the email elsewhere.
+
+        `match` says what may resolve to an existing tenant. A name never
+        does: it is free text and not unique.
+          - "email": the tenant whose primary email is `email`, a live one
+            first. A suspended one raises TenantSuspendedError unless
+            `allow_suspended`.
+          - "none": nothing; the id must be free (TenantExistsError).
+          - "new_account": like "none", and the email must not be the primary
+            email of any tenant (AccountExistsError).
+        With `commit=False` the caller ends the transaction.
         """
         if not conn:
             return None
@@ -624,11 +654,11 @@ class EnhancedTenantWebhookService:
             except KeyError:
                 plan_level = 0
 
-        metadata_update = json.dumps({
-            "primary_email": email_lower, 
+        metadata_update = {
+            "primary_email": email_lower,
             "activation_source": source,
-            "assigned_plan_level": plan_level
-        })
+            "assigned_plan_level": plan_level,
+        }
 
         cursor = conn.cursor()
         try:
@@ -640,36 +670,33 @@ class EnhancedTenantWebhookService:
                 logger.error(f"Failed to apply admin context: {admin_err}")
                 raise
 
-            # Search by email OR by tenant name to avoid duplication
-            cursor.execute(
-                """
-                SELECT tenant_id, 
-                       metadata
-                FROM tenants
-                WHERE (metadata IS NOT NULL AND metadata->>'primary_email' = %s)
-                   OR (tenant_name = %s)
-                LIMIT 1
-                """,
-                (email_lower, tenant_name or desired_name),
-            )
-            existing = cursor.fetchone()
-            if existing and existing.get("tenant_id"):
-                tenant_id = existing["tenant_id"]
-                tenant_seen = True  # noqa: F841
-            else:
-                # desired_slug is already the canonical form (computed above
-                # via normalize_tenant_id). No further normalization needed.
-                tenant_id = desired_slug
+            if match not in ("email", "none", "new_account"):
+                raise ValueError(f"unknown match mode: {match!r}")
 
-                # Check for uniqueness and add suffix if needed
-                suffix = 1
-                original_tenant_id = tenant_id
-                while True:
-                    cursor.execute("SELECT 1 FROM tenants WHERE tenant_id = %s", (tenant_id,))
-                    if not cursor.fetchone():
-                        break
-                    suffix += 1
-                    tenant_id = f"{original_tenant_id}{suffix}"
+            # One account at a time: two requests for an email must not both
+            # find no tenant and create one each. Released with the transaction.
+            cursor.execute("SELECT pg_advisory_xact_lock(hashtext(%s))", (email_lower,))
+
+            existing = None
+            if match != "none":
+                cursor.execute(
+                    """
+                    SELECT tenant_id, metadata, deleted_at
+                    FROM tenants
+                    WHERE metadata->>'primary_email' = %s
+                    ORDER BY (deleted_at IS NOT NULL), created_at
+                    LIMIT 1
+                    """,
+                    (email_lower,),
+                )
+                existing = cursor.fetchone()
+            if existing:
+                if match == "new_account":
+                    raise AccountExistsError(email_lower)
+                tenant_id = existing["tenant_id"]
+                if existing.get("deleted_at") and not allow_suspended:
+                    raise TenantSuspendedError(tenant_id)
+            metadata_json = json.dumps(metadata_update)
 
             tenant_display_name = tenant_name or self._humanize_tenant_name(desired_name)
 
@@ -686,8 +713,7 @@ class EnhancedTenantWebhookService:
                     if key in limit_columns:
                         limit_columns[key] = value
 
-            cursor.execute(
-                """
+            insert_sql = """
                 INSERT INTO tenants (
                     tenant_id,
                     tenant_name,
@@ -707,6 +733,37 @@ class EnhancedTenantWebhookService:
                     %s, %s, %s, %s, %s, %s::jsonb,
                     %s, %s, %s, %s, %s, %s, %s
                 )
+            """
+            values = [
+                tenant_display_name,
+                plan,
+                plan_level,
+                "active",
+                metadata_json,
+                limit_columns["max_users"],
+                limit_columns["max_robots"],
+                limit_columns["max_sensors"],
+                limit_columns["max_area_hectares"],
+                limit_columns["max_parcels"],
+                limit_columns["max_entities_total"],
+                limit_columns["max_satellite_computations"],
+            ]
+
+            if not existing:
+                tenant_id = self._insert_new_tenant(
+                    cursor, insert_sql, desired_slug, values,
+                    unique_suffix=match == "email",
+                    # With "none" the caller is an admin and checked before
+                    # creating the storage.
+                    check_in_use=match != "none",
+                )
+                if commit:
+                    conn.commit()
+                return tenant_id
+
+            cursor.execute(
+                insert_sql
+                + """
                 ON CONFLICT (tenant_id) DO UPDATE
                 SET tenant_name = EXCLUDED.tenant_name,
                     plan_type = EXCLUDED.plan_type,
@@ -748,25 +805,11 @@ class EnhancedTenantWebhookService:
                     END
                 RETURNING tenant_id
                 """,
-                (
-                    tenant_id,
-                    tenant_display_name,
-                    plan,
-                    plan_level,
-                    "active",
-                    metadata_update,
-                    limit_columns["max_users"],
-                    limit_columns["max_robots"],
-                    limit_columns["max_sensors"],
-                    limit_columns["max_area_hectares"],
-                    limit_columns["max_parcels"],
-                    limit_columns["max_entities_total"],
-                    limit_columns["max_satellite_computations"],
-                    metadata_update,
-                ),
+                (tenant_id, *values, metadata_json),
             )
             resolved = cursor.fetchone()
-            conn.commit()
+            if commit:
+                conn.commit()
             return resolved["tenant_id"] if resolved and "tenant_id" in resolved else tenant_id
         except Exception as exc:
             conn.rollback()
@@ -774,6 +817,35 @@ class EnhancedTenantWebhookService:
             raise
         finally:
             cursor.close()
+
+    def _insert_new_tenant(
+        self, cursor, insert_sql: str, slug: str, values: list, *,
+        unique_suffix: bool, check_in_use: bool,
+    ) -> str:
+        """Insert a tenant that does not exist and return its id.
+
+        Never touches an existing row: when the id is taken, also by a
+        concurrent request, it takes the next free one or raises
+        TenantExistsError. With `check_in_use`, an id that still has data or
+        accounts counts as taken too.
+        """
+        tenant_id, suffix = slug, 1
+        while True:
+            cursor.execute("SELECT 1 FROM tenants WHERE tenant_id = %s", (tenant_id,))
+            taken = cursor.fetchone() is not None or tenant_id in RESERVED_TENANT_IDS
+            if not taken and check_in_use:
+                taken = self._tenant_id_in_use(tenant_id)
+            if not taken:
+                cursor.execute(
+                    insert_sql + " ON CONFLICT (tenant_id) DO NOTHING RETURNING tenant_id",
+                    (tenant_id, *values),
+                )
+                if cursor.fetchone():
+                    return tenant_id
+            if not unique_suffix:
+                raise TenantExistsError(tenant_id)
+            suffix += 1
+            tenant_id = f"{slug}{suffix}"
 
     def get_latest_activation_for_tenant(self, conn, tenant_id: str) -> dict[str, Any]:
         """Return most recent activation code metadata for the tenant."""
@@ -974,7 +1046,7 @@ class EnhancedTenantWebhookService:
             cursor.execute(
                 """
                 SELECT id, code, email, plan, status, max_users, max_robots, max_sensors,
-                       expires_at, duration_days, order_id
+                       expires_at, duration_days, order_id, tenant_id
                 FROM activation_codes
                 WHERE code = %s AND email = %s
             """,
@@ -1010,6 +1082,7 @@ class EnhancedTenantWebhookService:
                 else None,  # noqa: E501
                 "duration_days": code_data["duration_days"],
                 "order_id": code_data["order_id"],
+                "tenant_id": code_data["tenant_id"],
             }
 
         except Exception as e:
@@ -1229,6 +1302,7 @@ class EnhancedTenantWebhookService:
         token = self.get_keycloak_token()
         if not token:
             return {"success": False, "error": "Failed to get Keycloak admin token"}
+        new_user_id = None
 
         try:
             keycloak_url = self._get_keycloak_base_url()
@@ -1255,18 +1329,20 @@ class EnhancedTenantWebhookService:
                 search_response = requests.get(
                     search_url, headers=headers, params=search_params, timeout=10
                 )  # noqa: E501
-                if search_response.status_code == 200:
-                    existing_users = search_response.json()
-                    if existing_users and len(existing_users) > 0:
-                        logger.warning(f"Registration aborted: User {email} already exists.")
-                        return {
-                            "success": False,
-                            "error": "Email already registered",
-                            "conflict": True
-                        }
-                user_id = self._create_user_or_recover(
-                    user_url, search_url, search_params, user_data, headers, email
-                )
+                search_response.raise_for_status()
+                conflict = {
+                    "success": False,
+                    "error": "Email already registered",
+                    "conflict": True,
+                }
+                if search_response.json():
+                    logger.warning("Registration aborted: user already exists.")
+                    return conflict
+                created = requests.post(user_url, json=user_data, headers=headers, timeout=10)
+                if created.status_code == 409:
+                    return conflict
+                created.raise_for_status()
+                user_id = new_user_id = created.headers["Location"].split("/")[-1]
             else:
                 user_id = self._resolve_user_id(keycloak_url, user_data, email, headers)
 
@@ -1284,6 +1360,8 @@ class EnhancedTenantWebhookService:
                 else:
                     self._assign_role_to_user(headers, user_id, "Farmer")
                     logger.info(f"Assigned Farmer role to user: {email}")
+            elif fail_if_exists:
+                raise RuntimeError("tenant group could not be ensured")
             else:
                 logger.warning(
                     f"Couldn't ensure tenant group for {tenant_group_name}, "
@@ -1308,13 +1386,28 @@ class EnhancedTenantWebhookService:
                     "temporary": True,
                 }
 
-            requests.put(password_url, json=password_data, headers=headers, timeout=10)
+            password_response = requests.put(
+                password_url, json=password_data, headers=headers, timeout=10
+            )
+            if fail_if_exists:
+                password_response.raise_for_status()
+                roles = requests.get(
+                    f"{keycloak_url}/admin/realms/{KEYCLOAK_REALM}/users/{user_id}"
+                    "/role-mappings/realm",
+                    headers=headers, timeout=10,
+                )
+                roles.raise_for_status()
+                wanted = "TenantAdmin" if is_owner else "Farmer"
+                if wanted not in {r.get("name") for r in roles.json()}:
+                    raise RuntimeError(f"role {wanted} was not assigned")
 
             logger.info(f"Successfully created Keycloak user: {email}")
             return {"success": True, "user_id": user_id, "email": email, "tenant_id": tenant_id}
 
         except Exception as e:
             logger.error(f"Failed to create Keycloak user {email}: {e}")
+            if new_user_id:
+                _delete_keycloak_user_best_effort(new_user_id, "create_keycloak_user")
             return {"success": False, "error": "User creation failed"}
 
     def _fetch_realm_roles(self, headers: dict[str, str]) -> dict[str, dict[str, Any]]:
@@ -1501,6 +1594,45 @@ class EnhancedTenantWebhookService:
         except Exception as e:
             logger.error(f"Error finding Keycloak user by email {email}: {e}")
             return None
+
+    def _broker_has_data(self, tenant_id: str) -> bool:
+        """Whether the broker holds any document under this id. An empty
+        database does not count. Raises when it cannot tell."""
+        client = pymongo.MongoClient(MONGODB_URI, serverSelectionTimeoutMS=5000)
+        try:
+            db = client.get_database(f"orion-{normalize_tenant_id(tenant_id)}")
+            return any(
+                db[name].find_one({}, {"_id": 1}) is not None
+                for name in db.list_collection_names()
+            )
+        finally:
+            client.close()
+
+    def _keycloak_has_accounts(self, tenant_id: str) -> bool:
+        """Whether any account carries this tenant id, with or without a
+        tenant row. Raises when it cannot tell."""
+        token = self.get_keycloak_token()
+        if not token:
+            raise RuntimeError("no Keycloak admin token")
+        response = requests.get(
+            f"{self._get_keycloak_base_url()}/admin/realms/{KEYCLOAK_REALM}/users",
+            headers={"Authorization": f"Bearer {token}"},
+            params={"q": f"tenant_id:{tenant_id}", "max": 1000},
+            timeout=10,
+        )
+        response.raise_for_status()
+        return any(
+            tenant_id in ((user.get("attributes") or {}).get("tenant_id") or [])
+            for user in response.json()
+        )
+
+    def _tenant_id_in_use(self, tenant_id: str) -> bool:
+        """Whether a tenant id with no row is still not free to hand out."""
+        return (
+            tenant_id in RESERVED_TENANT_IDS
+            or self._broker_has_data(tenant_id)
+            or self._keycloak_has_accounts(tenant_id)
+        )
 
     def _ensure_orion_tenant_db(self, tenant_id: str) -> bool:
         """Create the Orion-LD MongoDB database for the tenant.
@@ -1859,6 +1991,8 @@ def woocommerce_webhook():  # noqa: C901
                 limits=limits,
                 tenant_name=tenant_name,
                 source="woocommerce",
+                match="email",
+                allow_suspended=True,
             )
 
             cursor = conn.cursor()
@@ -2010,6 +2144,8 @@ def generate_activation_code():  # noqa: C901
                 limits=limits,
                 tenant_name=tenant_name,
                 source="admin",
+                match="email",
+                allow_suspended=True,
             )
 
             cursor = conn.cursor()
@@ -3533,6 +3669,20 @@ def create_tenant_directly():
             "error_code": "TENANT_EXISTS",
         }), 409
 
+    try:
+        in_use = (tenant_id in RESERVED_TENANT_IDS
+                  or webhook_service._broker_has_data(tenant_id))
+    except Exception as e:
+        return _internal_error(
+            e, "create_tenant_directly.in_use", status=503,
+            user_message="Tenant storage unavailable", error_code="STORAGE_UNAVAILABLE",
+        )
+    if in_use:
+        return jsonify({
+            "error": f"Tenant {tenant_id!r} is reserved or still has data",
+            "error_code": "TENANT_EXISTS",
+        }), 409
+
     # --- 4. Tenant storage: Orion-LD Mongo database + API key -----------
     # The same provisioning step serves the activation-code and self-service
     # flows. A failure drops nothing: another request may own the database,
@@ -3555,28 +3705,32 @@ def create_tenant_directly():
 
     # --- 5. Postgres tenant record --------------------------------------
     conn = webhook_service.get_db_connection()
-    tenant_record_id = None
-    if conn:
-        try:
-            tenant_record_id = webhook_service.ensure_tenant_record(
-                conn, email, plan,
-                {"max_users": plan_info["max_users"],
-                 "max_robots": plan_info["max_robots"],
-                 "max_sensors": plan_info["max_sensors"]},
-                tenant_id,  # tenant_name is the canonical id; humanize on read
-                "admin",
-            )
-        except Exception as e:
-            return _internal_error(
-                e, "create_tenant_directly.db",
-                user_message="Failed to persist tenant record",
-                error_code="DB_PROVISION_FAILED",
-            )
-        finally:
-            try:
-                conn.close()
-            except Exception as e:
-                logger.warning(f"PAT validation failed: {e}")
+    if not conn:
+        return jsonify({"error": "Database unavailable",
+                        "error_code": "DB_UNAVAILABLE"}), 503
+    try:
+        webhook_service.ensure_tenant_record(
+            conn, email, plan,
+            {"max_users": plan_info["max_users"],
+             "max_robots": plan_info["max_robots"],
+             "max_sensors": plan_info["max_sensors"]},
+            tenant_id,  # tenant_name is the canonical id; humanize on read
+            "admin",
+            match="none",
+        )
+    except TenantExistsError:
+        return jsonify({
+            "error": f"Tenant {tenant_id!r} already exists",
+            "error_code": "TENANT_EXISTS",
+        }), 409
+    except Exception as e:
+        return _internal_error(
+            e, "create_tenant_directly.db",
+            user_message="Failed to persist tenant record",
+            error_code="DB_PROVISION_FAILED",
+        )
+    finally:
+        conn.close()
 
     # --- 6. Keycloak owner user (best-effort; logged as warning) --------
     user_result = webhook_service.create_keycloak_user(
@@ -4983,17 +5137,93 @@ def forgot_password():
         return jsonify({"error": "Internal server error"}), 500
 
 
+def _text_fields(payload: Any, names: tuple[str, ...]) -> dict[str, str]:
+    """The named fields of a JSON object that are non-blank strings, stripped
+    (passwords untouched). Anything else in the body is ignored."""
+    if not isinstance(payload, dict):
+        return {}
+    return {
+        n: payload[n] if n == "password" else payload[n].strip()
+        for n in names
+        if isinstance(payload.get(n), str) and payload[n].strip()
+    }
+
+
+def _resolve_activation_tenant(plan_info: dict[str, Any], email: str, tenant_name: str):
+    """Return (tenant_id, None), or (None, response) when activation must stop.
+
+    A code issued for a tenant activates that tenant and no other. A code that
+    carries none gets its own record here, before any storage exists.
+    """
+    unavailable = (jsonify({"error": "Database unavailable",
+                            "error_code": "DB_UNAVAILABLE"}), 503)
+    conn = webhook_service.get_db_connection()
+    if not conn:
+        return None, unavailable
+    try:
+        tenant_id = plan_info.get("tenant_id")
+        if not tenant_id:
+            tenant_id = webhook_service.ensure_tenant_record(
+                conn,
+                email,
+                plan_info["plan"],
+                {
+                    "max_users": plan_info["max_users"],
+                    "max_robots": plan_info["max_robots"],
+                    "max_sensors": plan_info["max_sensors"],
+                },
+                tenant_name,
+                "activation_code",
+                match="email",
+            )
+            return tenant_id, None
+
+        webhook_service._apply_admin_context(conn)
+        cursor = conn.cursor()
+        cursor.execute(
+            """
+            SELECT tenant_id, deleted_at, metadata->>'primary_email' AS primary_email
+            FROM tenants WHERE tenant_id = %s
+            """,
+            (tenant_id,),
+        )
+        row = cursor.fetchone()
+        if not row or row["deleted_at"] or row["primary_email"] != email.lower():
+            cursor.close()
+            logger.warning(f"Activation refused: tenant {tenant_id!r} is not available")
+            return None, (jsonify({"error": "Tenant not available",
+                                   "error_code": "TENANT_UNAVAILABLE"}), 409)
+        cursor.execute(
+            "UPDATE tenants SET tenant_name = %s, updated_at = NOW() WHERE tenant_id = %s",
+            (tenant_name, tenant_id),
+        )
+        conn.commit()
+        cursor.close()
+        return tenant_id, None
+    except TenantSuspendedError:
+        return None, (jsonify({"error": "Tenant not available",
+                               "error_code": "TENANT_UNAVAILABLE"}), 409)
+    except Exception as e:
+        logger.error(f"Activation could not resolve its tenant: {e}")
+        return None, unavailable
+    finally:
+        conn.close()
+
+
 @app.route("/activate", methods=["POST"])
 @app.route("/webhook/activate", methods=["POST"])
 @limiter.limit("10 per hour")
 def activate_tenant():  # noqa: C901
     """Activate tenant using activation code"""
     try:
-        data = request.get_json()
+        data = _text_fields(
+            request.get_json(silent=True),
+            ("code", "email", "password", "tenant_name", "first_name", "firstName",
+             "last_name", "lastName"),
+        )
         code = data.get("code")
         email = data.get("email")
-        tenant_name = data.get("tenant_name", email.split("@")[0])
-        password = data.get("password")  # Get password from request
+        password = data.get("password")
 
         if not code or not email:
             return jsonify({"error": "Code and email are required"}), 400
@@ -5001,19 +5231,17 @@ def activate_tenant():  # noqa: C901
         if not password:
             return jsonify({"error": "Password is required"}), 400
 
+        tenant_name = data.get("tenant_name") or email.split("@")[0]
+
         # Validate activation code
         plan_info = webhook_service.validate_activation_code(code, email)
         if not plan_info:
             return jsonify({"error": "Invalid or expired activation code"}), 400
 
-        # Generate canonical tenant ID (lowercase, hyphens, NFD-transliterated).
-        # Falls back to the email local part if the user-supplied name has no
-        # canonical form (e.g. all symbols, too short after normalization).
-        try:
-            tenant_id = normalize_tenant_id(tenant_name)
-        except ValueError:
-            fallback = email.split("@")[0].split(".")[0] or "tenant"
-            tenant_id = normalize_tenant_id(fallback)
+        # The code decides the tenant; the typed name is only a display name.
+        tenant_id, error = _resolve_activation_tenant(plan_info, email, tenant_name)
+        if error:
+            return error
 
         # Provision tenant storage (CRITICAL - must succeed)
         logger.info(f"Provisioning tenant storage for: {tenant_id}")
@@ -5072,29 +5300,6 @@ def activate_tenant():  # noqa: C901
         api_key = provisioning.api_key
         if not api_key:
             logger.warning(f"API key not generated for tenant: {tenant_id} - continuing anyway")
-
-        # Create tenant record in database (if not exists)
-        conn = webhook_service.get_db_connection()
-        if conn:
-            try:
-                tenant_record_id = webhook_service.ensure_tenant_record(
-                    conn,
-                    email,
-                    plan_info["plan"],
-                    {
-                        "max_users": plan_info["max_users"],
-                        "max_robots": plan_info["max_robots"],
-                        "max_sensors": plan_info["max_sensors"],
-                    },
-                    tenant_name,
-                    "activation_code",
-                )
-                if tenant_record_id:
-                    logger.info(f"Tenant record ensured: {tenant_record_id}")
-            except Exception as e:
-                logger.error(f"Failed to ensure tenant record: {e}")
-            finally:
-                conn.close()
 
         # Create first farmer (owner) in database
         farmer_id = None
@@ -6125,6 +6330,21 @@ def delete_tenant_user(user_id: str):
 
 
 
+def _tenant_id_available(tenant_id: str) -> bool:
+    """Whether a new account may take this id. Raises when it cannot tell."""
+    conn = webhook_service.get_db_connection()
+    if not conn:
+        raise RuntimeError("database unavailable")
+    try:
+        cursor = conn.cursor()
+        cursor.execute("SELECT tenant_id FROM tenants WHERE tenant_id = %s", (tenant_id,))
+        exists = cursor.fetchone() is not None
+        cursor.close()
+    finally:
+        conn.close()
+    return not exists and not webhook_service._tenant_id_in_use(tenant_id)
+
+
 @app.route("/webhook/register/check-tenant", methods=["POST"])
 @cross_origin(origins=_cors_origins, supports_credentials=True)
 @limiter.limit("30 per minute")
@@ -6142,24 +6362,14 @@ def check_tenant_availability():
         except ValueError as e:
             return jsonify({"available": False, "error": str(e)}), 400
 
-        conn = webhook_service.get_db_connection()
-        exists = False
-        if conn:
-            try:
-                cursor = conn.cursor()
-                cursor.execute(
-                    "SELECT tenant_id FROM tenants WHERE tenant_id = %s",
-                    (tenant_id,),
-                )
-                exists = cursor.fetchone() is not None
-                cursor.close()
-            except Exception as e:
-                logger.error(f"Error checking tenant existence: {e}")
-            finally:
-                conn.close()
+        try:
+            available = _tenant_id_available(tenant_id)
+        except Exception as e:
+            logger.error(f"Error checking tenant existence: {e}")
+            return jsonify({"error": "Service unavailable"}), 503
 
         return jsonify({
-            "available": not exists,
+            "available": available,
             "normalized": tenant_id,
             "tenant_id": tenant_id,
         })
@@ -6227,6 +6437,7 @@ def request_registration_otp():
         redis_client = redis.Redis.from_url(REDIS_URL, decode_responses=True)
         redis_key = f"registro:otp:{email}"
         redis_client.setex(redis_key, 900, otp)  # 900 seconds = 15 minutes
+        redis_client.delete(f"registro:otp-tries:{email}")
         
         # 4. Call email-service to send the OTP
         email_payload = {
@@ -6263,11 +6474,15 @@ def register_tenant():
     Creates a Keycloak user, a Tenant record, and an initial welcome parcel.
     """
     try:
-        data = request.get_json()
+        data = _text_fields(
+            request.get_json(silent=True),
+            ("email", "organization_name", "password", "plan", "otp", "first_name",
+             "firstName", "last_name", "lastName"),
+        )
         email = data.get("email")
         organization_name = data.get("organization_name")
         password = data.get("password")
-        plan = data.get("plan", "pro")  # Defaults to pro for 45-day trial
+        plan_lower = data.get("plan", "pro").lower()  # pro: 45-day trial
         otp = data.get("otp")
 
         if not all([email, organization_name, password, otp]):
@@ -6275,25 +6490,8 @@ def register_tenant():
                 {"error": "Email, organization name, password, and OTP are required"}
             ), 400
 
-        email = email.lower().strip()
+        email = email.lower()
 
-        # 0. Verify OTP before proceeding
-        import redis
-        redis_client = redis.Redis.from_url(REDIS_URL, decode_responses=True)
-        redis_key = f"registro:otp:{email}"
-        stored_otp = redis_client.get(redis_key)
-
-        if not stored_otp or stored_otp != str(otp).strip():
-            return jsonify({"error": "Invalid or expired verification code."}), 401
-            
-        # OTP is valid, delete it to ensure single-use
-        redis_client.delete(redis_key)
-
-        # Validate plan BEFORE acquiring any DB connection. The previous
-        # ordering opened the connection first and then early-returned 400
-        # for invalid plans, leaking the connection (no outer finally on
-        # this try-block) until the pool's idle timeout reclaimed it.
-        plan_lower = plan.lower() if plan else "pro"
         if plan_lower not in ("pro", "premium", "enterprise"):
             return jsonify({
                 "error": (
@@ -6301,9 +6499,42 @@ def register_tenant():
                     "Basic requires NEK invitation code."
                 )
             }), 400
+        try:
+            wanted_id = normalize_tenant_id(organization_name)
+        except ValueError as e:
+            return jsonify({"error": str(e), "error_code": "INVALID_TENANT_NAME"}), 400
+        # Before the code is spent; the insert below decides.
+        try:
+            if not _tenant_id_available(wanted_id):
+                return jsonify({"error": "Organization name already registered",
+                                "error_code": "TENANT_EXISTS"}), 409
+        except Exception as e:
+            return _internal_error(
+                e, "register_tenant.availability", status=503,
+                user_message="Service unavailable", error_code="UNAVAILABLE",
+            )
 
-        # 1. Check existence (normalization is performed inside
-        # ensure_tenant_record via the canonical normalize_tenant_id).
+        # 0. Verify the OTP. Five wrong codes burn it, and only the request
+        # that deletes it goes on, so a double submit registers once.
+        import redis
+        redis_client = redis.Redis.from_url(REDIS_URL, decode_responses=True)
+        redis_key = f"registro:otp:{email}"
+        tries_key = f"registro:otp-tries:{email}"
+        stored_otp = redis_client.get(redis_key)
+        if not stored_otp:
+            return jsonify({"error": "Invalid or expired verification code."}), 401
+        if not hmac.compare_digest(stored_otp.encode(), otp.encode()):
+            tries = redis_client.incr(tries_key)
+            redis_client.expire(tries_key, 900)
+            if int(tries) >= 5:
+                redis_client.delete(redis_key, tries_key)
+            return jsonify({"error": "Invalid or expired verification code."}), 401
+        if redis_client.delete(redis_key) != 1:
+            return jsonify({"error": "Invalid or expired verification code."}), 401
+        redis_client.delete(tries_key)
+
+        # 1. The tenant row and the account are created together: the row is
+        # committed only once the account exists.
         conn = webhook_service.get_db_connection()
         if not conn:
             return jsonify({"error": "Database unavailable"}), 500
@@ -6330,16 +6561,18 @@ def register_tenant():
             tenant_id = webhook_service.ensure_tenant_record(
                 conn=conn,
                 email=email,
-                plan=plan,
+                plan=plan_lower,
                 limits=limits,
                 tenant_name=organization_name,
                 source="self-service-onboarding",
+                match="new_account",
+                commit=False,
             )
 
             # 4. Create User in Keycloak
             # We map plan info for Keycloak attributes
             plan_info = {
-                "plan": plan,
+                "plan": plan_lower,
                 "max_users": limits["max_users"],
                 "max_robots": limits["max_robots"],
                 "max_sensors": limits["max_sensors"],
@@ -6358,28 +6591,19 @@ def register_tenant():
             )
 
             if not kc_result.get("success"):
+                conn.rollback()
                 if kc_result.get("conflict"):
-                    return jsonify({"error": "El email ya está registrado"}), 409
-                return jsonify(
-                    {"error": f"Identity creation failed: {kc_result.get('error')}"}
-                ), 500  # noqa: E501
+                    return jsonify({"error": "El email ya está registrado",
+                                    "error_code": "EMAIL_EXISTS"}), 409
+                return jsonify({"error": "Identity creation failed"}), 500
 
-            # 5. Set initial plan level in tenants table (SOTA Migration 058)
-            from common.tier_quotas import plan_level_for
-            plan_level = plan_level_for(plan_lower)
-            cursor = conn.cursor()
-            webhook_service._apply_admin_context(conn)
-            cursor.execute(
-                """
-                UPDATE tenants SET plan_level = %s WHERE tenant_id = %s
-            """,
-                (plan_level, tenant_id),
-            )
+            try:
+                conn.commit()
+            except Exception:
+                _delete_keycloak_user_best_effort(kc_result["user_id"], "register_tenant")
+                raise
 
-            conn.commit()
-            cursor.close()
-
-            # 6. Tenant storage: Orion-LD database + API key. The user can
+            # 5. Tenant storage: Orion-LD database + API key. The user can
             #    already log in, so a failure is logged for the platform admin
             #    to re-provision instead of blocking the registration.
             provisioning = webhook_service.provision_tenant_core(tenant_id, plan_info)
@@ -6390,7 +6614,7 @@ def register_tenant():
                 )
             api_key = provisioning.api_key
 
-            # 7. Welcome email and admin notification, without holding the response
+            # 6. Welcome email and admin notification, without holding the response
             if api_key:
                 _send_email_async(
                     "/send/welcome",
@@ -6438,6 +6662,14 @@ def register_tenant():
                 }
             ), 201
 
+        except AccountExistsError:
+            conn.rollback()
+            return jsonify({"error": "El email ya está registrado",
+                            "error_code": "EMAIL_EXISTS"}), 409
+        except TenantExistsError:
+            conn.rollback()
+            return jsonify({"error": "Organization name already registered",
+                            "error_code": "TENANT_EXISTS"}), 409
         except Exception as e:
             conn.rollback()
             logger.error(f"Onboarding failed for {email}: {str(e)}")
