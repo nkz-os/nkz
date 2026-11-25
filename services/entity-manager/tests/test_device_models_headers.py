@@ -174,12 +174,13 @@ def test_a_registration_without_the_context_url_is_502_and_writes_nothing(mappin
 
 
 @each_mapping
-def test_a_profile_change_without_the_context_url_is_502_and_restores_the_agent(mapping, orion):
+def test_a_profile_change_without_the_context_url_is_502_and_leaves_the_agent_alone(mapping, orion):
+    """The DeviceModel is written first: its failure sends nothing to the agent, so nothing is restored."""
     orion.state.profiles["p2"]["mapping"] = mapping
     orion.orion.entities[URN] = _device()
     r = _put(f"/api/sensors/devices/{URN}/profile", {"profile": "p2"})
     assert r.status_code == 502 and r.get_json()["step"] == "device_model", r.get_json()
-    assert orion.state.iota_attrs == [_attributes(mapping, "p2"), _attributes(MAPPED, "p")]
+    assert orion.state.iota_attrs == []
     assert not any(e[0] == "orion" for e in orion.state.log) and orion.orion.entities[URN] == _device()
 
 

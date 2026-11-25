@@ -666,25 +666,25 @@ def test_3_a_later_put_after_the_move_is_refused(w):
     assert_no_silent_device(w)
 
 
-def _stall_model_write(w, gate):
-    """The change stops right BEFORE its first Orion write, after the check that preceded it."""
-    base = device_models.SyncOrionClient
-    seen = []
+def _stall_device_write(w, gate):
+    """The change stops right AFTER its agent push, before the lock is checked for the Device write
+    (its first Orion write on the entity; the DeviceModel is written before the push)."""
+    real, seen = dataloggers.push_iota_attributes, []
 
-    class Stalling(base):
-        def upsert_entities_batch(self, entities):
-            if who() == "P" and not seen:
-                seen.append(1)
-                gate.stall()
-            return super().upsert_entities_batch(entities)
+    def push(*args, **kwargs):
+        out = real(*args, **kwargs)
+        if who() == "P" and not seen:
+            seen.append(1)
+            gate.stall()
+        return out
 
-    w.mp.setattr(device_models, "SyncOrionClient", Stalling)
+    w.mp.setattr(dataloggers, "push_iota_attributes", push)
 
 
 def test_3_the_restore_after_the_move_is_built_for_the_iota_row(w):
     w.seed_device(state=EM)
-    gate = Gate(w, "before the Orion write")
-    _stall_model_write(w, gate)
+    gate = Gate(w, "before the Device write")
+    _stall_device_write(w, gate)
     P = w.thread("P", lambda: w.change_profile("p2"))
     move_end = _kill_then_move(w, gate)
     gate.release()
@@ -700,8 +700,8 @@ def test_3_the_restore_after_the_move_is_built_for_the_iota_row(w):
 
 def test_3_the_fallback_with_the_database_down_and_more_than_30_s_puts_nothing(w, monkeypatch, caplog):
     w.seed_device(state=EM)
-    gate = Gate(w, "before the Orion write")
-    _stall_model_write(w, gate)
+    gate = Gate(w, "before the Device write")
+    _stall_device_write(w, gate)
     offset = [0.0]
     monkeypatch.setattr(dataloggers, "time", SimpleNamespace(
         monotonic=lambda: time.monotonic() + offset[0], sleep=time.sleep))
@@ -893,8 +893,8 @@ def test_8_and_a_profile_change_slips_into_the_gap(w):
 
 def test_9_the_change_backend_terminated_before_its_orion_write(w):
     w.seed_device(state=EM)
-    gate = Gate(w, "before the Orion write")
-    _stall_model_write(w, gate)
+    gate = Gate(w, "before the Device write")
+    _stall_device_write(w, gate)
     P = w.thread("P", lambda: w.change_profile("p2"))
     gate.wait_reached()
     w.kill("P")
@@ -957,8 +957,8 @@ def test_11_a_restore_that_meets_a_move_that_skips_its_device_says_so_and_saving
     the lock before the restore. Nothing can be put back (waiting would hold the only worker): the
     device keeps the new mappings, the log says so, and saving the profile again repairs it."""
     urn1, urn2 = w.seed_device("S1"), w.seed_device("S2")
-    gate = Gate(w, "before the Orion write")
-    _stall_model_write(w, gate)
+    gate = Gate(w, "before the Device write")
+    _stall_device_write(w, gate)
     P = w.thread("P", lambda: w.change_profile("p2", urn=urn2))
     seen = {}
 

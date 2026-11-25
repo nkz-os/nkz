@@ -933,7 +933,9 @@ def _push_from_last_state(tenant: str, urn: str, external_id: str, old_code: Opt
 
 def change_device_profile(tenant: str, urn: str, code: str) -> None:
     """Re-provision the IoT Agent attributes, then write the profile on the entity; undo the first
-    if the second fails.
+    if the second fails. A Device's DeviceModel comes before both (idempotent, never undone): a
+    failure of it leaves the agent untouched, and the mappings are built (a 400 leaves nothing
+    behind) before it.
 
     The shared writer-move lock is held from before the first read until after the undo. Every
     IoT Agent PUT is preceded by a check that the lock is alive; a lost lock before the first PUT
@@ -969,6 +971,14 @@ def _change_device_profile_locked(tenant: str, urn: str, code: str, external_id:
         if (profile.get('sdm_entity_type') or 'Device') != 'Device':
             raise ApiError(400, f'Profile "{code}" is not for a Device')
         device_models.profile_attrs(tenant, profile)
+        try:
+            # The mappings are built (for the device's writer state now) before anything is
+            # written: a 400 leaves no DeviceModel and no PUT.
+            iota_attributes_for(tenant, urn, external_id, code, new_ms)
+        except KeyError:
+            raise ApiError(400, 'Profile has measurements without sdmAttribute')
+        except ValueError as exc:
+            raise ApiError(400, str(exc))
 
     def fallback(in_use, last_state: tuple) -> None:
         """The blind restore: only under a lock that answers now or answered within 30 s."""
@@ -1031,6 +1041,12 @@ def _change_device_profile_locked(tenant: str, urn: str, code: str, external_id:
                             "but the entity still has profile %s (previous profile not readable)",
                             external_id, code, old_code)
 
+    if is_device:
+        # The DeviceModel first: it is idempotent and never undone, so a failure here leaves the
+        # agent untouched and there is nothing to restore; and the window between the agent push and
+        # the Device write shrinks to one request.
+        guard()
+        device_models.ensure_device_model(tenant, profile)
     try:
         pushed_state = push_iota_attributes(tenant, urn, external_id, code, new_ms, guard)
     except KeyError:
@@ -1054,8 +1070,6 @@ def _change_device_profile_locked(tenant: str, urn: str, code: str, external_id:
     # request it always had: do not unify the two branches.
     try:
         if is_device:
-            guard()
-            device_models.ensure_device_model(tenant, profile)
             guard()
             device_models.write_profile_attrs(tenant, urn, profile, extra=profile_codes)
         else:

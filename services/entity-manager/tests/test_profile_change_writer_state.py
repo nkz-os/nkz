@@ -53,6 +53,10 @@ POST_FAILURES = {
 }
 FAILURES = {**MODEL_FAILURES, **POST_FAILURES}
 each_failure = pytest.mark.parametrize("fail", FAILURES.values(), ids=FAILURES.keys())
+# The DeviceModel is written BEFORE the agent push, so a failure of it leaves the agent alone and
+# only a failure of the Device write is restored.
+each_model_failure = pytest.mark.parametrize("fail", MODEL_FAILURES.values(), ids=MODEL_FAILURES.keys())
+each_restoring_failure = pytest.mark.parametrize("fail", POST_FAILURES.values(), ids=POST_FAILURES.keys())
 
 
 def _state(state, urn=URN):
@@ -92,7 +96,7 @@ def _writes(st):
 
 @each_state
 @each_device
-def test_the_agent_then_the_model_then_one_device_write_then_the_delete(attrs, state):
+def test_the_model_then_the_agent_then_one_device_write_then_the_delete(attrs, state):
     st = _state(state)
     with wired(st) as w:
         r = _change(w, _entity(attrs))
@@ -100,18 +104,18 @@ def test_the_agent_then_the_model_then_one_device_write_then_the_delete(attrs, s
         assert r.status_code == 200, r.get_json()
         assert sent == [_attributes(state, "p2", NEW)]
     assert _writes(st) == [
-        ("iota", "update", "S1"), ("orion", "upsert", MODEL2),
-        ("orion", "delete_attr", MODEL2, "controlledProperty"),
+        ("orion", "upsert", MODEL2), ("orion", "delete_attr", MODEL2, "controlledProperty"),
+        ("iota", "update", "S1"),
         ("orion", "attrs", URN), ("orion", "delete_attr", URN, "controlledProperty")]
     assert w.orion.attr_posts == [(URN, {
         "profileCode": _prop("p2"), "sensorType": _prop("p2"), "refDeviceModel": _ref("p2"),
         "deviceCategory": _prop(["sensor"])})]
 
 
-@each_failure
+@each_restoring_failure
 @each_state
 @each_device
-def test_a_failed_model_or_device_write_restores_the_attributes_of_the_old_profile(attrs, state, fail):
+def test_a_failed_device_write_restores_the_attributes_of_the_old_profile(attrs, state, fail):
     st = _state(state)
     st.fail.update(fail)
     entity = _entity(attrs)
@@ -119,10 +123,26 @@ def test_a_failed_model_or_device_write_restores_the_attributes_of_the_old_profi
         r = _change(w, entity)
         assert [a for _, a in st.iota_attrs] == [_attributes(state, "p2", NEW),
                                                  _attributes(state, "p", OLD)]
-    step = "device_model" if fail in MODEL_FAILURES.values() else "orion_profile"
-    assert r.status_code == 502 and r.get_json()["step"] == step, r.get_json()
+    assert r.status_code == 502 and r.get_json()["step"] == "orion_profile", r.get_json()
     assert w.orion.entities[URN] == entity
     assert ("orion", "delete_attr", URN, "controlledProperty") not in st.log
+
+
+@each_model_failure
+@each_state
+@each_device
+def test_a_failed_model_leaves_the_agent_alone_and_restores_nothing(attrs, state, fail, caplog):
+    st = _state(state)
+    st.fail.update(fail)
+    entity = _entity(attrs)
+    with wired(st) as w:
+        with patch.object(dataloggers, "push_iota_attributes",
+                          side_effect=AssertionError("the agent was pushed")):
+            r = _change(w, entity)
+    assert r.status_code == 502 and r.get_json()["step"] == "device_model", r.get_json()
+    assert st.iota_attrs == [] and not _calls(st.log, "iota")           # no PUT, so no restore
+    assert w.orion.entities[URN] == entity and w.orion.attr_posts == []
+    assert not [x for x in caplog.records if x.levelno >= logging.CRITICAL]
 
 
 def _readable(reads):
@@ -138,14 +158,14 @@ def _readable(reads):
     return patch.object(dataloggers, "device_dm_state", read)
 
 
-@each_failure
+@each_restoring_failure
 def test_an_unreadable_state_restores_from_the_state_the_attributes_were_pushed_for(fail, caplog):
     """The device moves to the IoT Agent during the push; for the restore it cannot be read."""
     st = _state(("em", None))
     st.after_update = lambda n: _move_to(st, ("iota", "sdm")) if n == 1 else None
     st.fail.update(fail)
     with wired(st) as w, caplog.at_level("CRITICAL"):
-        with _readable(reads=3):  # before the push, after it, after the second one
+        with _readable(reads=4):  # before the model, before the push, after it, after the second one
             r = _change(w, _entity(ON_P["model-only"]))
         assert [a for _, a in st.iota_attrs] == [
             _attributes(("em", None), "p2", NEW), _attributes(("iota", "sdm"), "p2", NEW),
@@ -154,7 +174,7 @@ def test_an_unreadable_state_restores_from_the_state_the_attributes_were_pushed_
     assert any("last known state ('iota', 'sdm')" in x.getMessage() for x in caplog.records)
 
 
-@each_failure
+@each_restoring_failure
 def test_the_restore_reads_the_state_again(fail):
     """The device moves to the IoT Agent between the push and the failure."""
     st = _state(("em", None))
@@ -178,15 +198,14 @@ def test_the_restore_reads_the_state_again(fail):
     assert r.status_code == 502, r.get_json()
 
 
-@each_failure
+@each_restoring_failure
 def test_a_restore_that_fails_is_logged_with_both_codes_and_keeps_the_error(fail, caplog):
     st = _state(("iota", "sdm"))
     st.fail.update(fail)
     st.after_update = lambda n: st.fail.__setitem__("iota_update", True)
     with wired(st) as w, caplog.at_level("CRITICAL"):
         r = _change(w, _entity(ON_P["model-only"]))
-    step = "device_model" if fail in MODEL_FAILURES.values() else "orion_profile"
-    assert r.status_code == 502 and r.get_json()["step"] == step, r.get_json()
+    assert r.status_code == 502 and r.get_json()["step"] == "orion_profile", r.get_json()
     assert any("old_profile=p new_profile=p2" in x.getMessage() for x in caplog.records)
 
 
@@ -211,7 +230,7 @@ def test_a_writer_state_that_is_not_confirmed_writes_nothing_to_the_broker():
         r = _change(w, _entity(ON_P["model-only"]))
         assert st.iota_attrs[-1] == ("S1", _attributes(("em", None), "p", OLD))
     assert r.status_code == 502 and r.get_json()["step"] == "dm_state", r.get_json()
-    assert not any(e[0] == "orion" for e in st.log)
+    assert not [e for e in st.log if e[:2] in (("orion", "attrs"), ("orion", "patch"))]
 
 
 def test_a_profile_code_that_fits_no_model_id_is_400_before_the_state_is_read():
@@ -376,10 +395,10 @@ def _traced(st, move_lock, clock=None):
 
 def test_a_change_takes_the_shared_lock_of_its_own_tenant_and_so_does_the_restore(move_lock):
     st, clock = _state(("em", None)), _Clock()
-    st.fail.update(MODEL_FAILURES["model-refused"])
+    st.fail.update(POST_FAILURES["post-500"])
     with wired(st) as w:
         with _traced(st, move_lock, clock):
-            _after(st, LOCK_ALIVE, 2, lambda: _kill(st, move_lock, clock, 5))
+            _after(st, LOCK_ALIVE, 3, lambda: _kill(st, move_lock, clock, 5))
             r = _change(w, _entity(ON_P["model-only"]))
         assert r.status_code == 502
         # the change's own lock, then the one the restore takes again
@@ -434,16 +453,19 @@ def test_a_healthy_change_is_lock_reads_agent_model_device_unlock(urn, move_lock
     rest = _no_lock_traffic(log)
     writes = [e for e in rest if e[0] in ("iota", "orion")]
     if urn == URN:
-        assert writes == [("iota", "update", "S1"), ("orion", "upsert", MODEL2),
-                          ("orion", "delete_attr", MODEL2, "controlledProperty"),
+        assert writes == [("orion", "upsert", MODEL2), ("orion", "delete_attr", MODEL2, "controlledProperty"),
+                          ("iota", "update", "S1"),
                           ("orion", "attrs", URN), ("orion", "delete_attr", URN, "controlledProperty")]
     else:
         assert writes == [("iota", "update", "S1"), ("orion", "patch")]
     first_write = rest.index(writes[0])
-    assert [e for e in rest[1:first_write] if e[0] == "read"] == [
-        ("read", "read_profile"), ("read", "_orion_devices"), ("read", "read_profile"),
-        ("read", "device_dm_state")]
-    assert [e for e in rest[first_write:] if e[0] == "read"] == [("read", "device_dm_state")]
+    reads = [("read", "read_profile"), ("read", "_orion_devices"), ("read", "read_profile"),
+             ("read", "device_dm_state")]
+    assert [e for e in rest[1:first_write] if e[0] == "read"] == reads
+    # a Device's mappings are built once before anything is written, then again by the push (and
+    # read again after it); a machine's only by the push
+    assert [e for e in rest[first_write:] if e[0] == "read"] == [("read", "device_dm_state")] * (
+        2 if urn == URN else 1)
     # a check right before the agent PUT, before the model and before the Device write
     for write in writes[:1] + [e for e in writes if e[1] in ("upsert", "attrs", "patch")]:
         assert log[log.index(write) - 1] == LOCK_ALIVE, write
@@ -451,10 +473,10 @@ def test_a_healthy_change_is_lock_reads_agent_model_device_unlock(urn, move_lock
 
 def test_lock_is_held_until_the_undo_ends(move_lock):
     st = _state(("iota", "sdm"))
-    st.fail.update(MODEL_FAILURES["model-refused"])
+    st.fail.update(POST_FAILURES["post-500"])
     with wired(st) as w, _traced(st, move_lock):
         r = _change(w, _entity(ON_P["model-only"]))
-    assert r.status_code == 502 and r.get_json()["step"] == "device_model"
+    assert r.status_code == 502 and r.get_json()["step"] == "orion_profile"
     updates = [i for i, e in enumerate(st.log) if e == ("iota", "update", "S1")]
     assert len(updates) == 2
     assert st.log[0] == ("lock", "taken")
@@ -467,10 +489,10 @@ def test_lock_error_on_release_does_not_hide_the_result(move_lock, monkeypatch):
     st = _state(("em", None))
     with wired(st) as w:
         ok = _change(w, _entity(ON_P["model-only"]))
-        st.fail.update(MODEL_FAILURES["model-refused"])
+        st.fail.update(POST_FAILURES["post-500"])
         bad = _change(w, _entity(ON_P["model-only"]))
     assert ok.status_code == 200, ok.get_json()
-    assert bad.status_code == 502 and bad.get_json()["step"] == "device_model"
+    assert bad.status_code == 502 and bad.get_json()["step"] == "orion_profile"
 
 
 def test_entity_type_not_allowed_is_400(move_lock):
@@ -491,6 +513,48 @@ def test_mapping_value_error_is_400(move_lock):
         r = _change(w, _entity(ON_P["model-only"]))
     assert r.status_code == 400, r.get_json()
     assert st.iota_attrs == [] and w.orion.attr_posts == [] and st.log[-1] == ("lock", "released")
+
+
+UNIT = {"mapping": {"measurements": [{"type": "x", "sdmAttribute": "stemDiameter", "unit": "furlongs"}]}}
+NO_KEY = {"mapping": {"measurements": [{"sdmAttribute": "stemDiameter", "unit": "mm"}]}}
+NOT_DEVICE = {"sdm_entity_type": "Sensor"}
+
+
+# (an unknown unit is only built, so only refused, for an `iota` device)
+@pytest.mark.parametrize("state,bad", [
+    pytest.param(("iota", "sdm"), UNIT, id="unknown-unit-iota"),
+    pytest.param(("em", None), NO_KEY, id="no-key-and-no-type-em"),
+    pytest.param(("iota", "sdm"), NO_KEY, id="no-key-and-no-type-iota"),
+    pytest.param(("em", None), NOT_DEVICE, id="not-a-device-profile-em"),
+    pytest.param(("iota", "sdm"), NOT_DEVICE, id="not-a-device-profile-iota"),
+])
+def test_a_400_leaves_no_model_and_no_put(state, bad, move_lock):
+    """Every 400 is decided before the DeviceModel is written: it needs no cleaning up."""
+    st = _state(state)
+    st.profiles["p2"].update(bad)
+    with wired(st) as w, _traced(st, move_lock):
+        r = _change(w, _entity(ON_P["model-only"]))
+    assert r.status_code == 400, r.get_json()
+    assert _writes(st) == [] and w.orion.device_models == {} and w.orion.attr_posts == []
+
+
+def test_an_unusable_profile_code_is_400_without_a_model_or_a_put(move_lock):
+    st = _state(("em", None))
+    st.profiles["bad:code"] = st.profiles["p2"]
+    with wired(st) as w, _traced(st, move_lock):
+        w.orion.entities[URN] = _entity(ON_P["model-only"])
+        with pytest.raises(dataloggers.ApiError) as err:
+            dataloggers.change_device_profile(TENANT, URN, "bad:code")
+    assert err.value.status == 400 and _writes(st) == [] and w.orion.device_models == {}
+
+
+def test_a_machine_makes_no_model_request(move_lock):
+    st = _state(("em", None), MACHINE)
+    with wired(st) as w, _traced(st, move_lock):
+        r = _change(w, _entity({**MACHINE_ATTRS, "sensorType": _prop("p")}, MACHINE))
+    assert r.status_code == 200, r.get_json()
+    assert w.orion.device_models == {} and not [e for e in st.log if e[1] in ("upsert", "delete_attr")]
+    assert _writes(st) == [("iota", "update", "S1"), ("orion", "patch")]
 
 
 # ---- a lost lock ---------------------------------------------------------------------------
@@ -525,12 +589,34 @@ def test_no_put_after_the_lock_is_lost_first_push(move_lock):
     assert st.iota_attrs == [] and w.orion.attr_posts == [] and w.orion.device_models == {}
 
 
+def test_a_lock_lost_before_the_model_is_502_db_and_writes_nothing(move_lock):
+    st, clock = _state(("em", None)), _Clock()
+    with wired(st) as w, _traced(st, move_lock, clock):
+        _after(st, ("read", "device_dm_state"), 1, lambda: _kill(st, move_lock, clock, 5, mode="busy"))
+        r = _change(w, _entity(ON_P["model-only"]))
+    assert r.status_code == 502 and r.get_json() == {"error": "Database error", "step": "db"}
+    assert _writes(st) == [] and st.iota_attrs == [] and w.orion.device_models == {}
+
+
+def test_a_lock_lost_between_the_model_and_the_push_is_502_db_with_nothing_to_restore(move_lock, caplog):
+    st, clock = _state(("em", None)), _Clock()
+    with wired(st) as w, _traced(st, move_lock, clock), caplog.at_level(logging.CRITICAL):
+        _after(st, ("orion", "delete_attr", MODEL2, "controlledProperty"), 1,
+               lambda: _kill(st, move_lock, clock, 5, mode="busy"))
+        r = _change(w, _entity(ON_P["model-only"]))
+    assert r.status_code == 502 and r.get_json() == {"error": "Database error", "step": "db"}
+    assert MODEL2 in w.orion.device_models           # the model stays: idempotent, shared, never undone
+    assert st.iota_attrs == [] and w.orion.attr_posts == []
+    assert not [x for x in caplog.records if x.levelno >= logging.CRITICAL]
+
+
 def test_no_put_after_the_lock_is_lost_later_push(move_lock):
     """The device moves to the IoT Agent during the first push: a second push is due, and the lock is gone."""
     st, clock = _state(("em", None)), _Clock()
     st.after_update = lambda n: _move_to(st, ("iota", "sdm")) if n == 1 else None
     with wired(st) as w, _traced(st, move_lock, clock):
-        _after(st, ("read", "device_dm_state"), 2, lambda: _kill(st, move_lock, clock, 31))
+        # reads: before the model, before the first push, after it (the state moved: a second push is due)
+        _after(st, ("read", "device_dm_state"), 3, lambda: _kill(st, move_lock, clock, 31))
         r = _change(w, _entity(ON_P["model-only"]))
     assert r.status_code == 502 and r.get_json()["step"] == "dm_state", r.get_json()
     # the first push, then the restore under the lock taken again; never the second push
@@ -544,10 +630,10 @@ def test_no_put_after_the_lock_is_lost_later_push(move_lock):
 def _restore_runs_with_a_dying_lock(move_lock, since):
     """The model write fails so the restore runs; the lock dies when the restore first checks it."""
     st, clock = _state(("em", None)), _Clock()
-    st.fail.update(MODEL_FAILURES["model-refused"])
+    st.fail.update(POST_FAILURES["post-500"])
     with wired(st) as w, _traced(st, move_lock, clock):
         # 1st check: before the first PUT; 2nd: before the model; then the restore looks
-        _after(st, LOCK_ALIVE, 2, lambda: _kill(st, move_lock, clock, since, mode="unavailable"))
+        _after(st, LOCK_ALIVE, 3, lambda: _kill(st, move_lock, clock, since, mode="unavailable"))
         r = _change(w, _entity(ON_P["model-only"]))
     return st, r
 
@@ -555,18 +641,18 @@ def _restore_runs_with_a_dying_lock(move_lock, since):
 def test_no_put_after_the_lock_is_lost_restore(move_lock, caplog):
     with caplog.at_level(logging.CRITICAL):
         st, r = _restore_runs_with_a_dying_lock(move_lock, since=31)
-    assert r.status_code == 502 and r.get_json()["step"] == "device_model"
+    assert r.status_code == 502 and r.get_json()["step"] == "orion_profile"
     assert [a for _, a in st.iota_attrs] == [_attrs(("em", None), "p2", NEW)]  # no restore
 
 
 def test_fallback_put_within_30_s_of_a_live_lock(move_lock, caplog):
     """The lock cannot be taken again and the state cannot be read, but it answered 29 s ago."""
     st, clock = _state(("em", None)), _Clock()
-    st.fail.update(MODEL_FAILURES["model-refused"])
+    st.fail.update(POST_FAILURES["post-500"])
     with wired(st) as w, _traced(st, move_lock, clock), caplog.at_level(logging.CRITICAL):
-        _after(st, LOCK_ALIVE, 2, lambda: _kill(st, move_lock, clock, 29, False, "unavailable"))
+        _after(st, LOCK_ALIVE, 3, lambda: _kill(st, move_lock, clock, 29, False, "unavailable"))
         r = _change(w, _entity(ON_P["model-only"]))
-    assert r.status_code == 502 and r.get_json()["step"] == "device_model"
+    assert r.status_code == 502 and r.get_json()["step"] == "orion_profile"
     assert [a for _, a in st.iota_attrs] == [_attrs(("em", None), "p2", NEW),
                                              _attrs(("em", None), "p", OLD)]
     assert any(x.getMessage().endswith("save the profile again once the database answers")
@@ -575,7 +661,7 @@ def test_fallback_put_within_30_s_of_a_live_lock(move_lock, caplog):
 
 def test_fallback_put_when_the_state_is_unreadable_under_a_live_lock(move_lock):
     st = _state(("em", None))
-    st.fail.update(MODEL_FAILURES["model-refused"])
+    st.fail.update(POST_FAILURES["post-500"])
     st.after_update = lambda n: st.fail.update(dm_state=True)
     with wired(st) as w, _traced(st, move_lock):
         r = _change(w, _entity(ON_P["model-only"]))
@@ -586,11 +672,11 @@ def test_fallback_put_when_the_state_is_unreadable_under_a_live_lock(move_lock):
 
 def test_fallback_refused_after_30_s_is_critical(move_lock, caplog):
     st, clock = _state(("em", None)), _Clock()
-    st.fail.update(MODEL_FAILURES["model-refused"])
+    st.fail.update(POST_FAILURES["post-500"])
     with wired(st) as w, _traced(st, move_lock, clock), caplog.at_level(logging.CRITICAL):
-        _after(st, LOCK_ALIVE, 2, lambda: _kill(st, move_lock, clock, 31, False, "unavailable"))
+        _after(st, LOCK_ALIVE, 3, lambda: _kill(st, move_lock, clock, 31, False, "unavailable"))
         r = _change(w, _entity(ON_P["model-only"]))
-    assert r.status_code == 502 and r.get_json()["step"] == "device_model"
+    assert r.status_code == 502 and r.get_json()["step"] == "orion_profile"
     assert [a for _, a in st.iota_attrs] == [_attrs(("em", None), "p2", NEW)]
     critical = [x.getMessage() for x in caplog.records if x.levelno == logging.CRITICAL]
     assert any(m.endswith("save the profile again once the database answers") for m in critical)
@@ -598,16 +684,16 @@ def test_fallback_refused_after_30_s_is_critical(move_lock, caplog):
 
 def test_restore_retakes_the_lock_and_rereads_the_state(move_lock):
     st, clock = _state(("em", None)), _Clock()
-    st.fail.update(MODEL_FAILURES["model-refused"])
+    st.fail.update(POST_FAILURES["post-500"])
 
     def lose():
         _kill(st, move_lock, clock, 5)
         _move_to(st, ("iota", "legacy"))  # while nobody held the lock
 
     with wired(st) as w, _traced(st, move_lock, clock):
-        _after(st, LOCK_ALIVE, 2, lose)
+        _after(st, LOCK_ALIVE, 3, lose)
         r = _change(w, _entity(ON_P["model-only"]))
-    assert r.status_code == 502 and r.get_json()["step"] == "device_model"
+    assert r.status_code == 502 and r.get_json()["step"] == "orion_profile"
     assert [a for _, a in st.iota_attrs] == [_attrs(("em", None), "p2", NEW),
                                              _attrs(("iota", "legacy"), "p", OLD)]
     assert [e for e in st.log if e[0] == "lock" and e[1] in ("taken", "released")] == [
@@ -620,11 +706,11 @@ def test_restore_leaves_it_to_a_running_move_and_says_what_may_be_left(move_lock
     """A move of ANOTHER device (or one interrupted before this device) holds the lock: nothing is
     put back, and the log says in plain words that the device may keep the new mappings."""
     st, clock = _state(("em", None)), _Clock()
-    st.fail.update(MODEL_FAILURES["model-refused"])
+    st.fail.update(POST_FAILURES["post-500"])
     with wired(st) as w, _traced(st, move_lock, clock), caplog.at_level(logging.WARNING):
-        _after(st, LOCK_ALIVE, 2, lambda: _kill(st, move_lock, clock, 5, mode="busy"))
+        _after(st, LOCK_ALIVE, 3, lambda: _kill(st, move_lock, clock, 5, mode="busy"))
         r = _change(w, _entity(ON_P["model-only"]))
-    assert r.status_code == 502 and r.get_json()["step"] == "device_model"
+    assert r.status_code == 502 and r.get_json()["step"] == "orion_profile"
     assert [a for _, a in st.iota_attrs] == [_attrs(("em", None), "p2", NEW)]    # no restore PUT
     assert clock.now == 1005.0                                                    # and no waiting
     critical = [x.getMessage() for x in caplog.records if x.levelno == logging.CRITICAL]
@@ -639,7 +725,7 @@ def test_restore_leaves_it_to_a_running_move_and_says_what_may_be_left(move_lock
 def test_fallback_only_when_the_step_is_db(move_lock):
     """A state that is incomplete (not unreadable) is not guessed at."""
     st = _state(("em", None))
-    st.fail.update(MODEL_FAILURES["model-refused"])
+    st.fail.update(POST_FAILURES["post-500"])
     real, calls = dataloggers.push_iota_attributes, []
 
     def push(*a):
@@ -668,7 +754,7 @@ def test_the_last_state_of_a_failed_re_read_is_the_state_pushed_for(move_lock):
 
 def test_a_restore_without_a_last_state_pushes_nothing(move_lock, caplog):
     st = _state(("em", None))
-    st.fail.update(MODEL_FAILURES["model-refused"])
+    st.fail.update(POST_FAILURES["post-500"])
     real, calls = dataloggers.push_iota_attributes, []
 
     def push(*a):
