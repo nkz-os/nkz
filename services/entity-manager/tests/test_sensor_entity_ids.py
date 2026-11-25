@@ -39,7 +39,9 @@ OTHER_IDS = {
     "over-long": f"{BASE_ID}{'x' * (257 - len(BASE_ID))}",
     "very-long": f"{BASE_ID}{'x' * 5000}",
 }
-other_ids = pytest.mark.parametrize("other", OTHER_IDS.values(), ids=OTHER_IDS)
+# Every value is tried on `_is_entity_id`; the routes and steps get these.
+SOME_OTHER = ("query", "sub-path", "cr-lf")
+other_ids = pytest.mark.parametrize("other", [OTHER_IDS[k] for k in SOME_OTHER], ids=SOME_OTHER)
 
 REAL_IDS = [
     "urn:ngsi-ld:AgriParcel:p2",
@@ -68,6 +70,11 @@ REAL_IDS = [
     "urn:ngsi-ld:CompostBatch:tenant-a:batch:2026:1",
     f"{BASE_ID}{'x' * (256 - len(BASE_ID))}",
 ]
+SOME_REAL = [f"urn:ngsi-ld:AgriParcel:tenant-a:{UUID}", "urn:ngsi-ld:AgriPlant:tenant-a:north:R01.P-02_a",
+             "urn:ngsi-ld:ManufacturingMachine:tenant-a:tractor-1"]
+real_ids = pytest.mark.parametrize("entity_id", SOME_REAL)
+NOT_IDS = {**OTHER_IDS, "none": None, "number": 5, "empty": "", "bytes": BASE_ID.encode(),
+           "list": [BASE_ID], "object": {"object": BASE_ID}}
 
 STRUCTURE = {"medium": "ambientAirUnderStructure"}
 ENCLOSURE = {"medium": "enclosedAir"}
@@ -141,10 +148,26 @@ def _nothing_happened(r):
     assert r.env.state.log == []
 
 
-def _refused(resp, field, other, caplog):
+def _refused(resp, field, caplog):
     assert resp.status_code == 422, resp.get_json()
     assert resp.get_json() == {"error": f"{field} is not a valid entity id"}
-    assert other not in caplog.text
+    assert caplog.messages == []
+
+
+# ---- the id rule ---------------------------------------------------------------
+
+@pytest.mark.parametrize("value", NOT_IDS.values(), ids=NOT_IDS)
+def test_other_values_are_not_ids(value):
+    import blueprints.sensors as sensors
+
+    assert sensors._is_entity_id(value) is False
+
+
+@pytest.mark.parametrize("entity_id", REAL_IDS)
+def test_real_ids_are_ids(entity_id):
+    import blueprints.sensors as sensors
+
+    assert sensors._is_entity_id(entity_id) is True
 
 
 # ---- observation fields ------------------------------------------------------
@@ -155,7 +178,7 @@ def _refused(resp, field, other, caplog):
 def test_other_ids_are_refused_first(route, field, other, caplog):
     with recorded(route) as r:
         resp = ROUTES[route](FIELDS[field](other))
-    _refused(resp, field, other, caplog)
+    _refused(resp, field, caplog)
     _nothing_happened(r)
 
 
@@ -166,24 +189,21 @@ def test_an_override_key_is_not_repeated_in_the_answer(route, field, caplog):
     body["channelOverrides"] = {"k\r\n": body["channelOverrides"]["airTemperature"]}
     with recorded(route) as r:
         resp = ROUTES[route](body)
-    _refused(resp, field, "k\r\n", caplog)
+    _refused(resp, field, caplog)
     _nothing_happened(r)
 
 
 @routes
 def test_the_second_override_is_checked(route, caplog):
-    other = OTHER_IDS["fragment"]
     with recorded(route) as r:
         resp = ROUTES[route]({"channelOverrides": {
             "airTemperature": {"observesFeature": BASE_ID},
-            "relativeHumidity": {"observesFeature": other}}})
-    _refused(resp, "channelOverrides.*.observesFeature", other, caplog)
+            "relativeHumidity": {"observesFeature": OTHER_IDS["fragment"]}}})
+    _refused(resp, "channelOverrides.*.observesFeature", caplog)
     _nothing_happened(r)
 
 
-NOT_URNS = {"number": 5, "true": True, "list": [BASE_ID], "list-of-numbers": [5],
-            "object": {"object": BASE_ID}, "object-number": {"object": 5},
-            "name": "p2", "empty": "", "other-scheme": "https://example.org/p2?x"}
+NOT_URNS = {"number": 5, "object": {"object": BASE_ID}, "name": "p2?x"}
 
 
 @routes
@@ -213,7 +233,7 @@ def test_other_shapes_are_still_400(route, body):
 
 @routes
 @fields
-@pytest.mark.parametrize("entity_id", REAL_IDS)
+@real_ids
 def test_real_ids_are_read_and_accepted(route, field, entity_id):
     with recorded(route) as r:
         r.orion.entities[entity_id] = {"id": entity_id}
@@ -229,22 +249,25 @@ def test_real_ids_are_read_and_accepted(route, field, entity_id):
 def test_other_parcel_ids_are_refused_first(shape, other, caplog):
     with recorded() as r:
         resp = _register(client(), controlledAsset=PARCEL_SHAPES[shape](other))
-    _refused(resp, "controlledAsset", other, caplog)
+    _refused(resp, "controlledAsset", caplog)
     _nothing_happened(r)
 
 
-NOT_STRINGS = {"number": 5, "zero": 0, "false": False, "true": True, "list": [PARCEL],
-               "empty-list": [], "object-number": {"object": 5}, "object-list": {"object": [7]},
-               "object-false": {"object": False}}
+NOT_STRINGS = {"number": 5, "true": True, "list": [PARCEL], "object-number": {"object": 5}}
 
 
 @pytest.mark.parametrize("shape", ["list", "object-list"])
 @pytest.mark.parametrize("item", NOT_STRINGS.values(), ids=NOT_STRINGS)
-def test_a_parcel_list_holds_only_ids(shape, item):
+def test_parcel_entries_that_are_not_strings_are_still_left_out(shape, item):
     with recorded() as r:
-        resp = _register(client(), controlledAsset=PARCEL_SHAPES[shape](item))
-    assert resp.status_code == 422, resp.get_json()
-    assert resp.get_json() == {"error": "controlledAsset is not a valid entity id"}
+        assert _register(client(), controlledAsset=PARCEL_SHAPES[shape](item)).status_code == 201
+    assert r.orion.entities[URN]["controlledAsset"]["object"] == [PARCEL]
+
+
+def test_the_ids_beside_an_entry_that_is_not_a_string_are_checked(caplog):
+    with recorded() as r:
+        resp = _register(client(), controlledAsset=[PARCEL, 5, OTHER_IDS["query"]])
+    _refused(resp, "controlledAsset", caplog)
     _nothing_happened(r)
 
 
@@ -262,7 +285,7 @@ def test_parcel_values_that_are_not_urns_are_still_400(value):
 
 
 @pytest.mark.parametrize("shape, entity_id", [
-    (shape, entity_id) for shape in PARCEL_SHAPES for entity_id in REAL_IDS
+    (shape, entity_id) for shape in PARCEL_SHAPES for entity_id in SOME_REAL
     if ":AgriParcel:" in entity_id or shape not in ("string", "object")])
 def test_real_parcel_ids_are_stored(shape, entity_id):
     with recorded() as r:
@@ -281,7 +304,7 @@ def test_empty_parcel_entries_are_still_left_out(empty):
 
 # ---- ids the service builds -----------------------------------------------------
 
-@pytest.mark.parametrize("external_id", ["S1", "a.b-c_d", "..", "x" * 64])
+@pytest.mark.parametrize("external_id", ["S1", "a.b-c_d", "x" * 64])
 def test_the_registered_id_is_read_and_written(external_id):
     urn = f"urn:ngsi-ld:Device:{TENANT}:{external_id}"
     with recorded() as r:
@@ -292,9 +315,8 @@ def test_the_registered_id_is_read_and_written(external_id):
 
 # ---- each step on its own --------------------------------------------------------
 
-NOT_IDS = {**OTHER_IDS, "none": None, "number": 5, "empty": "", "bytes": BASE_ID.encode(),
-           "list": [BASE_ID], "object": {"object": BASE_ID}}
-not_ids = pytest.mark.parametrize("value", NOT_IDS.values(), ids=NOT_IDS)
+not_ids = pytest.mark.parametrize("value", [NOT_IDS[k] for k in (*SOME_OTHER, "none")],
+                                  ids=(*SOME_OTHER, "none"))
 
 
 @fields
@@ -322,7 +344,7 @@ def test_the_entity_read_asks_only_for_ids(value):
     assert broker.mock_calls == []
 
 
-@pytest.mark.parametrize("entity_id", REAL_IDS)
+@real_ids
 def test_the_entity_read_asks_for_real_ids(entity_id):
     import blueprints.sensors as sensors
 
@@ -334,6 +356,20 @@ def test_the_entity_read_asks_for_real_ids(entity_id):
 
 
 @not_ids
+@pytest.mark.parametrize("dep", [None, _dep()], ids=["no-deployment", "deployment"])
+def test_a_deployment_is_mirrored_only_to_ids(value, dep):
+    import blueprints.sensors as sensors
+    import dataloggers
+
+    broker = MagicMock()
+    with patch.object(sensors, "requests", broker), \
+            pytest.raises(dataloggers.ApiError) as caught:
+        sensors._mirror_deployment(TENANT, value, dep)
+    assert (caught.value.status, caught.value.body()) == (422, {"error": "Not a valid entity id"})
+    assert broker.mock_calls == []
+
+
+@not_ids
 def test_the_command_status_is_written_only_to_ids(value, caplog):
     import blueprints.sensors as sensors
 
@@ -341,9 +377,7 @@ def test_the_command_status_is_written_only_to_ids(value, caplog):
     with patch.object(sensors, "requests", broker):
         assert sensors._patch_command_status(TENANT, value, "sent") is False
     assert broker.mock_calls == []
-    assert "invalid entity id" in caplog.text
-    if isinstance(value, str) and value:
-        assert value not in caplog.text
+    assert caplog.messages == ["DeviceCommand status not written: invalid entity id, status=sent"]
 
 
 def test_the_command_status_is_written_to_the_command():

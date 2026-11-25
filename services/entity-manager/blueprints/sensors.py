@@ -74,7 +74,7 @@ def _extract_prop_value(entity: dict, key: str):
 
 
 def _is_entity_id(value) -> bool:
-    """True for an id that stands for itself in a URL."""
+    """True for an id with no character that would end it, or add to it, in a URL path."""
     # ASSUMPTION: an entity id holds no '/' and no '%', and at most MAX_URI_CHARS characters,
     # like the ids in use. An entity created elsewhere with another id is refused (422) when a
     # sensor request names it.
@@ -193,11 +193,7 @@ def _body() -> dict:
 
 
 def _parcel_links(value) -> list:
-    """Ordered, de-duplicated parcel URNs from a string, {'object': ...} or a list of those.
-
-    An entry of any other kind gives one None.
-    """
-    # ASSUMPTION: an empty entry (null or '') names nothing and is left out.
+    """Ordered, de-duplicated parcel URNs from a string, {'object': ...} or a list of those."""
     if value is None:
         return []
     items = value if isinstance(value, list) else [value]
@@ -205,10 +201,7 @@ def _parcel_links(value) -> list:
     for item in items:
         if isinstance(item, dict):
             urns.extend(_parcel_links(item.get('object')))
-        elif not isinstance(item, str):
-            if item is not None:
-                urns.append(None)
-        elif item:
+        elif isinstance(item, str) and item:
             urns.append(item)
     return list(dict.fromkeys(urns))
 
@@ -432,6 +425,8 @@ def _mirror_deployment(tenant_id: str, device_urn: str, dep: Optional[dict]) -> 
     included. A deployment's location is mirrored to `location`; a deployment without
     one leaves `location` alone (mobile devices keep their last reported position).
     """
+    if not _is_entity_id(device_urn):
+        raise dataloggers.ApiError(422, 'Not a valid entity id')
     base = f"{ORION_URL}/ngsi-ld/v1/entities/{device_urn}"
     if dep is None:
         attrs, removable = {}, _OPTIONAL_OBSERVATION_ATTRS + ('deploymentId',)
@@ -538,10 +533,9 @@ def register_sensor():
     lat = _coordinate(location.get('lat'), 'lat')
     lon = _coordinate(location.get('lon'), 'lon')
     parcels = _parcel_links(data.get('controlledAsset'))
-    urns = [u for u in parcels if u is not None]
-    if (not urns
-            or not all(u.startswith('urn:ngsi-ld:') for u in urns)
-            or not any(u.startswith('urn:ngsi-ld:AgriParcel:') for u in urns)):
+    if (not parcels
+            or not all(u.startswith('urn:ngsi-ld:') for u in parcels)
+            or not any(u.startswith('urn:ngsi-ld:AgriParcel:') for u in parcels)):
         raise dataloggers.ApiError(
             400, 'controlledAsset must hold NGSI-LD URNs and at least one AgriParcel.')
     if not all(_is_entity_id(u) for u in parcels):
