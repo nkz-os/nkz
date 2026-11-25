@@ -7,7 +7,7 @@ os.environ.setdefault("CORS_ORIGINS", "https://app.invalid")
 # constants module stays importable under the stub.
 import common.active_tenants  # noqa: E402,F401
 
-# ---- writer move lock: a working fake lock for every test (Task 5) ----------------------------
+# ---- writer move lock: a working fake lock for every test ----------------------------
 import psycopg2  # noqa: E402
 import pytest  # noqa: E402
 

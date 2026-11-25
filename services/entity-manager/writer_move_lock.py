@@ -6,7 +6,11 @@ connection is held for the whole critical section and never reconnected: a dead 
 lost lock, and `alive()` says so.
 
 Every statement is followed by a commit or a rollback, so the session is never left idle in a
-transaction. Errors carry only exception type names: a DSN must never reach a log or a traceback.
+transaction. The locks are session-level advisory locks: a transaction-mode connection pooler between
+the service and PostgreSQL would hand the statements to different sessions and void them (there is
+none today). The connection options are the ones set here: an `options=` in POSTGRES_URL is replaced,
+and a `postgresql+psycopg2://` URL is refused by the driver (the caller answers 502).
+Errors carry only exception type names: a DSN must never reach a log or a traceback.
 """
 import logging
 import math

@@ -875,7 +875,10 @@ def _profile_measurements(tenant: str, code: str) -> Optional[list]:
 
 # ── the writer move lock, shared, for profile changes ──────────────────
 
-_FALLBACK_WINDOW = 30  # seconds: a PUT under a live lock lands before a move can commit (>= 60 s)
+# seconds: a PUT started under a live lock is EXPECTED to land before a move that took the lock
+# afterwards can commit (the move waits at least MIN_SETTLE). Not covered: the DNS lookup, the
+# separate connect/send/read timeouts of a request, and an agent that applies a PUT late.
+_FALLBACK_WINDOW = 30
 
 
 @contextmanager

@@ -1204,7 +1204,7 @@ def test_profile_change_during_the_settle_is_picked_up_by_the_second_put(world):
 
 
 def test_crash_during_the_settle_is_undone_and_the_rerun_moves(world):
-    """Ruling 13: an unexpected error ends in the final undo, nothing escapes."""
+    """An unexpected error ends in the final undo; nothing escapes."""
     urn = world.add("S1")
     world.settle_agent()
     before = _snapshot(world)
@@ -1686,7 +1686,7 @@ def test_verify_never_takes_the_lock_or_writes(world, http):
     assert not world.events("lock") and not world.events("update") and world.puts == 0
 
 
-# -- verify --since, fix round 1: only a new VALUE counts ---------------------------------
+# -- verify --since: only a new VALUE counts ---------------------------------
 
 TWO = ONE_MS + [{"type": "u", "incomingKey": "r2", "sdmAttribute": "relativeHumidity", "unit": "%"}]
 TEXT_MS = [{"type": "x", "sdmAttribute": "airTemperature", "valueType": "Text"}]
@@ -1946,7 +1946,7 @@ def test_lock_is_released_after_success_failure_and_interrupt(world, monkeypatch
             run(*BASE, *iota)
     else:
         rc = run(*BASE, *iota)
-        if scenario == "interrupt-in-planning":      # ruling 6: exit 1, not a traceback
+        if scenario == "interrupt-in-planning":      # exit 1, not a traceback
             assert rc == 1 and "interrupted; nothing was written" in capsys.readouterr().out
             assert world.puts == 0
     assert len(world.events("lock")) == 1 and len(world.events("unlock")) == 1
@@ -2060,7 +2060,7 @@ def test_outcomes_are_printed_as_they_happen(world, monkeypatch):
     updates = [i for i, e in enumerate(world.log) if e[0] == "update"]
     assert len(lines) == 2 and len(updates) == 2
     assert updates[0] < lines[0] < updates[1] < lines[1]      # S1 is printed before S2 is committed
-    assert seen[-2] == "done: 2 ok, 0 failed"      # the verify line (Task 4) follows it
+    assert seen[-2] == "done: 2 ok, 0 failed"      # the verify line follows it
     assert seen[-1].startswith("verify in a few minutes with: --tenant ")
     assert sum(1 for t in seen if t.startswith((a, b)) and "moved" in t) == 2    # once each, not repeated at the end
 
@@ -2091,7 +2091,7 @@ def test_set_state_is_gone():
     assert not hasattr(cut, "set_state")
 
 
-# -- undo and interruptions (task 3) ----------------------------------------------------------
+# -- undo and interruptions ----------------------------------------------------------
 
 def _attrs(urn, ext, state, ms=None):
     return dataloggers._attributes_for_state(state, TENANT, urn, ext, "p", MS if ms is None else ms)
@@ -2120,7 +2120,7 @@ IOTA_LEGACY = ("--to", "iota", "--shape", "legacy", "--apply")
 
 
 def test_interrupted_shape_move_puts_the_old_iota_shape_back_not_device_only(world, capsys):
-    """Review focus 3: a move between two iota shapes, stopped by a signal after the first PUTs and
+    """A move between two iota shapes, stopped by a signal after the first PUTs and
     before the commits, ends with the OLD iota shape in the agent; and the same when the commit
     of the device failed with its outcome unknown and the row was not written."""
     a = world.add("S1", writer="iota", shape="legacy")
@@ -2359,7 +2359,7 @@ def test_a_signal_during_the_plan_exits_1_and_releases_the_lock(world, sentinels
 
 
 def test_connection_lost_between_devices_stops_the_batch(world, capsys):
-    """Review focus 4. S1 commits; then the lock connection dies (whether the commit of S2 raised
+    """S1 commits; then the lock connection dies (whether the commit of S2 raised
     or the loss showed after S1). No later row is committed; the new lock only puts back."""
     urns = [world.add(f"S{i}") for i in (1, 2, 3)]
     world.settle_agent()
@@ -2387,7 +2387,7 @@ def test_a_connection_error_in_the_commit_stops_the_batch(world):
 
 
 def test_a_database_error_with_the_lock_alive_only_fails_that_device(world, capsys):
-    """Ruling 1: a statement timeout is an ordinary failure; the batch goes on."""
+    """A statement timeout is an ordinary failure of that device; the batch goes on."""
     a, b = world.add("S1"), world.add("S2")
     world.settle_agent()
     before = _snapshot(world)
@@ -2855,7 +2855,7 @@ def assert_no_silent_device(world, items, outcomes, strict=True):
     """One outcome per device; no `iota` row whose agent lacks the DeviceMeasurement mappings of
     the row's shape; no `em` row with an empty agent; every lock closed.
 
-    With `strict` False (a second loss, or a refused re-take) the rulings leave the NEW mappings
+    With `strict` False (a second loss, or a refused re-take) the design leaves the NEW mappings
     in the agent on purpose: an `iota` row may then hold the other shape's DeviceMeasurement
     mappings, but only when its outcome lists it as failed. A restore PUT that itself failed is
     reported as such ("could NOT be restored") and is accepted in both modes."""
@@ -2999,7 +2999,7 @@ def test_no_injection_point_leaves_a_silent_device(monkeypatch, base_name, refus
     print(f"property cells so far: {CELLS}")
 
 
-# -- cooperative stopping (fix round 1) -------------------------------------------------------
+# -- cooperative stopping -------------------------------------------------------
 
 def test_the_wait_sums_exactly_the_settle_when_undisturbed(world, sleeps):
     world.add("S1")
@@ -3119,7 +3119,7 @@ def test_the_stop_flag_is_looked_at_between_devices_of_a_move_to_em(world, capsy
     assert [ln for ln in capsys.readouterr().out.splitlines() if b in ln and "not started" in ln]
 
 
-# -- the profile is read after the lock is sure (fix round 2) ---------------------------------
+# -- the profile is read after the lock is sure ---------------------------------
 
 def _profile_changes_in_the_gap(world, monkeypatch):
     """The first profile read of the apply phase returns the OLD profile; then the lock dies and a

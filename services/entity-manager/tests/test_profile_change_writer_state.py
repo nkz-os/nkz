@@ -731,7 +731,7 @@ def test_a_lock_lost_at_any_point_never_puts_blind_and_never_answers_200_unfinis
             assert k < last_check and r.status_code == 502 and r.get_json().get("step"), where
         held = [e[1] for e in st.log if e[0] == "lock" and e[1] in ("taken", "busy", "released")]
         assert held.count("released") == held.count("taken") + held.count("busy"), where
-        # the previous mappings come back whenever the rulings allow it
+        # the previous mappings come back whenever the lock allows it
         if r.status_code != 200 and len(puts) >= 1:
             allowed = mode == "ok" or (mode == "unavailable" and since == 29)
             if allowed:

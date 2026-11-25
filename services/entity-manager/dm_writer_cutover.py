@@ -132,10 +132,10 @@ PAGE = 1000
 DEFAULT_SETTLE = 60.0
 MIN_SETTLE = 60.0     # a PUT of a profile change started under a live lock lasts up to 20 s
 MAX_SETTLE = 600.0
-# Moving devices to the IoT Agent is disabled: a profile change while a device moves can still
-# leave the wrong mappings on it. Only a code change turns this on (no flag, no environment).
-# That window grew with the DeviceModel: between the IoT Agent push and the Device write, a profile
-# change of a Device now sends up to three requests (model upsert, model attribute delete, the write).
+# Moving devices to the IoT Agent is switched off in the source until a move has been run and
+# verified against a live broker; only a code change turns it on (no flag, no environment).
+# Profile changes and profile saves take the shared writer-move lock, so a move waits for them and
+# they are refused (409) while it runs; the windows that remain are described above.
 MOVE_TO_IOTA_ENABLED = False
 _sleep = time.sleep
 SYSTEM_KEYS = frozenset({"id", "type", "@context", "createdAt", "modifiedAt"})
@@ -1300,7 +1300,9 @@ def _finish(failed: List[str]) -> bool:
 def verify(tenant: str, rows: List[Row], only_urn: Optional[str], since: datetime) -> bool:
     """Run the checks (a)-(d); prints the result of each; True when all pass.
 
-    An entity is "reported" when its own `modifiedAt` is `since` or later. (a) judges every entity;
+    An entity is "reported" when one of its value attributes (`numValue`/`textValue`) has its OWN
+    `modifiedAt` at `since` or later; the entity's own `modifiedAt` alone never counts. (a) judges
+    every entity;
     (b) and (d) only the reported entities of the selected `iota` devices; (c) the agent's document
     of those devices. A `--device` that is not on `iota` is a failure, but (a) still runs.
     """
@@ -1396,8 +1398,9 @@ def _parser() -> argparse.ArgumentParser:
     p.add_argument("--verify", action="store_true",
                    help="read-only check of the broker's DM entities; alone, with --since")
     p.add_argument("--since", metavar="TIME",
-                   help="--verify: ISO 8601 time with Z or an offset; an entity is reported when its "
-                        "own modifiedAt is this or later (use the time --apply printed)")
+                   help="--verify: ISO 8601 time with Z or an offset; an entity is reported when one of "
+                        "its value attributes (numValue/textValue) has its own modifiedAt this or "
+                        "later (use the time --apply printed)")
     return p
 
 
@@ -1429,8 +1432,8 @@ def _args(argv: Optional[List[str]]) -> argparse.Namespace:
         if a.to == 'iota' and not a.shape:
             p.error("--shape is required with --to iota")
         if a.apply and a.to == 'iota' and not MOVE_TO_IOTA_ENABLED:
-            p.error("moving devices to the IoT Agent is disabled until profile changes are "
-                    "locked out during the move (--dry-run, --verify and --to em still work)")
+            p.error("moving devices to the IoT Agent is disabled in this build "
+                    "(--dry-run, --verify and --to em still work)")
         if a.to == 'em' and a.shape:
             p.error("--shape is refused with --to em (the entity-manager has no shape)")
         if a.to == 'em' and a.settle is not None:
