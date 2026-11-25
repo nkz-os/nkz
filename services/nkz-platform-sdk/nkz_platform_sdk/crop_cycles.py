@@ -8,7 +8,8 @@ campaign of the year it ends in. A past crop a farmer declared with only its
 campaign (``declaredCampaign``, no dates) is a closed cycle of that campaign:
 it counts as history, never as current, next or pending. A perennial cycle runs
 from planting to uprooting; its harvests are yearly events grouped into harvest
-campaigns labelled by the year the harvest starts. Pure function: no
+campaigns labelled by the year the harvest starts. A harvest outside every planned
+window closes the annual main crop standing that day. Pure function: no
 I/O, deterministic.
 """
 from __future__ import annotations
@@ -20,6 +21,8 @@ import math
 from typing import Any
 
 ASSIGN_TOLERANCE_DAYS = 60
+# An annual main crop stands at most this long after its sowing: a later harvest is not its own.
+MAX_ANNUAL_STANDING_DAYS = 366
 _CLOSED = {"harvested", "terminated"}
 _EXCLUDED = {"cancelled"}
 _FACTS = ("actual", "declared")  # a sowing that happened (field op) or a person stated
@@ -324,6 +327,54 @@ def _distance(r: dict, d: date, is_end: bool) -> int:
     return abs((anchor - d).days)
 
 
+def _sown_on(r: dict) -> date | None:
+    """Date of a sowing that is a fact: a recorded operation, its copy on the crop, or a declared planting."""
+    if r["starts"]:
+        return max(d for d, _o in r["starts"])
+    return _as_date(r["c"].get("actualPlantingDate")) or (r["planting"] if r["manual"] else None)
+
+
+def _standing_annual(r: dict, d: date) -> bool:
+    """An annual main crop sown by ``d`` and still in the field that day.
+
+    Only an explicit ``annual``: a crop of unknown lifecycle may be a tree. Its own harvest days
+    (within the tolerance after the first) belong to it too; their date, copied onto the crop as
+    ``actualTerminationDate``, does not close it for the next day.
+    """
+    if r["lifecycle"] != _ANNUAL or r["role"] != "main_crop" or r["status"] in _CLOSED:
+        return False
+    sown = _sown_on(r)
+    if sown is None or not sown <= d <= sown + timedelta(days=MAX_ANNUAL_STANDING_DAYS):
+        return False
+    ends = [e for e, _o in r["ends"] if e >= sown]
+    if ends and d > min(ends) + timedelta(days=ASSIGN_TOLERANCE_DAYS):
+        return False
+    actual, declared = _as_date(r["c"].get("actualTerminationDate")), _as_date(r["c"].get("terminationDate"))
+    if actual is not None and actual < d and actual not in ends:
+        return False
+    return declared is None or declared >= d
+
+
+def _keeps_harvest(r: dict | None, d: date, target: Any) -> bool:
+    """Whether the cycle chosen by its window keeps the harvest: linked to it, a stand, or a main crop sown by then."""
+    if r is None:
+        return False
+    if target and r["c"].get("id") == target:
+        return True
+    sown = _sown_on(r)
+    if sown is not None and sown <= d:
+        return r["lifecycle"] == _PERENNIAL or r["role"] == "main_crop"
+    # A stand without a recorded sowing is in the field by its status; a plan is not.
+    return r["lifecycle"] == _PERENNIAL and r["status"] != "planned"
+
+
+def _operation_order(o: dict) -> tuple:
+    """Harvests last, by date and id; the rest in the order they arrive."""
+    if _value(o.get("operationType")) != "harvesting":
+        return (False, date.min, "")
+    return (True, _as_date(o.get("endedAt")) or _as_date(o.get("startedAt")) or date.min, str(o.get("id") or ""))
+
+
 def _current_rank(cy: CropCycle) -> tuple:
     """Order among overlapping candidates: a cycle whose start is a fact (sown or
     declared) beats a planned one, and the most recent fact wins — a field sown
@@ -362,7 +413,7 @@ def resolve_crop_cycles(
     unassigned, hints = [], []
     # Harvests are resolved last: whether a stand was already uprooted must not
     # depend on the order the operations arrive in.
-    for o in sorted(operations, key=lambda x: _value(x.get("operationType")) == "harvesting"):
+    for o in sorted(operations, key=_operation_order):
         if not _belongs(o, parcel_id):
             continue
         d = _as_date(o.get("endedAt")) or _as_date(o.get("startedAt"))
@@ -400,9 +451,6 @@ def resolve_crop_cycles(
         elif is_end and typ == "tillage":
             # Rolling or mowing ends a cover or catch crop; a main crop or a perennial stand is mowed and lives on.
             cands = [r for r in cands if r["role"] in _TERMINABLE_ROLES]
-        if not cands:
-            unassigned.append(_op_ref(o, d))
-            continue
         target = _first(o, "hasAgriCrop", "refAgriCrop")
         best = next((r for r in cands if target and r["c"].get("id") == target), None)
         if best is None and (is_harvest or is_uprooting):
@@ -412,8 +460,18 @@ def resolve_crop_cycles(
                       and not (r["ends"] and d > min(e for e, _o in r["ends"]))]
             if stands:  # a harvest under a cover crop is the olive's, not the cover's
                 best = max(stands, key=lambda r: r["ps"] or r["planting"])
-        if best is None:
+        if best is None and cands:
             best = min(cands, key=lambda r, when=d, end=is_end: _distance(r, when, end))
+        if is_harvest and not _keeps_harvest(best, d, target):
+            # A plan stores no end for an annual, so its harvest falls outside every window: it is the
+            # crop standing that day that is harvested, never a plan not sown yet or the cover on top.
+            standing = [r for r in raw if _standing_annual(r, d)]
+            if standing:
+                best = next((r for r in standing if target and r["c"].get("id") == target), None) \
+                    or max(standing, key=lambda r: (_sown_on(r), str(r["c"].get("id") or "")))
+        if best is None:
+            unassigned.append(_op_ref(o, d))
+            continue
         if is_start:
             best["starts"].append((d, o))
         elif is_harvest and best["lifecycle"] == _PERENNIAL:
