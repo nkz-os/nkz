@@ -9,6 +9,7 @@ Every statement is followed by a commit or a rollback, so the session is never l
 transaction. Errors carry only exception type names: a DSN must never reach a log or a traceback.
 """
 import logging
+import math
 import os
 import time
 from contextlib import contextmanager
@@ -33,6 +34,7 @@ _KEEPALIVE_INTERVAL = 10
 _KEEPALIVE_COUNT = 3
 _TCP_USER_TIMEOUT_MS = 5000
 _CONNECT_TIMEOUT = 5
+_STATEMENT_TIMEOUT_MS = 5000
 
 
 class MoveInProgress(Exception):
@@ -47,6 +49,10 @@ class RowChanged(Exception):
     """The row no longer matches the state the caller read."""
 
 
+class CommitOutcomeUnknown(psycopg2.Error):
+    """COMMIT itself failed: the row may be in either state. The caller must re-read it."""
+
+
 def _connect():
     """Dedicated connection. Keepalives are set on both ends so a lock whose holder vanished without
     closing TCP is released by the server, and `alive()` cannot hang."""
@@ -59,22 +65,14 @@ def _connect():
             connect_timeout=_CONNECT_TIMEOUT,
             options=(f"-c tcp_keepalives_idle={_KEEPALIVE_IDLE} "
                      f"-c tcp_keepalives_interval={_KEEPALIVE_INTERVAL} "
-                     f"-c tcp_keepalives_count={_KEEPALIVE_COUNT}"),
+                     f"-c tcp_keepalives_count={_KEEPALIVE_COUNT} "
+                     f"-c statement_timeout={_STATEMENT_TIMEOUT_MS}"),
             keepalives=1,
             keepalives_idle=_KEEPALIVE_IDLE,
             keepalives_interval=_KEEPALIVE_INTERVAL,
             keepalives_count=_KEEPALIVE_COUNT,
             tcp_user_timeout=_TCP_USER_TIMEOUT_MS,
         )
-    except psycopg2.Error as exc:
-        raise LockUnavailable(f"cannot connect ({type(exc).__name__})") from None
-
-
-def _open():
-    try:
-        return _connect()
-    except LockUnavailable:
-        raise
     except psycopg2.Error as exc:
         raise LockUnavailable(f"cannot connect ({type(exc).__name__})") from None
 
@@ -95,7 +93,8 @@ def _rollback(conn) -> None:
 
 
 def _try_lock(conn, sql: str, tenant: str) -> bool:
-    """One try. Raises LockUnavailable on a database error."""
+    """One try. Raises LockUnavailable on a database error. Any other interruption (KeyboardInterrupt
+    included) rolls back and propagates."""
     try:
         with conn.cursor() as cur:
             cur.execute(sql, (LOCK_CLASS, tenant))
@@ -105,12 +104,18 @@ def _try_lock(conn, sql: str, tenant: str) -> bool:
     except psycopg2.Error as exc:
         _rollback(conn)
         raise LockUnavailable(f"lock query failed ({type(exc).__name__})") from None
+    except BaseException:
+        _rollback(conn)
+        raise
 
 
 def _ping(conn) -> bool:
+    """SELECT 1. False on any psycopg2 error or closed connection. The statement timeout bounds a
+    server that answers with an error; a frozen server that keeps acknowledging TCP but never answers
+    is NOT bounded here."""
+    if conn is None or conn.closed:
+        return False
     try:
-        if conn is None or conn.closed:
-            return False
         with conn.cursor() as cur:
             cur.execute("SELECT 1")
             cur.fetchone()
@@ -119,6 +124,9 @@ def _ping(conn) -> bool:
     except psycopg2.Error:
         _rollback(conn)
         return False
+    except BaseException:
+        _rollback(conn)
+        raise
 
 
 class SharedLock:
@@ -127,9 +135,11 @@ class SharedLock:
         self.last_alive = time.monotonic()
 
     def alive(self) -> bool:
+        """last_alive is the time taken BEFORE the ping that succeeded (a conservative stamp)."""
+        started = time.monotonic()
         ok = _ping(self._conn)
         if ok:
-            self.last_alive = time.monotonic()
+            self.last_alive = started
         return ok
 
 
@@ -137,7 +147,7 @@ class SharedLock:
 def shared(tenant: str) -> Iterator[SharedLock]:
     """One try at the shared lock. MoveInProgress if the move holds it, LockUnavailable on a database
     error. The connection is always closed; an exception of the body propagates unchanged."""
-    conn = _open()
+    conn = _connect()
     try:
         if not _try_lock(conn, _SHARED_SQL, tenant):
             raise MoveInProgress(tenant)
@@ -151,21 +161,26 @@ class ExclusiveLock:
     exclusive cannot stall every profile change) and holds the connection until `__exit__`."""
 
     def __init__(self, tenant: str, wait: float = 30.0):
+        if isinstance(wait, bool) or not isinstance(wait, (int, float)) or not math.isfinite(wait) or wait <= 0:
+            raise ValueError("wait must be a finite number of seconds > 0")
         self.tenant = tenant
-        self.wait = wait
+        self.wait = float(wait)
         self._conn = None
 
     def __enter__(self) -> "ExclusiveLock":
-        conn = _open()
+        if self._conn is not None:
+            raise RuntimeError("exclusive lock is already held")
+        conn = _connect()
         try:
-            tries = max(1, int(self.wait))
-            for i in range(tries):
+            deadline = time.monotonic() + self.wait
+            while True:
                 if _try_lock(conn, _EXCLUSIVE_SQL, self.tenant):
                     self._conn = conn
                     return self
-                if i < tries - 1:
-                    time.sleep(1)
-            raise MoveInProgress(self.tenant)
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    raise MoveInProgress(self.tenant)
+                time.sleep(min(1.0, remaining))
         except BaseException:
             _close(conn)
             raise
@@ -193,23 +208,34 @@ class ExclusiveLock:
                 cur.execute(_READ_SQL, (self.tenant, urn))
                 row = cur.fetchone()
             conn.commit()
-        except psycopg2.Error:
+        except BaseException:
             _rollback(conn)
             raise
         return None if row is None else (row[0], row[1])
 
     def commit_state(self, urn: str, previous: tuple, target: tuple) -> None:
-        """Compare-and-set the row in one transaction, on the connection that holds the lock."""
+        """Compare-and-set the row in one transaction, on the connection that holds the lock.
+
+        RowChanged: no row matched; nothing was written. psycopg2.Error: failed before COMMIT; nothing
+        was written. CommitOutcomeUnknown (a psycopg2.Error): COMMIT itself failed, so the row may be in
+        either state and the caller must re-read it. Any other interruption rolls back and propagates."""
         conn = self._require_conn()
         try:
             with conn.cursor() as cur:
                 cur.execute(_SET_TENANT_SQL, (self.tenant,))
                 cur.execute(_UPDATE_SQL, (target[0], target[1], self.tenant, urn, previous[0], previous[1]))
                 changed = cur.rowcount
-            if changed != 1:
-                conn.rollback()
-                raise RowChanged(urn)
+        except BaseException:
+            _rollback(conn)
+            raise
+        if changed != 1:
+            _rollback(conn)
+            raise RowChanged(urn)
+        try:
             conn.commit()
-        except psycopg2.Error:
+        except psycopg2.Error as exc:
+            _rollback(conn)
+            raise CommitOutcomeUnknown(f"commit failed ({type(exc).__name__})") from None
+        except BaseException:
             _rollback(conn)
             raise

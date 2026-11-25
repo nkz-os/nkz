@@ -100,12 +100,12 @@ def test_shared_and_shared_are_both_held():
 def test_shared_blocks_exclusive():
     with wml.shared("acme"):
         with pytest.raises(wml.MoveInProgress):
-            with wml.ExclusiveLock("acme", wait=1):
+            with wml.ExclusiveLock("acme", wait=0.2):
                 pytest.fail("must not be granted")
 
 
 def test_exclusive_blocks_shared_and_releases_on_exit():
-    with wml.ExclusiveLock("acme", wait=1):
+    with wml.ExclusiveLock("acme", wait=0.2):
         with pytest.raises(wml.MoveInProgress):
             with wml.shared("acme"):
                 pytest.fail("must not be granted")
@@ -114,22 +114,22 @@ def test_exclusive_blocks_shared_and_releases_on_exit():
 
 
 def test_exclusive_blocks_exclusive():
-    with wml.ExclusiveLock("acme", wait=1):
+    with wml.ExclusiveLock("acme", wait=0.2):
         with pytest.raises(wml.MoveInProgress):
-            with wml.ExclusiveLock("acme", wait=1):
+            with wml.ExclusiveLock("acme", wait=0.2):
                 pytest.fail("must not be granted")
 
 
 def test_other_tenant_is_unaffected():
-    with wml.ExclusiveLock("acme", wait=1):
+    with wml.ExclusiveLock("acme", wait=0.2):
         with wml.shared("other-tenant") as lock:
             assert lock.alive()
-        with wml.ExclusiveLock("other-tenant", wait=1) as other:
+        with wml.ExclusiveLock("other-tenant", wait=0.2) as other:
             assert other.alive()
 
 
 def test_read_and_commit_state_through_force_rls(pg):
-    with wml.ExclusiveLock("acme", wait=1) as lock:
+    with wml.ExclusiveLock("acme", wait=0.2) as lock:
         assert lock.read_state(URN) == ("em", None)
         assert lock.read_state("urn:ngsi-ld:Device:acme:none") is None
         lock.commit_state(URN, ("em", None), ("iota", "sdm"))
@@ -140,7 +140,7 @@ def test_read_and_commit_state_through_force_rls(pg):
 
 
 def test_another_tenant_row_is_invisible(pg):
-    with wml.ExclusiveLock("other-tenant", wait=1) as lock:
+    with wml.ExclusiveLock("other-tenant", wait=0.2) as lock:
         assert lock.read_state(URN) is None
         with pytest.raises(wml.RowChanged):
             lock.commit_state(URN, ("em", None), ("iota", "sdm"))
@@ -148,7 +148,7 @@ def test_another_tenant_row_is_invisible(pg):
 
 
 def test_commit_state_with_a_different_previous_is_row_changed(pg):
-    with wml.ExclusiveLock("acme", wait=1) as lock:
+    with wml.ExclusiveLock("acme", wait=0.2) as lock:
         with pytest.raises(wml.RowChanged):
             lock.commit_state(URN, ("iota", "legacy"), ("iota", "sdm"))
         with pytest.raises(wml.RowChanged):
@@ -158,7 +158,7 @@ def test_commit_state_with_a_different_previous_is_row_changed(pg):
 
 
 def test_session_is_never_idle_in_transaction(pg):
-    with wml.ExclusiveLock("acme", wait=1) as lock:
+    with wml.ExclusiveLock("acme", wait=0.2) as lock:
         lock.alive()
         lock.read_state(URN)
         lock.commit_state(URN, ("em", None), ("iota", "legacy"))
@@ -171,14 +171,15 @@ def test_session_is_never_idle_in_transaction(pg):
 
 
 def test_killed_holder_is_not_alive_cannot_commit_and_releases_the_lock(pg):
-    with wml.ExclusiveLock("acme", wait=1) as lock:
+    with wml.ExclusiveLock("acme", wait=0.2) as lock:
         pid = lock._conn.get_backend_pid()
         cur = pg["db"].cursor()
         cur.execute("SELECT pg_terminate_backend(%s)", (pid,))
         assert cur.fetchone()[0] is True
         assert lock.alive() is False
-        with pytest.raises(psycopg2.Error):
+        with pytest.raises(psycopg2.Error) as ei:
             lock.commit_state(URN, ("em", None), ("iota", "sdm"))
+        assert not isinstance(ei.value, wml.CommitOutcomeUnknown)
         assert _row(pg) == ("em", None)
         with wml.ExclusiveLock("acme", wait=3) as other:  # the server released it
             assert other.alive()
@@ -197,10 +198,62 @@ def test_killed_shared_holder_is_not_alive():
 
 
 def test_keepalives_are_set_over_tcp():
-    with wml.ExclusiveLock("acme", wait=1) as lock:
+    with wml.ExclusiveLock("acme", wait=0.2) as lock:
         cur = lock._conn.cursor()
         for name, value in (("tcp_keepalives_idle", "30"), ("tcp_keepalives_interval", "10"),
                             ("tcp_keepalives_count", "3")):
             cur.execute(f"SHOW {name}")
             assert cur.fetchone()[0] == value
+        cur.execute("SHOW statement_timeout")
+        assert cur.fetchone()[0] == "5s"
         lock._conn.rollback()
+
+
+class _InterruptingCursor:
+    """Runs the real statement, then raises KeyboardInterrupt right after an UPDATE (before the commit)."""
+
+    def __init__(self, cur):
+        self._cur = cur
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        self._cur.close()
+        return False
+
+    def __getattr__(self, name):
+        return getattr(self._cur, name)
+
+    def execute(self, sql, params=None):
+        self._cur.execute(sql, params)
+        if sql.startswith("UPDATE"):
+            raise KeyboardInterrupt()
+
+
+class _InterruptingConn:
+    def __init__(self, conn):
+        self._conn = conn
+
+    def __getattr__(self, name):
+        return getattr(self._conn, name)
+
+    def cursor(self):
+        return _InterruptingCursor(self._conn.cursor())
+
+
+def test_interrupted_commit_state_of_one_device_does_not_leak_into_the_next(pg):
+    urn_b = "urn:ngsi-ld:Device:acme:d2"
+    pg["db"].cursor().execute(
+        "INSERT INTO public.iot_datalogger_devices (datalogger_id, tenant_id, device_urn, external_id) "
+        "VALUES (gen_random_uuid(), 'acme', %s, 'ext2')", (urn_b,))
+    with wml.ExclusiveLock("acme", wait=0.2) as lock:
+        real = lock._conn
+        lock._conn = _InterruptingConn(real)
+        with pytest.raises(KeyboardInterrupt):
+            lock.commit_state(URN, ("em", None), ("iota", "sdm"))
+        lock._conn = real
+        lock.commit_state(urn_b, ("em", None), ("iota", "legacy"))
+    cur = pg["db"].cursor()
+    cur.execute("SELECT device_urn, dm_writer, dm_shape FROM public.iot_datalogger_devices ORDER BY device_urn")
+    assert cur.fetchall() == [(URN, "em", None), (urn_b, "iota", "legacy")]
