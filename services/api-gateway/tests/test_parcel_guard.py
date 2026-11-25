@@ -29,6 +29,8 @@ def test_other_types_are_not_parcels(name):
         "AgriParcel-1",
         "urn:ngsi-ld:AgriParcel",
         "urn:ngsi-ld:AgriParcel%3Fx:1",
+        "%2541%67riParcel-1",
+        "urn:ngsi-ld:Device:%" + "25" * 6 + "41",
     ],
 )
 def test_parcels_and_unreadable_ids_match(entity_id):
@@ -59,6 +61,15 @@ PARCEL_BODIES = [
     {"type": "x:Parcel", "@context": {"x": BASE + "Agri"}},
     {"type": "Foo", "@context": {"x": BASE, "Foo": "x:AgriParcel"}},
     {"type": "Foo", "@context": {"x": {"@id": BASE}, "Foo": {"@id": "x:AgriParcel"}}},
+    {"type": "Foo", "@context": {"Foo": "x:Parcel", "x": BASE + "Agri"}},
+    {"type": "AgriParcel\u0000"},
+    {"type": IRI + "\u0000"},
+    {"type\u0000a": IRI},
+    {"type": "Device", "@context\u0000": {"Device": IRI}},
+    {"type": "Foo\u0000q", "@context": {"Foo": IRI}},
+    {"type": "Foo", "@context": {"Foo\u0000": IRI}},
+    {"type": "Foo", "@context": {"Foo": IRI + "\u0000z"}},
+    {"type": "Foo", "@context": [[{"Foo": {"@id\u0000": IRI}}]]},
     {"type": "Foo", "@context": ["https://example.org/c.jsonld", [{"Foo": IRI}]]},
     {"type": "Foo", "@context": [{"Foo": IRI}, {"Foo": "https://example.org/Foo"}]},
 ]
@@ -77,6 +88,7 @@ OTHER_BODIES = [
     {"type": 3},
     {"type": "Device", "@context": None},
     {"type": "Device", "@context": {"Device": 3, "x": {"@type": "@id"}}},
+    {"type": "Device", "name": {"type": "Property", "value": "a\u0000b"}},
     [],
     None,
     "x",
@@ -116,8 +128,8 @@ def test_deeply_nested_context_is_walked_without_recursion():
     "body",
     [
         {"type": "a" * 3000},
-        {"type": ["a"] * 21},
-        {"type": "Device", "@context": [{"a": "b"}] * 1001},
+        {"type": ["a"] * 5},
+        {"type": "Device", "@context": [{"a": "b"}] * 51},
         {"type": "x:a", "@context": {"x": "x:" + "b" * 3000}},
     ],
 )
@@ -126,7 +138,7 @@ def test_payloads_beyond_the_bounds_are_not_accepted(body):
 
 
 def test_payloads_within_the_bounds_are_judged():
-    body = {"type": "Device", "@context": [{}] * 5000 + [{"a": "b"}] * 1000}
+    body = {"type": "Device", "@context": [{}] * 5000 + [{"a": "b"}] * 50}
     assert declares_parcel(body) is False
 
 
@@ -218,3 +230,12 @@ def test_other_writes_are_forwarded(writes, prefix):
     fragment = {"name": {"type": "Property", "value": "x"}}
     assert client.patch(f"{prefix}/urn:ngsi-ld:Device:1/attrs", json=fragment).status_code == 201
     assert len(calls) == 2
+
+
+@pytest.mark.parametrize("prefix", PREFIXES)
+@pytest.mark.parametrize("method", ["put", "patch"])
+def test_parcel_type_is_rejected_on_updates(writes, prefix, method):
+    client, calls = writes
+    resp = getattr(client, method)(f"{prefix}/urn:ngsi-ld:Device:1", json={"type": IRI})
+    assert resp.status_code == 403
+    assert calls == []

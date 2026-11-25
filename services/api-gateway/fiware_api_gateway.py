@@ -801,6 +801,8 @@ def enforce_pat_pagination():
 
         # POST /ngsi-ld/v1/entityOperations/query — the broker pages it by URL too
         if request.method == "POST" and path == "/ngsi-ld/v1/entityOperations/query":
+            if any("\x00" in name for name in request.args):
+                return jsonify({"error": "Invalid parameter name"}), 400
             g.pat_entity_limit = _capped_pat_limit(request.args.get("limit"))
             return None
 

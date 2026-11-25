@@ -12,35 +12,41 @@ from entity_type_guard import declared_types
 
 PARCEL_TYPE = "AgriParcel"
 MAX_HOPS = 5
-# The guard runs on any request body, so its work is bounded. No real entity
-# comes near these; a payload beyond them is refused, not skipped.
+# No real entity comes near these bounds; a payload beyond them is refused.
+MAX_DECODES = 5
 MAX_TYPE_CHARS = 2048
-MAX_TYPES = 20
-MAX_TABLES = 1000
+MAX_TYPES = 4
+MAX_TABLES = 50
+NUL = "\x00"
 _URN_TYPE = re.compile(r"urn:ngsi-ld:([A-Za-z][A-Za-z0-9_]*):")
 
 
-def _decoded(value: str) -> str:
-    """Percent-decode until stable; every pass that changes the text shortens it."""
-    while True:
+def _decoded(value: str) -> str | None:
+    """Percent-decode until stable, or None when it does not settle."""
+    for _ in range(MAX_DECODES):
         nxt = unquote(value)
         if nxt == value:
             return value
         value = nxt
+    return None
 
 
 def entity_type_from_id(entity_id: str) -> str | None:
     """The type named by a `urn:ngsi-ld:<Type>:...` id, or None for any other shape."""
-    match = _URN_TYPE.match(_decoded(entity_id))
+    decoded = _decoded(entity_id)
+    match = _URN_TYPE.match(decoded) if decoded is not None else None
     return match.group(1) if match else None
 
 
 def is_parcel_id(entity_id: str) -> bool:
     """True for a parcel id, and for an id of another shape that contains the name."""
-    named = entity_type_from_id(entity_id)
+    decoded = _decoded(entity_id)
+    if decoded is None:
+        return True
+    named = entity_type_from_id(decoded)
     if named is not None:
         return named == PARCEL_TYPE
-    return PARCEL_TYPE in _decoded(entity_id)
+    return PARCEL_TYPE in decoded
 
 
 def local_name(value: str) -> str:
@@ -60,6 +66,22 @@ def _inline_tables(context: object) -> list[dict]:
         elif isinstance(item, list):
             pending.extend(item)
     return tables
+
+
+def _has_nul(context: object) -> bool:
+    """True when any key or text of the context holds a NUL."""
+    pending = [context]
+    while pending:
+        item = pending.pop()
+        if isinstance(item, str):
+            if NUL in item:
+                return True
+        elif isinstance(item, dict):
+            pending.extend(item)
+            pending.extend(item.values())
+        elif isinstance(item, list):
+            pending.extend(item)
+    return False
 
 
 def _term(table: dict, name: str) -> str | None:
@@ -98,10 +120,12 @@ def declares_parcel(body: object) -> bool:
     if not isinstance(body, dict):
         return False
     types = declared_types(body) or []
-    if len(types) > MAX_TYPES or any(len(declared) > MAX_TYPE_CHARS for declared in types):
+    tables = _inline_tables(body.get("@context"))
+    if len(types) > MAX_TYPES or len(tables) > MAX_TABLES:
         return True
-    tables = _inline_tables(body.get("@context")) if types else []
-    if len(tables) > MAX_TABLES:
+    if any(NUL in key for key in body) or _has_nul(body.get("@context")):
+        return True
+    if any(len(declared) > MAX_TYPE_CHARS or NUL in declared for declared in types):
         return True
     return any(_names_parcel(declared, tables) for declared in types)
 

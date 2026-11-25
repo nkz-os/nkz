@@ -122,6 +122,11 @@ def test_pat_body_limit_is_left_for_the_broker_to_judge(pat):
     assert pat.calls[0]["params"]["limit"] == "100"
 
 
+def test_pat_parameter_names_must_be_plain(pat):
+    assert pat(QUERY + "?limit=1&limit%00=1000").status_code == 400
+    assert pat.calls == []
+
+
 def test_user_query_gets_no_limit(user):
     assert user(QUERY).status_code == 200
     assert "limit" not in user.calls[0]["params"]
