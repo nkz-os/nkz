@@ -20,7 +20,7 @@ export const RestoreTenantButton: React.FC<Props> = ({ tenantId, onRestored }) =
   const handleRestore = async () => {
     setRestoring(true);
     try {
-      const { data } = await client.post(`/api/admin/tenants/${tenantId}/restore`);
+      const { data } = await client.post(`/api/admin/tenants/${tenantId}/restore`, {}, { timeout: 300000 });
       if (data?.accounts === 'failed' || data?.ingestion === 'failed') {
         toast.warning(t('admin.restore_partial'));
       }

@@ -1,18 +1,23 @@
 -- =============================================================================
--- Migration 122: a suspended tenant is not an installation
+-- Migration 122: suspended tenants, as the modules see them
 -- =============================================================================
--- tenants.status accompanies deleted_at from now on (the admin endpoints write
--- both). module_installations stops listing suspended tenants, so the modules
--- that read it stop working on them without any change of their own.
--- Same columns, order, owner and grants as migration 106. Idempotent.
+-- tenants.deleted_at is the one fact. Both module views derive from it, so no
+-- other writer of tenants.status can make them disagree:
+--   module_tenant_plan.status    'suspended' while deleted_at is set
+--   module_installations         does not list suspended tenants
+-- Same columns, order, types, owner and grants as migration 106. Idempotent.
 --
--- Roll back: CREATE OR REPLACE VIEW public.module_installations AS
---   SELECT module_id, tenant_id, is_enabled, installed_at
---   FROM public.tenant_installed_modules;
+-- Roll back: the two CREATE OR REPLACE VIEW of migration 106.
 -- =============================================================================
 
-UPDATE public.tenants SET status = 'suspended'
- WHERE deleted_at IS NOT NULL AND status = 'active';
+CREATE OR REPLACE VIEW public.module_tenant_plan AS
+SELECT tenant_id, tenant_name, plan_level, plan_type,
+       CASE WHEN deleted_at IS NOT NULL THEN 'suspended' ELSE status END AS status,
+       (deleted_at IS NULL AND status = 'active') AS is_active,
+       expires_at, max_users, max_robots, max_sensors, max_parcels, max_area_hectares,
+       max_entities_total, max_satellite_computations
+  FROM public.tenants;
+ALTER VIEW public.module_tenant_plan OWNER TO postgres;
 
 CREATE OR REPLACE VIEW public.module_installations AS
 SELECT tim.module_id, tim.tenant_id, tim.is_enabled, tim.installed_at

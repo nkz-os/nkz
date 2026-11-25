@@ -45,12 +45,25 @@ def test_filter_over_another_table(db):
     ("entity-manager/parcel_reconcile.py", "TENANT_IS_ACTIVE_SQL"),
     ("weather-worker/weather_worker/parcel_engine.py", "TENANT_IS_ACTIVE_SQL"),
     ("weather-worker/weather_worker/storage/timescaledb_writer.py", "ACTIVE_TENANT_IDS_SQL"),
+    ("weather-worker/weather_worker/storage/orion_writer.py", "TENANT_IS_ACTIVE_SQL"),
     ("weather-worker/weather_worker/storage/timescaledb_writer.py", "TENANT_IS_ACTIVE_SQL"),
 ])
 def test_loops_use_it(path, name):
     src = (SERVICES / path).read_text()
     assert re.search(rf"from common\.active_tenants import .*\b{name}\b", src)
     assert len(re.findall(rf"\b{name}\b", src)) >= 2, "imported but not used"
+
+
+def test_the_status_column_alone_never_decides():
+    """A suspension does not write tenants.status: deleted_at has to be asked too."""
+    offenders = []
+    for p in SERVICES.rglob("*.py"):
+        if "tests" in p.parts:
+            continue
+        for m in re.finditer(r"FROM (?:public\.)?tenants WHERE status = 'active'(.*)", p.read_text()):
+            if "deleted_at IS NULL" not in m.group(1):
+                offenders.append(str(p.relative_to(SERVICES)))
+    assert offenders == []
 
 
 def test_no_loop_lists_every_tenant():

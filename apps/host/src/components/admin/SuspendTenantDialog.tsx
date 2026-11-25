@@ -54,7 +54,7 @@ export const SuspendTenantDialog: React.FC<SuspendTenantDialogProps> = ({
     try {
       const { data } = await client.post(`/api/admin/tenants/${tenantId}/suspend`, {
         deletion_notes: notes,
-      });
+      }, { timeout: 300000 });
       if (data?.accounts === 'failed' || data?.ingestion === 'failed') {
         toast.warning(t('admin.suspend_partial'));
       }

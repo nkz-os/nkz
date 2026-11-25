@@ -211,8 +211,14 @@ def _link_row(cur, tenant: str, urn: str) -> Optional[dict]:
 
 # ── datalogger accounts ────────────────────────────────────────────────
 
+def _lock_ingestion(cur, tenant: str) -> None:
+    """Accounts of a tenant change one operation at a time. Released with the transaction."""
+    cur.execute("SELECT pg_advisory_xact_lock(hashtext(%s))", (f"ingestion:{tenant}",))
+
+
 def require_active_tenant(cur, tenant: str) -> None:
     """409 for a suspended tenant: its accounts stay as the suspension left them."""
+    _lock_ingestion(cur, tenant)
     cur.execute("SELECT 1 FROM tenants WHERE tenant_id = %s AND deleted_at IS NOT NULL", (tenant,))
     if cur.fetchone():
         raise ApiError(409, 'Tenant is suspended', 'tenant_suspended')
@@ -226,25 +232,33 @@ def set_tenant_ingestion(tenant: str, enabled: bool) -> dict:
     not stop the others.
     """
     client = _dynsec()
-    with get_db_connection_with_tenant(tenant) as conn:
-        cur = conn.cursor(cursor_factory=RealDictCursor)
-        cur.execute("SELECT mqtt_username FROM iot_dataloggers "
-                    "WHERE tenant_id = %s AND status = 'active' ORDER BY mqtt_username", (tenant,))
-        usernames = [r['mqtt_username'] for r in cur.fetchall()]
     change = mqtt_dynsec.enable if enabled else mqtt_dynsec.disable
     changed, failed = 0, []
-    for username in usernames:
-        try:
-            change(client, username)
-            changed += 1
-        except Exception as exc:
-            # A client the broker lost cannot connect anyway: closing it is already true.
-            if not enabled and _broker_error(exc) == _CLIENT_NOT_FOUND:
+    with get_db_connection_with_tenant(tenant) as conn:
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        _lock_ingestion(cur, tenant)
+        # A late call must not undo a newer one: what is asked has to match the tenant.
+        cur.execute("SELECT deleted_at IS NOT NULL AS suspended FROM tenants WHERE tenant_id = %s",
+                    (tenant,))
+        row = cur.fetchone()
+        if not row or row['suspended'] == enabled:
+            conn.rollback()
+            raise ApiError(409, 'The tenant is not in that state', 'stale')
+        cur.execute("SELECT mqtt_username FROM iot_dataloggers "
+                    "WHERE tenant_id = %s AND status = 'active' ORDER BY mqtt_username", (tenant,))
+        for username in [r['mqtt_username'] for r in cur.fetchall()]:
+            try:
+                change(client, username)
                 changed += 1
-                continue
-            logger.error("ingestion change failed: tenant=%s datalogger=%s enabled=%s error=%s",
-                         tenant, username, enabled, type(exc).__name__)
-            failed.append(username)
+            except Exception as exc:
+                # A client the broker lost cannot connect anyway: closing it is already true.
+                if not enabled and _broker_error(exc) == _CLIENT_NOT_FOUND:
+                    changed += 1
+                    continue
+                logger.error("ingestion change failed: tenant=%s datalogger=%s enabled=%s error=%s",
+                             tenant, username, enabled, type(exc).__name__)
+                failed.append(username)
+        conn.commit()
     return {'changed': changed, 'failed': failed}
 
 

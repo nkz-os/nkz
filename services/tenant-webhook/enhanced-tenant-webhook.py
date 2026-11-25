@@ -17,6 +17,7 @@ import signal
 import sys
 import time
 from contextlib import suppress
+from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from functools import wraps
@@ -800,7 +801,7 @@ class EnhancedTenantWebhookService:
                         COALESCE(tenants.metadata, '{}'::jsonb) || %s::jsonb
                     ),
                     status = CASE
-                        WHEN tenants.status IN ('cancelled', 'suspended') THEN tenants.status
+                        WHEN tenants.status = 'cancelled' THEN tenants.status
                         ELSE EXCLUDED.status
                     END
                 RETURNING tenant_id
@@ -4315,8 +4316,12 @@ def assign_user_to_tenant(tenant_id: str):
                             "kc_status": get_resp.status_code}), 502
         user_obj = get_resp.json()
         attrs = dict(user_obj.get("attributes") or {})
+        previous = (attrs.get("tenant_id") or [""])[0]
         attrs["tenant_id"] = [tenant_id]
         user_obj["attributes"] = attrs
+        reopened = previous != tenant_id and _closed_by_suspension(previous, user_id)
+        if reopened:
+            user_obj["enabled"] = True
         put_resp = requests.put(update_url, json=user_obj, headers=headers, timeout=10)
         if put_resp.status_code not in (200, 204):
             logger.error(
@@ -4328,6 +4333,8 @@ def assign_user_to_tenant(tenant_id: str):
                 "kc_status": put_resp.status_code,
                 "kc_body": put_resp.text[:200] if put_resp.text else None,
             }), 502
+        if reopened:
+            _forget_suspended_account(previous, user_id)
 
         return jsonify(
             {
@@ -4341,6 +4348,48 @@ def assign_user_to_tenant(tenant_id: str):
     except Exception as e:
         logger.error(f"Error assigning user to tenant: {e}")
         return _internal_error(e, "assign_user_to_tenant", user_message="Failed to assign user")
+
+
+class _SuspensionBusy(Exception):
+    """Another suspend or restore of the tenant is still running."""
+
+
+@contextmanager
+def _suspension_lock(tenant_id: str):
+    """One suspend or restore per tenant at a time, held to the last account.
+
+    A session lock: it goes away with the connection if the worker dies.
+    """
+    conn = webhook_service.get_db_connection()
+    if not conn:
+        raise RuntimeError("database unavailable")
+    try:
+        conn.autocommit = True
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT pg_try_advisory_lock(hashtext(%s)) AS locked", (f"suspension:{tenant_id}",)
+        )
+        if not cursor.fetchone()["locked"]:
+            raise _SuspensionBusy(tenant_id)
+        yield
+    finally:
+        conn.close()
+
+
+def _closed_by_suspension(tenant_id: str, user_id: str) -> bool:
+    """Whether the suspension of `tenant_id` is what closed this login, so
+    moving the user to another tenant has to open it."""
+    return bool(tenant_id) and user_id in _load_suspended_accounts(tenant_id)
+
+
+def _forget_suspended_account(tenant_id: str, user_id: str) -> None:
+    """Take a user who has moved off the list. Called once the move is saved;
+    a leftover is harmless: restoring skips who is in another tenant."""
+    try:
+        ids = [i for i in _load_suspended_accounts(tenant_id) if i != user_id]
+        _save_suspended_accounts(tenant_id, ids)
+    except Exception as e:
+        logger.error(f"Account list not updated for {tenant_id} user {user_id}: {e}")
 
 
 def _load_suspended_accounts(tenant_id: str) -> list[str]:
@@ -4404,67 +4453,86 @@ def _keycloak_pages(url: str, headers: dict[str, str], params: dict | None = Non
         first += size
 
 
-def _set_tenant_accounts(tenant_id: str, enabled: bool) -> str:
+SUSPENSION_BUDGET_S = 150  # the worker is killed at 300 s
+
+
+def _is_platform_admin(realm: str, headers: dict[str, str], user_id: str) -> bool:
+    """Effective roles: direct, composite or through a group."""
+    response = requests.get(
+        f"{realm}/users/{user_id}/role-mappings/realm/composite", headers=headers, timeout=10
+    )
+    response.raise_for_status()
+    return any(role.get("name") == "PlatformAdmin" for role in response.json())
+
+
+def _set_tenant_accounts(tenant_id: str, enabled: bool, caller_id: str | None = None) -> str:
     """Disable the tenant's logins (suspend) or enable those it disabled
-    (restore). "ok" or "failed"; never raises.
+    (restore). "ok" or "failed"; never raises. Runs under _suspension_lock.
 
     The gateway refuses a suspended tenant, but not every entry goes through
-    it. Who was disabled is saved before anybody is, so restoring opens exactly
-    those and never an account its admin had closed. Platform admins are left
+    it. Who will be disabled is saved before anybody is, and leaves the list
+    only when enabled again, so restoring opens exactly those and never an
+    account its admin had closed. Platform admins and the caller are left
     alone. What fails stays listed: suspending and restoring again retries it.
     """
+    realm = f"{webhook_service._get_keycloak_base_url()}/admin/realms/{KEYCLOAK_REALM}"
+    started = time.monotonic()
+    token = {"at": 0.0, "headers": {}}
+
+    def headers() -> dict[str, str]:
+        # The admin token is short-lived; a long list outlives it.
+        if not token["headers"] or time.monotonic() - token["at"] > 30:
+            value = webhook_service.get_keycloak_token()
+            if not value:
+                raise RuntimeError("no Keycloak admin token")
+            token.update(at=time.monotonic(), headers={"Authorization": f"Bearer {value}"})
+        return token["headers"]
+
     try:
-        token = webhook_service.get_keycloak_token()
-        if not token:
-            raise RuntimeError("no Keycloak admin token")
-        headers = {"Authorization": f"Bearer {token}"}
-        realm = f"{webhook_service._get_keycloak_base_url()}/admin/realms/{KEYCLOAK_REALM}"
         pending = _load_suspended_accounts(tenant_id)
+        targets = list(pending)
         if not enabled:
-            admins = {u["id"] for u in _keycloak_pages(f"{realm}/roles/PlatformAdmin/users", headers)}
-            current = [
+            targets = [
                 u["id"]
                 for u in _keycloak_pages(
-                    f"{realm}/users", headers, {"q": f"tenant_id:{tenant_id}"}
+                    f"{realm}/users", headers(), {"q": f"tenant_id:{tenant_id}"}
                 )
                 if tenant_id in ((u.get("attributes") or {}).get("tenant_id") or [])
                 and u.get("enabled")
-                and u["id"] not in admins
+                and u["id"] != caller_id
+                and not _is_platform_admin(realm, headers(), u["id"])
             ]
-            targets = current
-            pending = pending + [i for i in current if i not in pending]
+            pending = pending + [i for i in targets if i not in pending]
             _save_suspended_accounts(tenant_id, pending)
-        else:
-            targets = list(pending)
     except Exception as e:
         logger.error(f"Account change failed for {tenant_id} (enabled={enabled}): {e}")
         return "failed"
 
-    failed = []
+    failed = False
     for user_id in targets:
+        if time.monotonic() - started > SUSPENSION_BUDGET_S:
+            logger.error(f"Account change for {tenant_id} ran out of time")
+            return "failed"
         try:
-            response = requests.get(f"{realm}/users/{user_id}", headers=headers, timeout=10)
-            if response.status_code == 404:
-                continue
-            response.raise_for_status()
-            account = response.json()
-            if tenant_id not in ((account.get("attributes") or {}).get("tenant_id") or []):
-                continue  # moved to another tenant meanwhile
-            account["enabled"] = enabled
-            requests.put(
-                f"{realm}/users/{user_id}", headers=headers, json=account, timeout=10
-            ).raise_for_status()
-            if not enabled:
-                requests.post(f"{realm}/users/{user_id}/logout", headers=headers, timeout=10)
+            response = requests.get(f"{realm}/users/{user_id}", headers=headers(), timeout=10)
+            if response.status_code != 404:
+                response.raise_for_status()
+                account = response.json()
+                if tenant_id in ((account.get("attributes") or {}).get("tenant_id") or []):
+                    account["enabled"] = enabled
+                    requests.put(
+                        f"{realm}/users/{user_id}", headers=headers(), json=account, timeout=10
+                    ).raise_for_status()
+                    if not enabled:
+                        requests.post(
+                            f"{realm}/users/{user_id}/logout", headers=headers(), timeout=10
+                        )
+            if enabled:
+                pending.remove(user_id)
+                _save_suspended_accounts(tenant_id, pending)
         except Exception as e:
             logger.error(f"Account change failed for {tenant_id} user {user_id}: {e}")
-            failed.append(user_id)
-    if enabled:
-        try:
-            _save_suspended_accounts(tenant_id, failed)
-        except Exception as e:
-            logger.error(f"Account list not saved for {tenant_id}: {e}")
-            return "failed"
+            failed = True
     return "failed" if failed else "ok"
 
 
@@ -4477,7 +4545,7 @@ def _set_tenant_ingestion(tenant_id: str, enabled: bool) -> str:
             f"{url}/api/internal/tenants/{tenant_id}/ingestion",
             json={"enabled": enabled},
             headers=internal_service_headers("tenant-webhook ingestion"),
-            timeout=30,
+            timeout=100,
         )
         if response.status_code == 200:
             return "ok"
@@ -4493,6 +4561,18 @@ def _set_tenant_ingestion(tenant_id: str, enabled: bool) -> str:
 @app.route("/api/admin/tenants/<tenant_id>/suspend", methods=["POST"])
 @require_platform_admin
 def suspend_tenant(tenant_id: str):
+    """Soft-delete: suspend the tenant, close its logins and MQTT accounts."""
+    try:
+        with _suspension_lock(tenant_id):
+            return _suspend_tenant(tenant_id)
+    except _SuspensionBusy:
+        return jsonify({'error': 'A suspension change is still running. Try again shortly.',
+                        'error_code': 'SUSPENSION_BUSY'}), 409
+    except Exception as e:
+        return _internal_error(e, "suspend_tenant", user_message="Failed to suspend tenant")
+
+
+def _suspend_tenant(tenant_id: str):
     """Soft-delete: mark tenant as suspended, force logout all users."""
     if tenant_id == 'platform':
         return jsonify({'error': 'The platform tenant cannot be suspended.'}), 400
@@ -4518,17 +4598,13 @@ def suspend_tenant(tenant_id: str):
                 return jsonify({'error': 'Tenant is already suspended'}), 409
 
             # Prevent PlatformAdmin from suspending their own tenant
-            current_user = g.get('current_user', {})
-            current_attrs = current_user.get('attributes', {}) if isinstance(current_user, dict) else {}
-            current_user_tenant = (current_attrs.get('tenant_id', [''])[0] if isinstance(current_attrs.get('tenant_id'), list) else '')
-            if current_user_tenant == tenant_id:
+            if getattr(g, 'tenant_id', None) == tenant_id:
                 return jsonify({
                     'error': 'Cannot suspend your own tenant. Reassign yourself to another tenant first.'
                 }), 403
 
             cursor.execute(
                 """UPDATE tenants SET deleted_at = NOW(), deleted_by = %s,
-                   status = CASE WHEN status = 'active' THEN 'suspended' ELSE status END,
                    deletion_notes = %s, updated_at = NOW()
                    WHERE tenant_id = %s""",
                 (deleted_by, deletion_notes, tenant_id)
@@ -4557,8 +4633,8 @@ def suspend_tenant(tenant_id: str):
             metadata={'deleted_by': deleted_by, 'notes': deletion_notes},
         )
 
-        accounts = _set_tenant_accounts(tenant_id, False)
         ingestion = _set_tenant_ingestion(tenant_id, False)
+        accounts = _set_tenant_accounts(tenant_id, False, g.get('current_user', {}).get('sub'))
 
         return jsonify({
             'success': True,
@@ -4575,6 +4651,18 @@ def suspend_tenant(tenant_id: str):
 @app.route("/api/admin/tenants/<tenant_id>/restore", methods=["POST"])
 @require_platform_admin
 def restore_tenant(tenant_id: str):
+    """Reverse a suspension."""
+    try:
+        with _suspension_lock(tenant_id):
+            return _restore_tenant(tenant_id)
+    except _SuspensionBusy:
+        return jsonify({'error': 'A suspension change is still running. Try again shortly.',
+                        'error_code': 'SUSPENSION_BUSY'}), 409
+    except Exception as e:
+        return _internal_error(e, "restore_tenant", user_message="Failed to restore tenant")
+
+
+def _restore_tenant(tenant_id: str):
     """Reverse soft-delete: reactivate a suspended tenant."""
     try:
         conn = webhook_service.get_db_connection()
@@ -4594,7 +4682,6 @@ def restore_tenant(tenant_id: str):
 
             cursor.execute(
                 """UPDATE tenants SET deleted_at = NULL, deleted_by = NULL,
-                   status = CASE WHEN status = 'suspended' THEN 'active' ELSE status END,
                    purge_scheduled = NULL, deletion_notes = NULL, updated_at = NOW()
                    WHERE tenant_id = %s""",
                 (tenant_id,)
@@ -4622,8 +4709,8 @@ def restore_tenant(tenant_id: str):
             resource_id=tenant_id,
         )
 
-        accounts = _set_tenant_accounts(tenant_id, True)
         ingestion = _set_tenant_ingestion(tenant_id, True)
+        accounts = _set_tenant_accounts(tenant_id, True)
 
         return jsonify({
             'success': True,
@@ -5127,6 +5214,9 @@ def reassign_user_tenant(user_id: str):
     old_tenant = (attributes.get("tenant_id", []) or [""])[0]
     attributes["tenant_id"] = [new_tenant_id]
     user["attributes"] = attributes
+    reopened = old_tenant != new_tenant_id and _closed_by_suspension(old_tenant, user_id)
+    if reopened:
+        user["enabled"] = True
 
     update_resp = requests.put(
         f"{users_url}/{user_id}",
@@ -5137,6 +5227,8 @@ def reassign_user_tenant(user_id: str):
 
     if update_resp.status_code not in [200, 204]:
         return jsonify({"error": f"Failed to update user: {update_resp.status_code}"}), 500
+    if reopened:
+        _forget_suspended_account(old_tenant, user_id)
 
     audit_log(
         action='admin.user.reassign_tenant',

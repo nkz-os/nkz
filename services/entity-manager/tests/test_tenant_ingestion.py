@@ -1,6 +1,8 @@
 """Suspending a tenant closes its MQTT accounts; restoring finds them as they were."""
 from unittest.mock import patch
 
+from unittest.mock import MagicMock
+
 import pytest
 from flask import Flask
 
@@ -28,9 +30,12 @@ def _dynsec(st):
 @pytest.mark.parametrize("enabled, op", [(False, "disable"), (True, "enable")])
 def test_only_the_tenants_active_accounts_change_and_no_row_does(enabled, op):
     st = _state()
+    if not enabled:
+        st.suspended.add(TENANT)
     before = {k: dict(v) for k, v in st.dataloggers.items()}
     with wired(st):
         assert dataloggers.set_tenant_ingestion(TENANT, enabled) == {"changed": 1, "failed": []}
+    assert st.log.index(("sql", "lock", f"ingestion:{TENANT}")) < st.log.index(("dynsec", op, "dl_a"))
     assert _dynsec(st) == [("dynsec", op, "dl_a")]
     assert st.dataloggers == before
 
@@ -38,8 +43,26 @@ def test_only_the_tenants_active_accounts_change_and_no_row_does(enabled, op):
 def test_a_client_the_broker_lost_is_already_closed():
     st = _state()
     st.missing_clients.add("dl_a")
+    st.suspended.add(TENANT)
     with wired(st):
         assert dataloggers.set_tenant_ingestion(TENANT, False) == {"changed": 1, "failed": []}
+
+
+def test_a_client_the_broker_lost_cannot_be_opened():
+    st = _state()
+    st.missing_clients.add("dl_a")
+    with wired(st):
+        assert dataloggers.set_tenant_ingestion(TENANT, True) == {"changed": 0, "failed": ["dl_a"]}
+
+
+@pytest.mark.parametrize("enabled", [True, False])
+def test_a_late_call_does_not_undo_a_newer_one(enabled):
+    st = _state()
+    if enabled:
+        st.suspended.add(TENANT)
+    with wired(st), pytest.raises(dataloggers.ApiError) as e:
+        dataloggers.set_tenant_ingestion(TENANT, enabled)
+    assert e.value.status == 409 and _dynsec(st) == []
 
 
 def test_one_failure_does_not_stop_the_others():
@@ -128,3 +151,12 @@ def test_result(internal, result, status):
 def test_unavailable(internal):
     with patch.object(dataloggers, "set_tenant_ingestion", side_effect=RuntimeError("x")):
         assert _call(internal).status_code == 503
+
+
+def test_account_changes_take_the_tenant_lock_before_asking_its_state():
+    cur = MagicMock()
+    cur.fetchone.return_value = None
+    dataloggers.require_active_tenant(cur, TENANT)
+    calls = [c.args for c in cur.execute.call_args_list]
+    assert "pg_advisory_xact_lock" in calls[0][0] and calls[0][1] == (f"ingestion:{TENANT}",)
+    assert "deleted_at" in calls[1][0]
