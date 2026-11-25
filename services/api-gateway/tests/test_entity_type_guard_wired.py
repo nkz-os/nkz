@@ -188,8 +188,8 @@ def test_platform_context_still_injected(forwarded, monkeypatch, prefix):
     assert resp.status_code == 204
     sent = calls[0][2]
     assert sent["@context"] == [
-        "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context.jsonld",
         gw.CONTEXT_URL,
+        "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.6.jsonld",
     ]
 
 
@@ -205,7 +205,7 @@ def test_guard_judges_the_body_as_sent_not_after_context_injection(forwarded, mo
     records = _guard_records(caplog)
     assert len(records) == 1 and records[0].levelno == logging.WARNING
     assert json.loads(records[0].getMessage().split(" ", 1)[1])["foreign_context"] is False
-    assert calls[0][2]["@context"][1] == gw.CONTEXT_URL
+    assert calls[0][2]["@context"][0] == gw.CONTEXT_URL
 
 
 def test_ships_off_by_default(monkeypatch):

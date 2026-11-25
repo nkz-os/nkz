@@ -1,7 +1,7 @@
 """The /ngsi-ld proxy is the @context chokepoint for FE writes (regression lock).
 
 On a mutation whose JSON body has no `@context`, the gateway MUST inject
-`@context = [ngsi-ld-core-context, CONTEXT_URL]`, set Content-Type to
+`@context = [CONTEXT_URL, ngsi-ld-core-context]`, set Content-Type to
 `application/ld+json`, and drop any `Link` header. This prevents the
 "false-zero" bug where entities stored under an unexpanded type can't be
 queried by short type name.

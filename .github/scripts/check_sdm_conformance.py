@@ -260,6 +260,29 @@ def context_terms(document: Any) -> dict[str, str]:
     return {term: expand(iri) for term, iri in raw.items()}
 
 
+def check_core_context(platform_context: Any, core_terms: dict[str, str], core_url: str) -> list[str]:
+    """The platform context lists the pinned core context once, last, and repeats none of its terms.
+
+    A broker reads the core context as the last one whatever the order written, and a generic
+    JSON-LD processor follows that order. With the core context last and no term defined twice,
+    both expand a document to the same IRIs.
+    """
+    context = platform_context.get("@context") if isinstance(platform_context, dict) else None
+    entries = context if isinstance(context, list) else [context]
+    core_entries = [entry for entry in entries
+                    if isinstance(entry, str) and (entry == core_url or "ngsi-ld-core-context" in entry)]
+    errors: list[str] = []
+    if entries[-1] != core_url:
+        errors.append(f"the platform context must list {core_url} as its last entry")
+    elif len(core_entries) > 1:
+        errors.append("the platform context must list the NGSI-LD core context once")
+    repeated = sorted({term for entry in entries if isinstance(entry, dict)
+                       for term in entry if not term.startswith("@") and term in core_terms})
+    errors.extend(f"the platform context defines `{term}`, a term of the NGSI-LD core context"
+                  for term in repeated)
+    return errors
+
+
 # ── keyValues form ──────────────────────────────────────────────────────────
 
 
@@ -906,7 +929,9 @@ def main(argv: list[str] | None = None) -> int:
                 print(f"wrote {args.deviations}")
                 return 0
             recorded = json.loads(args.deviations.read_text(encoding="utf-8"))
-            return _report(check_deviations(computed, recorded), [],
+            core_errors = check_core_context(platform_context, context_terms(files["core"]),
+                                             pins["core_context"]["url"])
+            return _report(core_errors + check_deviations(computed, recorded), [],
                            f"OK: {len(deviation_keys(recorded))} recorded deviations, none missing.")
 
         validator = Validator(pins, files, platform_context)
