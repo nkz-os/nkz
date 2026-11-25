@@ -103,6 +103,19 @@ def test_a_suspended_tenant_may_still_revoke():
     assert r.status_code == 200 and st.dataloggers[A]["status"] == "revoked"
 
 
+@pytest.mark.parametrize("action", ["revoke", "enable"])
+def test_revoke_and_enable_wait_for_a_suspend_or_restore_in_flight(action):
+    """Both take the tenant lock before the row lock: a restore that already read
+    the active accounts must finish before a revoke lands, or it reopens it."""
+    st = _state()
+    path = A if action == "revoke" else B
+    with wired(st):
+        r = client().post(f"/api/sensors/dataloggers/{path}/{action}", headers=AUTH, json={})
+    assert r.status_code == 200
+    lock = st.log.index(("sql", "lock", f"ingestion:{TENANT}"))
+    assert lock < st.log.index(("sql", "FOR UPDATE"))
+
+
 @pytest.fixture
 def internal(monkeypatch):
     monkeypatch.setenv("INTERNAL_SERVICE_SECRET", "s3cret")
