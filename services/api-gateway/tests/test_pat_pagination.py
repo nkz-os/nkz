@@ -4,7 +4,6 @@ import json
 
 import pytest
 
-QUERY = "/ngsi-ld/v1/entityOperations/query"
 BODY = {"type": "Query", "entities": [{"type": "Device"}]}
 
 

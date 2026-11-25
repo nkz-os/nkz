@@ -295,7 +295,7 @@ def test_entity_operations_query_forwards_canonical_tenant_headers(gateway, monk
     client = gateway.app.test_client()
     resp = client.post(
         "/ngsi-ld/v1/entityOperations/query",
-        json={"entities": [{"type": "AgriParcel"}]},
+        json={"type": "Query", "entities": [{"type": "Device"}]},
     )
 
     assert resp.status_code == 200
@@ -306,7 +306,7 @@ def test_entity_operations_query_forwards_canonical_tenant_headers(gateway, monk
     assert forwarded_headers["NGSILD-Tenant"] == tenant
     assert forwarded_headers["Fiware-Service"] == tenant
     assert forwarded_headers["X-Auth-Signature"] == "sig123"
-    assert kwargs["json"] == {"entities": [{"type": "AgriParcel"}]}
+    assert kwargs["json"] == {"type": "Query", "entities": [{"type": "Device"}]}
 
 
 def test_entity_operations_query_without_token_returns_401(gateway, monkeypatch):
@@ -331,7 +331,7 @@ def test_entity_operations_query_role_pro_expired_does_not_block_post(gateway, m
     monkeypatch.setattr(gateway.requests, "post", fake_post)
 
     client = gateway.app.test_client()
-    resp = client.post("/ngsi-ld/v1/entityOperations/query", json={})
+    resp = client.post("/ngsi-ld/v1/entityOperations/query", json={"type": "Query", "entities": [{"type": "Device"}]})
 
     assert resp.status_code == 200
     fake_post.assert_called_once()
@@ -354,7 +354,7 @@ def test_entity_operations_query_pat_branch_skips_rate_limit(gateway, monkeypatc
     monkeypatch.setattr(gateway.requests, "post", fake_post)
 
     with gateway.app.test_request_context(
-        "/ngsi-ld/v1/entityOperations/query", method="POST", json={}
+        "/ngsi-ld/v1/entityOperations/query", method="POST", json={"type": "Query", "entities": [{"type": "Device"}]}
     ):
         gateway.g.pat_tenant_id = "acmefarm"
         resp = gateway.entity_operations_query()

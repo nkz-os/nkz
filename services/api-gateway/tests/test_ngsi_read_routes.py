@@ -216,3 +216,41 @@ def test_user_pages_have_the_broker_maximum(client, calls):
     assert client.get(LIST + "?type=Device&limit=1000", headers=USER).status_code == 200
     assert client.get(LIST + "?type=Device&limit=2000", headers=USER).status_code == 400
     assert len(calls) == 1
+
+
+@pytest.mark.parametrize("prefix", ["", "/api"])
+@pytest.mark.parametrize("method", ["get", "put", "patch", "delete"])
+@pytest.mark.parametrize("entity_id", ["%3Ftype=T", "%23", "%00", "%2500", "a%3Fb", "a%23b", "a%0A", "%2F%2F"])
+def test_other_entity_ids_are_refused(client, calls, prefix, method, entity_id):
+    kwargs = {} if method in ("get", "delete") else {"json": {"name": {"type": "Property", "value": 1}}}
+    resp = getattr(client, method)(f"{prefix}{LIST}/{entity_id}", headers=USER, **kwargs)
+    assert resp.status_code == 400
+    assert calls == []
+
+
+@pytest.mark.parametrize("entity_id", [DEVICE, "urn:ngsi-ld:Device:a.b-c~d", f"{DEVICE}/attrs/name"])
+def test_entity_ids_are_forwarded(client, calls, entity_id):
+    assert client.delete(f"{LIST}/{entity_id}", headers=USER).status_code == 200
+    assert len(calls) == 1
+
+
+@pytest.mark.parametrize("device_id", ["%3Ftype=T%23", "%3Ftype=T", "%23", "%00", "%2500"])
+def test_other_device_ids_are_refused(client, calls, device_id):
+    assert client.get(f"/api/devices/{device_id}/telemetry/latest", headers=USER).status_code == 400
+    assert calls == []
+
+
+def test_device_ids_are_forwarded(client, calls):
+    assert client.get(f"/api/devices/{DEVICE}/telemetry/latest", headers=USER).status_code == 200
+    assert calls[0]["url"].endswith(f"/entities/{DEVICE}")
+
+
+@pytest.mark.parametrize("name", ["%3Fq=a", "%23", "%00", "%2500"])
+def test_other_type_names_are_refused(client, calls, name):
+    assert client.get(f"{TYPES}/{name}", headers=USER).status_code == 400
+    assert calls == []
+
+
+def test_type_names_are_forwarded(client, calls):
+    assert client.get(f"{TYPES}/https://example.org/T", headers=USER).status_code in (200, 308)
+    assert client.get(f"{TYPES}/Device", headers=USER).status_code == 200

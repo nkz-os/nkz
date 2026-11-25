@@ -91,6 +91,7 @@ from ngsi_read_guard import (  # noqa: E402
     query_body,
     query_params,
     types_params,
+    valid_entity_path,
 )
 from parcel_guard import creates_parcel_id, declares_parcel, is_parcel_id  # noqa: E402
 
@@ -836,6 +837,21 @@ def enforce_pat_pagination():
             g.pat_modified_body = body
 
         return None
+
+
+NGSILD_NAMED_RESOURCES = tuple(
+    f"{prefix}/ngsi-ld/v1/{resource}/" for prefix in ("", "/api") for resource in ("entities", "types")
+)
+
+
+@app.before_request
+def check_named_resources():
+    """Refuse an entity id or type name that is not just a path."""
+    path = request.path or ""
+    for prefix in NGSILD_NAMED_RESOURCES:
+        if path.startswith(prefix) and not valid_entity_path(path[len(prefix):]):
+            return jsonify({"error": "Invalid identifier"}), 400
+    return None
 
 
 @app.before_request
@@ -1731,6 +1747,9 @@ def get_device_latest_telemetry(device_id):
     # Rate limit
     if not rate_limit(tenant):
         return jsonify({"error": "Rate limit exceeded"}), 429
+
+    if not valid_entity_path(device_id):
+        return jsonify({"error": "Invalid identifier"}), 400
 
     # Prepare headers for Orion-LD
     headers = {}
