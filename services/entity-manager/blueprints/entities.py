@@ -10,6 +10,7 @@ import uuid
 import re
 from typing import Optional, Dict, Any
 from datetime import datetime
+from urllib.parse import quote
 
 from flask import Blueprint, request, jsonify, g
 from psycopg2.extras import RealDictCursor
@@ -19,7 +20,7 @@ from common.auth_middleware import require_auth, inject_fiware_headers
 from common.api_errors import internal_error
 from common.ngsi_payload_guard import shorthand_null_attributes
 from db_helper import get_db_connection_with_tenant, return_db_connection, get_db_connection_simple
-from ngsi_read_guard import valid_identifier
+from ngsi_read_guard import valid_identifier, valid_name
 from helpers.geometry import geometry_area_ha
 
 # Import shared helpers
@@ -1151,11 +1152,15 @@ _NGSI_LD_NULL = "urn:ngsi-ld:null"
 _RESERVED_ATTRIBUTES = {"id", "type", "@context"}
 
 
+def _is_attribute_name(value) -> bool:
+    return valid_name(value) and not {".", ".."} & set(value.split("/"))
+
+
 def _parcel_attribute_errors(attributes: dict, remove: list) -> Optional[tuple]:
     """Return (message, status) when an attribute fragment or remove list is unusable."""
     if not isinstance(attributes, dict):
         return "attributes must be an object of NGSI-LD attributes", 400
-    if not isinstance(remove, list) or not all(isinstance(n, str) for n in remove):
+    if not isinstance(remove, list) or not all(_is_attribute_name(n) for n in remove):
         return "remove must be a list of attribute names", 400
     reserved = _RESERVED_ATTRIBUTES & (set(attributes) | set(remove))
     if reserved:
@@ -1247,7 +1252,7 @@ def update_parcel(parcel_id: str):
 
     for name in remove:
         resp = requests.delete(
-            f"{entity_url}/attrs/{name}", headers=inject_fiware_headers({}, tenant), timeout=10,
+            f"{entity_url}/attrs/{quote(name, safe='')}", headers=inject_fiware_headers({}, tenant), timeout=10,
         )
         # 404: the attribute is already gone, which is what was asked
         if resp.status_code >= 400 and resp.status_code != 404:
