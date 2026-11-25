@@ -95,6 +95,106 @@ fails on it.
 | `hasAgriManagementZone` | atributo | propuesta-sdm | Attribute of AgriPlantSample, AgriSoilSample (smart-data-models/incubated#283) |
 | `hasSowingOperation` | atributo | extension-declarada | Relationship from a field operation to the sowing operation that opened its crop cycle; not modelled in SDM |
 | `declaredCampaigns` | atributo | extension-declarada | Past campaigns of a parcel declared without dates (crop, variety, yield, fallow); SDM has no undated crop history |
+| `actualETmm` | atributo | extension-declarada | CropHealthAssessment: actual crop evapotranspiration of the day, in mm; not modelled in SDM |
+| `asiPct` | atributo | extension-declarada | CropHealthAssessment: Agricultural Stress Index, in percent |
+| `baselineYieldKgHa` | atributo | extension-declarada | CropHealthAssessment: reference yield, in kg/ha |
+| `compactionAdvisory` | atributo | extension-declarada | CropHealthAssessment: code of the compaction advice; not modelled in SDM |
+| `compactionMoistureWarning` | atributo | extension-declarada | CropHealthAssessment: whether the soil moisture raises the compaction risk; not modelled in SDM |
+| `compactionRequiresVerification` | atributo | extension-declarada | CropHealthAssessment: whether the compaction risk needs a check in the field; not modelled in SDM |
+| `compactionRiskFactors` | atributo | extension-declarada | CropHealthAssessment: factors that contribute to the compaction risk; not modelled in SDM |
+| `compactionRiskLevel` | atributo | extension-declarada | CropHealthAssessment: soil compaction risk class; not modelled in SDM |
+| `compactionRiskScore` | atributo | extension-declarada | CropHealthAssessment: soil compaction risk score, 0 to 100; not modelled in SDM |
+| `compactionSusceptibilityScore` | atributo | extension-declarada | CropHealthAssessment: susceptibility of the soil to compaction, 0 to 100; not modelled in SDM |
+| `compactionVigorConcern` | atributo | extension-declarada | CropHealthAssessment: whether low vigour suggests compaction; not modelled in SDM |
+| `compositeStageKy` | atributo | extension-declarada | CropHealthAssessment: yield response factor of the stage used in the composite stress index (FAO-33 Ky); not modelled in SDM |
+| `compositeStressIndex` | atributo | extension-declarada | CropHealthAssessment: weighted stress index combining water, thermal and vigour stress, 0 to 100; not modelled in SDM |
+| `compositeThermalContribution` | atributo | extension-declarada | CropHealthAssessment: contribution of thermal stress to the composite stress index; not modelled in SDM |
+| `compositeVigorContribution` | atributo | extension-declarada | CropHealthAssessment: contribution of vigour to the composite stress index; not modelled in SDM |
+| `compositeWaterContribution` | atributo | extension-declarada | CropHealthAssessment: contribution of water stress to the composite stress index; not modelled in SDM |
+| `cwsiBaselineId` | atributo | extension-declarada | CropHealthAssessment: identifier of the published baseline of the Crop Water Stress Index |
+| `cwsiDataFidelity` | atributo | extension-declarada | CropHealthAssessment: fidelity class of the inputs of the Crop Water Stress Index |
+| `cwsiLstDate` | atributo | extension-declarada | CropHealthAssessment: acquisition date of the land surface temperature behind the Crop Water Stress Index |
+| `cwsiTempSource` | atributo | extension-declarada | CropHealthAssessment: source of the canopy temperature of the Crop Water Stress Index |
+| `cwsiValue` | atributo | extension-declarada | CropHealthAssessment: Crop Water Stress Index, 0 to 1 |
+| `deepPercolationMm` | atributo | extension-declarada | CropHealthAssessment: water lost below the root zone in the day, in mm; not modelled in SDM |
+| `depletionFractionP` | atributo | extension-declarada | CropHealthAssessment: fraction of the available soil water the crop can deplete before stress (FAO-56 p), 0 to 1; not modelled in SDM |
+| `dominantStressor` | atributo | extension-declarada | CropHealthAssessment: main source of stress (water, thermal, vigor or none); not modelled in SDM |
+| `growthAnomaly` | atributo | extension-declarada | CropHealthAssessment: departure of growth from the expected value; not modelled in SDM |
+| `irrigationMm` | atributo | extension-declarada | CropHealthAssessment: irrigation need derived from the soil water balance, in mm |
+| `kc` | atributo | extension-declarada | CropHealthAssessment: crop coefficient at the current stage (FAO-56); not modelled in SDM |
+| `mdsRatio` | atributo | extension-declarada | CropHealthAssessment: maximum daily shrinkage over its reference value |
+| `mdsSeverity` | atributo | extension-declarada | CropHealthAssessment: severity class of the maximum daily shrinkage |
+| `mdsValue` | atributo | extension-declarada | CropHealthAssessment: maximum daily shrinkage of the trunk, in micrometres |
+| `meteoFidelity` | atributo | extension-declarada | CropHealthAssessment: fidelity class of each weather variable used in the assessment; not modelled in SDM |
+| `overallSeverity` | atributo | extension-declarada | CropHealthAssessment: overall severity class of the assessment; not modelled in SDM |
+| `phenologyDeviation` | atributo | extension-declarada | CropHealthAssessment: departure of the phenology from the expected calendar; not modelled in SDM |
+| `phenologySource` | atributo | extension-declarada | CropHealthAssessment: source of the phenology parameters; not modelled in SDM |
+| `phenologyStage` | atributo | extension-declarada | CropHealthAssessment, CropAdvisory: current phenological stage of the crop; not modelled in SDM |
+| `predictedYieldKgHa` | atributo | extension-declarada | CropHealthAssessment: predicted yield, in kg/ha |
+| `recommendedAction` | atributo | extension-declarada | CropHealthAssessment: action recommended by the assessment; not modelled in SDM |
+| `sarDataFidelity` | atributo | extension-declarada | CropHealthAssessment: fidelity class of the radar inputs; not modelled in SDM |
+| `sarFloodStage` | atributo | extension-declarada | CropHealthAssessment: flood stage class seen by radar imagery; not modelled in SDM |
+| `sarIsFlooded` | atributo | extension-declarada | CropHealthAssessment: whether radar imagery shows the parcel flooded; not modelled in SDM |
+| `sarSurfaceMoisture` | atributo | extension-declarada | CropHealthAssessment: surface moisture index from radar backscatter, 0 to 1; not modelled in SDM |
+| `sarWaterloggingRisk` | atributo | extension-declarada | CropHealthAssessment: waterlogging risk class from radar imagery; not modelled in SDM |
+| `seasonStart` | atributo | extension-declarada | CropHealthAssessment: date the degree-day accumulation of the crop cycle starts; not modelled in SDM |
+| `shadeFraction` | atributo | extension-declarada | CropHealthAssessment: daily fraction of photosynthetically active radiation intercepted by the panels, 0 to 1 |
+| `shadeObservedAt` | atributo | extension-declarada | CropHealthAssessment: time of the last radiation sample behind the shade fraction |
+| `soilAWCmm` | atributo | extension-declarada | CropHealthAssessment: available water capacity of the root zone, in mm; not modelled in SDM |
+| `soilClayPct` | atributo | extension-declarada | CropHealthAssessment, CarbonAssessment: clay content of the soil, in percent; not modelled in SDM |
+| `soilDataSource` | atributo | extension-declarada | CropHealthAssessment: identifier of the dataset the soil properties come from; not modelled in SDM |
+| `soilFieldCapacity` | atributo | extension-declarada | CropHealthAssessment: volumetric water content at field capacity, in cm3/cm3; not modelled in SDM |
+| `soilKsatMmH` | atributo | extension-declarada | CropHealthAssessment: saturated hydraulic conductivity of the soil, in mm/h; not modelled in SDM |
+| `soilSandPct` | atributo | extension-declarada | CropHealthAssessment: sand content of the soil, in percent; not modelled in SDM |
+| `soilScsGroup` | atributo | extension-declarada | CropHealthAssessment: SCS hydrologic soil group (A to D); not modelled in SDM |
+| `soilStressLevel` | atributo | extension-declarada | CropHealthAssessment: water stress class given by the soil water balance; not modelled in SDM |
+| `soilSuitabilityConfidence` | atributo | extension-declarada | CropHealthAssessment: confidence class of the soil suitability verdict; not modelled in SDM |
+| `soilSuitabilityDetail` | atributo | extension-declarada | CropHealthAssessment: soil suitability result per factor (pH, texture, drainage); not modelled in SDM |
+| `soilSuitabilityReason` | atributo | extension-declarada | CropHealthAssessment: main reason for the soil suitability verdict; not modelled in SDM |
+| `soilSuitabilitySource` | atributo | extension-declarada | CropHealthAssessment: source of the crop soil requirements behind the verdict; not modelled in SDM |
+| `soilSuitabilityVerdict` | atributo | extension-declarada | CropHealthAssessment: verdict on the suitability of the soil for the crop; not modelled in SDM |
+| `soilWaterConfidence` | atributo | extension-declarada | CropHealthAssessment: confidence class of the soil water estimate; not modelled in SDM |
+| `soilWaterMm` | atributo | extension-declarada | CropHealthAssessment: water stored in the root zone, in mm; not modelled in SDM |
+| `soilWaterRatio` | atributo | extension-declarada | CropHealthAssessment: water stored in the root zone over its available water capacity, 0 to 1; not modelled in SDM |
+| `soilWiltingPoint` | atributo | extension-declarada | CropHealthAssessment: volumetric water content at wilting point, in cm3/cm3; not modelled in SDM |
+| `stageProgressPct` | atributo | extension-declarada | CropHealthAssessment: progress within the current stage, in percent; not modelled in SDM |
+| `stressCoefficientKs` | atributo | extension-declarada | CropHealthAssessment: water stress coefficient (FAO-56 Ks), 0 to 1; not modelled in SDM |
+| `tci` | atributo | extension-declarada | CropHealthAssessment: Temperature Condition Index, 0 to 100; not modelled in SDM |
+| `tciSource` | atributo | extension-declarada | CropHealthAssessment: source of the temperature behind the Temperature Condition Index; not modelled in SDM |
+| `thermalCondition` | atributo | extension-declarada | CropHealthAssessment: thermal condition of the crop (no_stress, heat or frost classes); not modelled in SDM |
+| `thermalDataFidelity` | atributo | extension-declarada | CropHealthAssessment: fidelity class of the thermal inputs; not modelled in SDM |
+| `thermalSeverity` | atributo | extension-declarada | CropHealthAssessment: severity class of the thermal condition; not modelled in SDM |
+| `underPanelWaterStressFidelity` | atributo | extension-declarada | CropHealthAssessment: fidelity class of the inputs of the under-panel water stress index |
+| `underPanelWaterStressIndex` | atributo | extension-declarada | CropHealthAssessment: water stress index under solar panels, 0 (no stress) to 1 (full stress) |
+| `underPanelWaterStressObservedAt` | atributo | extension-declarada | CropHealthAssessment: time of the observation behind the under-panel water stress index |
+| `vci` | atributo | extension-declarada | CropHealthAssessment: Vegetation Condition Index, 0 to 100; not modelled in SDM |
+| `vhi` | atributo | extension-declarada | CropHealthAssessment: Vegetation Health Index, 0 to 100; not modelled in SDM |
+| `vigorCondition` | atributo | extension-declarada | CropHealthAssessment: crop vigour class; not modelled in SDM |
+| `vigorDataFidelity` | atributo | extension-declarada | CropHealthAssessment: fidelity class of the vigour inputs; not modelled in SDM |
+| `vigorIndex` | atributo | extension-declarada | CropHealthAssessment: crop vigour index, 0 to 1; not modelled in SDM |
+| `vigorIndexUsed` | atributo | extension-declarada | CropHealthAssessment: name of the vegetation index behind the vigour index; not modelled in SDM |
+| `vpdKpa` | atributo | extension-declarada | CropHealthAssessment: vapour pressure deficit of the air, in kPa |
+| `waterBalanceDeficit` | atributo | extension-declarada | CropHealthAssessment: precipitation minus crop evapotranspiration, in mm; not modelled in SDM |
+| `waterDeficitMm` | atributo | extension-declarada | CropHealthAssessment: water deficit of the root zone, in mm; not modelled in SDM |
+| `waterStressFidelity` | atributo | extension-declarada | CropHealthAssessment: fidelity class of the inputs of the water stress index; not modelled in SDM |
+| `waterStressIndex` | atributo | extension-declarada | CropHealthAssessment: water stress index, 0 (no stress) to 1 (full stress); not modelled in SDM |
+| `waterStressLevel` | atributo | extension-declarada | CropHealthAssessment: water stress class of the parcel (none, mild, moderate, high, no_data or not_needed); not modelled in SDM |
+| `waterStressMethod` | atributo | extension-declarada | CropHealthAssessment: method behind the water stress class (cwsi_sensor, balance or none); not modelled in SDM |
+| `waterStressObservedAt` | atributo | extension-declarada | CropHealthAssessment: time of the observation behind the water stress index; not modelled in SDM |
+| `waterStressPhaseBasis` | atributo | extension-declarada | CropHealthAssessment: data used to decide the stage behind the water stress class (gdd or gdd_ndvi) |
+| `waterStressPhaseNote` | atributo | extension-declarada | CropHealthAssessment: note on the water stress class at this stage (rdi: regulated deficit irrigation) |
+| `waterStressReferenceSources` | atributo | extension-declarada | CropHealthAssessment: identifiers of the published references behind the water stress class; not modelled in SDM |
+| `waterloggingDrainageRateMmH` | atributo | extension-declarada | CropHealthAssessment: drainage rate of the soil, in mm/h; not modelled in SDM |
+| `waterloggingExcessMm` | atributo | extension-declarada | CropHealthAssessment: water in excess of the storage of the root zone, in mm; not modelled in SDM |
+| `waterloggingRiskLevel` | atributo | extension-declarada | CropHealthAssessment: waterlogging risk class; not modelled in SDM |
+| `waterloggingSaturationHours` | atributo | extension-declarada | CropHealthAssessment: estimated hours of saturation, in hours; not modelled in SDM |
+| `wueBiomassKg` | atributo | extension-declarada | CropHealthAssessment: estimated biomass used in the water use efficiency, in kg/ha; not modelled in SDM |
+| `wueKgM3` | atributo | extension-declarada | CropHealthAssessment: water use efficiency, in kg of biomass per m3 of water |
+| `wueStatus` | atributo | extension-declarada | CropHealthAssessment: status of the water use efficiency estimate (operational, advisory or suppressed); not modelled in SDM |
+| `wueTrend` | atributo | extension-declarada | CropHealthAssessment: trend of the water use efficiency (improving, stable or declining); not modelled in SDM |
+| `wueWaterAppliedMm` | atributo | extension-declarada | CropHealthAssessment: irrigation water applied used in the water use efficiency, in mm; not modelled in SDM |
+| `yieldGapConfidence` | atributo | extension-declarada | CropHealthAssessment: confidence class of the yield estimate |
+| `yieldUtilizationPct` | atributo | extension-declarada | CropHealthAssessment: share of the maximum yield reached, in percent |
 | `hasAgriPlant` | atributo | propuesta-sdm | Attribute of AgriPlantSample (smart-data-models/incubated#283) |
 | `hasAgriPlantReplacement` | atributo | propuesta-sdm | Attribute of AgriPlant (smart-data-models/incubated#283) |
 | `height` | atributo | propuesta-sdm | Attribute of AgriPlant (smart-data-models/incubated#283) |
