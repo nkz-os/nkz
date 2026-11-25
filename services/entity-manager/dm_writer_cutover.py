@@ -1,30 +1,46 @@
 """Move devices between the two writers of their DeviceMeasurement entities.
 
     python -m dm_writer_cutover --tenant T [--device URN] --to iota|em [--shape legacy|sdm]
-                                [--settle SECONDS] (--dry-run | --apply) [--verify]
-    python -m dm_writer_cutover --tenant T [--device URN] --verify
+                                [--settle SECONDS] (--dry-run | --apply)
+    python -m dm_writer_cutover --tenant T [--device URN] --verify --since TIME
 
 `--to iota` makes the IoT Agent write the DeviceMeasurement entities of a device in the
 given `--shape` (required); `--to em` gives them back to the entity-manager (no shape).
-`--verify` is read-only and may run alone: it reads the DeviceMeasurement entities of the
-tenant from the broker WITHOUT a Link header (full type IRI, `count=true`, paginated; a short
-type name without Link counts zero) and runs two separate checks:
-  (a) no entity lacks both `numValue` and `textValue`;
-  (b) every entity of an `iota` device has exactly the attribute set its shape and profile
+After a move to `iota` that moved at least one device, `--apply` prints the line to run later:
+`verify in a few minutes with: --tenant T [--device URN] --verify --since TIME` (TIME = UTC, right
+after the last device moved, rounded up to the second).
+
+`--verify` runs alone (refused with `--apply`, `--dry-run`, `--to`, `--shape`, `--settle`), is
+read-only and takes `--since TIME`: ISO 8601 with `Z` or an offset, not later than now + 5 s (naive,
+date-only, unparseable or future: exit 2). It reads the DeviceMeasurement entities of the tenant
+from the broker WITHOUT a Link header, with `options=sysAttrs` (full type IRI, `count=true`,
+paginated; a short type name without Link counts zero). An entity is "reported" when its own
+`modifiedAt` is `TIME` or later (never `dateObserved`: a logger may send old times); a missing or
+unreadable `modifiedAt` is a failure. Checks:
+  (a) no entity, reported or not, lacks both `numValue` and `textValue`; it also runs with
+      `--device` on a device that is not on `iota` (which is itself a failure);
+  (b) every REPORTED entity of an `iota` device has exactly the attribute set its shape and profile
       call for, nothing under the default vocabulary and no `TimeInstant` attribute; an entity
-      with no channel in the current profile is judged for the keys any channel may carry. An
-      `iota` device with no entity in the broker fails; with no `iota` device (b) is NOT RUN.
-      Entities are matched to devices by the id prefix (longest wins).
+      with no channel in the current profile (orphan) is judged, when reported, for the keys any
+      channel may carry. An `iota` device with no entity in the broker fails, and so does one
+      with no reported entity at all (`delivered NOTHING since TIME`); with no `iota` device (b)
+      is NOT RUN. Entities are matched to devices by the id prefix (longest wins). An entity not
+      reported yet is listed (`not reported since`), not judged and not a failure: a slow channel
+      is not a fault;
   (c) the IoT Agent's own document of every `iota` device matches the expected mappings;
-  (d) the `numValue`/`textValue` of those entities carry `observedAt`.
-With `--device`, a device that is not on `iota` is a failure (not "NOT RUN").
+  (d) the `numValue`/`textValue` of reported entities carry `observedAt`.
+A value attribute (`numValue`/`textValue`) whose own `modifiedAt` is before `TIME` in an entity that
+may carry either value (or an orphan with both), or the value of the other kind on a numeric/text
+channel, is `stale value`: listed and left out of (b) and (d). Any other stale attribute is judged
+by (b) as usual. Listings show at most 50 lines per heading and `... and N more`; the counts are
+complete. The last line is `verify: OK` or `verify: FAILED (...)`.
 The term to IRI mapping comes from the platform context document at CONTEXT_URL (required;
-without it, or without a term, the verification fails). `--device` narrows check (b).
+without it, or without a term, the verification fails). `--device` narrows checks (b) to (d).
 
 `--apply` takes the exclusive writer-move lock of the tenant BEFORE it reads the plan and holds it
 until the last row is committed (one dedicated connection; every row is committed on it, with
 a compare-and-set on the state the plan read). A profile change or another move that holds the
-lock makes it stop with exit 1 and nothing written. `--dry-run` and `--verify` take no lock.
+lock makes it stop with exit 1 and nothing written. `--dry-run` and `--verify` take no lock and never write.
 `--apply --to iota` is refused for a tenant with no `tenants` row or with `deleted_at` set;
 `--to em` is the way back and is always allowed. The tenant must be given in canonical form.
 `--apply --to iota` itself is still disabled (refused with exit 2, see MOVE_TO_IOTA_ENABLED);
@@ -86,6 +102,7 @@ import time
 import traceback
 from contextlib import contextmanager
 from dataclasses import dataclass, field
+from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 import requests
@@ -486,7 +503,12 @@ def _put(tenant: str, external_id: str, attrs: list) -> None:
                                        external_id, attrs)
 
 
+_moved_at: List[datetime] = []      # [time of the last `moved` outcome of this run]
+
+
 def _report_outcome(out: Outcome) -> None:
+    if out.status == 'moved':
+        _moved_at[:] = [_utcnow()]
     if out.status != 'unchanged':
         _say_safe(f"{out.urn}: {'FAILED' if out.status == 'failed' else out.status} - {out.text}")
 
@@ -886,7 +908,7 @@ def read_dms(tenant: str, type_iri: str) -> List[dict]:
     while True:
         resp = requests.get(f"{dataloggers.ORION_URL}/ngsi-ld/v1/entities", headers=headers,
                             params={'type': type_iri, 'count': 'true', 'limit': PAGE,
-                                    'offset': offset}, timeout=30)
+                                    'offset': offset, 'options': 'sysAttrs'}, timeout=30)
         if resp.status_code != 200:
             raise RuntimeError(f"broker answered HTTP {resp.status_code}")
         raw = resp.headers.get('NGSILD-Results-Count')
@@ -941,174 +963,357 @@ def _is_time_instant(key: str) -> bool:
     return key == 'TimeInstant' or key.endswith('/TimeInstant')
 
 
-def verify(tenant: str, rows: List[Row], only_urn: Optional[str], require_iota: bool = True) -> bool:
-    """Run the checks (a)-(d); prints the result of each; True when all pass.
+LIST_CAP = 50                  # lines printed per heading; the counts are always complete
+FUTURE_MARGIN = 5.0            # seconds a --since may be ahead of this machine's clock
 
-    (c) the agent's own device document of every selected `iota` device matches the expected
-    mappings; (d) the `numValue`/`textValue` of their DMs carry `observedAt`. With
-    `require_iota` a `--device` that is not on `iota` is a failure, not a NOT RUN.
-    """
-    if only_urn and require_iota:
-        chosen = next((r for r in rows if r.urn == only_urn), None)
-        if chosen is None or chosen.state[0] != 'iota':
-            _say(f"verify FAILED: {only_urn} is not on iota")
-            return False
+
+def _utcnow() -> datetime:
+    return datetime.now(timezone.utc)
+
+
+def _aware(value: Any) -> Optional[datetime]:
+    """An ISO 8601 string with `Z` or an offset as an aware datetime; None otherwise."""
+    if not isinstance(value, str):
+        return None
     try:
-        terms = load_terms()
-        dms = read_dms(tenant, terms['DeviceMeasurement'])
-    except RuntimeError as exc:
-        _say(f"verify FAILED: {exc}")
-        return False
-    _say(f"verify: read {len(dms)} DeviceMeasurement entities")
+        parsed = datetime.fromisoformat(value)
+    except ValueError:
+        return None
+    if parsed.tzinfo is None or parsed.utcoffset() is None:
+        return None
+    return parsed
 
-    bad_a = []
-    for e in dms:
-        if terms['numValue'] not in e and terms['textValue'] not in e:
-            bad_a.append(e.get('id'))
-    _say("check (a): ok" if not bad_a else
-         f"check (a): FAILED ({len(bad_a)} without numValue and textValue)")
-    for i in bad_a:
-        _say(f"  {i}")
 
-    prefix_of = {f"urn:ngsi-ld:DeviceMeasurement:{tenant}:{r.external_id}:": r for r in rows}
-    prefixes = sorted(prefix_of, key=len, reverse=True)       # longest prefix wins
-    selected = {r.urn for r in rows if r.state[0] == 'iota'
-                and (only_urn is None or r.urn == only_urn)}
-    seen_devices = set()
-    unmatched = 0
-    profiles: Dict[str, Optional[Dict[str, Any]]] = {}
-    problems: List[str] = []
-    orphans: List[str] = []
-    bad_d: List[str] = []
-    judged = 0
+def _parse_since(value: str) -> Optional[datetime]:
+    """`--since`: aware, and not later than now + FUTURE_MARGIN; None when it is not."""
+    parsed = _aware(value)
+    if parsed is None or parsed > _utcnow() + timedelta(seconds=FUTURE_MARGIN):
+        return None
+    return parsed
 
-    profile_data: Dict[str, Optional[tuple]] = {}
 
-    def profile_of(row: Row):
-        if row.urn not in profile_data:
+def _utc_text(moment: datetime) -> str:
+    return moment.astimezone(timezone.utc).isoformat().replace("+00:00", "Z")
+
+
+def _round_up_second(moment: datetime) -> datetime:
+    moment = moment.astimezone(timezone.utc)
+    whole = moment.replace(microsecond=0)
+    return whole + timedelta(seconds=1) if moment.microsecond else whole
+
+
+def _verify_hint(tenant: str, device: Optional[str], moment: datetime) -> str:
+    where = f"--tenant {tenant}" + (f" --device {device}" if device else "")
+    return (f"verify in a few minutes with: {where} --verify "
+            f"--since {_utc_text(_round_up_second(moment))}")
+
+
+def _say_listing(heading: str, lines: Sequence[str]) -> None:
+    """The heading, at most LIST_CAP lines and the rest as a count."""
+    _say(heading)
+    for line in lines[:LIST_CAP]:
+        _say(line)
+    if len(lines) > LIST_CAP:
+        _say(f"  \u2026 and {len(lines) - LIST_CAP} more")
+
+
+def _plain(attr: Any) -> str:
+    value = attr.get('value') if isinstance(attr, dict) else attr
+    return "-" if value is None else str(value)[:40]
+
+
+def _describe(e: dict, terms: Dict[str, str]) -> str:
+    """The three times of an entity: dateObserved, the value's observedAt, the entity's modifiedAt."""
+    observed = []
+    for term in ('numValue', 'textValue'):
+        attr = e.get(terms[term])
+        if isinstance(attr, dict) and attr.get('observedAt'):
+            observed.append(_plain(attr.get('observedAt')))
+    return (f"dateObserved={_plain(e.get(terms['dateObserved']))} "
+            f"observedAt={'/'.join(observed) or '-'} modifiedAt={_plain(e.get('modifiedAt'))}")
+
+
+class _Profiles:
+    """What the current profile says about each device, read once per device."""
+
+    def __init__(self, tenant: str):
+        self.tenant = tenant
+        self._data: Dict[str, Optional[tuple]] = {}
+        self._channels: Dict[str, Optional[Dict[str, Any]]] = {}
+
+    def data(self, row: Row):
+        if row.urn not in self._data:
             result = None
             try:
-                ent = dataloggers._orion_devices(tenant, [row.urn]).get(row.urn)
-                code = entity_profile_code(tenant, ent)
-                ms = dataloggers._profile_measurements(tenant, code) if code else None
+                ent = dataloggers._orion_devices(self.tenant, [row.urn]).get(row.urn)
+                code = entity_profile_code(self.tenant, ent)
+                ms = dataloggers._profile_measurements(self.tenant, code) if code else None
                 if ms is not None:
                     result = (code, ms)
             except Exception as exc:
                 logger.warning("verify: profile of %s not readable: %s", row.external_id,
                                type(exc).__name__)
-            profile_data[row.urn] = result
-        return profile_data[row.urn]
+            self._data[row.urn] = result
+        return self._data[row.urn]
 
-    def channels_of(row: Row):
-        if row.urn in profiles:
-            return profiles[row.urn]
+    def channels(self, row: Row):
+        if row.urn in self._channels:
+            return self._channels[row.urn]
         result = None
         try:
-            data = profile_of(row)
+            data = self.data(row)
             if data is not None:
                 code, ms = data
-                chans = measurement_channels(ms, tenant=tenant, external_id=row.external_id,
+                chans = measurement_channels(ms, tenant=self.tenant, external_id=row.external_id,
                                              device_urn=row.urn, profile_code=code,
                                              shape=row.state[1])
                 result = {c.dm_id: c for c in chans}   # canonical channel last: it wins
         except Exception as exc:
             logger.warning("verify: profile of %s not readable: %s", row.external_id,
                            type(exc).__name__)
-        profiles[row.urn] = result
+        self._channels[row.urn] = result
         return result
 
-    for e in dms:
-        dm_id = str(e.get('id', ''))
-        row = next((prefix_of[pre] for pre in prefixes if dm_id.startswith(pre)), None)
-        if row is None:
-            unmatched += 1
+
+@dataclass
+class _Verdict:
+    """What check (b)/(d) found in one entity."""
+    state: str                                  # unreadable | not_reported | reported
+    orphan: bool = False
+    stale: List[str] = field(default_factory=list)      # value terms left out
+    issues: List[str] = field(default_factory=list)     # check (b)
+    no_observed_at: List[str] = field(default_factory=list)   # check (d), value terms
+
+
+def _own_time_before(attr: Any, since: datetime) -> bool:
+    """True only when the attribute's own modifiedAt is readable and before `since`."""
+    stamp = _aware(attr.get('modifiedAt')) if isinstance(attr, dict) else None
+    return stamp is not None and stamp < since
+
+
+def _stale_values(e: dict, terms: Dict[str, str], channel, since: datetime) -> List[str]:
+    """Value attributes (`numValue`/`textValue`) older than `since` that the entity-manager or an
+    earlier writer left behind. `channel` is None for an orphan."""
+    num, text = terms['numValue'], terms['textValue']
+    kind = channel.kind if channel is not None else 'runtime'
+    if kind == 'number':
+        candidates = [('textValue', text)]
+    elif kind == 'text':
+        candidates = [('numValue', num)]
+    else:
+        if num not in e or text not in e:
+            return []
+        candidates = [('numValue', num), ('textValue', text)]
+    stale = [term for term, iri in candidates if iri in e and _own_time_before(e[iri], since)]
+    return [] if kind == 'runtime' and len(stale) == 2 else stale      # both old: judged as today
+
+
+def _key_issues(keys: set, channel, shape: Optional[str], terms: Dict[str, str]) -> List[str]:
+    """The attribute-set problems of an entity (check (b))."""
+    issues = []
+    offending = sorted(k for k in keys if _is_default_vocabulary(k))
+    if offending:
+        issues.append(f"default vocabulary keys {offending}")
+    instants = sorted(k for k in keys if _is_time_instant(k))
+    if instants:
+        issues.append(f"TimeInstant attribute {instants}")
+    if channel is None:
+        required, allowed = _orphan_keys(shape, terms)
+        either = {terms['numValue'], terms['textValue']}
+    else:
+        required, allowed, either = _expected_keys(channel, shape, terms)
+    extra = sorted(k for k in keys - allowed if k not in offending and k not in instants)
+    missing = sorted(required - keys)
+    if either and not (either & keys):
+        missing.append(" or ".join(sorted(either)))
+    if extra:
+        issues.append(f"unexpected keys {extra}")
+    if missing:
+        issues.append(f"missing keys {missing}")
+    return issues
+
+
+def _judge_entity(e: dict, row: Row, chans: Optional[Dict[str, Any]], terms: Dict[str, str],
+                  since: datetime) -> _Verdict:
+    """Order: modifiedAt (unreadable fails), not reported (nothing else), then the channel rules."""
+    modified = _aware(e.get('modifiedAt'))
+    if modified is None:
+        return _Verdict('unreadable', issues=["modifiedAt missing or unreadable"])
+    channel = chans.get(e.get('id')) if chans else None
+    orphan = chans is not None and channel is None
+    if modified < since:
+        return _Verdict('not_reported', orphan=orphan)
+    verdict = _Verdict('reported', orphan=orphan)
+    if chans is not None:
+        verdict.stale = _stale_values(e, terms, channel, since)
+    stale_iris = {terms[t] for t in verdict.stale}
+    keys = {k for k in e if k not in SYSTEM_KEYS} - stale_iris
+    if chans is None:
+        verdict.issues.append("expected attributes unknown (profile not readable)")
+    else:
+        verdict.issues.extend(_key_issues(keys, channel, row.state[1], terms))
+    for term in ('numValue', 'textValue'):
+        val = e.get(terms[term])
+        if terms[term] in stale_iris or val is None:
             continue
-        seen_devices.add(row.urn)
+        if not (isinstance(val, dict) and val.get('observedAt')):
+            verdict.no_observed_at.append(term)
+    return verdict
+
+
+def _check_agent(tenant: str, rows: List[Row], selected: set, profiles: _Profiles) -> List[str]:
+    """Check (c): the agent's own document of every selected device against the expected mappings."""
+    bad: List[str] = []
+    for row in rows:
         if row.urn not in selected:
             continue
-        judged += 1
-        for term in ('numValue', 'textValue'):
-            val = e.get(terms[term])
-            if val is not None and not (isinstance(val, dict) and val.get('observedAt')):
-                bad_d.append(f"  {dm_id}: {term} has no observedAt")
-        keys = {k for k in e if k not in SYSTEM_KEYS}
-        issues = []
-        offending = sorted(k for k in keys if _is_default_vocabulary(k))
-        if offending:
-            issues.append(f"default vocabulary keys {offending}")
-        ti = sorted(k for k in keys if _is_time_instant(k))
-        if ti:
-            issues.append(f"TimeInstant attribute {ti}")
-        chans = channels_of(row)
-        channel = chans.get(e['id']) if chans else None
-        if chans is None:
-            issues.append("expected attributes unknown (profile not readable)")
-        elif channel is None:
-            orphans.append(dm_id)
-            required, allowed = _orphan_keys(row.state[1], terms)
-            extra = sorted(k for k in keys - allowed if k not in offending and k not in ti)
-            missing = sorted(required - keys)
-            if not ({terms['numValue'], terms['textValue']} & keys):
-                missing.append(f"{terms['numValue']} or {terms['textValue']}")
-            if extra:
-                issues.append(f"unexpected keys {extra}")
-            if missing:
-                issues.append(f"missing keys {missing}")
-        else:
-            required, allowed, either = _expected_keys(channel, row.state[1], terms)
-            extra = sorted(k for k in keys - allowed if k not in offending and k not in ti)
-            missing = sorted(required - keys)
-            if either and not (either & keys):
-                missing.append(" or ".join(sorted(either)))
-            if extra:
-                issues.append(f"unexpected keys {extra}")
-            if missing:
-                issues.append(f"missing keys {missing}")
-        if issues:
-            problems.append(f"  {e['id']}: " + "; ".join(issues))
-    for row in rows:
-        if row.urn in selected and row.urn not in seen_devices:
-            problems.append(f"  {row.urn}: no DeviceMeasurement in the broker (readings lost?)")
-    if unmatched:
-        _say(f"verify: {unmatched} entities matching no linked device (not judged by check (b))")
-    if orphans:
-        _say(f"verify: {len(orphans)} entities with no channel in the current profile "
-             "(judged for the keys any channel may carry)")
-        for i in orphans:
-            _say(f"  {i}")
-    if not selected:
-        for name in ("(b)", "(c)", "(d)"):
-            _say(f"check {name}: NOT RUN (no iota devices)")
-        return not bad_a
-    _say("check (b): ok" + f" ({judged} entities of iota devices judged)" if not problems else
-         f"check (b): FAILED ({len(problems)} problem(s), {judged} entities judged)")
-    for line in problems:
-        _say(line)
-    bad_c: List[str] = []
-    for row in rows:
-        if row.urn not in selected:
-            continue
-        data = profile_of(row)
+        data = profiles.data(row)
         if data is None:
-            bad_c.append(f"  {row.urn}: expected mappings unknown (profile not readable)")
+            bad.append(f"  {row.urn}: expected mappings unknown (profile not readable)")
             continue
         try:
             expected = _build(tenant, row, row.state, data[0], data[1])
         except Exception as exc:
-            bad_c.append(f"  {row.urn}: expected mappings not buildable ({type(exc).__name__})")
+            bad.append(f"  {row.urn}: expected mappings not buildable ({type(exc).__name__})")
             continue
         if not _agent_matches(tenant, row.external_id, expected):
-            bad_c.append(f"  {row.urn}: the IoT Agent's mappings differ from the expected ones "
-                         "(or cannot be read)")
-    _say("check (c): ok (agent mappings match)" if not bad_c else
-         f"check (c): FAILED ({len(bad_c)} device(s))")
-    for line in bad_c:
-        _say(line)
-    _say("check (d): ok (observedAt on every value)" if not bad_d else
-         f"check (d): FAILED ({len(bad_d)} value(s))")
-    for line in bad_d:
-        _say(line)
-    return not (bad_a or problems or bad_c or bad_d)
+            bad.append(f"  {row.urn}: the IoT Agent's mappings differ from the expected ones "
+                       "(or cannot be read)")
+    return bad
+
+
+@dataclass
+class _Findings:
+    """What the judgement of the entities of the `iota` devices collected."""
+    unmatched: int = 0
+    judged: int = 0
+    not_reported: List[str] = field(default_factory=list)
+    orphans: List[str] = field(default_factory=list)
+    stale: List[str] = field(default_factory=list)
+    problems: List[str] = field(default_factory=list)       # check (b)
+    bad_d: List[str] = field(default_factory=list)          # check (d)
+    seen: set = field(default_factory=set)                  # devices with an entity
+    reported: Dict[str, int] = field(default_factory=dict)  # device -> reported entities
+    unreadable: set = field(default_factory=set)            # devices with an unreadable modifiedAt
+
+
+def _judge_entities(dms: List[dict], rows: List[Row], selected: set, terms: Dict[str, str],
+                    since: datetime, profiles: _Profiles, tenant: str) -> _Findings:
+    prefix_of = {f"urn:ngsi-ld:DeviceMeasurement:{tenant}:{r.external_id}:": r for r in rows}
+    prefixes = sorted(prefix_of, key=len, reverse=True)       # longest prefix wins
+    found = _Findings()
+    for e in dms:
+        dm_id = str(e.get('id', ''))
+        row = next((prefix_of[pre] for pre in prefixes if dm_id.startswith(pre)), None)
+        if row is None:
+            found.unmatched += 1
+            continue
+        found.seen.add(row.urn)
+        if row.urn not in selected:
+            continue
+        found.judged += 1
+        v = _judge_entity(e, row, profiles.channels(row), terms, since)
+        desc = _describe(e, terms)
+        if v.state == 'unreadable':
+            found.unreadable.add(row.urn)
+        elif v.state == 'reported':
+            found.reported[row.urn] = found.reported.get(row.urn, 0) + 1
+        if v.orphan:
+            found.orphans.append(f"  {dm_id}: "
+                                 f"{'reported' if v.state == 'reported' else 'not reported'}; {desc}")
+        elif v.state == 'not_reported':
+            found.not_reported.append(f"  {dm_id}: {desc}")
+        for term in v.stale:
+            found.stale.append(f"  {dm_id}: stale value {term}; {desc}")
+        if v.issues:
+            found.problems.append(f"  {dm_id}: " + "; ".join(v.issues))
+        found.bad_d.extend(f"  {dm_id}: {term} has no observedAt" for term in v.no_observed_at)
+    for row in rows:
+        if row.urn not in selected:
+            continue
+        if row.urn not in found.seen:
+            found.problems.append(f"  {row.urn}: no DeviceMeasurement in the broker (readings lost?)")
+        elif not found.reported.get(row.urn) and row.urn not in found.unreadable:
+            found.problems.append(f"  {row.urn}: delivered NOTHING since {_utc_text(since)}")
+    return found
+
+
+def _finish(failed: List[str]) -> bool:
+    """The last line of a verification."""
+    _say("verify: OK" if not failed else f"verify: FAILED ({', '.join(failed)})")
+    return not failed
+
+
+def verify(tenant: str, rows: List[Row], only_urn: Optional[str], since: datetime) -> bool:
+    """Run the checks (a)-(d); prints the result of each; True when all pass.
+
+    An entity is "reported" when its own `modifiedAt` is `since` or later. (a) judges every entity;
+    (b) and (d) only the reported entities of the selected `iota` devices; (c) the agent's document
+    of those devices. A `--device` that is not on `iota` is a failure, but (a) still runs.
+    """
+    not_iota = False
+    if only_urn:
+        chosen = next((r for r in rows if r.urn == only_urn), None)
+        not_iota = chosen is None or chosen.state[0] != 'iota'
+        if not_iota:
+            _say(f"{only_urn} is not on iota")
+    try:
+        terms = load_terms()
+        dms = read_dms(tenant, terms['DeviceMeasurement'])
+    except RuntimeError as exc:
+        _say(f"verify: FAILED ({exc})")
+        return False
+    _say(f"verify: read {len(dms)} DeviceMeasurement entities")
+
+    failed: List[str] = []
+    bad_a = [e.get('id') for e in dms if terms['numValue'] not in e and terms['textValue'] not in e]
+    if bad_a:
+        failed.append(f"check (a): {len(bad_a)}")
+        _say_listing(f"check (a): FAILED ({len(bad_a)} without numValue and textValue)",
+                     [f"  {i}" for i in bad_a])
+    else:
+        _say("check (a): ok")
+    if not_iota:
+        return _finish(failed + ["device not on iota"])
+
+    selected = {r.urn for r in rows if r.state[0] == 'iota'
+                and (only_urn is None or r.urn == only_urn)}
+    profiles = _Profiles(tenant)
+    found = _judge_entities(dms, rows, selected, terms, since, profiles, tenant)
+    if found.unmatched:
+        _say(f"verify: {found.unmatched} entities matching no linked device (not judged by check (b))")
+    if found.not_reported:
+        _say_listing(f"verify: {len(found.not_reported)} entities not reported since "
+                     f"{_utc_text(since)} (listed, not judged)", found.not_reported)
+    if found.orphans:
+        _say_listing(f"verify: {len(found.orphans)} orphan entities with no channel in the current "
+                     "profile (judged, for the keys any channel may carry, only when reported)",
+                     found.orphans)
+    if found.stale:
+        _say_listing(f"verify: {len(found.stale)} stale value(s) older than {_utc_text(since)} "
+                     "(left out of checks (b) and (d))", found.stale)
+    if not selected:
+        for name in ("(b)", "(c)", "(d)"):
+            _say(f"check {name}: NOT RUN (no iota devices)")
+        return _finish(failed)
+    if found.problems:
+        failed.append(f"check (b): {len(found.problems)}")
+        _say_listing(f"check (b): FAILED ({len(found.problems)} problem(s), "
+                     f"{found.judged} entities judged)", found.problems)
+    else:
+        _say(f"check (b): ok ({found.judged} entities of iota devices judged)")
+    bad_c = _check_agent(tenant, rows, selected, profiles)
+    if bad_c:
+        failed.append(f"check (c): {len(bad_c)}")
+        _say_listing(f"check (c): FAILED ({len(bad_c)} device(s))", bad_c)
+    else:
+        _say("check (c): ok (agent mappings match)")
+    if found.bad_d:
+        failed.append(f"check (d): {len(found.bad_d)}")
+        _say_listing(f"check (d): FAILED ({len(found.bad_d)} value(s))", found.bad_d)
+    else:
+        _say("check (d): ok (observedAt on every reported value)")
+    return _finish(failed)
 
 
 # -- command ------------------------------------------------------------------------------
@@ -1126,7 +1331,11 @@ def _parser() -> argparse.ArgumentParser:
     mode = p.add_mutually_exclusive_group()
     mode.add_argument("--dry-run", action="store_true", help="validate and print the plan; write nothing")
     mode.add_argument("--apply", action="store_true")
-    p.add_argument("--verify", action="store_true", help="read-only check of the broker's DM entities")
+    p.add_argument("--verify", action="store_true",
+                   help="read-only check of the broker's DM entities; alone, with --since")
+    p.add_argument("--since", metavar="TIME",
+                   help="--verify: ISO 8601 time with Z or an offset; an entity is reported when its "
+                        "own modifiedAt is this or later (use the time --apply printed)")
     return p
 
 
@@ -1139,6 +1348,19 @@ def _args(argv: Optional[List[str]]) -> argparse.Namespace:
         canonical = None
     if canonical != a.tenant:
         p.error("--tenant must be in canonical form (lowercase letters, digits and single hyphens)")
+    if a.verify:
+        if a.dry_run or a.apply:
+            p.error("--verify runs alone, after the move (the --apply output says when and with what)")
+        for flag, given in (("--to", a.to), ("--shape", a.shape), ("--settle", a.settle)):
+            if given is not None:
+                p.error(f"{flag} is refused with --verify")
+        if not a.since:
+            p.error("--verify needs --since TIME (ISO 8601 with Z or an offset)")
+        a.since_at = _parse_since(a.since)
+        if a.since_at is None:
+            p.error("--since must be an ISO 8601 time with Z or an offset, not later than now")
+    elif a.since is not None:
+        p.error("--since only goes with --verify")
     if a.dry_run or a.apply:
         if not a.to:
             p.error("--to is required with --dry-run/--apply")
@@ -1215,12 +1437,15 @@ def _plan_and_apply(args: argparse.Namespace, tenant: str, lock,
         if args.apply:
             if progress is not None:
                 progress.append(True)
+            _moved_at.clear()
             if args.to == 'iota':
                 outcomes = apply_iota(lock, tenant, items, args.shape, settle)
             else:
                 outcomes = apply_em(lock, tenant, items)
             failed = [o for o in outcomes if o.status == 'failed']
             _say_safe(f"done: {len(outcomes) - len(failed)} ok, {len(failed)} failed")
+            if args.to == 'iota' and _moved_at:
+                _say_safe(_verify_hint(tenant, args.device, _moved_at[0]))
             ok = not failed
     return None, ok
 
@@ -1254,9 +1479,9 @@ def main(argv: Optional[List[str]] = None) -> int:
         try:
             rows = list_rows(tenant)
         except Exception as exc:
-            _say(f"verify FAILED: cannot read the devices: {type(exc).__name__}")
+            _say(f"verify: FAILED (cannot read the devices: {type(exc).__name__})")
             return 1
-        ok = verify(tenant, rows, args.device, require_iota=args.to != 'em') and ok
+        ok = verify(tenant, rows, args.device, args.since_at) and ok
     return 0 if ok else 1
 
 

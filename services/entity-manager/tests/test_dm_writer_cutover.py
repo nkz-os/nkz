@@ -366,6 +366,8 @@ def _waited(sleeps):
 
 
 BASE = ("--tenant", TENANT)
+SINCE = "2026-06-01T00:00:00Z"
+VERIFY = ("--verify", "--since", SINCE)
 
 
 # -- arguments ----------------------------------------------------------------------------
@@ -690,28 +692,44 @@ class Http:
         return [c for c in self.calls if c[0] != CTX_URL]
 
 
-def dm(ext, name, *, shape="legacy", mtype="t", value="num", drop=(), extra=None, tenant=TENANT):
+OLD = "2026-05-01T00:00:00Z"     # before SINCE
+NEW = "2026-06-02T00:00:00Z"     # after SINCE
+
+
+def dm(ext, name, *, shape="legacy", mtype="t", value="num", drop=(), extra=None, tenant=TENANT,
+       modified=NEW, value_modified=None, date_observed=OLD, observed_at="2026-01-01T00:00:00Z"):
+    """A DeviceMeasurement as the broker answers with options=sysAttrs (no Link header)."""
     prop = {"type": "Property", "value": 1}
-    val = {"type": "Property", "value": 1, "observedAt": "2026-01-01T00:00:00Z"}
+    value_modified = value_modified or {}
+
+    def val(term):
+        v = {"type": "Property", "value": 1, "modifiedAt": value_modified.get(term, modified)}
+        if observed_at is not None:
+            v["observedAt"] = observed_at
+        return v
+
     attrs = {
         DEV + "hasDevice": {"type": "Relationship", "object": urn_of(ext)},
         DEV + "controlledProperty": prop, DEV + "deviceType": prop,
-        "https://smartdatamodels.org/dateObserved": prop, NKZ + "timeSource": prop,
+        "https://smartdatamodels.org/dateObserved": {"type": "Property", "value": date_observed},
+        NKZ + "timeSource": prop,
     }
     if mtype is not None:
         attrs[DEV + "measurementType"] = prop
     if shape == "sdm":
         attrs["https://schema.org/name"] = prop
     if value in ("num", "both"):
-        attrs[DEV + "numValue"] = val
+        attrs[DEV + "numValue"] = val("numValue")
     if value in ("text", "both"):
-        attrs[DEV + "textValue"] = val
+        attrs[DEV + "textValue"] = val("textValue")
     for k in drop:
         attrs.pop(k)
     attrs.update(extra or {})
-    return {"id": f"urn:ngsi-ld:DeviceMeasurement:{tenant}:{ext}:{name}",
-            "type": DM_TYPE_IRI, "createdAt": "2026-01-01T00:00:00Z",
-            "modifiedAt": "2026-01-01T00:00:00Z", **attrs}
+    out = {"id": f"urn:ngsi-ld:DeviceMeasurement:{tenant}:{ext}:{name}",
+           "type": DM_TYPE_IRI, "createdAt": OLD, **attrs}
+    if modified is not None:
+        out["modifiedAt"] = modified
+    return out
 
 
 @pytest.fixture
@@ -744,7 +762,7 @@ def iota_world(world, shape="legacy", ms=None):
 def test_verify_passes_on_clean_dms(world, http, capsys):
     iota_world(world)
     h = http(Http([dm("S1", "airTemperature")]))
-    assert run(*BASE, "--verify") == 0
+    assert run(*BASE, *VERIFY) == 0
     out = capsys.readouterr().out
     assert "check (a)" in out and "check (b)" in out
     assert world.puts == 0 and not world.events("update")
@@ -757,15 +775,15 @@ def test_verify_passes_on_clean_dms(world, http, capsys):
 def test_verify_sdm_shape_requires_name(world, http):
     iota_world(world, shape="sdm")
     http(Http([dm("S1", "airTemperature", shape="sdm", mtype="instant")]))
-    assert run(*BASE, "--verify") == 0
+    assert run(*BASE, *VERIFY) == 0
     http(Http([dm("S1", "airTemperature", shape="legacy", mtype="instant")]))
-    assert run(*BASE, "--verify") == 1
+    assert run(*BASE, *VERIFY) == 1
 
 
 def test_verify_legacy_forbids_name(world, http, capsys):
     iota_world(world)
     http(Http([dm("S1", "airTemperature", shape="sdm")]))
-    assert run(*BASE, "--verify") == 1
+    assert run(*BASE, *VERIFY) == 1
     assert "https://schema.org/name" in capsys.readouterr().out
 
 
@@ -777,7 +795,7 @@ def test_verify_legacy_forbids_name(world, http, capsys):
 def test_verify_extra_or_default_vocabulary_attribute_fails_b_only(world, http, capsys, extra):
     iota_world(world)
     http(Http([dm("S1", "airTemperature", extra=extra)]))
-    assert run(*BASE, "--verify") == 1
+    assert run(*BASE, *VERIFY) == 1
     out = capsys.readouterr().out
     key = next(iter(extra))
     assert key in out and "airTemperature" in out
@@ -788,14 +806,14 @@ def test_verify_extra_or_default_vocabulary_attribute_fails_b_only(world, http, 
 def test_verify_time_instant_attribute_fails(world, http, capsys, key):
     iota_world(world)
     http(Http([dm("S1", "airTemperature", extra={key: {"type": "Property", "value": 1}})]))
-    assert run(*BASE, "--verify") == 1
+    assert run(*BASE, *VERIFY) == 1
     assert "TimeInstant" in capsys.readouterr().out
 
 
 def test_verify_missing_attribute_fails(world, http, capsys):
     iota_world(world)
     http(Http([dm("S1", "airTemperature", drop=(NKZ + "timeSource",))]))
-    assert run(*BASE, "--verify") == 1
+    assert run(*BASE, *VERIFY) == 1
     assert NKZ + "timeSource" in capsys.readouterr().out
 
 
@@ -803,9 +821,9 @@ def test_verify_missing_measurement_type_only_when_profile_has_none(world, http)
     no_type = [{"incomingKey": "r1", "type": None, "sdmAttribute": "airTemperature", "unit": "°C"}]
     iota_world(world, ms=no_type)
     http(Http([dm("S1", "airTemperature", mtype=None)]))
-    assert run(*BASE, "--verify") == 0
+    assert run(*BASE, *VERIFY) == 0
     http(Http([dm("S1", "airTemperature", mtype="t")]))
-    assert run(*BASE, "--verify") == 1
+    assert run(*BASE, *VERIFY) == 1
 
 
 def test_verify_dm_without_value_fails_a_for_every_device(world, http, capsys):
@@ -813,7 +831,7 @@ def test_verify_dm_without_value_fails_a_for_every_device(world, http, capsys):
     world.add("S2", writer="iota", shape="legacy", code="p", ms=ONE_MS)
     bad = dm("S1", "airTemperature", value="none")
     http(Http([bad, dm("S2", "airTemperature")]))
-    assert run(*BASE, "--verify") == 1
+    assert run(*BASE, *VERIFY) == 1
     out = capsys.readouterr().out
     assert "check (a): FAILED" in out and bad["id"] in out and "check (b): ok" in out
 
@@ -821,7 +839,7 @@ def test_verify_dm_without_value_fails_a_for_every_device(world, http, capsys):
 def test_verify_b_does_not_judge_em_devices(world, http):
     world.add("S1", writer="em")
     http(Http([dm("S1", "airTemperature", extra={DEV + "weird": {"type": "Property", "value": 1}})]))
-    assert run(*BASE, "--verify") == 0
+    assert run(*BASE, *VERIFY) == 0
 
 
 def test_verify_runtime_kind_accepts_one_or_both_values(world, http):
@@ -829,23 +847,23 @@ def test_verify_runtime_kind_accepts_one_or_both_values(world, http):
     iota_world(world, ms=rt)
     for value in ("num", "text", "both"):
         http(Http([dm("S1", "airTemperature", mtype="x", value=value)]))
-        assert run(*BASE, "--verify") == 0, value
+        assert run(*BASE, *VERIFY) == 0, value
 
 
 def test_verify_numeric_kind_refuses_text_value(world, http):
     iota_world(world)
     http(Http([dm("S1", "airTemperature", value="both")]))
-    assert run(*BASE, "--verify") == 1
+    assert run(*BASE, *VERIFY) == 1
 
 
 def test_verify_paginates_and_checks_the_count(world, http):
     iota_world(world)
     dms = [dm("S1", "airTemperature")]
     h = http(Http(dms * 3, page=1))   # three DMs, one per page (same id, fine for the shape)
-    assert run(*BASE, "--verify") == 0
+    assert run(*BASE, *VERIFY) == 0
     assert [c[2]["offset"] for c in h.orion_calls()] == [0, 1, 2]
     http(Http(dms, count=5))
-    assert run(*BASE, "--verify") == 1
+    assert run(*BASE, *VERIFY) == 1
 
 
 def test_verify_missing_count_header_fails(world, http):
@@ -860,21 +878,21 @@ def test_verify_missing_count_header_fails(world, http):
 
     h.get = get
     http(h)
-    assert run(*BASE, "--verify") == 1
+    assert run(*BASE, *VERIFY) == 1
 
 
 def test_verify_fails_closed_without_context_url(world, http, monkeypatch):
     iota_world(world)
     h = http(Http([dm("S1", "airTemperature")]))
     monkeypatch.delenv("CONTEXT_URL")
-    assert run(*BASE, "--verify") == 1
+    assert run(*BASE, *VERIFY) == 1
     assert h.orion_calls() == []
 
 
 def test_verify_fails_closed_when_the_context_cannot_be_read(world, http):
     iota_world(world)
     http(Http([dm("S1", "airTemperature")], context_status=500))
-    assert run(*BASE, "--verify") == 1
+    assert run(*BASE, *VERIFY) == 1
 
 
 @pytest.mark.parametrize("term", ["numValue", "timeSource", "name", "DeviceMeasurement"])
@@ -883,7 +901,7 @@ def test_verify_fails_closed_when_a_term_is_missing(world, http, term):
     ctx = copy.deepcopy(CONTEXT_DOC)
     del ctx["@context"][1][term]
     h = http(Http([dm("S1", "airTemperature")], context=ctx))
-    assert run(*BASE, "--verify") == 1
+    assert run(*BASE, *VERIFY) == 1
     assert h.orion_calls() == []
 
 
@@ -892,22 +910,8 @@ def test_verify_device_narrows_check_b(world, http):
     world.add("S2", writer="iota", shape="legacy", code="p")
     bad = dm("S2", "airTemperature", extra={DEV + "weird": {"type": "Property", "value": 1}})
     http(Http([dm("S1", "airTemperature"), bad]))
-    assert run(*BASE, "--device", urn_of("S1"), "--verify") == 0
-    assert run(*BASE, "--verify") == 1
-
-
-def test_verify_with_apply_runs_after_the_cutover(world, http):
-    world.add("S1", code="p", ms=ONE_MS)
-    h = http(Http([dm("S1", "airTemperature")]))
-    assert run(*BASE, "--to", "iota", "--shape", "legacy", "--apply", "--verify") == 0
-    assert len(h.orion_calls()) == 1
-
-
-def test_verify_exit_1_after_a_failed_apply_even_if_dms_are_fine(world, http):
-    world.add("S1", code="p", ms=ONE_MS)
-    world.put_fail = lambda n, ext: True
-    http(Http([dm("S1", "airTemperature")]))
-    assert run(*BASE, "--to", "iota", "--shape", "legacy", "--apply", "--verify") == 1
+    assert run(*BASE, "--device", urn_of("S1"), *VERIFY) == 0
+    assert run(*BASE, *VERIFY) == 1
 
 
 def test_command_prints_no_secrets(world, capsys):
@@ -927,7 +931,7 @@ def test_orphan_dm_with_an_extra_official_key_fails_and_is_listed(world, http, c
     iota_world(world)
     http(Http([dm("S1", "airTemperature"),
                dm("S1", "gone", extra=OFFICIAL_EXTRA)]))
-    assert run(*BASE, "--verify") == 1
+    assert run(*BASE, *VERIFY) == 1
     out = capsys.readouterr().out
     assert "no channel in the current profile" in out and DEV + "weird" in out
 
@@ -936,19 +940,19 @@ def test_orphan_dm_missing_a_required_key_fails(world, http):
     iota_world(world)
     http(Http([dm("S1", "airTemperature"),
                dm("S1", "gone", drop=(DEV + "hasDevice",))]))
-    assert run(*BASE, "--verify") == 1
+    assert run(*BASE, *VERIFY) == 1
 
 
 def test_orphan_dm_without_any_value_fails_b(world, http):
     iota_world(world)
     http(Http([dm("S1", "airTemperature"), dm("S1", "gone", value="none")]))
-    assert run(*BASE, "--verify") == 1
+    assert run(*BASE, *VERIFY) == 1
 
 
 def test_clean_orphan_passes_and_is_listed(world, http, capsys):
     iota_world(world)
     http(Http([dm("S1", "airTemperature"), dm("S1", "gone", mtype=None, value="both")]))
-    assert run(*BASE, "--verify") == 0
+    assert run(*BASE, *VERIFY) == 0
     assert "no channel in the current profile" in capsys.readouterr().out
 
 
@@ -956,30 +960,30 @@ def test_orphan_name_only_allowed_in_sdm(world, http):
     iota_world(world, shape="sdm")
     http(Http([dm("S1", "airTemperature", shape="sdm", mtype="instant"),
                dm("S1", "gone", shape="sdm")]))
-    assert run(*BASE, "--verify") == 0
+    assert run(*BASE, *VERIFY) == 0
     world.rows[urn_of("S1")]["dm_shape"] = "legacy"
     http(Http([dm("S1", "airTemperature", mtype="instant"), dm("S1", "gone", shape="sdm")]))
-    assert run(*BASE, "--verify") == 1
+    assert run(*BASE, *VERIFY) == 1
 
 
 def test_no_iota_device_means_check_b_not_run(world, http, capsys):
     world.add("S1", writer="em")
     http(Http([dm("S1", "airTemperature")]))
-    assert run(*BASE, "--verify") == 0
+    assert run(*BASE, *VERIFY) == 0
     assert "check (b): NOT RUN (no iota devices)" in capsys.readouterr().out
 
 
 def test_no_iota_device_still_fails_on_check_a(world, http):
     world.add("S1", writer="em")
     http(Http([dm("S1", "airTemperature", value="none")]))
-    assert run(*BASE, "--verify") == 1
+    assert run(*BASE, *VERIFY) == 1
 
 
 def test_iota_device_without_any_dm_fails(world, http, capsys):
     iota_world(world)
     world.add("S2", writer="iota", shape="legacy", code="p", ms=ONE_MS)
     http(Http([dm("S1", "airTemperature")]))
-    assert run(*BASE, "--verify") == 1
+    assert run(*BASE, *VERIFY) == 1
     out = capsys.readouterr().out
     assert urn_of("S2") in out and "no DeviceMeasurement" in out
 
@@ -987,7 +991,7 @@ def test_iota_device_without_any_dm_fails(world, http, capsys):
 def test_zero_dms_with_iota_devices_fails(world, http, capsys):
     iota_world(world)
     http(Http([]))
-    assert run(*BASE, "--verify") == 1
+    assert run(*BASE, *VERIFY) == 1
     assert urn_of("S1") in capsys.readouterr().out
 
 
@@ -996,14 +1000,14 @@ def test_dm_ids_match_by_prefix_with_colon_in_external_id(world, http):
     world.add("S", writer="iota", shape="legacy", code="p", ms=ONE_MS)
     http(Http([dm("S:1", "airTemperature", extra=OFFICIAL_EXTRA),
                dm("S", "airTemperature")]))
-    assert run(*BASE, "--verify") == 1       # the extra key is on the S:1 entity
+    assert run(*BASE, *VERIFY) == 1       # the extra key is on the S:1 entity
 
 
 def test_dm_of_no_linked_device_is_counted_not_judged(world, http, capsys):
     iota_world(world)
     http(Http([dm("S1", "airTemperature"),
                dm("ZZ", "airTemperature", extra=OFFICIAL_EXTRA)]))
-    assert run(*BASE, "--verify") == 0
+    assert run(*BASE, *VERIFY) == 0
     assert "1 entities matching no linked device" in capsys.readouterr().out
 
 
@@ -1021,7 +1025,7 @@ def test_verify_non_existing_tenant_404_exits_1(world, http):
 
     h.get = get
     http(h)
-    assert run(*BASE, "--verify") == 1
+    assert run(*BASE, *VERIFY) == 1
 
 
 def test_restore_rebuilds_from_a_fresh_profile_read(world):
@@ -1220,7 +1224,7 @@ def test_verify_fails_when_the_agent_mappings_differ(world, http, capsys):
     iota_world(world)
     http(Http([dm("S1", "airTemperature")]))
     world.agent["S1"][0] = dict(world.agent["S1"][0], expression="x * 2")
-    assert run(*BASE, "--verify") == 1
+    assert run(*BASE, *VERIFY) == 1
     out = capsys.readouterr().out
     assert "check (c): FAILED" in out and urn_of("S1") in out
     assert "check (b): ok" in out and "check (d): ok" in out
@@ -1230,7 +1234,7 @@ def test_verify_fails_when_the_agent_document_is_unreadable(world, http, capsys)
     iota_world(world)
     http(Http([dm("S1", "airTemperature")]))
     world.get_fail = True
-    assert run(*BASE, "--verify") == 1
+    assert run(*BASE, *VERIFY) == 1
     assert "check (c): FAILED" in capsys.readouterr().out
 
 
@@ -1239,7 +1243,7 @@ def test_verify_requires_observed_at_on_the_values(world, http, capsys):
     d = dm("S1", "airTemperature")
     d[DEV + "numValue"] = {"type": "Property", "value": 1}
     http(Http([d]))
-    assert run(*BASE, "--verify") == 1
+    assert run(*BASE, *VERIFY) == 1
     out = capsys.readouterr().out
     assert "check (d): FAILED" in out and d["id"] in out and "check (c): ok" in out
 
@@ -1247,7 +1251,7 @@ def test_verify_requires_observed_at_on_the_values(world, http, capsys):
 def test_verify_checks_c_and_d_are_not_run_without_iota_devices(world, http, capsys):
     world.add("S1", writer="em")
     http(Http([dm("S1", "airTemperature")]))
-    assert run(*BASE, "--verify") == 0
+    assert run(*BASE, *VERIFY) == 0
     out = capsys.readouterr().out
     assert "check (c): NOT RUN" in out and "check (d): NOT RUN" in out
 
@@ -1255,7 +1259,7 @@ def test_verify_checks_c_and_d_are_not_run_without_iota_devices(world, http, cap
 def test_verify_device_not_on_iota_is_an_explicit_failure(world, http, capsys):
     world.add("S1", writer="em")
     http(Http([dm("S1", "airTemperature")]))
-    assert run(*BASE, "--device", urn_of("S1"), "--verify") == 1
+    assert run(*BASE, "--device", urn_of("S1"), *VERIFY) == 1
     out = capsys.readouterr().out
     assert "not on iota" in out and "NOT RUN" not in out
 
@@ -1263,8 +1267,366 @@ def test_verify_device_not_on_iota_is_an_explicit_failure(world, http, capsys):
 def test_verify_unknown_device_exits_1(world, http, capsys):
     iota_world(world)
     http(Http([]))
-    assert run(*BASE, "--device", urn_of("nope"), "--verify") == 1
+    assert run(*BASE, "--device", urn_of("nope"), *VERIFY) == 1
     assert "not linked" in capsys.readouterr().out
+
+
+# -- verify --since -----------------------------------------------------------------------
+
+def _since_fails(argv):
+    with pytest.raises(SystemExit) as e:
+        run(*BASE, *argv)
+    assert e.value.code == 2
+
+
+@pytest.fixture
+def clock(monkeypatch):
+    """The command's clock: a list of instants, each call returns the next (the last repeats)."""
+    from datetime import datetime, timezone
+    state = SimpleNamespace(times=[datetime(2026, 11, 25, 10, 0, 0, tzinfo=timezone.utc)], calls=0)
+
+    def now():
+        i = min(state.calls, len(state.times) - 1)
+        state.calls += 1
+        return state.times[i]
+
+    monkeypatch.setattr(cut, "_utcnow", now)
+    return state
+
+
+def test_verify_needs_since(world):
+    _since_fails(["--verify"])
+    assert not world.events("read_rows")
+
+
+@pytest.mark.parametrize("since", [
+    "2026-06-01T00:00:00",          # naive
+    "2026-06-01",                   # date only
+    "2999-01-01T00:00:00Z",         # future
+    "2026-11-25T10:00:06Z",         # 6 s ahead of the clock: beyond the 5 s margin
+    "yesterday", "", "2026-13-45T00:00:00Z",
+])
+def test_bad_since_exits_2(world, clock, since):
+    _since_fails(["--verify", "--since", since])
+    assert not world.events("read_rows")
+
+
+def test_since_accepts_an_offset_and_a_few_seconds_of_clock_skew(world, http, clock):
+    iota_world(world)
+    http(Http([dm("S1", "airTemperature")]))
+    assert run(*BASE, "--verify", "--since", "2026-06-01T02:00:00+02:00") == 0
+    assert run(*BASE, "--verify", "--since", "2026-11-25T10:00:05Z") == 1   # in the margin: parsed
+
+
+@pytest.mark.parametrize("argv", [
+    ["--verify", "--since", SINCE, "--apply", "--to", "em"],
+    ["--verify", "--since", SINCE, "--dry-run", "--to", "em"],
+    ["--verify", "--since", SINCE, "--settle", "60"],
+    ["--verify", "--since", SINCE, "--shape", "sdm"],
+    ["--verify", "--since", SINCE, "--to", "iota"],
+    ["--since", SINCE, "--to", "em", "--dry-run"],      # --since without --verify
+    ["--since", SINCE, "--to", "em", "--apply"],
+])
+def test_verify_with_apply_is_refused(world, argv):
+    world.add("S1", writer="iota", shape="legacy")
+    _since_fails(argv)
+    assert world.puts == 0 and not world.events("lock") and not world.events("update")
+
+
+def _two_devices(world):
+    world.add("S1")
+    world.add("S2")
+
+
+def test_apply_prints_the_verify_line(world, capsys, clock):
+    from datetime import datetime, timezone
+    clock.times = [datetime(2026, 11, 25, 10, 0, 7, 300000, tzinfo=timezone.utc)]
+    world.add("S1")
+    assert run(*BASE, "--to", "iota", "--shape", "legacy", "--apply") == 0
+    out = capsys.readouterr().out.splitlines()
+    assert out[-1] == (f"verify in a few minutes with: --tenant {TENANT} --verify "
+                       "--since 2026-11-25T10:00:08Z")
+
+
+def test_apply_verify_line_whole_second_is_not_pushed_on(world, capsys, clock):
+    from datetime import datetime, timezone
+    clock.times = [datetime(2026, 11, 25, 10, 0, 7, tzinfo=timezone.utc)]
+    world.add("S1")
+    run(*BASE, "--to", "iota", "--shape", "legacy", "--apply")
+    assert capsys.readouterr().out.splitlines()[-1].endswith("--since 2026-11-25T10:00:07Z")
+
+
+def test_apply_verify_line_uses_the_time_of_the_last_moved_outcome(world, capsys, clock):
+    from datetime import datetime, timedelta, timezone
+    t0 = datetime(2026, 11, 25, 10, 0, 0, tzinfo=timezone.utc)
+    clock.times = [t0 + timedelta(seconds=10 * i) for i in range(1, 8)]
+    _two_devices(world)
+    assert run(*BASE, "--to", "iota", "--shape", "legacy", "--apply") == 0
+    assert capsys.readouterr().out.splitlines()[-1].endswith("--since 2026-11-25T10:00:20Z")
+    assert clock.calls == 2          # one reading per moved outcome, none afterwards
+
+
+def test_apply_verify_line_names_the_device_when_given(world, capsys, clock):
+    world.add("S1")
+    run(*BASE, "--device", urn_of("S1"), "--to", "iota", "--shape", "legacy", "--apply")
+    assert capsys.readouterr().out.splitlines()[-1].startswith(
+        f"verify in a few minutes with: --tenant {TENANT} --device {urn_of('S1')} --verify --since ")
+
+
+def test_apply_prints_no_verify_line_when_nothing_moved(world, capsys, clock):
+    world.add("S1")
+    world.put_fail = lambda n, ext: True
+    assert run(*BASE, "--to", "iota", "--shape", "legacy", "--apply") == 1
+    assert "verify in a few minutes" not in capsys.readouterr().out
+    world.put_fail = lambda n, ext: False
+    world.add("S2", writer="iota", shape="legacy")
+    world.settle_agent()
+    assert run(*BASE, "--device", urn_of("S2"), "--to", "em", "--apply") == 0
+    assert "verify in a few minutes" not in capsys.readouterr().out
+
+
+def test_apply_prints_the_line_when_only_some_devices_moved(world, capsys, clock):
+    _two_devices(world)
+    world.put_fail = lambda n, ext: ext == "S2"
+    assert run(*BASE, "--to", "iota", "--shape", "legacy", "--apply") == 1
+    assert "verify in a few minutes with:" in capsys.readouterr().out
+
+
+def test_channel_not_reported_yet_is_listed_not_failed(world, http, capsys):
+    iota_world(world, ms=MS)
+    old = dm("S1", "relativeHumidity", modified=OLD,
+             extra={DEV + "weird": {"type": "Property", "value": 1}})     # would fail (b)
+    del old["https://smartdatamodels.org/dateObserved"]                   # and lacks a key
+    http(Http([dm("S1", "airTemperature"), old]))
+    assert run(*BASE, *VERIFY) == 0
+    out = capsys.readouterr().out
+    assert f"not reported since {SINCE}" in out and old["id"] in out
+    assert "check (b): ok" in out and out.splitlines()[-1] == "verify: OK"
+
+
+def test_not_reported_entities_are_still_judged_by_a(world, http, capsys):
+    iota_world(world)
+    http(Http([dm("S1", "airTemperature"), dm("S1", "gone", modified=OLD, value="none")]))
+    assert run(*BASE, *VERIFY) == 1
+    assert "check (a): FAILED" in capsys.readouterr().out
+
+
+def test_device_that_delivered_nothing_fails(world, http, capsys):
+    world.add("S1", writer="iota", shape="legacy", code="p", ms=ONE_MS)
+    world.add("S2", writer="iota", shape="legacy", code="p", ms=ONE_MS)
+    http(Http([dm("S1", "airTemperature"), dm("S2", "airTemperature", modified=OLD)]))
+    assert run(*BASE, *VERIFY) == 1
+    out = capsys.readouterr().out
+    assert f"{urn_of('S2')}: delivered NOTHING since {SINCE}" in out
+    assert urn_of("S1") + ": delivered" not in out
+    assert out.splitlines()[-1].startswith("verify: FAILED")
+
+
+def test_a_reported_orphan_counts_as_delivered(world, http, capsys):
+    iota_world(world)
+    http(Http([dm("S1", "airTemperature", modified=OLD), dm("S1", "gone", mtype=None)]))
+    assert run(*BASE, *VERIFY) == 0
+    assert "delivered NOTHING" not in capsys.readouterr().out
+
+
+def test_reported_uses_modified_at_not_date_observed(world, http, capsys):
+    iota_world(world)
+    http(Http([dm("S1", "airTemperature", date_observed=OLD, modified=NEW,
+                  extra={DEV + "weird": {"type": "Property", "value": 1}})]))
+    assert run(*BASE, *VERIFY) == 1                     # reported: judged, and it fails (b)
+    assert "not reported" not in capsys.readouterr().out
+    http(Http([dm("S1", "airTemperature", date_observed=NEW, modified=OLD)]))
+    assert run(*BASE, *VERIFY) == 1                     # a fresh dateObserved does not report it
+    out = capsys.readouterr().out
+    assert "delivered NOTHING" in out
+
+
+def test_reported_at_exactly_since_counts(world, http):
+    iota_world(world)
+    http(Http([dm("S1", "airTemperature", modified=SINCE,
+                  extra={DEV + "weird": {"type": "Property", "value": 1}})]))
+    assert run(*BASE, *VERIFY) == 1
+
+
+RT = [{"type": "x", "sdmAttribute": "airTemperature"}]
+
+
+def test_stale_other_value_is_ignored_and_listed(world, http, capsys):
+    iota_world(world, ms=RT)
+    http(Http([dm("S1", "airTemperature", mtype="x", value="both",
+                  value_modified={"textValue": OLD})]))
+    assert run(*BASE, *VERIFY) == 0
+    out = capsys.readouterr().out
+    assert "stale value" in out and "textValue" in out
+
+
+def test_stale_value_is_left_out_of_d_but_the_fresh_one_is_judged(world, http, capsys):
+    iota_world(world, ms=RT)
+    d = dm("S1", "airTemperature", mtype="x", value="both", value_modified={"textValue": OLD})
+    del d[DEV + "textValue"]["observedAt"]                       # the stale one: ignored
+    http(Http([d]))
+    assert run(*BASE, *VERIFY) == 0
+    del d[DEV + "numValue"]["observedAt"]                        # the fresh one: judged
+    http(Http([d]))
+    assert run(*BASE, *VERIFY) == 1
+    assert "check (d): FAILED (1 value(s))" in capsys.readouterr().out
+
+
+def test_both_fresh_or_both_old_values_are_judged_as_today(world, http, capsys):
+    iota_world(world, ms=RT)
+    fresh = dm("S1", "airTemperature", mtype="x", value="both")
+    fresh[DEV + "textValue"].pop("observedAt")
+    http(Http([fresh]))
+    assert run(*BASE, *VERIFY) == 1
+    both_old = dm("S1", "airTemperature", mtype="x", value="both",
+                  value_modified={"numValue": OLD, "textValue": OLD})
+    both_old[DEV + "numValue"].pop("observedAt")
+    http(Http([both_old]))
+    assert run(*BASE, *VERIFY) == 1
+    assert "stale value" not in capsys.readouterr().out.split("check (a)")[-1]
+
+
+def test_an_old_text_value_on_a_numeric_channel_is_listed_not_failed(world, http, capsys):
+    iota_world(world)
+    http(Http([dm("S1", "airTemperature", value="both", value_modified={"textValue": OLD})]))
+    assert run(*BASE, *VERIFY) == 0
+    assert "stale value" in capsys.readouterr().out
+    http(Http([dm("S1", "airTemperature", value="both")]))        # a NEW one is a failure
+    assert run(*BASE, *VERIFY) == 1
+
+
+def test_a_stale_value_of_an_orphan_is_left_out(world, http, capsys):
+    iota_world(world)
+    http(Http([dm("S1", "airTemperature"),
+               dm("S1", "gone", mtype=None, value="both", value_modified={"numValue": OLD})]))
+    assert run(*BASE, *VERIFY) == 0
+    assert "stale value" in capsys.readouterr().out
+
+
+def test_a_stale_attribute_of_another_kind_is_still_judged_by_b(world, http):
+    iota_world(world)
+    stale = {DEV + "weird": {"type": "Property", "value": 1, "modifiedAt": OLD}}
+    http(Http([dm("S1", "airTemperature", extra=stale)]))
+    assert run(*BASE, *VERIFY) == 1
+
+
+def test_removed_channel_is_an_orphan_not_a_failure(world, http, capsys):
+    iota_world(world)
+    http(Http([dm("S1", "airTemperature"),
+               dm("S1", "gone", modified=OLD, extra={DEV + "weird": {"type": "Property", "value": 1}})]))
+    assert run(*BASE, *VERIFY) == 0
+    out = capsys.readouterr().out
+    assert "orphan" in out and "urn:ngsi-ld:DeviceMeasurement:" + TENANT + ":S1:gone" in out
+
+
+@pytest.mark.parametrize("value, term", [("num", "numValue"), ("text", "textValue")])
+def test_reported_value_without_observed_at_fails_d(world, http, capsys, value, term):
+    iota_world(world, ms=RT)
+    d = dm("S1", "airTemperature", mtype="x", value=value)
+    del d[DEV + term]["observedAt"]
+    http(Http([d]))
+    assert run(*BASE, *VERIFY) == 1
+    out = capsys.readouterr().out
+    assert "check (d): FAILED" in out and d["id"] in out and term in out
+
+
+def test_not_reported_value_without_observed_at_is_not_judged(world, http):
+    iota_world(world, ms=ONE_MS + [{"type": "u", "incomingKey": "r2", "sdmAttribute": "relativeHumidity",
+                                    "unit": "%"}])
+    d = dm("S1", "relativeHumidity", mtype="u", modified=OLD)
+    del d[DEV + "numValue"]["observedAt"]
+    http(Http([dm("S1", "airTemperature"), d]))
+    assert run(*BASE, *VERIFY) == 0
+
+
+@pytest.mark.parametrize("modified", [None, "not a time", "2026-06-02T00:00:00", 5])
+def test_entity_without_modified_at_fails(world, http, capsys, modified):
+    iota_world(world)
+    d = dm("S1", "airTemperature", modified=None)
+    if modified is not None:
+        d["modifiedAt"] = modified
+    http(Http([d]))
+    assert run(*BASE, *VERIFY) == 1
+    out = capsys.readouterr().out
+    assert d["id"] in out and "modifiedAt" in out
+    assert "not reported" not in out.split("check (a)")[-1]
+    assert "delivered NOTHING" not in out
+
+
+def test_check_a_runs_for_a_device_not_on_iota(world, http, capsys):
+    world.add("S1", writer="em")
+    http(Http([dm("S1", "airTemperature")]))
+    assert run(*BASE, "--device", urn_of("S1"), *VERIFY) == 1
+    out = capsys.readouterr().out
+    assert "not on iota" in out and "check (a): ok" in out and "NOT RUN" not in out
+    http(Http([dm("S1", "airTemperature", value="none")]))
+    assert run(*BASE, "--device", urn_of("S1"), *VERIFY) == 1
+    assert "check (a): FAILED" in capsys.readouterr().out
+
+
+def test_verify_reads_with_sys_attrs(world, http):
+    iota_world(world)
+    h = http(Http([dm("S1", "airTemperature")]))
+    assert run(*BASE, *VERIFY) == 0
+    assert h.orion_calls()[0][2]["options"] == "sysAttrs"
+
+
+def test_listed_entities_show_the_three_times(world, http, capsys):
+    iota_world(world)
+    d = dm("S1", "airTemperature", modified=OLD, date_observed="2026-04-01T00:00:00Z",
+           observed_at="2026-04-02T00:00:00Z")
+    http(Http([d, dm("S1", "gone")]))
+    assert run(*BASE, *VERIFY) == 0
+    line = next(ln for ln in capsys.readouterr().out.splitlines() if d["id"] in ln)
+    assert "2026-04-01T00:00:00Z" in line and "2026-04-02T00:00:00Z" in line and OLD in line
+
+
+def test_listings_are_capped_at_50_and_counts_stay_complete(world, http, capsys):
+    iota_world(world)
+    n = 60
+    ok = dm("S1", "airTemperature")
+    old = [dm("S1", f"o{i}", modified=OLD) for i in range(n)]       # orphans: not reported
+    http(Http([ok] + old))
+    assert run(*BASE, *VERIFY) == 0
+    out = capsys.readouterr().out
+    assert f"{n} orphan entities" in out
+    assert sum(1 for ln in out.splitlines() if ":S1:o" in ln) == 50
+    assert "\u2026 and 10 more" in out
+    bad = [dm("S1", f"b{i}", extra={DEV + "weird": {"type": "Property", "value": 1}})
+           for i in range(n)]
+    http(Http([ok] + bad))
+    assert run(*BASE, *VERIFY) == 1
+    out = capsys.readouterr().out
+    assert f"check (b): FAILED ({n} problem(s)" in out
+    assert sum(1 for ln in out.splitlines() if "unexpected keys" in ln) == 50
+    assert out.count("\u2026 and 10 more") == 2        # the orphan listing and the problems
+
+
+def test_not_reported_listing_is_capped_too(world, http, capsys):
+    ms = [{"type": f"t{i}", "incomingKey": f"r{i}", "sdmAttribute": "airTemperature", "unit": "°C"}
+          for i in range(1)]
+    iota_world(world, ms=ms)
+    old = [dm("S1", "airTemperature", modified=OLD)] * 55         # same id: a listing of 55
+    http(Http([dm("S1", "airTemperature")] + old))
+    assert run(*BASE, *VERIFY) == 0
+    out = capsys.readouterr().out
+    assert "55 entities not reported since" in out and "\u2026 and 5 more" in out
+
+
+def test_verify_last_line_names_what_failed(world, http, capsys):
+    iota_world(world)
+    http(Http([dm("S1", "airTemperature", value="none")]))
+    assert run(*BASE, *VERIFY) == 1
+    last = capsys.readouterr().out.splitlines()[-1]
+    assert last.startswith("verify: FAILED") and "(a)" in last
+
+
+def test_verify_never_takes_the_lock_or_writes(world, http):
+    iota_world(world)
+    http(Http([dm("S1", "airTemperature")]))
+    world.lock_busy = True
+    assert run(*BASE, *VERIFY) == 0
+    assert not world.events("lock") and not world.events("update") and world.puts == 0
 
 
 # -- the move to iota is disabled ---------------------------------------------------------
@@ -1297,7 +1659,7 @@ def test_dry_run_verify_and_to_em_keep_working_while_disabled(world, http, monke
     world.settle_agent()
     assert run(*BASE, "--device", urn_of("S2"), "--to", "em", "--apply") == 0
     http(Http([]))
-    assert run(*BASE, "--verify") == 0
+    assert run(*BASE, *VERIFY) == 0
 
 
 # -- the lock -----------------------------------------------------------------------------
@@ -1361,11 +1723,11 @@ def test_dry_run_and_verify_take_no_lock(world, http):
     assert run(*BASE, "--to", "iota", "--shape", "legacy", "--dry-run") == 0
     assert run(*BASE, "--to", "em", "--dry-run") == 0
     http(Http([]))
-    assert run(*BASE, "--verify") == 0
+    assert run(*BASE, *VERIFY) == 0
     assert not world.events("lock") and not world.events("unlock")
     world.lock_busy = True            # a held lock must not stop the read-only modes either
     assert run(*BASE, "--to", "iota", "--shape", "legacy", "--dry-run") == 0
-    assert run(*BASE, "--verify") == 0
+    assert run(*BASE, *VERIFY) == 0
 
 
 def _interrupt_in_settle(world):
@@ -1466,7 +1828,7 @@ def test_an_unreadable_tenant_is_exit_1_with_nothing_written(world, capsys):
 def test_non_canonical_tenant_exits_2(world, tenant):
     world.add("S1")
     for argv in (("--to", "iota", "--shape", "legacy", "--dry-run"), ("--to", "em", "--apply"),
-                 ("--verify",)):
+                 ("--verify", "--since", SINCE)):
         with pytest.raises(SystemExit) as e:
             run("--tenant", tenant, *argv)
         assert e.value.code == 2
@@ -1527,7 +1889,8 @@ def test_outcomes_are_printed_as_they_happen(world, monkeypatch):
     updates = [i for i, e in enumerate(world.log) if e[0] == "update"]
     assert len(lines) == 2 and len(updates) == 2
     assert updates[0] < lines[0] < updates[1] < lines[1]      # S1 is printed before S2 is committed
-    assert seen[-1] == "done: 2 ok, 0 failed"
+    assert seen[-2] == "done: 2 ok, 0 failed"      # the verify line (Task 4) follows it
+    assert seen[-1].startswith("verify in a few minutes with: --tenant ")
     assert sum(1 for t in seen if t.startswith((a, b)) and "moved" in t) == 2    # once each, not repeated at the end
 
 

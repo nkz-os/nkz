@@ -5,7 +5,7 @@ from tests.telemetry_fakes import TENANT  # noqa: F401,I001  (stubs first)
 
 import dataloggers  # noqa: E402
 from tests.test_dm_writer_cutover import (  # noqa: F401,E402  (fixtures)
-    BASE, MS, ONE_MS, Http, dm, http, move_enabled, real_tenant_normaliser, run, sleeps, world)
+    BASE, MS, ONE_MS, VERIFY, Http, dm, http, move_enabled, real_tenant_normaliser, run, sleeps, world)
 
 URN = f"urn:ngsi-ld:Device:{TENANT}:S1"
 
@@ -108,4 +108,4 @@ def test_the_verification_expects_the_mappings_of_the_profile(attrs, device, wor
     http(Http([dm("S1", name, shape="sdm", mtype="instant")
                for name in ("airTemperature", "relativeHumidity")]))
     assert world.agent["S1"] == _attributes(("iota", "sdm"))
-    assert run(*BASE, "--verify") == 0
+    assert run(*BASE, *VERIFY) == 0
