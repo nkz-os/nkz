@@ -22,6 +22,8 @@ from api_errors import internal_error
 from entity_utils import generate_entity_id
 from common.csrf_guard import install_csrf_guard
 from common.entity_type_guard import EntityTypeGuard
+from route_identifiers import install_identifier_check
+from ngsi_read_guard import valid_identifier
 
 # Configure logging to stdout for kubernetes
 logging.basicConfig(
@@ -35,6 +37,7 @@ logger.setLevel(logging.DEBUG)
 app = Flask(__name__)
 # Direct ingress routes reach this app without the gateway's same-site check.
 install_csrf_guard(app, "sdm-integration")
+install_identifier_check(app, ("entity_id", "entity_type"))
 ENTITY_TYPE_GUARD = EntityTypeGuard.from_env("sdm-integration")
 _cors_origins = [o.strip() for o in os.getenv('CORS_ORIGINS', 'http://localhost:3000,http://localhost:5173').split(',') if o.strip()]
 CORS(app, origins=_cors_origins, supports_credentials=True)
@@ -777,6 +780,8 @@ def create_entity_instance(entity_type):
         
         # Add type and ID to entity
         entity_id = data.get('id') or generate_entity_id(entity_type)
+        if not isinstance(entity_id, str) or "/" in entity_id or not valid_identifier(entity_id):
+            return jsonify({'error': 'Invalid identifier'}), 400
         
         # Ensure proper URN format
         if not entity_id.startswith('urn:ngsi-ld:'):
