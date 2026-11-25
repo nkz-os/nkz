@@ -24,6 +24,7 @@ from common.csrf_guard import install_csrf_guard
 from common.entity_type_guard import EntityTypeGuard
 from route_identifiers import install_identifier_check
 from ngsi_read_guard import valid_identifier
+from parcel_guard import creates_parcel_id, declares_parcel, is_parcel_id
 
 # Configure logging to stdout for kubernetes
 logging.basicConfig(
@@ -38,6 +39,31 @@ app = Flask(__name__)
 # Direct ingress routes reach this app without the gateway's same-site check.
 install_csrf_guard(app, "sdm-integration")
 install_identifier_check(app, ("entity_id", "entity_type"))
+
+
+PARCEL_WRITE_REFUSED = {
+    "error": "AgriParcel writes must go through entity-manager API",
+    "hint": "Use POST/PATCH/DELETE /api/entities/parcels",
+}
+
+
+@app.before_request
+def refuse_parcel_writes():
+    """Parcels have one writer, entity-manager: the same rule as the gateway's."""
+    if request.method not in ("POST", "PUT", "PATCH", "DELETE") or not request.path.startswith("/sdm/entities/"):
+        return None
+    args = request.view_args or {}
+    body = request.get_json(silent=True) if request.method != "DELETE" else None
+    refused = (
+        declares_parcel({"type": args.get("entity_type")})
+        or is_parcel_id(args.get("entity_id") or "")
+        or declares_parcel(body)
+        or (request.method == "POST" and creates_parcel_id(body))
+    )
+    if refused:
+        logger.warning("AgriParcel write refused: %s %s", request.method, request.path)
+        return jsonify(PARCEL_WRITE_REFUSED), 403
+    return None
 ENTITY_TYPE_GUARD = EntityTypeGuard.from_env("sdm-integration")
 _cors_origins = [o.strip() for o in os.getenv('CORS_ORIGINS', 'http://localhost:3000,http://localhost:5173').split(',') if o.strip()]
 CORS(app, origins=_cors_origins, supports_credentials=True)
