@@ -64,6 +64,7 @@ INVALID_FILTERS = [
     ";".join(f"n=={i}" for i in range(13)), "|".join(f"n{i}" for i in range(13)),
     "(" * 5 + "n==1" + ")" * 5, "n==" + ",".join(["1"] * 51),
     ";".join(['a=="' + "x" * 250 + '"'] * 12),
+    "a==1)|(b==2", "a~=" + "x" * 62 + ".*.*",
     "https://example.org/a==1", "a==１", "a>１", "a==٣",
     None, 3, [], {}, b"a==1",
 ]
@@ -240,6 +241,10 @@ def test_query_body_without_entities_needs_a_filter():
     for extra in ({"q": "a==1"}, {"attrs": ["a"]}, {"geoQ": GEO_Q}):
         assert query_body({"type": "Query", **extra}) == {"type": "Query", **extra}
     assert _bad(query_body, {"type": "Query"}) == "entities"
+
+
+def test_query_body_names_its_type():
+    assert _bad(query_body, {"entities": ENTITIES}) == "type"
 
 
 @pytest.mark.parametrize("body", [None, [], "x", 3, [{"type": "Query"}]])
