@@ -6,14 +6,13 @@ Pure rules for the single-writer guard of the gateway; no Flask import.
 from __future__ import annotations
 
 import re
-from urllib.parse import unquote
 
 from entity_type_guard import declared_types
+from ngsi_read_guard import percent_decoded
 
 PARCEL_TYPE = "AgriParcel"
 MAX_HOPS = 5
 # No real entity comes near these bounds; a payload beyond them is refused.
-MAX_DECODES = 5
 MAX_TYPE_CHARS = 2048
 MAX_TYPES = 4
 MAX_TABLES = 50
@@ -21,26 +20,16 @@ NUL = "\x00"
 _URN_TYPE = re.compile(r"urn:ngsi-ld:([A-Za-z][A-Za-z0-9_]*):")
 
 
-def _decoded(value: str) -> str | None:
-    """Percent-decode until stable, or None when it does not settle."""
-    for _ in range(MAX_DECODES):
-        nxt = unquote(value)
-        if nxt == value:
-            return value
-        value = nxt
-    return None
-
-
 def entity_type_from_id(entity_id: str) -> str | None:
     """The type named by a `urn:ngsi-ld:<Type>:...` id, or None for any other shape."""
-    decoded = _decoded(entity_id)
+    decoded = percent_decoded(entity_id)
     match = _URN_TYPE.match(decoded) if decoded is not None else None
     return match.group(1) if match else None
 
 
 def is_parcel_id(entity_id: str) -> bool:
     """True for a parcel id, and for an id of another shape that contains the name."""
-    decoded = _decoded(entity_id)
+    decoded = percent_decoded(entity_id)
     if decoded is None:
         return True
     named = entity_type_from_id(decoded)
