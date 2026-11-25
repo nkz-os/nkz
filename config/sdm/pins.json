@@ -82,6 +82,13 @@
     }
   },
   "types": {
+    "AgriApp": {
+      "subject": "Agrifood",
+      "schema": {
+        "path": "AgriApp/schema.json",
+        "sha256": "c863715b031724614caf950fe89e3d61fcf8e10f021e6dfd684211afa389952f"
+      }
+    },
     "AgriCrop": {
       "subject": "Agrifood",
       "schema": {
@@ -122,6 +129,13 @@
       "schema": {
         "path": "AgriParcelRecord/schema.json",
         "sha256": "0d3dd773fd2b30ed2702448f83fea5229cf9bac3a9911bfa692a2f468e62bc5f"
+      }
+    },
+    "AgriProductType": {
+      "subject": "Agrifood",
+      "schema": {
+        "path": "AgriProductType/schema.json",
+        "sha256": "f0c988017e7ee006bd2bac51eb4d60e869cba7c69024ec036939016660cfaef9"
       }
     },
     "AgriSoil": {
