@@ -70,6 +70,27 @@ def test_ordinary_code_and_rationale_pass(line):
     assert not hygiene.scan(_diff("services/x.py", line), ALL_RULES), line
 
 
+@pytest.mark.parametrize("tail", ["", " \\"])
+def test_a_pip_hash_is_not_an_image_digest(tail):
+    """A pinned requirement carries its file's hash: it names a package, not a deployment."""
+    line = "    --hash=sha256:" + "a" * 64 + tail
+    assert not hygiene.scan(_diff("backend/requirements.txt", line), ALL_RULES)
+
+
+@pytest.mark.parametrize(
+    "line",
+    [
+        "    image: ghcr.io/x@sha256:" + "a" * 64,
+        "digest=sha256:" + "a" * 64,
+        "hash=sha256:" + "a" * 64,
+        "--hash sha256:" + "a" * 64,
+        "    --hash=sha256:" + "a" * 64 + " # image ghcr.io/x@sha256:" + "b" * 64,
+    ],
+)
+def test_an_image_digest_is_still_caught_next_to_the_pip_form(line):
+    assert hygiene.scan(_diff("backend/requirements.txt", line), ALL_RULES), f"missed: {line}"
+
+
 def test_removed_lines_are_not_flagged():
     """Only additions. Deleting a leak must never fail the build."""
     diff = (
