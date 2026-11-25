@@ -24,7 +24,6 @@ import { UserCreateModal } from '@/components/admin/UserCreateModal';
 import { UserAssignModal } from '@/components/admin/UserAssignModal';
 import { SuspendTenantDialog } from '@/components/admin/SuspendTenantDialog';
 import { RestoreTenantButton } from '@/components/admin/RestoreTenantButton';
-import { PurgeTenantDialog } from '@/components/admin/PurgeTenantDialog';
 
 // Legacy imports
 import { LimitsManagement } from '@/components/LimitsManagement';
@@ -149,7 +148,6 @@ export const AdminManagement: React.FC = () => {
 
   // Tenant lifecycle dialogs
   const [suspendDialogOpen, setSuspendDialogOpen] = useState(false);
-  const [purgeDialogOpen, setPurgeDialogOpen] = useState(false);
 
   // Role editing
   const [editingUser, setEditingUser] = useState<UserRow | null>(null);
@@ -572,13 +570,6 @@ export const AdminManagement: React.FC = () => {
                               tenantId={selectedTenant.tenant_id}
                               onRestored={() => { loadTenants(); }}
                             />
-                            <Button
-                              variant="danger"
-                              size="sm"
-                              onClick={() => setPurgeDialogOpen(true)}
-                            >
-                              {t('admin.purge_tenant_button')}
-                            </Button>
                           </div>
                         ) : (
                           <Button
@@ -1051,19 +1042,6 @@ export const AdminManagement: React.FC = () => {
           onSuspended={() => {
             setSuspendDialogOpen(false);
             loadTenants();
-          }}
-        />
-      )}
-
-      {purgeDialogOpen && selectedTenantId && (
-        <PurgeTenantDialog
-          tenantId={selectedTenantId}
-          tenantName={selectedTenant?.tenant_name || selectedTenantId}
-          onClose={() => setPurgeDialogOpen(false)}
-          onPurged={() => {
-            setPurgeDialogOpen(false);
-            loadTenants();
-            setSelectedTenantId(null);
           }}
         />
       )}
