@@ -26,6 +26,8 @@ class FakeState:
         self.after_update = None  # callback(n) after the n-th IoT Agent update (simulates a race)
         self.iota_updates = 0
         self.iota_attrs = []  # (device_id, attributes) of every provision / update
+        self.iota_devices = {}  # device_id -> the agent's document (gateway projection tests)
+        self.iota_strict = False  # True: provisioning an existing device answers 409
 
     @staticmethod
     def unique_violation():
@@ -92,6 +94,19 @@ class _Cursor:
             else:
                 self._rows = [dict(r) for r in w["dataloggers"].values()
                               if r["tenant_id"] == params[0]]
+        elif sql.startswith("UPDATE iot_dataloggers SET gateway_external_id"):
+            ext, dl, tenant = params
+            row = w["dataloggers"].get(str(dl))
+            if row and row["tenant_id"] == tenant and row.get("gateway_external_id") is None:
+                row["gateway_external_id"] = ext
+                self._rowcount = 1
+            log.append(("db", "gateway_id"))
+        elif sql.startswith("UPDATE iot_dataloggers SET gateway_provisioned_at"):
+            row = w["dataloggers"].get(str(params[0]))
+            if row and row["tenant_id"] == params[1] and row.get("gateway_provisioned_at") is None:
+                row["gateway_provisioned_at"] = "now"
+                self._rowcount = 1
+            log.append(("db", "gateway_marker"))
         elif sql.startswith("UPDATE iot_dataloggers"):
             row = w["dataloggers"].get(str(params[0]))
             if row and row["tenant_id"] == params[1]:
@@ -276,10 +291,28 @@ def fake_iota(state, apikey="KEY123"):
         state.iota_attrs.append((kw["device_id"], kw["attributes"]))
         if state.fail.get("provision"):
             raise _IotAgentError(500, "boom")
+        if state.iota_strict and kw["device_id"] in state.iota_devices:
+            raise _IotAgentError(409, "duplicate")
+        state.iota_devices[kw["device_id"]] = {
+            "device_id": kw["device_id"], "entity_name": kw["entity_name"],
+            "entity_type": kw["entity_type"], "apikey": kw["apikey"],
+            "attributes": copy.deepcopy(kw["attributes"])}
 
     def delete_device(url, headers, device_id):
         state.log.append(("iota", "delete", device_id))
-        return not state.fail.get("iota_delete")
+        if state.fail.get("iota_delete"):
+            return False
+        state.iota_devices.pop(device_id, None)
+        return True
+
+    def get_device(url, headers, device_id):
+        state.log.append(("iota", "get", device_id))
+        if state.fail.get("iota_get"):
+            code = state.fail["iota_get"]
+            raise _IotAgentError(code if isinstance(code, int) and not isinstance(code, bool) else 500, "boom")
+        if device_id not in state.iota_devices:
+            raise _IotAgentError(404, "not found")
+        return copy.deepcopy(state.iota_devices[device_id])
 
     def update_device_attributes(url, headers, device_id, attributes):
         state.log.append(("iota", "update", device_id))
@@ -296,7 +329,7 @@ def fake_iota(state, apikey="KEY123"):
         build_iota_attributes=lambda ms: [
             {"object_id": m.get("incomingKey") or m["type"], "name": m["sdmAttribute"]}
             for m in ms],
-        provision_device=provision_device, delete_device=delete_device,
+        provision_device=provision_device, delete_device=delete_device, get_device=get_device,
         update_device_attributes=update_device_attributes)
 
 

@@ -30,6 +30,7 @@ from db_helper import get_db_connection_with_tenant
 from device_profile import entity_profile_code
 from device_urn import DEVICE_TYPES, EXTERNAL_ID_RE, external_id_of, is_device_type  # noqa: F401
 from helpers import ORION_URL
+import gateways
 import writer_move_lock
 
 logger = logging.getLogger(__name__)
@@ -188,7 +189,8 @@ def _dl_id(value) -> str:
 
 
 def _row(cur, tenant: str, dl_id: str, lock: bool = False) -> dict:
-    sql = ("SELECT id, name, kind, mqtt_username, status FROM iot_dataloggers "
+    sql = ("SELECT id, name, kind, mqtt_username, status, created_at, "
+           "gateway_external_id, gateway_provisioned_at FROM iot_dataloggers "
            "WHERE id = %s AND tenant_id = %s")
     if lock:
         sql += " FOR UPDATE"
@@ -197,6 +199,22 @@ def _row(cur, tenant: str, dl_id: str, lock: bool = False) -> dict:
     if not row:
         raise ApiError(404, 'Datalogger not found')
     return row
+
+
+def role_topics(cur, tenant: str, row: dict, apikey: Optional[str] = None) -> set:
+    """The topics a datalogger's broker role must hold: the one place they are computed.
+
+    Its sensors' topics, plus the beacon topic of its gateway once the projection has completed
+    (`gateway_provisioned_at`): the permission only exists after the IoT Agent device does, and
+    stays while the box exists, whatever the flag says. No IoT Agent call here. With no marker
+    the result is exactly the sensors' topics.
+    """
+    apikey = get_apikey(tenant) if apikey is None else apikey
+    topics = {topic_for(apikey, d['external_id']) for d in _device_rows(cur, tenant, str(row['id']))}
+    external_id = row.get('gateway_external_id')
+    if row.get('gateway_provisioned_at') is not None and external_id:
+        topics.add(gateways.beacon_topic(apikey, external_id))
+    return topics
 
 
 def _device_rows(cur, tenant: str, dl_id: str) -> list:
@@ -420,7 +438,7 @@ def reconcile_datalogger_acl(tenant: str, dl_id: str, client=None, mutate=None) 
                 conn.rollback()
                 logger.error("link change failed: datalogger=%s error=%s", username, type(exc).__name__)
                 raise ApiError(502, 'Could not update the device link', 'link')
-        topics = {topic_for(apikey, d['external_id']) for d in _device_rows(cur, tenant, dl_id)}
+        topics = role_topics(cur, tenant, row, apikey)
         needs_rotation = False
         try:
             client.run([{'command': 'getClient', 'username': username}])
@@ -460,7 +478,7 @@ def rotate_datalogger(tenant: str, dl_id: str) -> dict:
                 logger.error("set_password failed: datalogger=%s error=%s", username, type(exc).__name__)
                 raise ApiError(502, 'Could not change the MQTT password', 'mqtt_account')
             _recreate_account(cur, conn, tenant, dl_id, username, password, client,
-                              revoked=row['status'] == 'revoked')
+                              revoked=row['status'] == 'revoked', row=row)
         cur.execute("UPDATE iot_dataloggers SET credentials_rotated_at = now() "
                     "WHERE id = %s AND tenant_id = %s", (dl_id, tenant))
         try:
@@ -471,11 +489,12 @@ def rotate_datalogger(tenant: str, dl_id: str) -> dict:
     return {'password': password}
 
 
-def _recreate_account(cur, conn, tenant, dl_id, username, password, client, revoked=False) -> None:
+def _recreate_account(cur, conn, tenant, dl_id, username, password, client, revoked=False,
+                      row=None) -> None:
     """The broker lost the client (e.g. a new volume): rebuild it and its role from the rows."""
     try:
         apikey = get_apikey(tenant)
-        topics = {topic_for(apikey, d['external_id']) for d in _device_rows(cur, tenant, dl_id)}
+        topics = role_topics(cur, tenant, row if row is not None else _row(cur, tenant, dl_id), apikey)
         mqtt_dynsec.delete_account(client, username)
         mqtt_dynsec.create_account(client, username, password)
         mqtt_dynsec.set_role_topics(client, username, topics)
