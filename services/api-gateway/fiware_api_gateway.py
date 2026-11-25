@@ -93,6 +93,7 @@ from ngsi_read_guard import (  # noqa: E402
     types_params,
     valid_entity_path,
 )
+from ngsi_write_guard import valid_write  # noqa: E402
 from parcel_guard import creates_parcel_id, declares_parcel, is_parcel_id  # noqa: E402
 
 # Import Keycloak authentication
@@ -1429,6 +1430,8 @@ def entity_by_id(entity_id):
             return invalid
 
     if request.method in ("PUT", "PATCH"):
+        if not valid_write(request.get_json(silent=True)):
+            return jsonify({"error": "Invalid entity body"}), 400
         rejected = _reject_shorthand_null(request.get_json(silent=True), tenant, entity_id)
         if rejected:
             return rejected
@@ -1476,6 +1479,9 @@ def entities():
         if invalid:
             return invalid
 
+    if request.method in ("PUT", "PATCH", "DELETE"):
+        return jsonify({"error": "Method not allowed"}), 405
+
     # Inject @context into body for mutation requests so Orion-LD preserves
     # short entity types (e.g. "AgriParcel") instead of expanding to full
     # JSON-LD URIs (e.g. "https://saref.etsi.org/saref4agri/AgriParcel").
@@ -1486,6 +1492,8 @@ def entities():
         if request.method in ("POST", "PUT", "PATCH")
         else None
     )
+    if request.method == "POST" and not valid_write(json_body):
+        return jsonify({"error": "Invalid entity body"}), 400
     rejected = _reject_shorthand_null(json_body, tenant, "entities")
     if rejected:
         return rejected
