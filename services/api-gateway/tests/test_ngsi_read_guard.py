@@ -26,6 +26,13 @@ VALID_FILTERS = [
     'd[@value]>="2026-01-01"',
     'validTo>"2026-11-25T00:00:00Z"',
     "d>2026-01-01T00:00:00Z",
+    "d>2026-01-01T00:00:00+00:00",
+    "d<=2026-01-01T00:00:00.123456-05:30",
+    "d>=2026-01-01T00:00Z",
+    "d==2026-01-01T00:00:00Z..2026-02-01T00:00:00+01:00",
+    "a" * 127 + "[" + "b" * 127 + "]==1",
+    "nullable==nullx",
+    "name~=a|name!~=b",
     "num==1..5",
     'd=="2026-01-01".."2026-02-01"',
     "a==1,2,3",
@@ -46,6 +53,7 @@ VALID_FILTERS = [
     "(" * 4 + "n==1" + ")" * 4,
     "n==" + ",".join(["1"] * 50),
     "a~=" + "x" * 64,
+    "a~=x.*y",
     'a=="' + "x" * 256 + '"',
     "a" * 128 + "==1",
 ]
@@ -64,7 +72,10 @@ INVALID_FILTERS = [
     ";".join(f"n=={i}" for i in range(13)), "|".join(f"n{i}" for i in range(13)),
     "(" * 5 + "n==1" + ")" * 5, "n==" + ",".join(["1"] * 51),
     ";".join(['a=="' + "x" * 250 + '"'] * 12),
-    "a==1)|(b==2", "a~=" + "x" * 62 + ".*.*",
+    "a" * 128 + "[" + "b" * 127 + "]==1", "a" * 128 + "." + "b" * 128 + "==1",
+    ".".join(["a" * 100] * 3), "a[b][c]==1", 'a=="\x7f"', "d>2026-01-01T00:00:00+0000", "d>2026-01-01T00:00:00",
+    "a~=x.*y.*z", "a~=.*x.*", "a~=x|b~=y|c~=z", "a~=x;b!~=y;c~=z", "a==1);(b==1",
+    "a==1)|(b==2", "a~=" + "x" * 63 + ".*",
     "https://example.org/a==1", "a==１", "a>１", "a==٣",
     None, 3, [], {}, b"a==1",
 ]
@@ -142,14 +153,14 @@ def test_unknown_list_parameters(name):
     [
         ("q", "a=="), ("q", ""),
         ("attrs", ",".join(["a"] * 51)), ("attrs", "a" * 129), ("attrs", ""), ("attrs", "a,"), ("attrs", "a b"),
-        ("attrs", "a\x00"), ("attrs", "https://example.org/" + "a" * 200),
+        ("attrs", "a\x00"), ("attrs", "https://example.org/" + "a" * 181),
         ("type", ",".join(["T"] * 21)), ("type", ""), ("type", "T|U"), ("type", "(T)"),
-        ("id", ",".join(["urn:a:b"] * 51)), ("id", "x"), ("id", "urn:a:" + "b" * 300), ("id", "urn:a:b,"), ("id", "urn:a:b c"),
+        ("id", ",".join(["urn:a:b"] * 51)), ("id", "x"), ("id", "urn:a:" + "b" * 251), ("id", "urn:a:b,"), ("id", "urn:a:b c"),
         ("limit", "-1"), ("limit", "1001"), ("limit", "abc"), ("limit", "1_0"), ("limit", "１"), ("limit", ""), ("limit", "9" * 5000),
         ("offset", "1000000001"), ("offset", "-1"), ("offset", "1.0"),
         ("count", "x"), ("count", "True"), ("options", "bogus"), ("options", ""), ("options", "keyValues,"),
         ("idPattern", "("), ("idPattern", "a{2}"), ("idPattern", "[a]"), ("idPattern", "a+"), ("idPattern", "a" * 129), ("idPattern", ""),
-        ("idPattern", ".*.*.*"), ("geoproperty", "a b"),
+        ("idPattern", ".*.*"), ("geoproperty", "a b"),
     ],
 )
 def test_malformed_list_parameters(name, value):
@@ -171,7 +182,7 @@ def test_geoproperty_needs_a_geo_query():
     assert _bad(list_params, [("geoproperty", "location")]) == "georel"
 
 
-@pytest.mark.parametrize("georel", ["near", "bogus", "near;maxDistance==", "near;maxDistance==-1", "near;maxDistance==1;x", "near;maxDistance=1", ""])
+@pytest.mark.parametrize("georel", ["near", "bogus", "near;maxDistance==", "near;maxDistance==-1", "near;maxDistance==1;x", "near;maxDistance=1", "near;xDistance==1", "near;maxDistance==" + "9" * 11, "near;maxDistance==1;minDistance==0", ""])
 def test_malformed_georel(georel):
     assert _bad(list_params, {**GEO, "georel": georel}.items()) == "georel"
 
@@ -185,7 +196,8 @@ def test_unknown_geometry():
     [
         ("Point", "x"), ("Point", "[0]"), ("Point", "[0,0,0,0]"), ("Point", "[[0,0]]"), ("Point", "[NaN,0]"), ("Point", "[Infinity,0]"),
         ("Point", "[1e999,0]"), ("Point", '["0",0]'), ("Point", "[true,0]"), ("Point", "[null,0]"), ("Point", "{}"), ("Point", "[]"), ("Point", ""),
-        ("Point", "[" + "0" * 5000 + ",0]"), ("Point", "[" * 2000 + "]" * 2000), ("Point", "[" + "9" * 400 + ",0]"), ("Point", "[0,0]x"), ("Point", "[181,0]"), ("Point", "[0,91]"),
+        ("Point", "[" + "0" * 5000 + ",0]"), ("Point", "[" * 2000 + "]" * 2000), ("Point", "[" + "9" * 400 + ",0]"), ("Point", "[0,0]x"), ("Point", "[181,0]"), ("Point", "[0,91]"), ("Point", "[-181,0]"), ("Point", "[0,-91]"), ("Point", "[0,0,100001]"),
+        ("MultiPoint", "[" + ",".join(["[0,0]"] * 700) + "]"),
         ("LineString", "[[0,0]]"), ("LineString", "[0,0]"), ("MultiPoint", "[]"),
         ("Polygon", "[[[0,0],[1,0],[1,1],[2,2]]]"), ("Polygon", "[[[0,0],[1,0],[0,0]]]"), ("Polygon", "[]"), ("Polygon", "[[]]"),
         ("MultiLineString", "[[[0,0]]]"), ("MultiPolygon", "[[]]"), ("MultiPolygon", RING),

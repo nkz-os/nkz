@@ -254,3 +254,31 @@ def test_other_type_names_are_refused(client, calls, name):
 def test_type_names_are_forwarded(client, calls):
     assert client.get(f"{TYPES}/https://example.org/T", headers=USER).status_code in (200, 308)
     assert client.get(f"{TYPES}/Device", headers=USER).status_code == 200
+
+
+@BOTH
+@pytest.mark.parametrize(
+    "data",
+    [
+        json.dumps({**BODY, "q": "a==1"}) + " " * 70000,
+    ],
+)
+def test_oversized_query_bodies_are_refused(client, calls, headers, data):
+    resp = client.post(QUERY, data=data, content_type="application/json", headers=headers)
+    assert resp.status_code == 400
+    assert resp.get_json()["parameter"] == "body"
+    assert calls == []
+
+
+def test_preflight_is_not_judged(client, calls):
+    assert client.options(f"{LIST}/%23").status_code == 200
+
+
+def test_head_of_one_entity_is_judged(client, calls):
+    assert client.head(f"{LIST}/{DEVICE}?foo=1", headers=USER).status_code == 400
+    assert calls == []
+
+
+def test_sensor_types_may_be_narrowed(client, calls):
+    assert client.get("/api/sensors?type=Device", headers=USER).status_code == 200
+    assert calls[0]["params"] == {"type": "Device"}

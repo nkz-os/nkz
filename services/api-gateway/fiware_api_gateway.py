@@ -847,6 +847,8 @@ NGSILD_NAMED_RESOURCES = tuple(
 @app.before_request
 def check_named_resources():
     """Refuse an entity id or type name that is not just a path."""
+    if request.method == "OPTIONS":
+        return None
     path = request.path or ""
     for prefix in NGSILD_NAMED_RESOURCES:
         if path.startswith(prefix) and not valid_entity_path(path[len(prefix):]):
@@ -1377,6 +1379,19 @@ def _invalid_query(exc):
     return jsonify({"error": "Invalid query parameter", "parameter": exc.parameter[:64]}), 400
 
 
+MAX_QUERY_BODY_BYTES = 65536
+
+
+def _read_query_body():
+    """(body to forward, error response)."""
+    try:
+        if len(request.get_data()) > MAX_QUERY_BODY_BYTES:
+            raise InvalidQuery("body")
+        return query_body(request.get_json(silent=True)), None
+    except InvalidQuery as exc:
+        return None, _invalid_query(exc)
+
+
 def _read_params(validate, *, paged=False):
     """(parameters to forward, error response). A PAT page is capped before judging it."""
     args = list(request.args.items(multi=True))
@@ -1532,10 +1547,9 @@ def entity_operations_query():
     params, invalid = _read_params(query_params, paged=True)
     if invalid:
         return invalid
-    try:
-        json_body = query_body(request.get_json(silent=True))
-    except InvalidQuery as exc:
-        return _invalid_query(exc)
+    json_body, invalid = _read_query_body()
+    if invalid:
+        return invalid
 
     try:
         orion_url = f"{ORION_URL}/ngsi-ld/v1/entityOperations/query"

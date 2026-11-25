@@ -14,6 +14,8 @@ from urllib.parse import unquote
 MAX_FILTER_CHARS = 2048
 MAX_FILTER_TERMS = 12
 MAX_FILTER_DEPTH = 4
+MAX_PATH_CHARS = 256
+MAX_FILTER_PATTERNS = 2
 MAX_LIST = 50
 MAX_TYPES = 20
 MAX_ENTITIES = 20
@@ -29,14 +31,14 @@ OPTIONS = frozenset({"keyValues", "simplified", "normalized", "concise", "sysAtt
 _NAME = r"[A-Za-z_@][A-Za-z0-9_:\-]{0,127}"
 _PATH = rf"{_NAME}(?:\.{_NAME}){{0,4}}"
 _STRING = r'"[^"\\\x00-\x1f\x7f]{0,256}"'
-_DATE = r"[0-9]{4}-[0-9]{2}-[0-9]{2}(?:T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\.[0-9]{1,6})?Z)?"
+_DATE = r"[0-9]{4}-[0-9]{2}-[0-9]{2}(?:T[0-9]{2}:[0-9]{2}(?::[0-9]{2}(?:\.[0-9]{1,6})?)?(?:Z|[+-][0-9]{2}:[0-9]{2}))?"
 _NUMBER = r"-?[0-9]{1,15}(?:\.[0-9]{1,15})?(?:[eE][+-]?[0-9]{1,2})?"
 _WORD = r"(?!null(?![A-Za-z0-9_:\-]))[A-Za-z][A-Za-z0-9_:\-]{0,127}"
 _ORDERED = rf"(?:{_STRING}|{_DATE}|{_NUMBER})"
 _VALUE = rf"(?:{_STRING}|{_DATE}|{_NUMBER}|{_WORD})"
 _PATTERN = r"\^?(?:[\w :/\-]|\.\*|\.(?![.*])){1,64}\$?"
 _TERM = re.compile(
-    rf"{_PATH}(?:\[{_PATH}\])?"
+    rf"(?P<path>{_PATH}(?:\[{_PATH}\])?)"
     r"(?:"
     rf"(?:==|!=)(?:{_ORDERED}\.\.{_ORDERED}|{_VALUE}(?:,{_VALUE}){{0,{MAX_LIST - 1}}})"
     rf"|(?:>=|<=|>|<){_ORDERED}"
@@ -64,14 +66,14 @@ class InvalidQuery(ValueError):
 
 def _valid_pattern(pattern: str) -> bool:
     body = pattern.removeprefix("^").removesuffix("$")
-    return len(pattern) <= 64 and pattern.count(".*") <= 2 and body == body.strip()
+    return len(pattern) <= 64 and pattern.count(".*") <= 1 and body == body.strip()
 
 
 def valid_filter(q: object) -> bool:
     """True for a `q` made of well-formed terms joined by `;` or `|`."""
     if not isinstance(q, str) or not 0 < len(q) <= MAX_FILTER_CHARS:
         return False
-    position = depth = terms = 0
+    position = depth = terms = patterns = 0
     expect_term = True
     while position < len(q):
         char = q[position]
@@ -83,11 +85,13 @@ def valid_filter(q: object) -> bool:
                     return False
                 continue
             match = _TERM.match(q, position)
-            if match is None:
+            if match is None or len(match.group("path")) > MAX_PATH_CHARS:
                 return False
             pattern = match.group("pattern")
-            if pattern is not None and not _valid_pattern(pattern):
-                return False
+            if pattern is not None:
+                patterns += 1
+                if patterns > MAX_FILTER_PATTERNS or not _valid_pattern(pattern):
+                    return False
             terms += 1
             if terms > MAX_FILTER_TERMS:
                 return False
@@ -122,7 +126,7 @@ def _is_id_pattern(value: object) -> bool:
     return (
         isinstance(value, str)
         and len(value) <= MAX_PATTERN_CHARS
-        and value.count(".*") <= 2
+        and value.count(".*") <= 1
         and _ID_PATTERN.fullmatch(value) is not None
     )
 
