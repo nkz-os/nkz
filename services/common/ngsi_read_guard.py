@@ -117,7 +117,8 @@ def valid_filter(q: object) -> bool:
     return depth == 0 and not expect_term
 
 
-def _is_name(value: object) -> bool:
+def valid_name(value: object) -> bool:
+    """True for a term or an http(s) IRI."""
     if not isinstance(value, str):
         return False
     if _TERM_NAME.fullmatch(value):
@@ -210,15 +211,15 @@ def _parsed_coordinates(text: str) -> object:
 
 
 _LIST_CHECKS: Mapping[str, Callable[[str], bool]] = {
-    "type": _comma_list(_is_name, MAX_TYPES),
+    "type": _comma_list(valid_name, MAX_TYPES),
     "id": _comma_list(_is_uri, MAX_LIST),
     "idPattern": _is_id_pattern,
-    "attrs": _comma_list(_is_name, MAX_LIST),
+    "attrs": _comma_list(valid_name, MAX_LIST),
     "q": valid_filter,
     "georel": _is_georel,
     "geometry": lambda value: value in _GEOMETRIES,
     "coordinates": lambda value: True,  # judged with its geometry below
-    "geoproperty": _is_name,
+    "geoproperty": valid_name,
     "limit": _whole_number(MAX_PAGE),
     "offset": _whole_number(MAX_OFFSET),
     "count": _is_boolean,
@@ -274,7 +275,7 @@ def query_params(args: Iterable[tuple[str, str]]) -> dict[str, str]:
 def _is_selector(value: object) -> bool:
     if not isinstance(value, dict) or not value or ("id" in value and "idPattern" in value):
         return False
-    checks = {"type": _is_name, "id": _is_uri, "idPattern": _is_id_pattern}
+    checks = {"type": valid_name, "id": _is_uri, "idPattern": _is_id_pattern}
     return all(key in checks and checks[key](item) for key, item in value.items())
 
 
@@ -288,7 +289,7 @@ def _is_geo_query(value: object) -> bool:
         isinstance(geometry, str)
         and geometry in _GEOMETRIES
         and _is_georel(value["georel"])
-        and ("geoproperty" not in value or _is_name(value["geoproperty"]))
+        and ("geoproperty" not in value or valid_name(value["geoproperty"]))
         and _GEOMETRIES[geometry](value["coordinates"])
         and len(json.dumps(value["coordinates"], separators=(",", ":"))) <= MAX_COORDINATES_CHARS
     )
@@ -300,7 +301,7 @@ _BODY_CHECKS: Mapping[str, Callable[[object], bool]] = {
         isinstance(value, list) and 0 < len(value) <= MAX_ENTITIES and all(_is_selector(v) for v in value)
     ),
     "attrs": lambda value: (
-        isinstance(value, list) and 0 < len(value) <= MAX_LIST and all(_is_name(v) for v in value)
+        isinstance(value, list) and 0 < len(value) <= MAX_LIST and all(valid_name(v) for v in value)
     ),
     "q": valid_filter,
     "geoQ": _is_geo_query,

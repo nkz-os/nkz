@@ -77,6 +77,7 @@ logger = logging.getLogger(__name__)
 try:
     from urn_resolution import (
         WEATHER_OBSERVED_ENTITY_TYPES,
+        InvalidQuery,
         nearest_weather_entity,
         normalize_device_id,
         plan_timeseries_read,
@@ -92,6 +93,10 @@ except ImportError as e:
     )
     plan_timeseries_read = None  # type: ignore
     nearest_weather_entity = None  # type: ignore
+
+    class InvalidQuery(ValueError):  # type: ignore
+        pass
+
     WEATHER_OBSERVED_ENTITY_TYPES = [  # type: ignore
         "WeatherObserved",
         "https://saref.etsi.org/saref4agri/WeatherObserved",
@@ -1340,6 +1345,8 @@ def get_timeseries_by_type_and_plant(entity_type: str, plant_id: str):
     # samples' rows instead of decompressing all of the tenant's telemetry.
     try:
         sample_ids = plant_sample_ids(tenant_id, entity_type, plant_id)
+    except InvalidQuery:
+        return jsonify({"error": "Invalid entity type or plant id"}), 400
     except Exception as e:
         logger.error(f"Cannot resolve samples of plant {plant_id}: {e}")
         return jsonify({"error": "Plant samples unavailable"}), 502

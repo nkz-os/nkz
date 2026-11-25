@@ -17,6 +17,7 @@ import requests
 from psycopg2.extras import RealDictCursor
 
 from common.ngsi_headers import inject_fiware_headers
+from common.ngsi_read_guard import InvalidQuery, valid_entity_path, valid_filter, valid_name
 
 logger = logging.getLogger(__name__)
 
@@ -46,8 +47,13 @@ def plant_sample_ids(tenant_id: str, entity_type: str, plant_id: str) -> List[st
     """Ids of the ``entity_type`` entities whose hasAgriPlant includes ``plant_id``.
 
     Raises RuntimeError when Orion cannot answer: the caller must not fall back to
-    scanning the whole tenant's telemetry.
+    scanning the whole tenant's telemetry. Raises InvalidQuery for a malformed type or id.
     """
+    q = f'hasAgriPlant=="{plant_id}"'
+    if not valid_name(entity_type):
+        raise InvalidQuery("entity_type")
+    if '"' in plant_id or not valid_filter(q):
+        raise InvalidQuery("plant_id")
     if not ORION_URL:
         raise RuntimeError("ORION_URL is not configured")
     ids: List[str] = []
@@ -56,7 +62,7 @@ def plant_sample_ids(tenant_id: str, entity_type: str, plant_id: str) -> List[st
         r = requests.get(
             f"{ORION_URL}/ngsi-ld/v1/entities",
             headers=_orion_headers(tenant_id),
-            params={"type": entity_type, "q": f'hasAgriPlant=="{plant_id}"',
+            params={"type": entity_type, "q": q,
                     "attrs": "hasAgriPlant", "limit": page, "offset": offset},
             timeout=10,
         )
@@ -194,7 +200,7 @@ def _find_nearest_weather_entity(
 
 
 def fetch_orion_entity(tenant_id: str, entity_id: str) -> Optional[Dict[str, Any]]:
-    if not ORION_URL or not entity_id:
+    if not ORION_URL or not entity_id or not valid_entity_path(entity_id):
         return None
     url = f"{ORION_URL}/ngsi-ld/v1/entities/{entity_id}"
     try:
