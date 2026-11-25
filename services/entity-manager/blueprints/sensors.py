@@ -75,10 +75,11 @@ def _extract_prop_value(entity: dict, key: str):
 
 def _is_entity_id(value) -> bool:
     """True for an id that stands for itself in a URL."""
-    # ASSUMPTION: an entity id holds no percent escape and at most MAX_URI_CHARS characters,
-    # as in every id this platform builds (the longest is far below).
-    return (isinstance(value, str) and len(value) <= MAX_URI_CHARS and '%' not in value
-            and valid_identifier(value))
+    # ASSUMPTION: an entity id holds no '/' and no '%', and at most MAX_URI_CHARS characters,
+    # like the ids in use. An entity created elsewhere with another id is refused (422) when a
+    # sensor request names it.
+    return (isinstance(value, str) and len(value) <= MAX_URI_CHARS
+            and '/' not in value and '%' not in value and valid_identifier(value))
 
 
 def _patch_command_status(
