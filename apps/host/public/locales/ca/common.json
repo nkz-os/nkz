@@ -1446,6 +1446,7 @@
     "error": "Error en sol·licitar la recuperació de la contrasenya"
   },
   "activation": {
+    "tenant_unavailable": "Aquest compte no està disponible. Contacta amb el suport.",
     "create_account": "Crea un compte",
     "register_email": "Correu electrònic de registre",
     "org_name": "Nom de l'organització / empresa",
@@ -1530,6 +1531,7 @@
     "view_terms": "Veure els termes i condicions"
   },
   "registration": {
+    "unavailable": "El registre no està disponible en aquest moment. Torna-ho a provar més tard.",
     "processing": "Processant el registre...",
     "creating": "Creant el compte i els recursos...",
     "finalizing": "Finalitzant la configuració...",

@@ -1423,6 +1423,7 @@
     "error": "Errorea pasahitza berreskuratzeko eskaera egitean"
   },
   "activation": {
+    "tenant_unavailable": "Kontu hau ez dago erabilgarri. Jarri harremanetan laguntza-zerbitzuarekin.",
     "create_account": "Sortu kontua",
     "register_email": "Erregistroko posta elektronikoa",
     "org_name": "Erakundearen / enpresaren izena",
@@ -1507,6 +1508,7 @@
     "view_terms": "Ikusi erabilera-baldintzak"
   },
   "registration": {
+    "unavailable": "Erregistroa ez dago erabilgarri une honetan. Saiatu berriro geroago.",
     "processing": "Erregistroa prozesatzen...",
     "creating": "Kontua eta baliabideak sortzen...",
     "finalizing": "Konfigurazioa amaitzen...",

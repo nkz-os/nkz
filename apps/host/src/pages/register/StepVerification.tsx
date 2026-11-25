@@ -65,6 +65,14 @@ export const StepVerification: React.FC<StepVerificationProps> = ({
         timeout: 30000,
         headers: { 'Content-Type': 'application/json' },
       });
+      // Not checked for activation codes: their tenant may already exist.
+      const check = await client.post('/webhook/register/check-tenant', {
+        name: formData.tenantName,
+      });
+      if (check.data.available !== true) {
+        setError(t('registration.org_name_taken'));
+        return;
+      }
       const resp = await client.post('/webhook/register/request-otp', {
         email: formData.email.toLowerCase(),
         language,
@@ -76,15 +84,20 @@ export const StepVerification: React.FC<StepVerificationProps> = ({
       }
     } catch (err: unknown) {
       const error = err as { response?: { status?: number } };
-      if (error.response?.status === 429) {
+      const status = error.response?.status;
+      if (status === 429) {
         setError(t('registration.rate_limit') || 'Too many attempts. Please try again later.');
+      } else if (status === 409) {
+        setError(t('registration.email_exists'));
+      } else if (status === undefined || status === 403 || status === 503) {
+        setError(t('registration.unavailable'));
       } else {
         setError(t('registration.otp_send_error') || 'Error sending verification code.');
       }
     } finally {
       setLoading(false);
     }
-  }, [formData.email, config.api.baseUrl, language, setLoading, setError, t]);
+  }, [formData.email, formData.tenantName, config.api.baseUrl, language, setLoading, setError, t]);
 
   const formatCode = (code: string) => {
     const cleaned = code.replace(/[^A-Z0-9]/g, '').toUpperCase();

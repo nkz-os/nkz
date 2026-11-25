@@ -1446,6 +1446,7 @@
     "error": "Erreur lors de la demande de récupération du mot de passe"
   },
   "activation": {
+    "tenant_unavailable": "Ce compte n'est pas disponible. Veuillez contacter le support.",
     "create_account": "Créer un compte",
     "register_email": "E-mail d’inscription",
     "org_name": "Nom de l’organisation / de l’entreprise",
@@ -1530,6 +1531,7 @@
     "view_terms": "Voir les conditions générales"
   },
   "registration": {
+    "unavailable": "L'inscription n'est pas disponible pour le moment. Veuillez réessayer plus tard.",
     "processing": "Traitement de l'inscription...",
     "creating": "Création du compte et des ressources...",
     "finalizing": "Finalisation de la configuration...",
