@@ -939,7 +939,7 @@ def change_device_profile(tenant: str, urn: str, code: str) -> None:
 
     The shared writer-move lock is held from before the first read until after the undo. Every
     IoT Agent PUT is preceded by a check that the lock is alive; a lost lock before the first PUT
-    changes nothing, a lost lock later is a failed write that is restored (see `restore`).
+    changes nothing but possibly the DeviceModel (idempotent, kept), a lost lock later is a failed write that is restored (see `restore`).
 
     For a Device the official attributes go with `profileCode`, after its DeviceModel. The one
     failure that is not undone is a leftover attribute that could not be deleted: IoT Agent and
@@ -979,6 +979,12 @@ def _change_device_profile_locked(tenant: str, urn: str, code: str, external_id:
             raise ApiError(400, 'Profile has measurements without sdmAttribute')
         except ValueError as exc:
             raise ApiError(400, str(exc))
+        except ApiError:
+            raise
+        except Exception as exc:
+            logger.error("IoT Agent update failed: device=%s error=%s", external_id,
+                         type(exc).__name__)
+            raise ApiError(502, 'IoT Agent device update failed', 'iota_device')
 
     def fallback(in_use, last_state: tuple) -> None:
         """The blind restore: only under a lock that answers now or answered within 30 s."""

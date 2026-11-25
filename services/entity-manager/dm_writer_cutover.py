@@ -70,9 +70,9 @@ writes is not.
     Device-only mappings on a device the entity-manager now skips.
   * to em: update the row, then PUT the Device-only mappings (profile re-read after the commit).
     Between the commit and the PUT both write. The other order would leave a gap in which the agent
-    has stopped and the entity-manager still skips the device. A concurrent `push_iota_attributes`
-    that read `iota` before the commit re-reads the state after its push, sees `em` and pushes
-    again, so it converges to Device-only. There is nothing to undo: an interrupt reads the row of
+    has stopped and the entity-manager still skips the device. A profile change cannot overlap the
+    move (it needs the shared lock); one that lost its lock may still send a late PUT built for
+    `iota`, which the final PUT here corrects. There is nothing to undo: an interrupt reads the row of
     the device in flight (`em`: push; otherwise the agent was not touched) and lists the rest.
 
 Undo (`_undo`), the only way mappings are put back. It needs the exclusive lock, checked right
@@ -85,8 +85,8 @@ outcome is undone. The row is read through the lock and decides:
   * the target state: the commit went through, the final PUT is sent and the device is `moved`;
   * anything else, no row, an unreadable row or no lock: the new mappings stay in the agent
     (duplicates, no gap), CRITICAL, the device is listed and the text says rerun.
-SIGINT, SIGTERM and SIGHUP during the apply phase never raise: the handler sets a flag and writes one line to stderr.
-The batch looks at the flag before each device's first PUT, during the wait (slices of at
+SIGINT, SIGTERM and SIGHUP (unless it was ignored, as under `nohup`) during the apply phase never
+raise: the handler sets a flag and writes one line to stderr. The batch looks at the flag before each device's first PUT, during the wait (slices of at
 most 0.5 s), before each commit and between the devices of `--to em`; a step in progress finishes and
 a committed row always gets its final PUT. After a stop (or any unexpected error) the final undo runs
 to the end and every device gets exactly one outcome; exit code 1. Printing never stops the batch.
@@ -329,6 +329,8 @@ class _Signals:
     def __enter__(self) -> "_Signals":
         try:
             for sig in (signal.SIGINT, signal.SIGTERM, signal.SIGHUP):
+                if sig == signal.SIGHUP and signal.getsignal(sig) == signal.SIG_IGN:
+                    continue            # `nohup`: a hang-up was ignored on purpose
                 self._previous[sig] = signal.signal(sig, self._handle)
         except BaseException:
             self._restore()

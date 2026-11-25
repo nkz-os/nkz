@@ -467,7 +467,7 @@ def test_a_healthy_change_is_lock_reads_agent_model_device_unlock(urn, move_lock
     assert [e for e in rest[first_write:] if e[0] == "read"] == [("read", "device_dm_state")] * (
         2 if urn == URN else 1)
     # a check right before the agent PUT, before the model and before the Device write
-    for write in writes[:1] + [e for e in writes if e[1] in ("upsert", "attrs", "patch")]:
+    for write in writes[:1] + [e for e in writes if e[1] in ("update", "upsert", "attrs", "patch")]:
         assert log[log.index(write) - 1] == LOCK_ALIVE, write
 
 
@@ -546,6 +546,17 @@ def test_an_unusable_profile_code_is_400_without_a_model_or_a_put(move_lock):
         with pytest.raises(dataloggers.ApiError) as err:
             dataloggers.change_device_profile(TENANT, URN, "bad:code")
     assert err.value.status == 400 and _writes(st) == [] and w.orion.device_models == {}
+
+
+def test_a_building_error_that_is_not_a_400_is_502_iota_device_and_writes_nothing(move_lock):
+    """A malformed mapping that raises something else while the mappings are built, before the model."""
+    st = _state(("em", None))
+    st.profiles["p2"]["mapping"] = {"measurements": ["not an object"]}
+    with wired(st) as w, _traced(st, move_lock), patch.object(
+            dataloggers, "iota_attributes_for", side_effect=TypeError("boom")):
+        r = _change(w, _entity(ON_P["model-only"]))
+    assert r.status_code == 502 and r.get_json()["step"] == "iota_device", r.get_json()
+    assert _writes(st) == [] and w.orion.device_models == {} and st.iota_attrs == []
 
 
 def test_a_machine_makes_no_model_request(move_lock):
@@ -628,11 +639,11 @@ def test_no_put_after_the_lock_is_lost_later_push(move_lock):
 
 
 def _restore_runs_with_a_dying_lock(move_lock, since):
-    """The model write fails so the restore runs; the lock dies when the restore first checks it."""
+    """The Device write fails so the restore runs; the lock dies when the restore first checks it."""
     st, clock = _state(("em", None)), _Clock()
     st.fail.update(POST_FAILURES["post-500"])
     with wired(st) as w, _traced(st, move_lock, clock):
-        # 1st check: before the first PUT; 2nd: before the model; then the restore looks
+        # 1st check: before the model; 2nd: before the agent PUT; 3rd: before the Device write; then the restore looks
         _after(st, LOCK_ALIVE, 3, lambda: _kill(st, move_lock, clock, since, mode="unavailable"))
         r = _change(w, _entity(ON_P["model-only"]))
     return st, r

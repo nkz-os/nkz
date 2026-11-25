@@ -2327,6 +2327,17 @@ def test_a_signal_before_the_handler_is_installed_and_after_it_is_restored_is_th
     assert sentinels.hits == [signal.SIGINT, signal.SIGINT]
 
 
+def test_an_ignored_hangup_stays_ignored(sentinels):
+    """Under `nohup` SIGHUP is ignored on purpose: the move must not start stopping on it."""
+    signal.signal(signal.SIGHUP, signal.SIG_IGN)
+    with cut._Signals() as signals:
+        assert signal.getsignal(signal.SIGHUP) == signal.SIG_IGN
+        assert signal.getsignal(signal.SIGINT) == signals._handle
+        os.kill(os.getpid(), signal.SIGHUP)
+        assert not signals.stop_requested()
+    assert signal.getsignal(signal.SIGHUP) == signal.SIG_IGN
+
+
 def test_handlers_are_restored_on_exit(world, sentinels):
     world.add("S1")
     world.settle_agent()
