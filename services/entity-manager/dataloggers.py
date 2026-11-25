@@ -990,10 +990,17 @@ def _change_device_profile_locked(tenant: str, urn: str, code: str, external_id:
                             try:
                                 current = stack.enter_context(writer_move_lock.shared(tenant))
                             except writer_move_lock.MoveInProgress:
-                                # The move's second PUT applies the entity's profile, still the old one.
-                                logger.warning(
-                                    "profile change: a move holds the lock; the IoT Agent "
-                                    "attributes of device=%s urn=%s are left to it", external_id, urn)
+                                # Only a move that includes this device puts its mappings right
+                                # (its second PUT applies the entity's profile, still the old one);
+                                # another device's move, or one that stops before this device, leaves
+                                # the new profile's mappings. Waiting would hold the service's only
+                                # worker for as long as the move runs.
+                                logger.critical(
+                                    "INCONSISTENCY: a move holds the lock; the IoT Agent attributes "
+                                    "of device=%s urn=%s were not put back (profile %s -> %s); if the "
+                                    "move does not include this device it keeps the new profile's "
+                                    "mappings; save the profile again once the move ends",
+                                    external_id, urn, old_code, code)
                                 return
                             except writer_move_lock.LockUnavailable:
                                 if last_state is None:

@@ -616,15 +616,24 @@ def test_restore_retakes_the_lock_and_rereads_the_state(move_lock):
     assert st.log[i - 1] == LOCK_ALIVE
 
 
-def test_restore_leaves_it_to_a_running_move(move_lock, caplog):
+def test_restore_leaves_it_to_a_running_move_and_says_what_may_be_left(move_lock, caplog):
+    """A move of ANOTHER device (or one interrupted before this device) holds the lock: nothing is
+    put back, and the log says in plain words that the device may keep the new mappings."""
     st, clock = _state(("em", None)), _Clock()
     st.fail.update(MODEL_FAILURES["model-refused"])
     with wired(st) as w, _traced(st, move_lock, clock), caplog.at_level(logging.WARNING):
         _after(st, LOCK_ALIVE, 2, lambda: _kill(st, move_lock, clock, 5, mode="busy"))
         r = _change(w, _entity(ON_P["model-only"]))
     assert r.status_code == 502 and r.get_json()["step"] == "device_model"
-    assert [a for _, a in st.iota_attrs] == [_attrs(("em", None), "p2", NEW)]
-    assert any(x.levelno == logging.WARNING and "S1" in x.getMessage() for x in caplog.records)
+    assert [a for _, a in st.iota_attrs] == [_attrs(("em", None), "p2", NEW)]    # no restore PUT
+    assert clock.now == 1005.0                                                    # and no waiting
+    critical = [x.getMessage() for x in caplog.records if x.levelno == logging.CRITICAL]
+    assert any(m.startswith("INCONSISTENCY: a move holds the lock; the IoT Agent attributes of "
+                            "device=S1 urn=" + URN + " were not put back (profile p -> p2); "
+                            "if the move does not include this device it keeps the new profile's "
+                            "mappings; save the profile again once the move ends")
+               for m in critical), critical
+    assert not [x for x in caplog.records if x.levelno == logging.WARNING and "left to it" in x.getMessage()]
 
 
 def test_fallback_only_when_the_step_is_db(move_lock):

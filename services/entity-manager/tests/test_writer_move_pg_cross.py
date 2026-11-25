@@ -23,6 +23,7 @@ import importlib.util
 import json
 import logging
 import os
+import signal
 import threading
 import time
 import uuid
@@ -944,4 +945,49 @@ def test_10_a_profile_change_during_a_move_to_em_is_409_and_works_afterwards(w):
     status, body = w.thread("P", lambda: w.change_profile("p2")).result()
     assert status == 200, body
     assert w.row() == EM and w.entity_code() == "p2"
+    assert_no_silent_device(w)
+
+
+# ---- case 11: the change's lock dies and a move that does NOT include its device holds the lock ---
+
+@pytest.mark.parametrize("how", ["move-of-another-device", "move-interrupted-before-the-device"])
+def test_11_a_restore_that_meets_a_move_that_skips_its_device_says_so_and_saving_again_repairs_it(
+        w, caplog, how):
+    """The change of S2 pushes the new profile, its lock dies, and a move that never reaches S2 takes
+    the lock before the restore. Nothing can be put back (waiting would hold the only worker): the
+    device keeps the new mappings, the log says so, and saving the profile again repairs it."""
+    urn1, urn2 = w.seed_device("S1"), w.seed_device("S2")
+    gate = Gate(w, "before the Orion write")
+    _stall_model_write(w, gate)
+    P = w.thread("P", lambda: w.change_profile("p2", urn=urn2))
+    seen = {}
+
+    def while_the_move_holds_the_lock():
+        gate.release()
+        seen["answer"] = P.result()
+
+    gate.wait_reached()
+    w.kill("P")
+    with caplog.at_level(logging.CRITICAL):
+        if how == "move-of-another-device":
+            w.on_settle = while_the_move_holds_the_lock
+            assert w.move(device=urn1) == 0
+        else:
+            def at_the_first_put(n, actor, device_id, attributes):
+                if actor == "move" and "answer" not in seen:
+                    while_the_move_holds_the_lock()
+                    os.kill(os.getpid(), signal.SIGINT)         # the move stops before S2
+
+            w.agent.before.append(at_the_first_put)
+            assert w.move() == 1
+    status, body = seen["answer"]
+    assert status == 502 and body["step"] == "db", body
+    assert len(w.put_of("P")) == 1                              # the first push only: no restore
+    assert any(r.getMessage().startswith("INCONSISTENCY: a move holds the lock;")
+               and "device=S2" in r.getMessage() for r in caplog.records)
+    assert w.row(urn2) == EM
+    with pytest.raises(AssertionError, match="SILENT DEVICE S2"):     # the state the log warns about
+        assert_no_silent_device(w)
+    status, body = w.thread("P", lambda: w.change_profile("p2", urn=urn2)).result()   # save again
+    assert status == 200, body
     assert_no_silent_device(w)
