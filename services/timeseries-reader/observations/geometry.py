@@ -12,6 +12,7 @@ from typing import Any, Callable, Dict, Optional, Tuple
 import requests
 
 import urn_resolution
+from common.ngsi_read_guard import valid_entity_path
 
 logger = logging.getLogger(__name__)
 
@@ -42,7 +43,7 @@ def fetch_orion_entity_status(tenant_id: str, entity_id: str) -> FetchResult:
     Unlike urn_resolution.fetch_orion_entity this distinguishes a real 404 from an
     unreachable or failing Orion: only a 404 may delete a cached geometry.
     """
-    if not urn_resolution.ORION_URL or not entity_id:
+    if not urn_resolution.ORION_URL or not entity_id or not valid_entity_path(entity_id):
         return "error", None
     url = f"{urn_resolution.ORION_URL}/ngsi-ld/v1/entities/{entity_id}"
     try:

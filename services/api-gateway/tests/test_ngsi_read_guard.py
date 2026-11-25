@@ -12,6 +12,7 @@ from ngsi_read_guard import (
     types_params,
     valid_entity_path,
     valid_filter,
+    valid_name,
 )
 
 VALID_FILTERS = [
@@ -309,3 +310,13 @@ def test_entity_paths_are_accepted(path):
 @pytest.mark.parametrize("path", ["", "/", "?type=T", "a?b", "#", "a#b", "\x00", "a\x00", "%00", "%2500", "a\n", "a%0A", "%" + "25" * 8])
 def test_other_entity_paths_are_refused(path):
     assert valid_entity_path(path) is False
+
+
+@pytest.mark.parametrize("name", ["Device", "nkz:Zone", "https://example.org/T", "a" * 128])
+def test_names(name):
+    assert valid_name(name) is True
+
+
+@pytest.mark.parametrize("name", ["", "a b", "a,b", "a&b", "a" * 129, "1a", "a\n", None, 3])
+def test_other_names(name):
+    assert valid_name(name) is False
