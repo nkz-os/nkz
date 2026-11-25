@@ -16,6 +16,7 @@ from datetime import datetime, timedelta, timezone
 
 import requests
 
+from common.active_tenants import TENANT_IS_ACTIVE_SQL
 from parcel_activation import _get_db, dispatch_to_module
 
 logger = logging.getLogger(__name__)
@@ -161,7 +162,7 @@ def get_active_tenants() -> list[str]:
         cur = conn.cursor()
         cur.execute(
             "SELECT DISTINCT tenant_id FROM tenant_parcel_modules"
-            " WHERE tenant_id IS NOT NULL"
+            f" WHERE tenant_id IS NOT NULL AND {TENANT_IS_ACTIVE_SQL}"
         )
         rows = [r[0] for r in cur.fetchall()]
         cur.close()

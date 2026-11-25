@@ -16,6 +16,8 @@ from datetime import datetime
 sys.path.insert(0, '/app/common')
 sys.path.insert(0, '/app/weather-worker')
 
+from common.active_tenants import ACTIVE_TENANT_IDS_SQL, TENANT_IS_ACTIVE_SQL  # noqa: E402
+
 try:
     from db_helper import set_platform_admin_context
 except ImportError:
@@ -116,7 +118,7 @@ class TimescaleDBWriter:
 
                 # First, try to get configured tenant weather locations
                 try:
-                    query = """
+                    query = f"""
                         SELECT DISTINCT
                             twl.tenant_id,
                             twl.municipality_code,
@@ -127,7 +129,7 @@ class TimescaleDBWriter:
                         FROM tenant_weather_locations twl
                         JOIN weather_observations wo ON wo.municipality_code = twl.municipality_code
                             AND wo.tenant_id = twl.tenant_id
-                        WHERE wo.location IS NOT NULL
+                        WHERE wo.location IS NOT NULL AND twl.{TENANT_IS_ACTIVE_SQL}
                         ORDER BY twl.tenant_id, twl.municipality_code
                     """
 
@@ -148,7 +150,7 @@ class TimescaleDBWriter:
 
                 # Get all tenants
                 try:
-                    cursor.execute("SELECT DISTINCT tenant_id FROM tenants WHERE tenant_id IS NOT NULL")
+                    cursor.execute(ACTIVE_TENANT_IDS_SQL)
                     tenant_rows = cursor.fetchall()
                     tenants = [row['tenant_id'] for row in tenant_rows] if tenant_rows else []
                 except Exception as tenant_error:

@@ -50,6 +50,7 @@ from typing import Any, Callable, Dict, List, NamedTuple, Optional, Sequence, Se
 
 import asyncpg
 
+from common.active_tenants import ACTIVE_TENANT_IDS_SQL
 from common.observation_context import MEDIA, entity_id_conforms
 
 from .device_measurement import (
@@ -162,8 +163,8 @@ assert len(_UPDATE_TYPES) == len(UPDATE_COLUMNS)
 # SQL (each statement carries a `-- recompute:<name>` tag for logs and tests)
 # ---------------------------------------------------------------------------
 
-TENANTS_SQL = """-- recompute:tenants
-SELECT DISTINCT tenant_id FROM tenants WHERE tenant_id IS NOT NULL
+TENANTS_SQL = f"""-- recompute:tenants
+{ACTIVE_TENANT_IDS_SQL}
 """
 
 SET_TENANT_SQL = """-- recompute:set_tenant

@@ -14,6 +14,7 @@ import psycopg2
 import requests
 from tenacity import retry, stop_after_attempt, wait_fixed
 
+from common.active_tenants import ACTIVE_TENANT_IDS_SQL
 from common.ngsi_headers import inject_fiware_headers
 from common.subscription_health import reactivate_if_paused
 from nkz_platform_sdk.notify_auth import (
@@ -233,9 +234,7 @@ def _get_active_tenants() -> list:
         conn = psycopg2.connect(POSTGRES_URL)
         try:
             cur = conn.cursor()
-            cur.execute(
-                "SELECT DISTINCT tenant_id FROM tenants WHERE tenant_id IS NOT NULL"
-            )
+            cur.execute(ACTIVE_TENANT_IDS_SQL)
             rows = cur.fetchall()
             cur.close()
             return [r[0] for r in rows]
