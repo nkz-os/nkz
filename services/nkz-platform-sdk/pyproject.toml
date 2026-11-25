@@ -25,4 +25,4 @@ dev = [
 ]
 
 [tool.setuptools.package-data]
-nkz_platform_sdk = ["py.typed"]
+nkz_platform_sdk = ["py.typed", "data/*.json"]

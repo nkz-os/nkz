@@ -1,0 +1,12 @@
+{
+  "id": "urn:ngsi-ld:AgriCrop:acme:c_34007",
+  "type": "AgriCrop",
+  "name": {
+    "type": "Property",
+    "value": "fallow"
+  },
+  "agroVocConcept": {
+    "type": "Property",
+    "value": "http://aims.fao.org/aos/agrovoc/c_34007"
+  }
+}
