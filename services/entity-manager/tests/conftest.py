@@ -26,6 +26,8 @@ class FakeLockCursor:
         if self.conn.dead:
             raise psycopg2.OperationalError("server closed the connection unexpectedly")
         self.conn.sql = sql
+        if "pg_try_advisory" in sql:
+            self.conn.queries.append((sql, params))
 
     def fetchone(self):
         return (self.conn.grant,) if "pg_try_advisory" in self.conn.sql else (1,)
@@ -39,6 +41,7 @@ class FakeLockConn:
     def __init__(self, events, grant=True):
         self.events, self.grant = events, grant
         self.dead, self.closed, self.sql = False, 0, ""
+        self.queries = []          # (sql, params) of every lock query
 
     def cursor(self):
         return FakeLockCursor(self)
@@ -73,6 +76,17 @@ class FakeMoveLock:
         self.events = []
         self.plan = []
         self.conns = []
+
+    def lock_queries(self):
+        """(kind, lock class, tenant) of every lock query, in order: `kind` is "shared" or
+        "exclusive", read from the SQL the way the server would."""
+        out = []
+        for conn in self.conns:
+            for sql, params in conn.queries:
+                kind = "shared" if "pg_try_advisory_lock_shared(" in sql else (
+                    "exclusive" if "pg_try_advisory_lock(" in sql else sql)
+                out.append((kind, params[0], params[1]))
+        return out
 
     def connect(self):
         mode = self.plan.pop(0) if self.plan else "ok"

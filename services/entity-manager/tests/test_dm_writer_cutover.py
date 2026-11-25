@@ -19,6 +19,8 @@ import dataloggers  # noqa: E402
 import dm_writer_cutover as cut  # noqa: E402
 import writer_move_lock as wml  # noqa: E402
 
+_REAL_EXCLUSIVE_LOCK = cut._exclusive_lock     # the fixtures replace it by a fake
+
 CTX_URL = "http://context.invalid/ctx.json"
 DM_TYPE_IRI = "https://smartdatamodels.org/dataModel.Device/DeviceMeasurement"
 DEV = "https://smartdatamodels.org/dataModel.Device/"
@@ -1771,6 +1773,16 @@ def test_dry_run_verify_and_to_em_keep_working_while_disabled(world, http, monke
 
 
 # -- the lock -----------------------------------------------------------------------------
+
+def test_the_command_locks_the_exclusive_lock_of_its_own_tenant(move_lock):
+    """The seam the tests replace builds the real lock; the lock asks the server for the EXCLUSIVE
+    lock on (class, tenant) and for nothing else."""
+    lock = _REAL_EXCLUSIVE_LOCK("acme")
+    assert isinstance(lock, wml.ExclusiveLock) and lock.tenant == "acme"
+    with lock:
+        pass
+    assert move_lock.lock_queries() == [("exclusive", wml.LOCK_CLASS, "acme")]
+
 
 def _idx(world, kind, nth=0):
     return [i for i, e in enumerate(world.log) if e[0] == kind][nth]

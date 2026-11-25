@@ -369,6 +369,28 @@ def _traced(st, move_lock, clock=None):
             stack.enter_context(patch.object(dataloggers, "time", clock))
             stack.enter_context(patch.object(writer_move_lock, "time", clock))
         yield locks
+    # every lock a request takes (the re-take in a restore included) is the SHARED lock of THIS tenant
+    assert move_lock.lock_queries() == [("shared", writer_move_lock.LOCK_CLASS, TENANT)] * len(
+        move_lock.conns)
+
+
+def test_a_change_takes_the_shared_lock_of_its_own_tenant_and_so_does_the_restore(move_lock):
+    st, clock = _state(("em", None)), _Clock()
+    st.fail.update(MODEL_FAILURES["model-refused"])
+    with wired(st) as w:
+        with _traced(st, move_lock, clock):
+            _after(st, LOCK_ALIVE, 2, lambda: _kill(st, move_lock, clock, 5))
+            r = _change(w, _entity(ON_P["model-only"]))
+        assert r.status_code == 502
+        # the change's own lock, then the one the restore takes again
+        assert move_lock.lock_queries() == [("shared", writer_move_lock.LOCK_CLASS, TENANT)] * 2
+
+
+def test_a_healthy_change_takes_exactly_one_shared_lock_of_its_tenant(move_lock):
+    st = _state(("em", None))
+    with wired(st) as w, _traced(st, move_lock):
+        assert _change(w, _entity(ON_P["model-only"])).status_code == 200
+        assert move_lock.lock_queries() == [("shared", writer_move_lock.LOCK_CLASS, TENANT)]
 
 
 def _calls(log, *kinds):
