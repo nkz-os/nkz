@@ -32,7 +32,7 @@ def test_suspend_writes_both_facts(webhook_module):
     body, status, updates, conn, ing = _call(webhook_module, "suspend_tenant", None)
     assert status == 200 and body["ingestion"] == "ok"
     assert len(updates) == 1
-    assert "deleted_at = NOW()" in updates[0] and "status = 'suspended'" in updates[0]
+    assert "deleted_at = NOW()" in updates[0] and "status = CASE WHEN status = 'active' THEN 'suspended' ELSE status END" in updates[0]
     conn.commit.assert_called()
     ing.assert_called_once_with("acme", False)
 
@@ -41,7 +41,7 @@ def test_restore_writes_both_facts(webhook_module):
     body, status, updates, conn, ing = _call(webhook_module, "restore_tenant", "2026-01-01")
     assert status == 200 and body["ingestion"] == "ok"
     assert len(updates) == 1
-    assert "deleted_at = NULL" in updates[0] and "status = 'active'" in updates[0]
+    assert "deleted_at = NULL" in updates[0] and "status = CASE WHEN status = 'suspended' THEN 'active' ELSE status END" in updates[0]
     ing.assert_called_once_with("acme", True)
 
 

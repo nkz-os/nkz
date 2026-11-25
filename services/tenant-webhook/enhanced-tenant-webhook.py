@@ -4402,7 +4402,8 @@ def suspend_tenant(tenant_id: str):
                 }), 403
 
             cursor.execute(
-                """UPDATE tenants SET deleted_at = NOW(), status = 'suspended', deleted_by = %s,
+                """UPDATE tenants SET deleted_at = NOW(), deleted_by = %s,
+                   status = CASE WHEN status = 'active' THEN 'suspended' ELSE status END,
                    deletion_notes = %s, updated_at = NOW()
                    WHERE tenant_id = %s""",
                 (deleted_by, deletion_notes, tenant_id)
@@ -4481,7 +4482,8 @@ def restore_tenant(tenant_id: str):
                 return jsonify({'error': 'Tenant is not suspended'}), 409
 
             cursor.execute(
-                """UPDATE tenants SET deleted_at = NULL, status = 'active', deleted_by = NULL,
+                """UPDATE tenants SET deleted_at = NULL, deleted_by = NULL,
+                   status = CASE WHEN status = 'suspended' THEN 'active' ELSE status END,
                    purge_scheduled = NULL, deletion_notes = NULL, updated_at = NOW()
                    WHERE tenant_id = %s""",
                 (tenant_id,)
