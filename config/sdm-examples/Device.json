@@ -1,0 +1,77 @@
+{
+  "id": "urn:ngsi-ld:Device:acmefarm:sensor-001",
+  "type": "Device",
+  "name": {
+    "type": "Property",
+    "value": "Weather probe 1"
+  },
+  "location": {
+    "type": "GeoProperty",
+    "value": {
+      "type": "Point",
+      "coordinates": [
+        -2.0,
+        42.0
+      ]
+    }
+  },
+  "externalId": {
+    "type": "Property",
+    "value": "sensor-001"
+  },
+  "sensorType": {
+    "type": "Property",
+    "value": "weather_probe"
+  },
+  "profileCode": {
+    "type": "Property",
+    "value": "weather_probe"
+  },
+  "installedAt": {
+    "type": "Property",
+    "value": "2026-03-01T08:00:00Z"
+  },
+  "status": {
+    "type": "Property",
+    "value": "active"
+  },
+  "controlledAsset": {
+    "type": "Relationship",
+    "object": [
+      "urn:ngsi-ld:AgriParcel:acmefarm:parcel-1"
+    ]
+  },
+  "refDeviceModel": {
+    "type": "Relationship",
+    "object": "urn:ngsi-ld:DeviceModel:acmefarm:weather_probe"
+  },
+  "deviceCategory": {
+    "type": "Property",
+    "value": [
+      "sensor"
+    ]
+  },
+  "controlledProperty": {
+    "type": "Property",
+    "value": [
+      "humidity",
+      "temperature"
+    ]
+  },
+  "dateInstalled": {
+    "type": "Property",
+    "value": "2026-03-01T08:00:00Z"
+  },
+  "deviceState": {
+    "type": "Property",
+    "value": "active"
+  },
+  "mobility": {
+    "type": "Property",
+    "value": "fixed"
+  },
+  "deploymentId": {
+    "type": "Property",
+    "value": "00000000-0000-4000-8000-000000000001"
+  }
+}

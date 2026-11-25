@@ -29,6 +29,8 @@ from db_helper import get_db_connection_with_tenant, get_db_connection_simple, r
 from helpers import ORION_URL, CONTEXT_URL
 import dataloggers
 import deployments
+import device_models
+import device_profile
 import observation_catalogue
 from common.context_aliases import canonical_attribute
 from common.observation_context import validate_channel_overrides, validate_observation_context
@@ -204,31 +206,6 @@ def _coordinate(value, name: str) -> float:
     return number
 
 
-@dataloggers.in_step('db', 'Database error')
-def _read_profile(tenant_id: str, profile_code: str):
-    with get_db_connection_with_tenant(tenant_id) as conn:
-        cur = conn.cursor(cursor_factory=RealDictCursor)
-        cur.execute("""
-            SELECT id, sdm_entity_type, sdm_device_category, mapping
-            FROM sensor_profiles
-            WHERE code = %s AND (tenant_id IS NULL OR tenant_id = %s)
-            ORDER BY tenant_id NULLS LAST
-            LIMIT 1
-        """, (profile_code, tenant_id))
-        row = cur.fetchone()
-        cur.close()
-    return row
-
-
-@dataloggers.in_step('orion_read', 'Could not read the context broker')
-def _orion_dedup_check(tenant_id: str, entity_type: str, external_id: str):
-    return requests.get(
-        f"{ORION_URL}/ngsi-ld/v1/entities?type={entity_type}"
-        f'&q=externalId=="{external_id}"',
-        headers=inject_fiware_headers({}, tenant=tenant_id, has_context_in_body=False),
-        timeout=10)
-
-
 @dataloggers.in_step('orion_entity', 'Failed to create sensor entity in context broker')
 def _orion_create(tenant_id: str, entity: dict):
     return requests.post(
@@ -376,8 +353,8 @@ def _require_entities_exist(tenant_id: str, urns: list) -> None:
 
 def _profile_attributes(tenant_id: str, device: dict) -> set:
     """Canonical sdmAttribute names of the device's profile."""
-    code = _extract_prop_value(device, 'profileCode')
-    row = _read_profile(tenant_id, code) if isinstance(code, str) and code else None
+    code = device_profile.entity_profile_code(tenant_id, device)
+    row = dataloggers.read_profile(tenant_id, code) if code else None
     if not row:
         raise dataloggers.ApiError(400, 'The device has no known profile')
     mapping = row.get('mapping')
@@ -479,7 +456,9 @@ def register_sensor():
 
     Steps, each undone in reverse order if a later one fails (502 with the step):
     Orion entity, IoT Agent device, datalogger link row, broker ACL, then the
-    Device -> DeviceMeasurement subscription (logged only if it fails).
+    Device -> DeviceMeasurement subscription (logged only if it fails). The profile's
+    DeviceModel is written before a Device that points to it, and is never undone
+    (other Devices share it).
 
     Request body:
     {
@@ -523,7 +502,7 @@ def register_sensor():
     # Reads and validations first: nothing is written until all of them pass.
     datalogger = dataloggers.require_usable_datalogger(tenant_id, data['datalogger_id'])
 
-    profile_row = _read_profile(tenant_id, profile_code)
+    profile_row = dataloggers.read_profile(tenant_id, profile_code)
     if not profile_row:
         raise dataloggers.ApiError(404, f'Profile "{profile_code}" not found')
 
@@ -532,6 +511,8 @@ def register_sensor():
     # tractor / implement / robot / harvester for machines, NULL for devices: the
     # one attribute that tells machines of the same type apart.
     device_category = profile_row.get('sdm_device_category')
+    is_device = sdm_entity_type == 'Device'
+    official_attrs = device_models.profile_attrs(tenant_id, profile_row) if is_device else {}
     profile_mapping = profile_row.get('mapping')
     measurements = (profile_mapping.get('measurements') or []) if isinstance(profile_mapping, dict) else []
     _check_profile_mappings(measurements)
@@ -544,13 +525,13 @@ def register_sensor():
     if dataloggers.device_link(tenant_id, orion_entity_id):
         raise dataloggers.ApiError(409, 'Device is already on a datalogger')
 
-    orion_check = _orion_dedup_check(tenant_id, sdm_entity_type, external_id)
-    if orion_check.status_code == 200 and orion_check.json():
-        existing = orion_check.json()[0]
+    # By id: it carries type, tenant and external id. A failed read is never "not there".
+    existing = _orion_get_entity(tenant_id, orion_entity_id)
+    if existing is not None:
         return jsonify({
             'error': f'Sensor with external_id "{external_id}" already exists',
             'sensor': {'id': existing.get('id'),
-                       'external_id': _extract_prop_value(existing, 'externalId'),
+                       'external_id': external_id,
                        'name': _extract_prop_value(existing, 'name')},
         }), 409
 
@@ -584,6 +565,13 @@ def register_sensor():
         # controlledAsset is the SDM device->asset relationship; first entry is the owner.
         'controlledAsset': {'type': 'Relationship', 'object': parcels},
     }
+    # Device only: these belong to the official Device. On a ManufacturingMachine `installedAt` and
+    # `status` are the OFFICIAL attributes and none of these exists, so its body stays as it is:
+    # do not unify the two.
+    if is_device:
+        orion_entity.update(official_attrs)
+        orion_entity['dateInstalled'] = dict(orion_entity['installedAt'])
+        orion_entity['deviceState'] = dict(orion_entity['status'])
     if device_category:
         orion_entity['category'] = {'type': 'Property', 'value': device_category}
     if metadata:
@@ -614,6 +602,10 @@ def register_sensor():
                                             _actor(), 'registration', first=True)
         undo.push('deployment', lambda: deployments.delete_deployment(tenant_id, first['id']))
         orion_entity.update(_observation_attrs(first))
+
+        if is_device:
+            # Before the Device, so its refDeviceModel always has a target.
+            device_models.ensure_device_model(tenant_id, profile_row)
 
         orion_response = _orion_create(tenant_id, orion_entity)
         if orion_response.status_code == 409:
@@ -938,6 +930,10 @@ def correct_device_deployment(deployment_id):
 
 _PROFILE_CODE = re.compile(r'[A-Za-z0-9_.-]{1,64}')
 _VALUE_TYPES = ('Number', 'Text')
+# Who makes the equipment: body key -> sensor_profiles column.
+_MAKER_COLUMNS = {'manufacturerName': 'manufacturer_name', 'brandName': 'brand_name',
+                  'modelName': 'model_name'}
+_MAKER_MAX_LENGTH = 128
 
 
 def _check_profile_mappings(measurements: list) -> None:
@@ -1064,6 +1060,27 @@ def _validated_profile(data: dict, tenant_id: str) -> tuple:
     return name.strip(), description, {**mapping, 'measurements': measurements}
 
 
+def _validated_maker(data: dict) -> dict:
+    """Column -> trimmed value of the maker keys present in the body; null means undeclared."""
+    out = {}
+    for key, column in _MAKER_COLUMNS.items():
+        if key not in data:
+            continue
+        value = data[key]
+        if value is not None:
+            if not isinstance(value, str) or not 1 <= len(value.strip()) <= _MAKER_MAX_LENGTH:
+                raise dataloggers.ApiError(
+                    400, f'{key} must be text of 1 to {_MAKER_MAX_LENGTH} characters')
+            value = value.strip()
+        out[column] = value
+    return out
+
+
+def _maker_json(row: dict) -> dict:
+    """The maker keys of a profile row; null when undeclared."""
+    return {key: row.get(column) for key, column in _MAKER_COLUMNS.items()}
+
+
 @dataloggers.in_step('db', 'Database error')
 def _profile_visible(tenant_id: str, code: str):
     with get_db_connection_with_tenant(tenant_id) as conn:
@@ -1089,15 +1106,19 @@ def create_sensor_profile():
     if not isinstance(code, str) or not _PROFILE_CODE.fullmatch(code):
         raise dataloggers.ApiError(400, 'Invalid code')
     name, description, mapping = _validated_profile(data, tenant)
+    maker = dict.fromkeys(_MAKER_COLUMNS.values())
+    maker.update(_validated_maker(data))
     if _profile_visible(tenant, code):
         raise dataloggers.ApiError(409, 'Profile code already exists')
     try:
         with get_db_connection_with_tenant(tenant) as conn:
             cur = conn.cursor()
             cur.execute("""
-                INSERT INTO sensor_profiles (tenant_id, code, name, description, sdm_entity_type, mapping)
-                VALUES (%s, %s, %s, %s, %s, %s)
-            """, (tenant, code, name, description, 'Device', Json(mapping)))
+                INSERT INTO sensor_profiles (tenant_id, code, name, description, sdm_entity_type, mapping,
+                                             manufacturer_name, brand_name, model_name)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+            """, (tenant, code, name, description, 'Device', Json(mapping),
+                  maker['manufacturer_name'], maker['brand_name'], maker['model_name']))
             conn.commit()
             cur.close()
     except psycopg2.errors.UniqueViolation:
@@ -1106,7 +1127,7 @@ def create_sensor_profile():
         logger.error("profile insert failed: %s", type(exc).__name__)
         raise dataloggers.ApiError(502, 'Database error', 'db')
     return jsonify({'code': code, 'name': name, 'sdm_entity_type': 'Device',
-                    'mapping': mapping}), 201
+                    'mapping': mapping, **_maker_json(maker)}), 201
 
 
 @sensors_bp.route('/api/sensors/profiles/<code>', methods=['PUT'])
@@ -1118,6 +1139,10 @@ def update_sensor_profile(code):
     if data.get('code', code) != code:
         raise dataloggers.ApiError(400, 'code in body does not match the URL')
     name, description, mapping = _validated_profile(data, tenant)
+    # Column names are constants. Absent maker keys stay out of the statement, so the stored
+    # value is left alone.
+    columns = {'name': name, 'description': description, 'mapping': Json(mapping),
+               **_validated_maker(data)}
     row = _profile_visible(tenant, code)
     if not row:
         raise dataloggers.ApiError(404, 'Profile not found')
@@ -1125,18 +1150,20 @@ def update_sensor_profile(code):
         raise dataloggers.ApiError(403, 'Global profiles are read-only')
     try:
         with get_db_connection_with_tenant(tenant) as conn:
-            cur = conn.cursor()
-            cur.execute("""
-                UPDATE sensor_profiles SET name = %s, description = %s, mapping = %s
+            cur = conn.cursor(cursor_factory=RealDictCursor)
+            assignments = ', '.join(f'{column} = %s' for column in columns)
+            cur.execute(f"""
+                UPDATE sensor_profiles SET {assignments}
                 WHERE code = %s AND tenant_id = %s
-            """, (name, description, Json(mapping), code, tenant))
-            updated = cur.rowcount
+                RETURNING manufacturer_name, brand_name, model_name
+            """, (*columns.values(), code, tenant))
+            maker = cur.fetchone()
             conn.commit()
             cur.close()
     except Exception as exc:
         logger.error("profile update failed: %s", type(exc).__name__)
         raise dataloggers.ApiError(502, 'Database error', 'db')
-    if not updated:
+    if not maker:
         raise dataloggers.ApiError(404, 'Profile not found')
     result = {'reprovisioned': [], 'failed': []}
     try:
@@ -1147,7 +1174,9 @@ def update_sensor_profile(code):
         logger.error("profile %s: devices could not be listed for re-provisioning: %s",
                      code, type(exc).__name__)
         result['error'] = 'device_listing_failed'
-    return jsonify({'code': code, 'name': name, 'mapping': mapping, **result}), 200
+    result.update(device_models.refresh_profile(tenant, code))
+    return jsonify({'code': code, 'name': name, 'mapping': mapping, **_maker_json(maker),
+                    **result}), 200
 
 
 @sensors_bp.route('/api/sensors/profiles', methods=['GET'])
@@ -1161,7 +1190,8 @@ def list_sensor_profiles():
             try:
                 cur = conn.cursor(cursor_factory=RealDictCursor)
                 cur.execute("""
-                    SELECT code, name, description, sdm_entity_type, sdm_category, mapping, metadata, health_defaults
+                    SELECT code, name, description, sdm_entity_type, sdm_category, mapping, metadata, health_defaults,
+                           manufacturer_name, brand_name, model_name
                     FROM sensor_profiles
                     WHERE tenant_id IS NULL OR tenant_id = %s
                     ORDER BY code
@@ -1174,7 +1204,8 @@ def list_sensor_profiles():
                         'name': row['name'],
                         'description': row['description'],
                         'sdm_entity_type': row['sdm_entity_type'],
-                        'sdm_category': row['sdm_category']
+                        'sdm_category': row['sdm_category'],
+                        **_maker_json(row),
                     }
 
                     # Include metadata if available

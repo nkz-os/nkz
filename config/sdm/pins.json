@@ -286,6 +286,39 @@
     "sha256": "b43a8fbdf3e2bf1f889d75cfe4f31239fe72e02dab20967f08ff1c7c69b6eb75"
   },
   "gaps": {
+    "ControlledPropertyType": {
+      "values_missing_from_published_enum": [
+        "azimuth",
+        "batteryLevel",
+        "chlorophyllContent",
+        "current",
+        "efficiency",
+        "elevation",
+        "inclination",
+        "leafAreaIndex",
+        "leafWetness",
+        "ndvi",
+        "powerFactor",
+        "sapFlow",
+        "shadingCoverage",
+        "soilCompaction",
+        "soilNitrogen",
+        "soilOrganicMatter",
+        "soilPhosphorus",
+        "soilPotassium",
+        "soilingIndex",
+        "solarZenith",
+        "stateOfCharge",
+        "status",
+        "stemDiameter",
+        "stemDiameterVariation",
+        "stemWaterPotential",
+        "uvIndex",
+        "vaporPressureDeficit",
+        "voltage"
+      ],
+      "note": "Quantities the platform measures for which the enum of dataModel.Device has no value that is exact or broader and true; a Device omits them from controlledProperty."
+    },
     "EOSatelliteImagery": {
       "terms_missing_from_published_context": [
         "analytics"

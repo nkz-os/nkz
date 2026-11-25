@@ -12,7 +12,6 @@ Alert
 Animal
 Building
 Device
-DeviceModel
 EOProduct
 EOSatelliteImagery
 ManufacturingMachine

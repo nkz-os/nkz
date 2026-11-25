@@ -18,6 +18,8 @@ import psycopg2
 from flask import Blueprint, request, jsonify
 
 from common.api_errors import internal_error
+from device_profile import entity_profile_code, first_time
+from device_urn import external_id_of, is_device_type
 from nkz_platform_sdk.notify_auth import accept_master_from_env, verify_notification
 
 logger = logging.getLogger(__name__)
@@ -110,6 +112,79 @@ def _parcel_ref(entity: dict) -> Optional[str]:
     return _first_urn(entity.get("controlledAsset"), "urn:ngsi-ld:AgriParcel:") or _extract_prop(entity, "parcelId") or None
 
 
+_DEVICE_IRI = "https://smartdatamodels.org/dataModel.Device/"
+
+
+def _first_present(entity: dict, *keys: str) -> Any:
+    """The value of the first of `keys` the entity carries, even when that value is empty."""
+    return next((_extract_prop(entity, key) for key in keys if key in entity), None)
+
+
+def _date_text(tenant_id: str, entity: dict, *keys: str) -> Optional[str]:
+    """The text of the first of `keys` the entity carries, a DateTime literal unwrapped.
+
+    Anything else cannot be bound to the timestamp column and would roll the whole batch back, so it
+    counts as undeclared, with one log per Device.
+    """
+    key = next((k for k in keys if k in entity), None)
+    value = _extract_prop(entity, key) if key else None
+    if value is None:
+        return None
+    if isinstance(value, dict) and value.get("@type") == "DateTime":
+        value = value.get("@value")
+    if isinstance(value, str):
+        return value
+    if first_time("date_not_text", tenant_id, entity.get("id")):
+        logger.warning(
+            "installation date ignored, its value is not text: tenant=%s entity_id=%s "
+            "attribute=%s type=%s", tenant_id, entity.get("id"), key, type(value).__name__,
+        )
+    return None
+
+
+def _registered_device(tenant_id: str, entity: dict) -> Optional[dict]:
+    """Identity, profile, installation and state of a registered Device.
+
+    None for any other Device-typed twin: its id is not the one registration writes, or it is
+    on no profile.
+    """
+    urn = entity.get("id")
+    external_id = (external_id_of(tenant_id, urn)
+                   if isinstance(urn, str) and is_device_type(urn) else None)
+    profile_code = entity_profile_code(tenant_id, entity) if external_id else None
+    if not external_id:
+        logger.debug("device notification ignored: tenant=%s entity_id=%s reason=%s",
+                     tenant_id, urn, "not the id of a registered device")
+        return None
+    if not profile_code:
+        # Somebody registered this one: without a profile it silently stops being updated here.
+        if first_time("no_profile", tenant_id, urn):
+            logger.info("device notification ignored: tenant=%s entity_id=%s reason=%s",
+                        tenant_id, urn, "no profile")
+        return None
+    return {
+        "external_id": external_id,
+        "profile_code": profile_code,
+        # ASSUMPTION: a `dateInstalled` that is not text gives way to `installedAt`, as an empty one
+        # does; NULL when neither is text.
+        "installed_at": (_date_text(tenant_id, entity, "dateInstalled", _DEVICE_IRI + "dateInstalled")
+                         or _date_text(tenant_id, entity, "installedAt")),
+        # A profile may declare `status` as a reading (an inverter's code), so a Device that has
+        # `deviceState` never takes its state from `status`, not even when `deviceState` is empty.
+        "status": _first_present(entity, "deviceState", _DEVICE_IRI + "deviceState", "status"),
+    }
+
+
+def _legacy_sensor(entity: dict) -> dict:
+    """The same of a legacy AgriSensor."""
+    return {
+        "external_id": _extract_prop(entity, "externalId"),
+        "profile_code": _extract_prop(entity, "profileCode"),
+        "installed_at": _extract_prop(entity, "installedAt"),
+        "status": _extract_prop(entity, "status"),
+    }
+
+
 def _compute_severity(probability_score: float) -> str:
     if probability_score >= 95:
         return "critical"
@@ -171,21 +246,27 @@ def _handle_agrisensor(tenant_id: str, entities: list) -> int:
         _set_tenant_context(conn, tenant_id)
         with conn.cursor() as cur:
             for entity in entities:
-                external_id = _extract_prop(entity, "externalId")
+                if entity.get("type") == "Device":
+                    sensor = _registered_device(tenant_id, entity)
+                    if sensor is None:
+                        continue
+                else:
+                    sensor = _legacy_sensor(entity)
+                external_id = sensor["external_id"]
                 name = _extract_prop(entity, "name")
-                profile_code = _extract_prop(entity, "profileCode")
+                profile_code = sensor["profile_code"]
                 location = entity.get("location", {})
                 is_under_canopy = _extract_prop(entity, "isUnderCanopy")
                 metadata_val = _extract_prop(entity, "metadata")
                 altitude = _extract_prop(entity, "altitudeMeters")
                 parcel_id = _parcel_ref(entity)
-                installed_at = _extract_prop(entity, "installedAt")
-                status = _extract_prop(entity, "status") or "active"
+                installed_at = sensor["installed_at"]
+                status = sensor["status"] or "active"
 
                 if not external_id or not name:
                     continue
 
-                # Resolve profile_id from profileCode
+                # Resolve profile_id from the profile code
                 profile_id = None
                 if profile_code:
                     cur.execute(

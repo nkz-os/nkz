@@ -119,7 +119,7 @@ def test_profile_change_on_an_iota_device_keeps_the_dm_mappings_with_the_new_cod
 
 def test_undo_after_an_orion_failure_restores_dm_mappings_with_the_old_code():
     st, urn = _state("iota", "legacy")
-    st.fail["orion_patch"] = True
+    st.fail["orion_attrs"] = 500
     with wired(st) as w:
         _orion_device(w, urn)
         r = _put_profile(urn)
@@ -147,7 +147,7 @@ def test_profile_change_invalid_mapping_is_400_before_anything_is_touched():
         _orion_device(w, urn)
         r = _put_profile(urn)
     assert r.status_code == 400
-    assert not any(e[0] == "iota" or e[:2] == ("orion", "patch") for e in st.log)
+    assert not any(e[0] in ("iota", "orion") for e in st.log)
 
 
 def test_profile_change_state_read_failure_is_502_and_touches_nothing():
@@ -157,7 +157,7 @@ def test_profile_change_state_read_failure_is_502_and_touches_nothing():
         _orion_device(w, urn)
         r = _put_profile(urn)
     assert r.status_code == 502
-    assert not any(e[0] == "iota" or e[:2] == ("orion", "patch") for e in st.log)
+    assert not any(e[0] in ("iota", "orion") for e in st.log)
 
 
 def test_profile_change_iota_device_without_shape_is_500_and_touches_nothing():
@@ -166,7 +166,7 @@ def test_profile_change_iota_device_without_shape_is_500_and_touches_nothing():
         _orion_device(w, urn)
         r = _put_profile(urn)
     assert r.status_code == 500
-    assert not any(e[0] == "iota" or e[:2] == ("orion", "patch") for e in st.log)
+    assert not any(e[0] in ("iota", "orion") for e in st.log)
 
 
 def test_reprovision_pushes_dm_and_device_for_iota_devices_only():
@@ -305,7 +305,7 @@ def test_change_repushes_with_dm_mappings_when_the_device_moves_to_iota_meanwhil
 
 def test_undo_repushes_with_dm_mappings_when_the_device_moves_to_iota_meanwhile():
     st, urn = _state()
-    st.fail["orion_patch"] = True
+    st.fail["orion_attrs"] = 500
     _flip(st, on=(2,))  # the undo push is the second one
     with wired(st) as w:
         _orion_device(w, urn)
@@ -336,7 +336,7 @@ def test_change_with_a_state_that_never_settles_is_502_and_restores():
         _orion_device(w, urn)
         r = _put_profile(urn)
     assert r.status_code == 502 and r.get_json()["step"] == "dm_state"
-    assert ("orion", "patch") not in st.log
+    assert not any(e[0] == "orion" for e in st.log)
     assert len(st.iota_attrs) > 3  # 3 pushes, then the restore pushes
 
 
@@ -347,7 +347,7 @@ def test_change_with_a_failing_re_read_is_502_and_restores():
         _orion_device(w, urn)
         r = _put_profile(urn)
     assert r.status_code == 502 and r.get_json()["step"] == "dm_state"
-    assert ("orion", "patch") not in st.log
+    assert not any(e[0] == "orion" for e in st.log)
     # the state cannot be read for the restore either: the old profile's attributes go out,
     # built from the last known state (em)
     assert st.iota_attrs[-1][1] == w.iota.build_iota_attributes(PROFILE["mapping"]["measurements"])
@@ -358,11 +358,11 @@ def test_restore_after_an_orion_failure_survives_an_unreadable_state(caplog):
     with wired(st) as w, caplog.at_level("CRITICAL"):
         _orion_device(w, urn)
 
-        def failing_patch(url, **kw):
+        def failing_attrs(urn, attrs):
             st.fail["dm_state"] = True
             return _resp(500)
 
-        w.orion.patch = failing_patch
+        w.orion._append = failing_attrs
         r = _put_profile(urn)
     assert r.status_code == 502 and r.get_json()["step"] == "orion_profile"
     assert len(st.iota_attrs) == 2
@@ -407,7 +407,7 @@ def test_reprovision_lists_the_device_as_failed(mode):
 
 def test_undo_failure_is_logged_with_both_profile_codes(caplog):
     st, urn = _state()
-    st.fail["orion_patch"] = True
+    st.fail["orion_attrs"] = 500
     st.after_update = lambda n: st.fail.__setitem__("iota_update", True) if n == 1 else None
     with wired(st) as w, caplog.at_level("CRITICAL"):
         _orion_device(w, urn)
@@ -447,7 +447,7 @@ def test_change_second_push_failure_restores_and_is_502_dm_state():
         _orion_device(w, urn)
         r = _put_profile(urn)
     assert r.status_code == 502 and r.get_json()["step"] == "dm_state"
-    assert ("orion", "patch") not in st.log
+    assert not any(e[0] == "orion" for e in st.log)
     assert len(st.iota_attrs) == 3  # first push, failed second push, restore attempt
 
 
@@ -459,7 +459,7 @@ def test_change_rebuild_error_after_the_state_moved_restores_and_is_not_a_400():
         _orion_device(w, urn)
         r = _put_profile(urn)
     assert r.status_code == 502 and r.get_json()["step"] == "dm_state"
-    assert ("orion", "patch") not in st.log
+    assert not any(e[0] == "orion" for e in st.log)
     (_, first), (_, restore) = st.iota_attrs
     assert not _dm(first) and _dm(restore) and _device_type_literal(restore) == "'p'"
 

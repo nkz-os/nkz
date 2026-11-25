@@ -1,0 +1,33 @@
+{
+  "id": "urn:ngsi-ld:DeviceModel:acmefarm:soil_probe",
+  "type": "DeviceModel",
+  "name": {
+    "type": "Property",
+    "value": "Soil probe"
+  },
+  "manufacturerName": {
+    "type": "Property",
+    "value": "Acme Instruments"
+  },
+  "brandName": {
+    "type": "Property",
+    "value": "AcmeSense"
+  },
+  "modelName": {
+    "type": "Property",
+    "value": "AS-100"
+  },
+  "category": {
+    "type": "Property",
+    "value": [
+      "sensor"
+    ]
+  },
+  "controlledProperty": {
+    "type": "Property",
+    "value": [
+      "soilMoisture",
+      "temperature"
+    ]
+  }
+}

@@ -68,8 +68,9 @@ def _dep(dep_id="dep-1", valid_from=T0, valid_to=None, feature=None, ctx=None, o
 
 
 @contextmanager
-def env(current=None):
-    """wired() + an Orion that answers entity reads + deployment repository fakes."""
+def env(current=None, registered=True):
+    """wired() + an Orion that answers entity reads (the device itself too, unless `registered`
+    is False) + deployment repository fakes."""
     import blueprints.sensors as sensors
     import dataloggers
     st = FakeState()
@@ -78,7 +79,8 @@ def env(current=None):
     with wired(st) as w:
         orion = ObsOrion(st)
         orion.entities[FEATURE] = {"id": FEATURE}
-        orion.entities[URN] = {"id": URN, "profileCode": {"type": "Property", "value": "p"}}
+        if registered:
+            orion.entities[URN] = {"id": URN, "profileCode": {"type": "Property", "value": "p"}}
         opened = []
 
         def open_dep(tenant, urn, spec, valid_from, actor, reason, first=False):
@@ -126,7 +128,7 @@ def _send(c, method, path, body=None):
 # ---- registration ------------------------------------------------------------
 
 def test_register_with_observation_fields_writes_device_attrs_and_first_deployment():
-    with env() as e:
+    with env(registered=False) as e:
         r = _register(client(), observesFeature=FEATURE, observationContext=CTX,
                       channelOverrides=OVERRIDES, mobility="mobile",
                       validFrom="2026-03-01T10:00:00+02:00")
@@ -146,7 +148,7 @@ def test_register_with_observation_fields_writes_device_attrs_and_first_deployme
 
 
 def test_register_default_valid_from_is_the_installed_at_instant():
-    with env() as e:
+    with env(registered=False) as e:
         r = _register(client())
     assert r.status_code == 201
     installed = e.orion.entities[URN]["installedAt"]["value"]
@@ -156,7 +158,7 @@ def test_register_default_valid_from_is_the_installed_at_instant():
 
 def test_register_rejects_future_valid_from():
     future = (datetime.now(timezone.utc) + timedelta(days=1)).isoformat()
-    with env() as e:
+    with env(registered=False) as e:
         r = _register(client(), validFrom=future)
     assert r.status_code == 400
     assert ("orion", "post") not in e.state.log and not e.dep.opened
@@ -164,14 +166,14 @@ def test_register_rejects_future_valid_from():
 
 @pytest.mark.parametrize("bad", ["2026-03-01T08:00:00", "yesterday", 5])
 def test_register_rejects_valid_from_without_offset(bad):
-    with env() as e:
+    with env(registered=False) as e:
         r = _register(client(), validFrom=bad)
     assert r.status_code == 400 and not e.dep.opened
 
 
 def test_register_rejects_observes_feature_of_other_tenant():
     # The tenant-scoped read finds nothing for another tenant's entity: 404.
-    with env() as e:
+    with env(registered=False) as e:
         r = _register(client(), observesFeature=OTHER)
     assert r.status_code == 400
     assert OTHER in r.get_json()["error"]
@@ -180,7 +182,7 @@ def test_register_rejects_observes_feature_of_other_tenant():
 
 
 def test_register_rejects_missing_observes_feature_entity():
-    with env() as e:
+    with env(registered=False) as e:
         r = _register(client(), observesFeature="urn:ngsi-ld:AgriParcel:nope")
     assert r.status_code == 400
     assert "urn:ngsi-ld:AgriParcel:nope" in r.get_json()["error"]
@@ -189,7 +191,7 @@ def test_register_rejects_missing_observes_feature_entity():
 
 def test_register_checks_structure_enclosure_and_override_urns():
     ctx = {"medium": "enclosedAir", "enclosure": "urn:ngsi-ld:Greenhouse:gone"}
-    with env() as e:
+    with env(registered=False) as e:
         r = _register(client(), observationContext=ctx)
         assert r.status_code == 400 and "urn:ngsi-ld:Greenhouse:gone" in r.get_json()["error"]
         ov = {"airTemperature": {"observesFeature": "urn:ngsi-ld:Plant:gone"}}
@@ -199,14 +201,14 @@ def test_register_checks_structure_enclosure_and_override_urns():
 
 
 def test_register_orion_read_error_is_502():
-    with env() as e:
+    with env(registered=False) as e:
         e.orion.get = MagicMock(return_value=_resp(500, {}))
         r = _register(client(), observesFeature=FEATURE)
     assert r.status_code == 502 and not e.dep.opened
 
 
 def test_register_rejects_override_for_attribute_not_in_profile():
-    with env() as e:
+    with env(registered=False) as e:
         r = _register(client(), channelOverrides={"soilMoisture": {
             "observationContext": {"medium": "water"}}})
     assert r.status_code == 400 and "soilMoisture" in r.get_json()["error"]
@@ -217,7 +219,7 @@ def test_register_rejects_invalid_context():
     from common.observation_context import validate_observation_context
     with pytest.raises(ValueError) as exc:
         validate_observation_context({"medium": "moon"})
-    with env() as e:
+    with env(registered=False) as e:
         r = _register(client(), observationContext={"medium": "moon"})
     assert r.status_code == 400
     assert r.get_json()["error"] == str(exc.value)
@@ -226,12 +228,12 @@ def test_register_rejects_invalid_context():
 
 @pytest.mark.parametrize("over", [{"mobility": "flying"}, {"observationContext": []}])
 def test_register_rejects_bad_mobility_or_context_shape(over):
-    with env():
+    with env(registered=False):
         assert _register(client(), **over).status_code == 400
 
 
 def test_registration_failure_after_deployment_removes_it():
-    with env() as e:
+    with env(registered=False) as e:
         e.state.fail["set_role_topics"] = True
         r = _register(client())
     assert r.status_code == 502
@@ -244,7 +246,7 @@ def test_registration_failure_after_deployment_removes_it():
 
 
 def test_orion_create_failure_removes_the_deployment():
-    with env() as e:
+    with env(registered=False) as e:
         e.state.fail["orion_post"] = True
         r = _register(client())
     assert r.status_code == 502
@@ -252,7 +254,7 @@ def test_orion_create_failure_removes_the_deployment():
 
 
 def test_register_does_not_open_deployment_over_an_open_deployment():
-    with env() as e:
+    with env(registered=False) as e:
         e.dep.listing.return_value = [_dep()]
         r = _register(client())
     assert r.status_code == 409
@@ -261,7 +263,7 @@ def test_register_does_not_open_deployment_over_an_open_deployment():
 
 def test_register_after_closed_history_is_allowed_as_first_deployment():
     closed = _dep("dep-0", T0 - timedelta(days=9), T0 - timedelta(days=1))
-    with env() as e:
+    with env(registered=False) as e:
         e.dep.listing.return_value = [closed]
         r = _register(client())
     assert r.status_code == 201, r.get_json()
@@ -270,7 +272,7 @@ def test_register_after_closed_history_is_allowed_as_first_deployment():
 
 def test_register_before_the_end_of_closed_history_is_409():
     closed = _dep("dep-0", T0 - timedelta(days=9), T0 + timedelta(days=1))
-    with env() as e:
+    with env(registered=False) as e:
         e.dep.listing.return_value = [closed]
         r = _register(client(), validFrom="2026-03-01T08:00:00Z")
     assert r.status_code == 409 and "after the end" in r.get_json()["error"]
@@ -278,7 +280,7 @@ def test_register_before_the_end_of_closed_history_is_409():
 
 
 def test_registration_undo_deletes_only_the_deployment_it_created():
-    with env() as e:
+    with env(registered=False) as e:
         e.state.fail["set_role_topics"] = True
         _register(client())
     assert e.dep.delete.call_args[0] == (TENANT, "dep-new")
@@ -351,7 +353,7 @@ def test_correct_current_lookup_failure_after_commit_is_logged_502(caplog):
 
 
 def test_register_without_new_fields_still_works():
-    with env() as e:
+    with env(registered=False) as e:
         r = _register(client())
     assert r.status_code == 201, r.get_json()
     spec = e.dep.opened[0].spec
@@ -364,7 +366,7 @@ def test_register_without_new_fields_still_works():
 
 
 def test_equipment_medium_without_feature_writes_no_self_reference():
-    with env() as e:
+    with env(registered=False) as e:
         r = _register(client(), observationContext={"medium": "equipment"})
     assert r.status_code == 201
     assert "observesFeature" not in e.orion.entities[URN]

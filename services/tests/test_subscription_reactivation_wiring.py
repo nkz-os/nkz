@@ -29,6 +29,7 @@ def _paused(sub_def: dict, module) -> dict:
     return {
         "id": module._subscription_id(sub_def),
         "description": sub_def["description"],
+        **{k: sub_def[k] for k in ("watchedAttributes",) if k in sub_def},
         "isActive": False,
         "status": "paused",
     }

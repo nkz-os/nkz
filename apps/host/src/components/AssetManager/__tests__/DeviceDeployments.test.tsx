@@ -230,4 +230,59 @@ describe('DeviceDeployments', () => {
       readDeviceProfileCode({ 'https://nkz-os.org/ns/profileCode': { type: 'Property', value: 'prof-1' }, hasDeviceProfile: urn }),
     ).toBe('prof-1');
   });
+  describe('refDeviceModel', () => {
+    const model = 'urn:ngsi-ld:DeviceModel:acme:m-1.v2';
+    const deviceId = 'urn:ngsi-ld:Device:acme:d1';
+    const old = 'urn:ngsi-ld:DeviceProfile:old';
+
+    it('reads the short name before hasDeviceProfile, normalized or keyValues', () => {
+      expect(readDeviceProfileCode({ id: deviceId, refDeviceModel: { type: 'Relationship', object: model }, hasDeviceProfile: old })).toBe('m-1.v2');
+      expect(readDeviceProfileCode({ refDeviceModel: model })).toBe('m-1.v2');
+    });
+
+    it('profileCode wins when the two codes differ', () => {
+      const ref = { type: 'Relationship', object: model };
+      for (const profileCode of ['p', { type: 'Property', value: 'p' }]) {
+        expect(readDeviceProfileCode({ id: deviceId, refDeviceModel: ref, profileCode, hasDeviceProfile: old })).toBe('p');
+        expect(
+          readDeviceProfileCode({ 'https://smartdatamodels.org/dataModel.Device/refDeviceModel': ref, profileCode }),
+        ).toBe('p');
+      }
+      expect(readDeviceProfileCode({ id: deviceId, refDeviceModel: ref, profileCode: 'm-1.v2' })).toBe('m-1.v2');
+    });
+
+    it('reads the model when profileCode is not usable', () => {
+      for (const value of ['', null, 5]) {
+        expect(readDeviceProfileCode({ refDeviceModel: model, profileCode: { type: 'Property', value } })).toBe('m-1.v2');
+        expect(readDeviceProfileCode({ refDeviceModel: model, profileCode: value })).toBe('m-1.v2');
+      }
+    });
+
+    it('reads the full IRI term', () => {
+      expect(
+        readDeviceProfileCode({ 'https://smartdatamodels.org/dataModel.Device/refDeviceModel': { type: 'Relationship', object: model } }),
+      ).toBe('m-1.v2');
+    });
+
+    it('ignores a malformed or foreign-tenant model and falls through', () => {
+      const bad = [
+        'urn:ngsi-ld:DeviceModel:acme',
+        'urn:ngsi-ld:DeviceModel:acme:a:b',
+        'urn:ngsi-ld:DeviceProfile:acme:x',
+        'urn:ngsi-ld:DeviceModel:acme:bad code',
+        `urn:ngsi-ld:DeviceModel:acme:${'a'.repeat(65)}`,
+        'urn:ngsi-ld:DeviceModel:acme:',
+      ];
+      for (const ref of bad) {
+        expect(readDeviceProfileCode({ refDeviceModel: ref, profileCode: 'p' })).toBe('p');
+        expect(readDeviceProfileCode({ refDeviceModel: ref, hasDeviceProfile: old })).toBe('old');
+      }
+      expect(readDeviceProfileCode({ id: 'urn:ngsi-ld:Device:other:d1', refDeviceModel: model, profileCode: 'p' })).toBe('p');
+      expect(readDeviceProfileCode({ id: 'urn:ngsi-ld:Device:other:d1', refDeviceModel: model })).toBeNull();
+    });
+
+    it('accepts a model when the entity id is not a tenant Device urn', () => {
+      expect(readDeviceProfileCode({ id: 'something', refDeviceModel: model })).toBe('m-1.v2');
+    });
+  });
 });

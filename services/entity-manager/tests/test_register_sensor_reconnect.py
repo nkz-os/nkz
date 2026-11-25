@@ -341,13 +341,13 @@ def test_profile_change_reprovisions_attributes_and_entity():
                                  "profileCode": {"type": "Property", "value": "p"}}
         r = _put_profile(client(), urn)
     assert r.status_code == 200, r.get_json()
-    assert _subsequence(st.log, [("iota", "update", "S1"), ("orion", "patch")])
+    assert _subsequence(st.log, [("iota", "update", "S1"), ("orion", "attrs", urn)])
 
 
 def test_profile_change_restores_iota_attributes_when_orion_fails():
     st = _state()
     urn = _profile_setup(st)
-    st.fail["orion_patch"] = True
+    st.fail["orion_attrs"] = 500
     with wired(st) as w:
         w.orion.entities[urn] = {"id": urn, "type": "Device",
                                  "profileCode": {"type": "Property", "value": "p"}}
@@ -521,7 +521,7 @@ def test_rotate_of_a_revoked_datalogger_the_broker_lost_stays_disabled():
 def test_profile_change_logs_critical_when_the_old_profile_is_gone(caplog):
     st = _state()
     urn = _profile_setup(st)
-    st.fail["orion_patch"] = True
+    st.fail["orion_attrs"] = 500
     with wired(st) as w:
         w.orion.entities[urn] = {"id": urn, "type": "Device",
                                  "profileCode": {"type": "Property", "value": "vanished"}}

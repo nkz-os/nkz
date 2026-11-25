@@ -557,14 +557,43 @@ function extractCoordinates(entity: any): [number, number] | undefined {
   return undefined;
 }
 
+function attributeValue(attr: unknown): unknown {
+  return attr && typeof attr === 'object' && !Array.isArray(attr) && 'value' in attr
+    ? (attr as { value?: unknown }).value
+    : attr;
+}
+
+/**
+ * Raw status text of an entity: for a `Device` the official `deviceState` first, then `status`
+ * (a profile may declare `status` as a reading); for any other type `status`.
+ * Non-string or empty values count as missing.
+ */
+export function readEntityStatus(entity: any): string | null {
+  const names = entity?.type === 'Device' ? ['deviceState', 'status'] : ['status'];
+  for (const name of names) {
+    const value = attributeValue(entity?.[name]);
+    if (typeof value === 'string' && value) return value;
+  }
+  return null;
+}
+
+/** `controlledProperty` as display text: string or array (comma list); null when missing or empty. */
+export function controlledPropertyText(entity: any): string | null {
+  const value = attributeValue(entity?.controlledProperty);
+  const items = (Array.isArray(value) ? value : [value]).filter(
+    (v): v is string => typeof v === 'string' && v !== '',
+  );
+  return items.length > 0 ? items.join(', ') : null;
+}
+
 /**
  * Determine asset status from various entity properties
  */
 function extractStatus(entity: any): AssetStatus {
-  const status = entity.status?.value || entity.status;
-  
+  const status = readEntityStatus(entity);
+
   if (!status) return 'unknown';
-  
+
   switch (status.toLowerCase()) {
     case 'active':
     case 'online':
@@ -617,7 +646,7 @@ export function normalizeToAsset(entity: any): UnifiedAsset {
     name: hasName(entity) ? extractName(entity) : fallbackName(entity, assetTypeLabel(entity.type)),
     category: typeInfo.category,
     status: extractStatus(entity),
-    statusLabel: entity.status?.value || entity.status || 'Desconocido',
+    statusLabel: readEntityStatus(entity) || 'Desconocido',
     lastSeen: entity.lastHeartbeat?.value 
       ? new Date(entity.lastHeartbeat.value) 
       : entity.dateModified?.value 
