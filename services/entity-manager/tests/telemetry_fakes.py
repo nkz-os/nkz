@@ -18,6 +18,7 @@ class FakeState:
         self.devices = []
         self.profiles = {}
         self.log = []
+        self.suspended = set()
         self.missing_clients = set()
         self.role_topics = {}
         self.fail = {}
@@ -64,7 +65,13 @@ class _Cursor:
         self._rowcount = 0
         if "FOR UPDATE" in sql:
             log.append(("sql", "FOR UPDATE"))
-        if sql.startswith("INSERT INTO iot_dataloggers"):
+        if sql.startswith("SELECT 1 FROM tenants") and "deleted_at IS NOT NULL" in sql:
+            self._rows = [{"?column?": 1}] if params[0] in self.conn.state.suspended else []
+        elif sql.startswith("SELECT mqtt_username FROM iot_dataloggers"):
+            assert "status = 'active'" in sql
+            self._rows = [{"mqtt_username": r["mqtt_username"]} for r in w["dataloggers"].values()
+                          if r["tenant_id"] == params[0] and r["status"] == "active"]
+        elif sql.startswith("INSERT INTO iot_dataloggers"):
             tenant, name, kind, username = params
             did = str(uuid.uuid4())
             w["dataloggers"][did] = dict(id=did, tenant_id=tenant, name=name, kind=kind,

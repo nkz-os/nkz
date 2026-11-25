@@ -800,7 +800,7 @@ class EnhancedTenantWebhookService:
                         COALESCE(tenants.metadata, '{}'::jsonb) || %s::jsonb
                     ),
                     status = CASE
-                        WHEN tenants.status = 'cancelled' THEN tenants.status
+                        WHEN tenants.status IN ('cancelled', 'suspended') THEN tenants.status
                         ELSE EXCLUDED.status
                     END
                 RETURNING tenant_id
@@ -4343,6 +4343,28 @@ def assign_user_to_tenant(tenant_id: str):
         return _internal_error(e, "assign_user_to_tenant", user_message="Failed to assign user")
 
 
+def _set_tenant_ingestion(tenant_id: str, enabled: bool) -> str:
+    """Open or close the tenant's MQTT accounts. "ok" or "failed"; never raises:
+    the suspension itself does not depend on the broker."""
+    url = os.getenv("ENTITY_MANAGER_URL", "http://entity-manager-service:5000")
+    try:
+        response = requests.post(
+            f"{url}/api/internal/tenants/{tenant_id}/ingestion",
+            json={"enabled": enabled},
+            headers=internal_service_headers("tenant-webhook ingestion"),
+            timeout=30,
+        )
+        if response.status_code == 200:
+            return "ok"
+        logger.error(
+            f"Ingestion change failed for {tenant_id} (enabled={enabled}): "
+            f"HTTP {response.status_code}"
+        )
+    except Exception as e:
+        logger.error(f"Ingestion change failed for {tenant_id} (enabled={enabled}): {e}")
+    return "failed"
+
+
 @app.route("/api/admin/tenants/<tenant_id>/suspend", methods=["POST"])
 @require_platform_admin
 def suspend_tenant(tenant_id: str):
@@ -4380,7 +4402,8 @@ def suspend_tenant(tenant_id: str):
                 }), 403
 
             cursor.execute(
-                """UPDATE tenants SET deleted_at = NOW(), deleted_by = %s, deletion_notes = %s, updated_at = NOW()
+                """UPDATE tenants SET deleted_at = NOW(), status = 'suspended', deleted_by = %s,
+                   deletion_notes = %s, updated_at = NOW()
                    WHERE tenant_id = %s""",
                 (deleted_by, deletion_notes, tenant_id)
             )
@@ -4424,9 +4447,12 @@ def suspend_tenant(tenant_id: str):
             metadata={'deleted_by': deleted_by, 'notes': deletion_notes},
         )
 
+        ingestion = _set_tenant_ingestion(tenant_id, False)
+
         return jsonify({
             'success': True,
-            'message': f'Tenant {tenant_id} suspended. Users cannot log in.'
+            'message': f'Tenant {tenant_id} suspended. Users cannot log in.',
+            'ingestion': ingestion,
         }), 200
 
     except Exception as e:
@@ -4455,7 +4481,7 @@ def restore_tenant(tenant_id: str):
                 return jsonify({'error': 'Tenant is not suspended'}), 409
 
             cursor.execute(
-                """UPDATE tenants SET deleted_at = NULL, deleted_by = NULL,
+                """UPDATE tenants SET deleted_at = NULL, status = 'active', deleted_by = NULL,
                    purge_scheduled = NULL, deletion_notes = NULL, updated_at = NOW()
                    WHERE tenant_id = %s""",
                 (tenant_id,)
@@ -4483,9 +4509,12 @@ def restore_tenant(tenant_id: str):
             resource_id=tenant_id,
         )
 
+        ingestion = _set_tenant_ingestion(tenant_id, True)
+
         return jsonify({
             'success': True,
-            'message': f'Tenant {tenant_id} restored. Users can log in again.'
+            'message': f'Tenant {tenant_id} restored. Users can log in again.',
+            'ingestion': ingestion,
         }), 200
 
     except Exception as e:
