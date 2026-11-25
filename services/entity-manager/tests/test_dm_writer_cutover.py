@@ -1241,7 +1241,7 @@ def test_verify_fails_when_the_agent_document_is_unreadable(world, http, capsys)
 def test_verify_requires_observed_at_on_the_values(world, http, capsys):
     iota_world(world)
     d = dm("S1", "airTemperature")
-    d[DEV + "numValue"] = {"type": "Property", "value": 1}
+    d[DEV + "numValue"] = {"type": "Property", "value": 1, "modifiedAt": NEW}
     http(Http([d]))
     assert run(*BASE, *VERIFY) == 1
     out = capsys.readouterr().out
@@ -1254,6 +1254,7 @@ def test_verify_checks_c_and_d_are_not_run_without_iota_devices(world, http, cap
     assert run(*BASE, *VERIFY) == 0
     out = capsys.readouterr().out
     assert "check (c): NOT RUN" in out and "check (d): NOT RUN" in out
+    assert out.splitlines()[-1] == "verify: OK (no iota devices: only check (a) ran)"
 
 
 def test_verify_device_not_on_iota_is_an_explicit_failure(world, http, capsys):
@@ -1472,18 +1473,21 @@ def test_stale_value_is_left_out_of_d_but_the_fresh_one_is_judged(world, http, c
     assert "check (d): FAILED (1 value(s))" in capsys.readouterr().out
 
 
-def test_both_fresh_or_both_old_values_are_judged_as_today(world, http, capsys):
+def test_both_fresh_values_are_judged_as_today(world, http):
     iota_world(world, ms=RT)
     fresh = dm("S1", "airTemperature", mtype="x", value="both")
     fresh[DEV + "textValue"].pop("observedAt")
     http(Http([fresh]))
     assert run(*BASE, *VERIFY) == 1
-    both_old = dm("S1", "airTemperature", mtype="x", value="both",
-                  value_modified={"numValue": OLD, "textValue": OLD})
-    both_old[DEV + "numValue"].pop("observedAt")
-    http(Http([both_old]))
+
+
+def test_both_old_values_mean_value_not_updated(world, http, capsys):
+    iota_world(world, ms=RT)
+    http(Http([dm("S1", "airTemperature", mtype="x", value="both",
+                  value_modified={"numValue": OLD, "textValue": OLD})]))
     assert run(*BASE, *VERIFY) == 1
-    assert "stale value" not in capsys.readouterr().out.split("check (a)")[-1]
+    out = capsys.readouterr().out
+    assert "value not updated since" in out and "delivered NOTHING" in out
 
 
 def test_an_old_text_value_on_a_numeric_channel_is_listed_not_failed(world, http, capsys):
@@ -1627,6 +1631,110 @@ def test_verify_never_takes_the_lock_or_writes(world, http):
     world.lock_busy = True
     assert run(*BASE, *VERIFY) == 0
     assert not world.events("lock") and not world.events("update") and world.puts == 0
+
+
+# -- verify --since, fix round 1: only a new VALUE counts ---------------------------------
+
+TWO = ONE_MS + [{"type": "u", "incomingKey": "r2", "sdmAttribute": "relativeHumidity", "unit": "%"}]
+TEXT_MS = [{"type": "x", "sdmAttribute": "airTemperature", "valueType": "Text"}]
+SECOND = "relativeHumidity"
+
+
+def _fresh_and_not_updated(world, http, **old):
+    """S1 has two channels: one delivered, one whose entity changed but whose value did not."""
+    iota_world(world, ms=TWO)
+    stale = dm("S1", SECOND, mtype="u", **old)
+    http(Http([dm("S1", "airTemperature"), stale]))
+    return stale
+
+
+def test_old_num_value_with_a_new_entity_time_is_not_reported(world, http, capsys):
+    stale = _fresh_and_not_updated(world, http, value_modified={"numValue": OLD})
+    assert run(*BASE, *VERIFY) == 0                       # another channel delivered
+    out = capsys.readouterr().out
+    assert "value not updated since" in out and stale["id"] in out
+    assert "delivered NOTHING" not in out and out.splitlines()[-1] == "verify: OK"
+
+
+def test_every_channel_with_an_old_value_means_delivered_nothing(world, http, capsys):
+    iota_world(world, ms=TWO)
+    http(Http([dm("S1", "airTemperature", value_modified={"numValue": OLD}),
+               dm("S1", SECOND, mtype="u", value_modified={"numValue": OLD})]))
+    assert run(*BASE, *VERIFY) == 1
+    out = capsys.readouterr().out
+    assert f"{urn_of('S1')}: delivered NOTHING since {SINCE}" in out
+
+
+def test_old_text_value_on_a_text_channel_is_not_reported(world, http, capsys):
+    iota_world(world, ms=TEXT_MS)
+    http(Http([dm("S1", "airTemperature", mtype="x", value="text", value_modified={"textValue": OLD})]))
+    assert run(*BASE, *VERIFY) == 1
+    out = capsys.readouterr().out
+    assert "value not updated since" in out and "delivered NOTHING" in out
+
+
+def test_old_value_of_an_orphan_with_a_new_entity_time_is_listed(world, http, capsys):
+    iota_world(world)
+    http(Http([dm("S1", "airTemperature"),
+               dm("S1", "gone", mtype=None, value_modified={"numValue": OLD},
+                  extra={DEV + "weird": {"type": "Property", "value": 1}})]))
+    assert run(*BASE, *VERIFY) == 0
+    out = capsys.readouterr().out
+    assert "orphan" in out and "value not updated" in out
+
+
+def test_number_channel_with_old_num_value_and_new_text_value_fails_b(world, http, capsys):
+    iota_world(world)
+    http(Http([dm("S1", "airTemperature", value="both", value_modified={"numValue": OLD})]))
+    assert run(*BASE, *VERIFY) == 1
+    out = capsys.readouterr().out
+    assert "check (b): FAILED" in out and DEV + "numValue" in out and "stale value numValue" in out
+
+
+@pytest.mark.parametrize("term", ["numValue", "textValue"])
+@pytest.mark.parametrize("bad", [None, "not a time", "2026-06-02T00:00:00", 5])
+def test_unreadable_value_attribute_time_fails(world, http, capsys, term, bad):
+    iota_world(world, ms=RT)
+    d = dm("S1", "airTemperature", mtype="x", value="both")
+    if bad is None:
+        del d[DEV + term]["modifiedAt"]
+    else:
+        d[DEV + term]["modifiedAt"] = bad
+    http(Http([d]))
+    assert run(*BASE, *VERIFY) == 1
+    out = capsys.readouterr().out
+    assert d["id"] in out and f"{term} modifiedAt missing or unreadable" in out
+    assert "delivered NOTHING" not in out
+
+
+@pytest.mark.parametrize("key", [DEV + "controlledProperty", "https://smartdatamodels.org/dateObserved"])
+def test_a_new_fixed_attribute_or_date_observed_alone_is_not_delivery(world, http, capsys, key):
+    iota_world(world)
+    http(Http([dm("S1", "airTemperature", value_modified={"numValue": OLD},
+                  extra={key: {"type": "Property", "value": 1, "modifiedAt": NEW}})]))
+    assert run(*BASE, *VERIFY) == 1
+    assert "delivered NOTHING" in capsys.readouterr().out
+
+
+def test_a_new_value_counts_even_if_the_entity_time_is_old(world, http, capsys):
+    iota_world(world)
+    http(Http([dm("S1", "airTemperature", modified=OLD, value_modified={"numValue": NEW},
+                  extra={DEV + "weird": {"type": "Property", "value": 1}})]))
+    assert run(*BASE, *VERIFY) == 1                       # reported, so judged (extra key fails)
+    out = capsys.readouterr().out
+    assert "unexpected keys" in out and "delivered NOTHING" not in out
+
+
+@pytest.mark.parametrize("stamp, reported", [
+    ("2026-06-01T00:00:00Z", True), ("2026-06-01T00:00:00.000Z", True),
+    ("2026-06-01T00:00:00+00:00", True), ("2026-06-01T02:00:00+02:00", True),
+    ("2026-06-01T00:00:00.000001Z", True), ("2026-05-31T23:59:59.999Z", False),
+    ("2026-05-31T23:59:59Z", False)])
+def test_value_time_equal_to_since_counts_in_every_format(world, http, capsys, stamp, reported):
+    iota_world(world)
+    http(Http([dm("S1", "airTemperature", value_modified={"numValue": stamp})]))
+    assert run(*BASE, *VERIFY) == (0 if reported else 1)
+    assert ("delivered NOTHING" in capsys.readouterr().out) is (not reported)
 
 
 # -- the move to iota is disabled ---------------------------------------------------------

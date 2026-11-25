@@ -14,9 +14,13 @@ after the last device moved, rounded up to the second).
 read-only and takes `--since TIME`: ISO 8601 with `Z` or an offset, not later than now + 5 s (naive,
 date-only, unparseable or future: exit 2). It reads the DeviceMeasurement entities of the tenant
 from the broker WITHOUT a Link header, with `options=sysAttrs` (full type IRI, `count=true`,
-paginated; a short type name without Link counts zero). An entity is "reported" when its own
-`modifiedAt` is `TIME` or later (never `dateObserved`: a logger may send old times); a missing or
-unreadable `modifiedAt` is a failure. Checks:
+paginated; a short type name without Link counts zero). An entity is "reported" when a value
+attribute (`numValue`/`textValue`) has its OWN `modifiedAt` at `TIME` or later; the entity's
+`modifiedAt` alone never counts (another attribute may have changed) and neither does
+`dateObserved` (a logger may send old times). A missing or unreadable `modifiedAt` of the entity or
+of a value attribute is a failure. An entity with no new value is listed (`not reported since` or
+`value not updated since`), not judged. The printed time is the clock of the machine that ran the
+move; if it is not the broker's, add the difference to `--since`. Checks:
   (a) no entity, reported or not, lacks both `numValue` and `textValue`; it also runs with
       `--device` on a device that is not on `iota` (which is itself a failure);
   (b) every REPORTED entity of an `iota` device has exactly the attribute set its shape and profile
@@ -29,10 +33,10 @@ unreadable `modifiedAt` is a failure. Checks:
       is not a fault;
   (c) the IoT Agent's own document of every `iota` device matches the expected mappings;
   (d) the `numValue`/`textValue` of reported entities carry `observedAt`.
-A value attribute (`numValue`/`textValue`) whose own `modifiedAt` is before `TIME` in an entity that
-may carry either value (or an orphan with both), or the value of the other kind on a numeric/text
-channel, is `stale value`: listed and left out of (b) and (d). Any other stale attribute is judged
-by (b) as usual. Listings show at most 50 lines per heading and `... and N more`; the counts are
+A reported entity is judged by (b) and (d) with its NEW value attributes only; every old one is
+`stale value`, listed and left out (so a numeric channel with an old `numValue` fails (b)). Any
+other stale attribute is judged by (b) as usual. With no `iota` device the last line says only (a) ran.
+Listings show at most 50 lines per heading and `... and N more`; the counts are
 complete. The last line is `verify: OK` or `verify: FAILED (...)`.
 The term to IRI mapping comes from the platform context document at CONTEXT_URL (required;
 without it, or without a term, the verification fails). `--device` narrows checks (b) to (d).
@@ -1085,27 +1089,21 @@ class _Verdict:
     no_observed_at: List[str] = field(default_factory=list)   # check (d), value terms
 
 
-def _own_time_before(attr: Any, since: datetime) -> bool:
-    """True only when the attribute's own modifiedAt is readable and before `since`."""
-    stamp = _aware(attr.get('modifiedAt')) if isinstance(attr, dict) else None
-    return stamp is not None and stamp < since
-
-
-def _stale_values(e: dict, terms: Dict[str, str], channel, since: datetime) -> List[str]:
-    """Value attributes (`numValue`/`textValue`) older than `since` that the entity-manager or an
-    earlier writer left behind. `channel` is None for an orphan."""
-    num, text = terms['numValue'], terms['textValue']
-    kind = channel.kind if channel is not None else 'runtime'
-    if kind == 'number':
-        candidates = [('textValue', text)]
-    elif kind == 'text':
-        candidates = [('numValue', num)]
-    else:
-        if num not in e or text not in e:
-            return []
-        candidates = [('numValue', num), ('textValue', text)]
-    stale = [term for term, iri in candidates if iri in e and _own_time_before(e[iri], since)]
-    return [] if kind == 'runtime' and len(stale) == 2 else stale      # both old: judged as today
+def _value_times(e: dict, terms: Dict[str, str]):
+    """(times, unreadable): the own `modifiedAt` of each value attribute present, by term, and the
+    terms whose time is missing or unreadable."""
+    times: Dict[str, datetime] = {}
+    unreadable: List[str] = []
+    for term in ('numValue', 'textValue'):
+        attr = e.get(terms[term])
+        if attr is None:
+            continue
+        stamp = _aware(attr.get('modifiedAt')) if isinstance(attr, dict) else None
+        if stamp is None:
+            unreadable.append(term)
+        else:
+            times[term] = stamp
+    return times, unreadable
 
 
 def _key_issues(keys: set, channel, shape: Optional[str], terms: Dict[str, str]) -> List[str]:
@@ -1135,27 +1133,30 @@ def _key_issues(keys: set, channel, shape: Optional[str], terms: Dict[str, str])
 
 def _judge_entity(e: dict, row: Row, chans: Optional[Dict[str, Any]], terms: Dict[str, str],
                   since: datetime) -> _Verdict:
-    """Order: modifiedAt (unreadable fails), not reported (nothing else), then the channel rules."""
+    """Reported = a value attribute with its OWN `modifiedAt` >= since; the entity's time never
+    counts. An unreadable time (entity or value attribute) fails; an entity with no new value is
+    listed only; a reported one is judged with its new values, every old one left out."""
     modified = _aware(e.get('modifiedAt'))
-    if modified is None:
-        return _Verdict('unreadable', issues=["modifiedAt missing or unreadable"])
+    times, unreadable = _value_times(e, terms)
+    if modified is None or unreadable:
+        what = ["modifiedAt missing or unreadable"] if modified is None else []
+        what += [f"{t} modifiedAt missing or unreadable" for t in unreadable]
+        return _Verdict('unreadable', issues=what)
     channel = chans.get(e.get('id')) if chans else None
     orphan = chans is not None and channel is None
-    if modified < since:
-        return _Verdict('not_reported', orphan=orphan)
+    new = [t for t, stamp in times.items() if stamp >= since]
+    if not new:
+        return _Verdict('not_reported' if modified < since else 'not_updated', orphan=orphan)
     verdict = _Verdict('reported', orphan=orphan)
-    if chans is not None:
-        verdict.stale = _stale_values(e, terms, channel, since)
+    verdict.stale = [t for t in times if t not in new]
     stale_iris = {terms[t] for t in verdict.stale}
     keys = {k for k in e if k not in SYSTEM_KEYS} - stale_iris
     if chans is None:
         verdict.issues.append("expected attributes unknown (profile not readable)")
     else:
         verdict.issues.extend(_key_issues(keys, channel, row.state[1], terms))
-    for term in ('numValue', 'textValue'):
+    for term in new:
         val = e.get(terms[term])
-        if terms[term] in stale_iris or val is None:
-            continue
         if not (isinstance(val, dict) and val.get('observedAt')):
             verdict.no_observed_at.append(term)
     return verdict
@@ -1188,6 +1189,7 @@ class _Findings:
     unmatched: int = 0
     judged: int = 0
     not_reported: List[str] = field(default_factory=list)
+    not_updated: List[str] = field(default_factory=list)
     orphans: List[str] = field(default_factory=list)
     stale: List[str] = field(default_factory=list)
     problems: List[str] = field(default_factory=list)       # check (b)
@@ -1219,10 +1221,13 @@ def _judge_entities(dms: List[dict], rows: List[Row], selected: set, terms: Dict
         elif v.state == 'reported':
             found.reported[row.urn] = found.reported.get(row.urn, 0) + 1
         if v.orphan:
-            found.orphans.append(f"  {dm_id}: "
-                                 f"{'reported' if v.state == 'reported' else 'not reported'}; {desc}")
+            label = {'reported': 'reported', 'not_updated': 'value not updated'}.get(
+                v.state, 'not reported')
+            found.orphans.append(f"  {dm_id}: {label}; {desc}")
         elif v.state == 'not_reported':
             found.not_reported.append(f"  {dm_id}: {desc}")
+        elif v.state == 'not_updated':
+            found.not_updated.append(f"  {dm_id}: {desc}")
         for term in v.stale:
             found.stale.append(f"  {dm_id}: stale value {term}; {desc}")
         if v.issues:
@@ -1285,6 +1290,9 @@ def verify(tenant: str, rows: List[Row], only_urn: Optional[str], since: datetim
     if found.not_reported:
         _say_listing(f"verify: {len(found.not_reported)} entities not reported since "
                      f"{_utc_text(since)} (listed, not judged)", found.not_reported)
+    if found.not_updated:
+        _say_listing(f"verify: {len(found.not_updated)} entities with a new modifiedAt but a value "
+                     f"not updated since {_utc_text(since)} (listed, not judged)", found.not_updated)
     if found.orphans:
         _say_listing(f"verify: {len(found.orphans)} orphan entities with no channel in the current "
                      "profile (judged, for the keys any channel may carry, only when reported)",
@@ -1295,7 +1303,10 @@ def verify(tenant: str, rows: List[Row], only_urn: Optional[str], since: datetim
     if not selected:
         for name in ("(b)", "(c)", "(d)"):
             _say(f"check {name}: NOT RUN (no iota devices)")
-        return _finish(failed)
+        if failed:
+            return _finish(failed)
+        _say("verify: OK (no iota devices: only check (a) ran)")
+        return True
     if found.problems:
         failed.append(f"check (b): {len(found.problems)}")
         _say_listing(f"check (b): FAILED ({len(found.problems)} problem(s), "
