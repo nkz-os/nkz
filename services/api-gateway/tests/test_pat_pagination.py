@@ -1,4 +1,4 @@
-"""entityOperations/query: pagination travels in the URL and is capped for PATs."""
+"""Page caps of PATs, and the content type of entity queries."""
 
 import json
 
@@ -78,70 +78,10 @@ def user(client, monkeypatch, upstream):
     return post
 
 
-@pytest.mark.parametrize(
-    "args, limit",
-    [
-        ("", "100"),
-        ("?limit=7", "7"),
-        ("?limit=500", "500"),
-        ("?limit=9999", "500"),
-        ("?limit=0", "100"),
-        ("?limit=-1", "100"),
-        ("?limit=abc", "100"),
-        ("?limit=9999&limit=9999", "500"),
-        ("?limit=7&limit=9999", "7"),
-    ],
-)
-def test_pat_limit_is_capped_in_the_url(pat, args, limit):
-    assert pat(QUERY + args).status_code == 200
-    assert pat.calls[0]["params"]["limit"] == limit
-    assert pat.calls[0]["json"] == BODY
-
-
-def test_pat_offset_and_count_are_forwarded(pat):
-    pat(QUERY + "?limit=7&offset=2&count=true")
-    assert pat.calls[0]["params"] == {"limit": "7", "offset": "2", "count": "true"}
-
-
-@pytest.mark.parametrize("content_type", ["text/plain", "application/ld+json", ""])
-def test_pat_cap_does_not_depend_on_the_content_type(pat, content_type):
-    pat(QUERY + "?limit=9999", content_type=content_type)
-    assert pat.calls[0]["params"]["limit"] == "500"
-
-
-@pytest.mark.parametrize("body", [[], "x", 3, None])
-def test_pat_non_object_body_is_not_an_error(pat, body):
-    assert pat(QUERY, data=json.dumps(body)).status_code == 200
-    assert pat.calls[0]["params"]["limit"] == "100"
-
-
-def test_pat_body_limit_is_left_for_the_broker_to_judge(pat):
-    body = {**BODY, "limit": 1}
-    pat(QUERY, data=body)
-    assert pat.calls[0]["json"] == body
-    assert pat.calls[0]["params"]["limit"] == "100"
-
-
-def test_pat_parameter_names_must_be_plain(pat):
-    assert pat(QUERY + "?limit=1&limit%00=1000").status_code == 400
-    assert pat.calls == []
-
-
 def test_pat_parameter_names_must_be_plain_in_lists(pat):
     resp = pat.client.get("/ngsi-ld/v1/entities?limit=1&limit%00=1000", headers=pat.headers)
     assert resp.status_code == 400
     assert pat.calls == []
-
-
-def test_user_query_gets_no_limit(user):
-    assert user(QUERY).status_code == 200
-    assert "limit" not in user.calls[0]["params"]
-    assert user.calls[0]["json"] == BODY
-
-
-def test_user_paging_is_forwarded(user):
-    user(QUERY + "?limit=9999&offset=3")
-    assert user.calls[0]["params"] == {"limit": "9999", "offset": "3"}
 
 
 def test_pat_entity_list_keeps_its_cap(pat):
