@@ -58,7 +58,7 @@ twice; the worker drops repeated readings only when the message carries its own 
 (`TimeInstant`), without it a duplicate row is possible and accepted); a moment where nobody
 writes is not.
   * to iota, per batch: PUT the new mappings of every selected device, wait ONCE (`--settle`,
-    60-600 s, default 60), then per device update the row and PUT again. The wait is there because
+    120-600 s, default 120), then per device update the row and PUT again. The wait is there because
     a notification of a message the entity-manager handled before the first PUT can still be queued
     when the row commits; the entity-manager would then skip it (a reading lost) or handle it twice.
     Right before each commit the agent's own document is read once and must still be the mappings the
@@ -129,8 +129,12 @@ from device_profile import entity_profile_code
 logger = logging.getLogger("dm_writer_cutover")
 
 PAGE = 1000
-DEFAULT_SETTLE = 60.0
-MIN_SETTLE = 60.0     # a PUT of a profile change started under a live lock lasts up to 20 s
+DEFAULT_SETTLE = 120.0
+# A PUT of a profile change started under a live lock is expected to take at most about 30 s (its
+# connect, send and read timeouts) plus the DNS lookup, none of which is bounded as a whole; the wait
+# before a commit is a multiple of that so that such a PUT lands first. Not covered: a PUT that the
+# agent applies late, after its own calls.
+MIN_SETTLE = 120.0
 MAX_SETTLE = 600.0
 # Moving devices to the IoT Agent is switched off in the source until a move has been run and
 # verified against a live broker; only a code change turns it on (no flag, no environment).

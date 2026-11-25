@@ -363,7 +363,7 @@ class Cross:
                          content_type="application/json", data=json.dumps(body))
         return r.status_code, r.get_json()
 
-    def move(self, to="iota", shape="legacy", settle="60", device=None):
+    def move(self, to="iota", shape="legacy", settle="120", device=None):
         argv = ["--tenant", TENANT, "--to", to, "--apply"]
         if to == "iota":
             argv += ["--shape", shape, "--settle", settle]

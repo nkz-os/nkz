@@ -1093,10 +1093,15 @@ def test_restore_falls_back_to_plan_time_mappings_and_says_so(world, caplog):
 
 # -- settle (batch) -----------------------------------------------------------------------
 
-def test_settle_defaults_to_60_and_waits_once_per_batch(world, sleeps):
+def test_the_wait_is_at_least_two_minutes():
+    assert cut.DEFAULT_SETTLE == cut.MIN_SETTLE == 120.0 and cut.MAX_SETTLE == 600.0
+    assert "120-600, default 120" in cut._parser().format_help().replace("\n", " ").replace("  ", " ")
+
+
+def test_settle_defaults_to_120_and_waits_once_per_batch(world, sleeps):
     a, b = world.add("S1"), world.add("S2")
     assert run(*BASE, "--to", "iota", "--shape", "legacy", "--apply") == 0
-    assert _waited(sleeps) == 60.0
+    assert _waited(sleeps) == 120.0
     kinds = [e[0] for e in world.log if e[0] in ("put", "sleep", "update")]
     kinds = [k for i, k in enumerate(kinds) if i == 0 or not (k == "sleep" == kinds[i - 1])]
     assert kinds == ["put", "put", "sleep", "update", "put", "update", "put"]
@@ -1105,18 +1110,18 @@ def test_settle_defaults_to_60_and_waits_once_per_batch(world, sleeps):
 
 def test_settle_seconds_is_used(world, sleeps):
     world.add("S1")
-    assert run(*BASE, "--to", "iota", "--shape", "legacy", "--settle", "90", "--apply") == 0
-    assert _waited(sleeps) == 90.0
+    assert run(*BASE, "--to", "iota", "--shape", "legacy", "--settle", "150", "--apply") == 0
+    assert _waited(sleeps) == 150.0
 
 
-@pytest.mark.parametrize("settle", ["60", "600"])
+@pytest.mark.parametrize("settle", ["120", "600"])
 def test_settle_bounds_are_inclusive(world, sleeps, settle):
     world.add("S1")
     assert run(*BASE, "--to", "iota", "--shape", "legacy", "--settle", settle, "--apply") == 0
     assert _waited(sleeps) == float(settle)
 
 
-@pytest.mark.parametrize("settle", ["nan", "inf", "-inf", "-1", "0", "59.9", "600.1"])
+@pytest.mark.parametrize("settle", ["nan", "inf", "-inf", "-1", "0", "59.9", "60", "119.9", "600.1"])
 def test_settle_out_of_range_exits_2(world, sleeps, settle):
     world.add("S1")
     for mode in ("--apply", "--dry-run"):
@@ -1140,7 +1145,7 @@ def test_settle_with_to_em_exits_2(world, mode):
     world.add("S1", writer="iota", shape="legacy")
     world.settle_agent()
     with pytest.raises(SystemExit) as e:
-        run(*BASE, "--to", "em", "--settle", "90", mode)
+        run(*BASE, "--to", "em", "--settle", "150", mode)
     assert e.value.code == 2
     assert world.puts == 0 and not world.events("lock")
 
@@ -1162,7 +1167,7 @@ def test_to_em_does_not_wait(world, sleeps):
 def test_dry_run_does_not_wait_and_says_it_would(world, sleeps, capsys):
     world.add("S1")
     assert run(*BASE, "--to", "iota", "--shape", "legacy", "--dry-run") == 0
-    assert sleeps == [] and "60" in capsys.readouterr().out
+    assert sleeps == [] and "would wait 120 s" in capsys.readouterr().out
 
 
 def test_device_whose_first_put_failed_is_left_out_and_listed(world, sleeps, capsys):
@@ -1170,7 +1175,7 @@ def test_device_whose_first_put_failed_is_left_out_and_listed(world, sleeps, cap
     world.put_fail = lambda n, ext: ext == "S1"
     assert run(*BASE, "--to", "iota", "--shape", "legacy", "--apply") == 1
     assert world.rows[a]["dm_writer"] == "em" and world.rows[b]["dm_writer"] == "iota"
-    assert _waited(sleeps) == 60.0 and a in capsys.readouterr().out
+    assert _waited(sleeps) == 120.0 and a in capsys.readouterr().out
     assert [e for e in world.events("update") if e[1] == a] == []
 
 
@@ -2619,7 +2624,7 @@ def test_a_row_that_stays_unreadable_is_left_alone(world, capsys):
 def test_apply_iota_refuses_a_settle_outside_the_range(world):
     world.add("S1")
     items = cut.build_plan(TENANT, cut.list_rows(TENANT), "iota", "sdm")
-    for bad in (0, 59.9, 600.1, float("nan"), float("inf"), True, "60", None):
+    for bad in (0, 59.9, 60, 119.9, 600.1, float("nan"), float("inf"), True, "60", None):
         with FakeLock(world, TENANT) as lock:
             with pytest.raises(ValueError):
                 cut.apply_iota(lock, TENANT, items, "sdm", bad)
@@ -2914,7 +2919,7 @@ def _batch_run(world, monkeypatch, injects, refused=False):
     world.inject = list(injects)
     world.counts.clear()
     with FakeLock(world, TENANT) as lock:
-        outcomes = cut.apply_iota(lock, TENANT, items, "sdm", 60.0)
+        outcomes = cut.apply_iota(lock, TENANT, items, "sdm", 120.0)
     return items, outcomes
 
 
@@ -3003,8 +3008,8 @@ def test_no_injection_point_leaves_a_silent_device(monkeypatch, base_name, refus
 
 def test_the_wait_sums_exactly_the_settle_when_undisturbed(world, sleeps):
     world.add("S1")
-    assert run(*BASE, "--to", "iota", "--shape", "legacy", "--settle", "75.25", "--apply") == 0
-    assert _waited(sleeps) == 75.25 and len(sleeps) == 151 and sleeps[-1] == 0.25
+    assert run(*BASE, "--to", "iota", "--shape", "legacy", "--settle", "135.25", "--apply") == 0
+    assert _waited(sleeps) == 135.25 and len(sleeps) == 271 and sleeps[-1] == 0.25
 
 
 @pytest.mark.parametrize("k", [0, 1, 7])
@@ -3066,7 +3071,7 @@ def test_printing_never_stops_the_batch(world, monkeypatch, exc):
 
     monkeypatch.setattr(cut, "_say", broken)
     with FakeLock(world, TENANT) as lock:
-        outcomes = cut.apply_iota(lock, TENANT, items, "sdm", 60.0)
+        outcomes = cut.apply_iota(lock, TENANT, items, "sdm", 120.0)
     assert [o.status for o in outcomes] == ["moved"] * 3
     assert all(world.rows[u]["dm_shape"] == "sdm" for u in world.rows)
 
@@ -3146,7 +3151,7 @@ def test_the_final_put_carries_the_profile_read_after_the_lock_was_retaken(world
     # the first profile read of the apply phase is the one of the final PUT
     state = _profile_changes_in_the_gap(world, monkeypatch)
     with FakeLock(world, TENANT) as lock:
-        outcomes = cut.apply_iota(lock, TENANT, items, "sdm", 60.0)
+        outcomes = cut.apply_iota(lock, TENANT, items, "sdm", 120.0)
     assert [o.status for o in outcomes] == ["moved"] and state["calls"] == 2
     assert world.agent["S1"] == _attrs(urn, "S1", ("iota", "sdm"), ONE_MS)
 
@@ -3158,7 +3163,7 @@ def test_the_undo_of_a_committed_row_carries_the_profile_read_after_the_re_take(
     world.inject = [("commit_after", 0, "unknown")]        # the row is written; the outcome unknown
     state = _profile_changes_in_the_gap(world, monkeypatch)
     with FakeLock(world, TENANT) as lock:
-        outcomes = cut.apply_iota(lock, TENANT, items, "sdm", 60.0)
+        outcomes = cut.apply_iota(lock, TENANT, items, "sdm", 120.0)
     assert outcomes[0].status == "moved" and state["calls"] == 2
     assert world.agent["S1"] == _attrs(urn, "S1", ("iota", "sdm"), ONE_MS)
 
