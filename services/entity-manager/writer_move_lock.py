@@ -55,7 +55,8 @@ class CommitOutcomeUnknown(psycopg2.Error):
 
 def _connect():
     """Dedicated connection. Keepalives are set on both ends so a lock whose holder vanished without
-    closing TCP is released by the server, and `alive()` cannot hang."""
+    closing TCP is released by the server. `tcp_user_timeout` does not apply on a unix socket, and a
+    frozen server that keeps acknowledging TCP but never answers is not bounded (see `_ping`)."""
     url = os.environ.get("POSTGRES_URL")
     if not url:
         raise LockUnavailable("POSTGRES_URL is not set")
@@ -218,7 +219,9 @@ class ExclusiveLock:
 
         RowChanged: no row matched; nothing was written. psycopg2.Error: failed before COMMIT; nothing
         was written. CommitOutcomeUnknown (a psycopg2.Error): COMMIT itself failed, so the row may be in
-        either state and the caller must re-read it. Any other interruption rolls back and propagates."""
+        either state and the caller must re-read it. Any other interruption rolls back and propagates;
+        after one that is not a psycopg2.Error (for example KeyboardInterrupt during the commit) the
+        row may be in either state and must be re-read."""
         conn = self._require_conn()
         try:
             with conn.cursor() as cur:

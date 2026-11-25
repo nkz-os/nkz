@@ -1,16 +1,20 @@
 """Cutover command: who writes the DeviceMeasurement entities of a device (everything mocked)."""
 import copy
+import importlib.util
 import logging
+import os
 from contextlib import contextmanager
 from types import SimpleNamespace
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
+import psycopg2
 import pytest
 
-from tests.telemetry_fakes import PROFILE, TENANT, FakeState  # noqa: F401,I001  (stubs first)
+from tests.telemetry_fakes import PROFILE, TENANT, FakeState, _services_dir  # noqa: F401,I001  (stubs first)
 
 import dataloggers  # noqa: E402
 import dm_writer_cutover as cut  # noqa: E402
+import writer_move_lock as wml  # noqa: E402
 
 CTX_URL = "http://context.invalid/ctx.json"
 DM_TYPE_IRI = "https://smartdatamodels.org/dataModel.Device/DeviceMeasurement"
@@ -47,8 +51,14 @@ class World:
         self.puts = 0
         self.put_fail = lambda n, ext: False
         self.after_put = None     # callback(n, ext)
-        self.update_fail = False
-        self.commit_fail = False
+        self.update_fail = False      # the UPDATE raises a database error: nothing written
+        self.commit_fail = False      # COMMIT fails and the row is NOT written (outcome unknown)
+        self.commit_lies = False      # COMMIT fails but the row IS written (outcome unknown)
+        self.before_commit = None     # callback(urn) run on the lock connection before the UPDATE
+        self.lock_busy = False
+        self.lock_unavailable = False
+        self.tenants = {TENANT: None}  # tenant -> deleted_at; absent = no row
+        self.tenant_read_fail = False
         self.state_read_fail = False
         self.get_fail = False
         self.orion_fail = False
@@ -86,6 +96,7 @@ class _Cur:
         sql = " ".join(sql.split())
         if sql.startswith("SELECT device_urn, external_id, dm_writer, dm_shape FROM iot_datalogger_devices"):
             assert params[0] == TENANT
+            w.log.append(("read_rows",))
             rows = [dict(r) for r in w.rows.values()]
             if "device_urn = %s" in sql:
                 rows = [r for r in rows if r["device_urn"] == params[1]]
@@ -95,14 +106,13 @@ class _Cur:
                 raise RuntimeError("state read failed")
             r = w.rows.get(params[1])
             self._rows = [dict(dm_writer=r["dm_writer"], dm_shape=r["dm_shape"])] if r else []
-        elif sql.startswith("UPDATE iot_datalogger_devices SET dm_writer"):
-            writer, shape, tenant, urn = params
-            assert tenant == TENANT
-            if w.update_fail:
-                raise RuntimeError("update failed")
-            self.conn.pending.append((urn, writer, shape))
-            self.rowcount = 1 if urn in w.rows else 0
-            w.log.append(("update", urn, writer, shape))
+        elif sql.startswith("SELECT deleted_at FROM tenants WHERE tenant_id = %s"):
+            if w.tenant_read_fail:
+                raise RuntimeError("tenant read failed")
+            w.log.append(("read_tenant", params[0]))
+            self._rows = [dict(deleted_at=w.tenants[params[0]])] if params[0] in w.tenants else []
+        elif sql.startswith("UPDATE iot_datalogger_devices"):
+            raise AssertionError("a row was written through the pool; it belongs on the lock connection")
         else:
             raise AssertionError(f"unexpected SQL: {sql}")
 
@@ -114,25 +124,61 @@ class _Cur:
 
 
 class _Conn:
+    """The pool connection: reads only."""
+
     def __init__(self, world):
         self.world = world
-        self.pending = []
 
     def cursor(self, *a, **kw):
         return _Cur(self)
 
     def commit(self):
-        if self.world.commit_fail:
-            raise RuntimeError("commit failed")
-        for urn, writer, shape in self.pending:
-            self.world.rows[urn]["dm_writer"] = writer
-            self.world.rows[urn]["dm_shape"] = shape
-        self.pending = []
-        self.world.log.append(("commit",))
+        self.world.log.append(("pool_commit",))
 
     def rollback(self):
-        self.pending = []
-        self.world.log.append(("rollback",))
+        self.world.log.append(("pool_rollback",))
+
+
+class FakeLock:
+    """Stand-in for writer_move_lock.ExclusiveLock: logs lock, unlock and every committed row."""
+
+    def __init__(self, world, tenant):
+        self.world = world
+        self.tenant = tenant
+        self.held = False
+
+    def __enter__(self):
+        w = self.world
+        if w.lock_busy:
+            raise wml.MoveInProgress(self.tenant)
+        if w.lock_unavailable:
+            raise wml.LockUnavailable("cannot connect (OperationalError)")
+        self.held = True
+        w.log.append(("lock", self.tenant))
+        return self
+
+    def __exit__(self, exc_type, exc, tb):
+        self.held = False
+        self.world.log.append(("unlock",))
+        return False
+
+    def commit_state(self, urn, previous, target):
+        w = self.world
+        assert self.held, "commit on a lock that is not held"
+        if w.before_commit:
+            w.before_commit(urn)
+        if w.update_fail:
+            raise psycopg2.OperationalError("update failed")
+        row = w.rows.get(urn)
+        if row is None or (row["dm_writer"], row["dm_shape"]) != tuple(previous):
+            raise wml.RowChanged(urn)
+        w.log.append(("update", urn, target[0], target[1]))
+        if w.commit_fail:
+            raise wml.CommitOutcomeUnknown("commit failed (OperationalError)")
+        row["dm_writer"], row["dm_shape"] = target
+        w.log.append(("commit",))
+        if w.commit_lies:
+            raise wml.CommitOutcomeUnknown("commit failed (OperationalError)")
 
 
 class _IotaError(Exception):
@@ -176,6 +222,7 @@ def world(monkeypatch):
         yield _Conn(w)
 
     def orion_devices(tenant, urns):
+        w.log.append(("orion",))
         if w.orion_fail:
             raise dataloggers.ApiError(502, "orion down", "orion_read")
         return {u: {"id": u, "profileCode": {"type": "Property", "value": w.entities[u]}}
@@ -192,7 +239,18 @@ def world(monkeypatch):
     monkeypatch.setattr(cut, "iot_agent", iota)
     monkeypatch.setattr(dataloggers, "_orion_devices", orion_devices)
     monkeypatch.setattr(dataloggers, "_profile_measurements", profile_measurements)
+    monkeypatch.setattr(cut, "_exclusive_lock", lambda tenant: FakeLock(w, tenant))
     return w
+
+
+@pytest.fixture(autouse=True)
+def real_tenant_normaliser(monkeypatch):
+    """The suite stubs `common.tenant_utils`; the command must judge tenants with the real one."""
+    spec = importlib.util.spec_from_file_location(
+        "_real_tenant_utils", os.path.join(_services_dir, "common", "tenant_utils.py"))
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    monkeypatch.setattr(cut, "normalize_tenant_id", mod.normalize_tenant_id)
 
 
 @pytest.fixture(autouse=True)
@@ -392,15 +450,8 @@ def test_failed_commit_with_unreadable_state_keeps_the_new_mappings(world, caplo
 
 def test_failed_commit_that_did_commit_carries_on(world):
     urn = world.add("S1")
-
-    def lying_commit(self):
-        for u, writer, shape in self.pending:
-            self.world.rows[u]["dm_writer"], self.world.rows[u]["dm_shape"] = writer, shape
-        self.pending = []
-        raise RuntimeError("connection lost after commit")
-
-    with patch.object(_Conn, "commit", lying_commit):
-        assert run(*BASE, "--to", "iota", "--shape", "legacy", "--apply") == 0
+    world.commit_lies = True            # COMMIT raised after the row was written
+    assert run(*BASE, "--to", "iota", "--shape", "legacy", "--apply") == 0
     assert world.rows[urn]["dm_writer"] == "iota"
     assert world.puts == 2
 
@@ -929,29 +980,51 @@ def test_settle_defaults_to_60_and_waits_once_per_batch(world, sleeps):
 
 def test_settle_seconds_is_used(world, sleeps):
     world.add("S1")
-    assert run(*BASE, "--to", "iota", "--shape", "legacy", "--settle", "7", "--apply") == 0
-    assert sleeps == [7.0]
+    assert run(*BASE, "--to", "iota", "--shape", "legacy", "--settle", "90", "--apply") == 0
+    assert sleeps == [90.0]
 
 
-def test_zero_settle_needs_the_explicit_flag(world, sleeps):
+@pytest.mark.parametrize("settle", ["60", "600"])
+def test_settle_bounds_are_inclusive(world, sleeps, settle):
     world.add("S1")
+    assert run(*BASE, "--to", "iota", "--shape", "legacy", "--settle", settle, "--apply") == 0
+    assert sleeps == [float(settle)]
+
+
+@pytest.mark.parametrize("settle", ["nan", "inf", "-inf", "-1", "0", "59.9", "600.1"])
+def test_settle_out_of_range_exits_2(world, sleeps, settle):
+    world.add("S1")
+    for mode in ("--apply", "--dry-run"):
+        with pytest.raises(SystemExit) as e:
+            run(*BASE, "--to", "iota", "--shape", "legacy", "--settle", settle, mode)
+        assert e.value.code == 2
+    assert sleeps == [] and world.puts == 0 and not world.events("lock")
+
+
+def test_no_settle_flag_is_gone(world, sleeps):
+    world.add("S1")
+    for extra in ([], ["--settle", "90"]):
+        with pytest.raises(SystemExit) as e:
+            run(*BASE, "--to", "iota", "--shape", "legacy", "--no-settle", *extra, "--apply")
+        assert e.value.code == 2
+    assert sleeps == [] and world.puts == 0 and not world.events("lock")
+
+
+@pytest.mark.parametrize("mode", ["--apply", "--dry-run"])
+def test_settle_with_to_em_exits_2(world, mode):
+    world.add("S1", writer="iota", shape="legacy")
+    world.settle_agent()
     with pytest.raises(SystemExit) as e:
-        run(*BASE, "--to", "iota", "--shape", "legacy", "--settle", "0", "--apply")
+        run(*BASE, "--to", "em", "--settle", "90", mode)
     assert e.value.code == 2
-    assert run(*BASE, "--to", "iota", "--shape", "legacy", "--no-settle", "--apply") == 0
-    assert sleeps == []
+    assert world.puts == 0 and not world.events("lock")
 
 
-def test_no_settle_with_a_settle_value_is_refused(world):
-    with pytest.raises(SystemExit) as e:
-        run(*BASE, "--to", "iota", "--shape", "legacy", "--settle", "5", "--no-settle", "--apply")
-    assert e.value.code == 2
-
-
-def test_negative_settle_is_refused(world):
-    with pytest.raises(SystemExit) as e:
-        run(*BASE, "--to", "iota", "--shape", "legacy", "--settle", "-1", "--apply")
-    assert e.value.code == 2
+def test_to_em_needs_no_settle(world, sleeps):
+    urn = world.add("S1", writer="iota", shape="legacy")
+    world.settle_agent()
+    assert run(*BASE, "--to", "em", "--apply") == 0
+    assert sleeps == [] and world.rows[urn]["dm_writer"] == "em"
 
 
 def test_to_em_does_not_wait(world, sleeps):
@@ -1136,3 +1209,259 @@ def test_dry_run_verify_and_to_em_keep_working_while_disabled(world, http, monke
     assert run(*BASE, "--device", urn_of("S2"), "--to", "em", "--apply") == 0
     http(Http([]))
     assert run(*BASE, "--verify") == 0
+
+
+# -- the lock -----------------------------------------------------------------------------
+
+def _idx(world, kind, nth=0):
+    return [i for i, e in enumerate(world.log) if e[0] == kind][nth]
+
+
+def test_the_plan_is_read_under_the_lock(world):
+    world.add("S1")
+    assert run(*BASE, "--to", "iota", "--shape", "legacy", "--apply") == 0
+    assert world.events("lock") == [("lock", TENANT)]
+    assert _idx(world, "lock") < _idx(world, "read_tenant") < _idx(world, "read_rows") < _idx(world, "orion")
+    assert _idx(world, "orion") < _idx(world, "put")
+    assert world.log[-1] == ("unlock",) and len(world.events("unlock")) == 1
+
+
+def test_the_plan_of_a_move_to_em_is_read_under_the_lock(world):
+    world.add("S1", writer="iota", shape="legacy")
+    world.settle_agent()
+    assert run(*BASE, "--to", "em", "--apply") == 0
+    assert _idx(world, "lock") < _idx(world, "read_rows") < _idx(world, "orion")
+    assert world.log[-1] == ("unlock",)
+
+
+@pytest.mark.parametrize("direction", ["iota", "em"])
+def test_rows_are_committed_on_the_lock_connection(world, direction):
+    """The pool seam raises on any UPDATE: a row can only change through the lock."""
+    if direction == "iota":
+        urns = [world.add("S1"), world.add("S2")]
+        argv = ("--to", "iota", "--shape", "sdm", "--apply")
+    else:
+        urns = [world.add("S1", writer="iota", shape="sdm"), world.add("S2", writer="iota", shape="sdm")]
+        world.settle_agent()
+        argv = ("--to", "em", "--apply")
+    assert run(*BASE, *argv) == 0
+    assert all(world.rows[u]["dm_writer"] == direction for u in urns)
+    updates = [i for i, e in enumerate(world.log) if e[0] == "update"]
+    assert len(updates) == 2
+    assert _idx(world, "lock") < updates[0] and updates[-1] < _idx(world, "unlock")
+
+
+@pytest.mark.parametrize("mode", ["busy", "unavailable"])
+@pytest.mark.parametrize("argv", [("--to", "iota", "--shape", "legacy"), ("--to", "em")])
+def test_busy_lock_writes_nothing_and_exits_1(world, capsys, mode, argv):
+    world.add("S1", writer="iota" if argv[1] == "em" else "em", shape="legacy" if argv[1] == "em" else None)
+    world.settle_agent()
+    before = {u: dict(r) for u, r in world.rows.items()}
+    setattr(world, "lock_busy" if mode == "busy" else "lock_unavailable", True)
+    assert run(*BASE, *argv, "--apply") == 1
+    out = capsys.readouterr().out
+    assert "nothing was written" in out
+    if mode == "busy":
+        assert "profile change or another move is running" in out
+    assert world.rows == before and world.puts == 0
+    assert not world.events("update") and not world.events("read_rows") and not world.events("orion")
+
+
+def test_dry_run_and_verify_take_no_lock(world, http):
+    world.add("S1")
+    assert run(*BASE, "--to", "iota", "--shape", "legacy", "--dry-run") == 0
+    assert run(*BASE, "--to", "em", "--dry-run") == 0
+    http(Http([]))
+    assert run(*BASE, "--verify") == 0
+    assert not world.events("lock") and not world.events("unlock")
+    world.lock_busy = True            # a held lock must not stop the read-only modes either
+    assert run(*BASE, "--to", "iota", "--shape", "legacy", "--dry-run") == 0
+    assert run(*BASE, "--verify") == 0
+
+
+def _interrupt_in_settle(world):
+    def interrupt(seconds):
+        raise KeyboardInterrupt
+    world.on_sleep = interrupt
+
+
+def _crash_in_settle(world):
+    def crash(seconds):
+        raise RuntimeError("killed")
+    world.on_sleep = crash
+
+
+def _interrupt_in_planning(world, monkeypatch):
+    def interrupt(tenant, urns):
+        raise KeyboardInterrupt
+    monkeypatch.setattr(dataloggers, "_orion_devices", interrupt)
+
+
+@pytest.mark.parametrize("scenario", [
+    "success", "validation-failure", "device-failure", "interrupt-in-settle",
+    "crash-in-settle", "interrupt-in-planning", "to-em-success", "to-em-failure"])
+def test_lock_is_released_after_success_failure_and_interrupt(world, monkeypatch, scenario):
+    iota = ("--to", "iota", "--shape", "legacy", "--apply")
+    world.add("S1")
+    expect = None
+    if scenario == "validation-failure":
+        world.add("S2", entity=False)
+    elif scenario == "device-failure":
+        world.update_fail = True
+    elif scenario == "interrupt-in-settle":
+        _interrupt_in_settle(world)
+    elif scenario == "crash-in-settle":
+        _crash_in_settle(world)
+        expect = RuntimeError
+    elif scenario == "interrupt-in-planning":
+        _interrupt_in_planning(world, monkeypatch)
+        expect = KeyboardInterrupt
+    elif scenario.startswith("to-em"):
+        world.rows[urn_of("S1")].update(dm_writer="iota", dm_shape="legacy")
+        world.settle_agent()
+        world.update_fail = scenario == "to-em-failure"
+        iota = ("--to", "em", "--apply")
+    if expect:
+        with pytest.raises(expect):
+            run(*BASE, *iota)
+    else:
+        run(*BASE, *iota)
+    assert len(world.events("lock")) == 1 and len(world.events("unlock")) == 1
+    assert world.log[-1] == ("unlock",)
+
+
+def test_lock_is_released_when_the_pool_read_of_the_rows_fails(world, monkeypatch):
+    world.add("S1")
+
+    def boom(tenant, urn=None):
+        raise RuntimeError("pool down")
+
+    monkeypatch.setattr(cut, "list_rows", boom)
+    assert run(*BASE, "--to", "iota", "--shape", "legacy", "--apply") == 1
+    assert world.log[-1] == ("unlock",) and world.puts == 0
+
+
+def test_suspended_tenant_is_refused_only_for_iota(world, capsys):
+    urn = world.add("S1")
+    world.tenants[TENANT] = "2026-11-01T00:00:00Z"
+    assert run(*BASE, "--to", "iota", "--shape", "legacy", "--apply") == 1
+    assert "suspended" in capsys.readouterr().out
+    assert world.puts == 0 and not world.events("update") and world.rows[urn]["dm_writer"] == "em"
+    assert not world.events("read_rows") and world.log[-1] == ("unlock",)
+    # the way back stays open
+    world.rows[urn].update(dm_writer="iota", dm_shape="legacy")
+    world.settle_agent()
+    assert run(*BASE, "--to", "em", "--apply") == 0
+    assert world.rows[urn]["dm_writer"] == "em"
+    assert not world.events("read_tenant")[1:]       # only the iota run read it
+
+
+def test_a_tenant_without_a_row_is_refused_for_iota(world, capsys):
+    world.add("S1")
+    world.tenants.clear()
+    assert run(*BASE, "--to", "iota", "--shape", "legacy", "--apply") == 1
+    assert "suspended" in capsys.readouterr().out
+    assert world.puts == 0 and not world.events("update")
+
+
+def test_an_unreadable_tenant_is_exit_1_with_nothing_written(world, capsys):
+    world.add("S1")
+    world.tenant_read_fail = True
+    assert run(*BASE, "--to", "iota", "--shape", "legacy", "--apply") == 1
+    assert "nothing was written" in capsys.readouterr().out
+    assert world.puts == 0 and not world.events("update") and world.log[-1] == ("unlock",)
+
+
+@pytest.mark.parametrize("tenant", ["Tenant-A", " tenant-a", "tenant_a", "tenant-a-", "", "!!!", "t"])
+def test_non_canonical_tenant_exits_2(world, tenant):
+    world.add("S1")
+    for argv in (("--to", "iota", "--shape", "legacy", "--dry-run"), ("--to", "em", "--apply"),
+                 ("--verify",)):
+        with pytest.raises(SystemExit) as e:
+            run("--tenant", tenant, *argv)
+        assert e.value.code == 2
+    assert world.puts == 0 and not world.events("lock") and not world.events("read_rows")
+
+
+def test_to_em_is_allowed_while_the_constant_is_off(world, monkeypatch):
+    monkeypatch.setattr(cut, "MOVE_TO_IOTA_ENABLED", False)
+    urn = world.add("S1", writer="iota", shape="sdm")
+    world.settle_agent()
+    assert run(*BASE, "--to", "em", "--apply") == 0
+    assert world.rows[urn]["dm_writer"] == "em"
+    assert len(world.events("lock")) == 1 and world.log[-1] == ("unlock",)
+
+
+def test_row_changed_since_the_plan_is_not_overwritten_to_iota(world, capsys):
+    urn = world.add("S1")
+
+    def someone_else(seconds):
+        world.rows[urn].update(dm_writer="iota", dm_shape="sdm")
+
+    world.on_sleep = someone_else
+    assert run(*BASE, "--to", "iota", "--shape", "legacy", "--apply") == 1
+    out = capsys.readouterr().out
+    assert "changed since the plan" in out and "nothing was committed" in out and urn in out
+    assert world.rows[urn]["dm_writer"] == "iota" and world.rows[urn]["dm_shape"] == "sdm"
+    assert not world.events("update")
+    assert world.puts == 1            # the first PUT only: restoring would risk a gap
+
+
+def test_row_changed_since_the_plan_is_not_overwritten_to_em(world, capsys):
+    urn = world.add("S1", writer="iota", shape="legacy")
+    world.settle_agent()
+
+    def someone_else(u):
+        world.rows[u].update(dm_writer="iota", dm_shape="sdm")
+
+    world.before_commit = someone_else
+    assert run(*BASE, "--to", "em", "--apply") == 1
+    out = capsys.readouterr().out
+    assert "changed since the plan" in out and "nothing was committed" in out
+    assert world.rows[urn]["dm_shape"] == "sdm" and world.puts == 0 and not world.events("update")
+
+
+def test_outcomes_are_printed_as_they_happen(world, monkeypatch):
+    a, b = world.add("S1"), world.add("S2")
+    seen = []
+    real_say = cut._say
+
+    def say(text):
+        world.log.append(("say", text))
+        seen.append(text)
+        real_say(text)
+
+    monkeypatch.setattr(cut, "_say", say)
+    assert run(*BASE, "--to", "iota", "--shape", "legacy", "--apply") == 0
+    lines = [i for i, e in enumerate(world.log) if e[0] == "say" and "moved" in e[1]]
+    updates = [i for i, e in enumerate(world.log) if e[0] == "update"]
+    assert len(lines) == 2 and len(updates) == 2
+    assert updates[0] < lines[0] < updates[1] < lines[1]      # S1 is printed before S2 is committed
+    assert seen[-1] == "done: 2 ok, 0 failed"
+    assert sum(1 for t in seen if t.startswith((a, b)) and "moved" in t) == 2    # once each, not repeated at the end
+
+
+def test_to_em_outcomes_are_printed_as_they_happen(world, monkeypatch):
+    world.add("S1", writer="iota", shape="legacy")
+    world.add("S2", writer="iota", shape="legacy")
+    world.settle_agent()
+    real_say = cut._say
+    monkeypatch.setattr(cut, "_say", lambda t: (world.log.append(("say", t)), real_say(t)))
+    assert run(*BASE, "--to", "em", "--apply") == 0
+    lines = [i for i, e in enumerate(world.log) if e[0] == "say" and "moved" in e[1]]
+    updates = [i for i, e in enumerate(world.log) if e[0] == "update"]
+    assert updates[0] < lines[0] < updates[1] < lines[1]
+
+
+def test_apply_item_refuses_a_move_to_iota(world):
+    world.add("S1")
+    rows = cut.list_rows(TENANT)
+    items = cut.build_plan(TENANT, rows, "iota", "legacy")
+    with FakeLock(world, TENANT) as lock:
+        with pytest.raises(AssertionError):
+            cut.apply_item(lock, TENANT, items[0], "iota", "legacy")
+    assert world.puts == 0 and not world.events("update")
+
+
+def test_set_state_is_gone():
+    assert not hasattr(cut, "set_state")

@@ -1,7 +1,7 @@
 """Move devices between the two writers of their DeviceMeasurement entities.
 
     python -m dm_writer_cutover --tenant T [--device URN] --to iota|em [--shape legacy|sdm]
-                                [--settle SECONDS | --no-settle] (--dry-run | --apply) [--verify]
+                                [--settle SECONDS] (--dry-run | --apply) [--verify]
     python -m dm_writer_cutover --tenant T [--device URN] --verify
 
 `--to iota` makes the IoT Agent write the DeviceMeasurement entities of a device in the
@@ -21,8 +21,14 @@ With `--device`, a device that is not on `iota` is a failure (not "NOT RUN").
 The term to IRI mapping comes from the platform context document at CONTEXT_URL (required;
 without it, or without a term, the verification fails). `--device` narrows check (b).
 
-`--apply --to iota` is disabled (refused with exit 2) until profile changes are locked out
-during the move; `--dry-run`, `--verify` and `--to em --apply` work.
+`--apply` takes the exclusive writer-move lock of the tenant BEFORE it reads the plan and holds it
+until the last row is committed (one dedicated connection; every row is committed on it, with
+a compare-and-set on the state the plan read). A profile change or another move that holds the
+lock makes it stop with exit 1 and nothing written. `--dry-run` and `--verify` take no lock.
+`--apply --to iota` is refused for a tenant with no `tenants` row or with `deleted_at` set;
+`--to em` is the way back and is always allowed. The tenant must be given in canonical form.
+`--apply --to iota` itself is still disabled (refused with exit 2, see MOVE_TO_IOTA_ENABLED);
+`--dry-run`, `--verify` and `--to em --apply` work. Each outcome is printed when it happens.
 
 Exit codes: 0 done, 1 a validation, device or verification failure, 2 bad arguments.
 
@@ -31,8 +37,7 @@ twice; the worker drops repeated readings only when the message carries its own 
 (`TimeInstant`), without it a duplicate row is possible and accepted); a moment where nobody
 writes is not.
   * to iota, per batch: PUT the new mappings of every selected device, wait ONCE (`--settle`,
-    default 60 s; 0 only with the explicit `--no-settle`), then per device update the row and
-    PUT again. The wait is there because a notification of a message the entity-manager
+    60-600 s, default 60), then per device update the row and PUT again. The wait is there because a notification of a message the entity-manager
     handled before the first PUT can still be queued when the row commits; the entity-manager
     would then skip it (a reading lost) or handle it twice. A device whose first PUT failed is
     left out and listed. A crash during the wait leaves row `em` with both mappings in the
@@ -62,6 +67,7 @@ from __future__ import annotations
 import argparse
 import json
 import logging
+import math
 import os
 import sys
 import time
@@ -72,7 +78,9 @@ import requests
 from psycopg2.extras import RealDictCursor
 
 import dataloggers
+import writer_move_lock
 from common import iot_agent
+from common.tenant_utils import normalize_tenant_id
 from common.device_measurement_shape import SHAPES, measurement_channels
 from common.ngsi_headers import inject_fiware_headers
 from db_helper import get_db_connection_with_tenant
@@ -82,6 +90,8 @@ logger = logging.getLogger("dm_writer_cutover")
 
 PAGE = 1000
 DEFAULT_SETTLE = 60.0
+MIN_SETTLE = 60.0     # a PUT of a profile change started under a live lock lasts up to 20 s
+MAX_SETTLE = 600.0
 # Moving devices to the IoT Agent is disabled: a profile change while a device moves can still
 # leave the wrong mappings on it. Only a code change turns this on (no flag, no environment).
 # That window grew with the DeviceModel: between the IoT Agent push and the Device write, a profile
@@ -131,6 +141,11 @@ def _say(text: str) -> None:
     print(text, flush=True)
 
 
+def _exclusive_lock(tenant: str):
+    """The seam tests replace: the exclusive writer-move lock of the tenant (a context manager)."""
+    return writer_move_lock.ExclusiveLock(tenant)
+
+
 # -- database -----------------------------------------------------------------------------
 
 def list_rows(tenant: str, urn: Optional[str] = None) -> List[Row]:
@@ -148,16 +163,13 @@ def list_rows(tenant: str, urn: Optional[str] = None) -> List[Row]:
     return [Row(r['device_urn'], r['external_id'], (r['dm_writer'], r['dm_shape'])) for r in rows]
 
 
-def set_state(tenant: str, urn: str, state: Tuple[str, Optional[str]]) -> None:
-    """Update and commit the row; raises when the row is not there."""
+def tenant_suspended(tenant: str) -> bool:
+    """True when the tenant has no row or a `deleted_at`; raises on a read error."""
     with get_db_connection_with_tenant(tenant) as conn:
-        cur = conn.cursor()
-        cur.execute("UPDATE iot_datalogger_devices SET dm_writer = %s, dm_shape = %s "
-                    "WHERE tenant_id = %s AND device_urn = %s", (state[0], state[1], tenant, urn))
-        if cur.rowcount != 1:
-            conn.rollback()
-            raise RuntimeError(f"row of {urn} not updated")
-        conn.commit()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        cur.execute("SELECT deleted_at FROM tenants WHERE tenant_id = %s", (tenant,))
+        row = cur.fetchone()
+    return row is None or row['deleted_at'] is not None
 
 
 # -- mappings -----------------------------------------------------------------------------
@@ -269,6 +281,11 @@ def _put(tenant: str, external_id: str, attrs: list) -> None:
                                        external_id, attrs)
 
 
+def _report_outcome(out: Outcome) -> None:
+    if out.status != 'unchanged':
+        _say(f"{out.urn}: {'FAILED' if out.status == 'failed' else out.status} - {out.text}")
+
+
 def _fail(row: Row, text: str) -> Outcome:
     logger.error("dm_cutover failed: device=%s %s", row.external_id, text)
     return Outcome(row.urn, 'failed', text)
@@ -315,10 +332,20 @@ def _first_put(tenant: str, item: Item, target) -> Optional[Outcome]:
         return _fail(row, f"first PUT failed ({type(exc).__name__}); state unknown, rerun")
 
 
-def _commit_and_finish(tenant: str, item: Item, target) -> Outcome:
+def _row_changed(row: Row, text: str) -> Outcome:
+    logger.error("dm_cutover: the row changed since the plan, nothing was committed: device=%s "
+                 "urn=%s planned=%r", row.external_id, row.urn, row.state)
+    return _fail(row, f"the row changed since the plan; nothing was committed; {text}")
+
+
+def _commit_and_finish(lock, tenant: str, item: Item, target) -> Outcome:
     row = item.row
     try:
-        set_state(tenant, row.urn, target)
+        lock.commit_state(row.urn, row.state, target)
+    except writer_move_lock.RowChanged:
+        # Someone else moved the row: restoring the old mappings could leave nobody writing.
+        return _row_changed(row, "the new mappings were left in the agent (duplicates, no gap); "
+                                 "check the row, then rerun")
     except Exception as exc:
         return _after_db_failure(tenant, item, target, exc)
     try:
@@ -362,8 +389,11 @@ def _after_db_failure(tenant: str, item: Item, target, exc: Exception) -> Outcom
     return _fail(row, f"row update failed ({type(exc).__name__}); previous mappings restored")
 
 
-def apply_iota(tenant: str, items: List[Item], shape: str, settle: float) -> List[Outcome]:
+def apply_iota(lock, tenant: str, items: List[Item], shape: str, settle: float) -> List[Outcome]:
     """Move a batch to iota: first PUT of every device, ONE wait, then commit + final PUT each.
+
+    `lock` is the held exclusive lock: every row is committed on its connection. Each outcome is
+    printed when it is known.
 
     The wait lets a notification of a message the entity-manager handled before the first PUT
     drain: while it is still queued, the row commit would make the entity-manager skip it
@@ -374,15 +404,20 @@ def apply_iota(tenant: str, items: List[Item], shape: str, settle: float) -> Lis
     target = ('iota', shape)
     outcomes: Dict[str, Outcome] = {}
     pending: List[Item] = []
+
+    def record(out: Outcome) -> None:
+        outcomes[out.urn] = out
+        _report_outcome(out)
+
     for it in items:
         if it.action == 'move':
             failed = _first_put(tenant, it, target)
             if failed:
-                outcomes[it.row.urn] = failed
+                record(failed)
             else:
                 pending.append(it)
         else:
-            outcomes[it.row.urn] = apply_item(tenant, it, 'iota', shape)
+            record(apply_item(lock, tenant, it, 'iota', shape))
     inflight: Optional[Item] = None
     try:
         if pending and settle > 0:
@@ -390,33 +425,34 @@ def apply_iota(tenant: str, items: List[Item], shape: str, settle: float) -> Lis
             _sleep(settle)
         while pending:
             inflight = pending[0]
-            outcomes[inflight.row.urn] = _commit_and_finish(tenant, inflight, target)
+            record(_commit_and_finish(lock, tenant, inflight, target))
             pending.pop(0)
             inflight = None
     except KeyboardInterrupt:
         for it in pending:
             if it is inflight:
-                outcomes[it.row.urn] = _fail(it.row, "interrupted while committing; state unknown, "
-                                                     "check the row and rerun")
+                record(_fail(it.row, "interrupted while committing; state unknown, "
+                                     "check the row and rerun"))
                 continue
             try:
                 _restore_previous(tenant, it)
-                outcomes[it.row.urn] = _fail(it.row, "interrupted during the settle; previous "
-                                                     "mappings restored")
+                record(_fail(it.row, "interrupted during the settle; previous mappings restored"))
             except Exception as exc:
                 logger.critical("INCONSISTENCY: interrupted before the row update and the previous "
                                 "mappings were not restored: device=%s urn=%s previous=%r "
                                 "target=%r error=%s", it.row.external_id, it.row.urn,
                                 it.row.state, target, type(exc).__name__)
-                outcomes[it.row.urn] = _fail(it.row, "interrupted during the settle and the previous "
-                                                     "mappings could NOT be restored; rerun")
+                record(_fail(it.row, "interrupted during the settle and the previous "
+                                     "mappings could NOT be restored; rerun"))
     return [outcomes[it.row.urn] for it in items]
 
 
-def _move_to_em(tenant: str, item: Item, target) -> Outcome:
+def _move_to_em(lock, tenant: str, item: Item, target) -> Outcome:
     row = item.row
     try:
-        set_state(tenant, row.urn, target)
+        lock.commit_state(row.urn, row.state, target)
+    except writer_move_lock.RowChanged:
+        return _row_changed(row, "the agent was not touched")
     except Exception as exc:
         return _fail(row, f"row update failed ({type(exc).__name__}); the agent was not touched; "
                           f"if the commit went through the agent still has the DM mappings "
@@ -430,7 +466,10 @@ def _move_to_em(tenant: str, item: Item, target) -> Outcome:
     return Outcome(row.urn, 'moved', f"{row.state} -> {target}")
 
 
-def apply_item(tenant: str, item: Item, to: str, shape: Optional[str]) -> Outcome:
+def apply_item(lock, tenant: str, item: Item, to: str, shape: Optional[str]) -> Outcome:
+    """One device. A move to iota is refused here: its only path is `apply_iota`, with the wait."""
+    if to == 'iota' and item.action == 'move':
+        raise AssertionError("a move to iota goes through apply_iota")
     row = item.row
     target = _target(to, shape)
     if item.action == 'unchanged':
@@ -441,9 +480,7 @@ def apply_item(tenant: str, item: Item, to: str, shape: Optional[str]) -> Outcom
         except Exception as exc:
             return _fail(row, f"PUT failed ({type(exc).__name__}); rerun")
         return Outcome(row.urn, 'repaired', item.reason)
-    if to == 'iota':
-        return _first_put(tenant, item, target) or _commit_and_finish(tenant, item, target)
-    return _move_to_em(tenant, item, target)
+    return _move_to_em(lock, tenant, item, target)
 
 
 # -- verify -------------------------------------------------------------------------------
@@ -744,8 +781,8 @@ def _parser() -> argparse.ArgumentParser:
     p.add_argument("--to", choices=("iota", "em"))
     p.add_argument("--shape", choices=SHAPES)
     p.add_argument("--settle", type=float, metavar="SECONDS",
-                   help=f"--to iota: wait between the first PUTs and the row commits (default {DEFAULT_SETTLE:g})")
-    p.add_argument("--no-settle", action="store_true", help="--to iota: do not wait (needed for 0)")
+                   help=f"--to iota: wait between the first PUTs and the row commits "
+                        f"({MIN_SETTLE:g}-{MAX_SETTLE:g}, default {DEFAULT_SETTLE:g})")
     mode = p.add_mutually_exclusive_group()
     mode.add_argument("--dry-run", action="store_true", help="validate and print the plan; write nothing")
     mode.add_argument("--apply", action="store_true")
@@ -756,6 +793,12 @@ def _parser() -> argparse.ArgumentParser:
 def _args(argv: Optional[List[str]]) -> argparse.Namespace:
     p = _parser()
     a = p.parse_args(argv)
+    try:
+        canonical = normalize_tenant_id(a.tenant)
+    except ValueError:
+        canonical = None
+    if canonical != a.tenant:
+        p.error("--tenant must be in canonical form (lowercase letters, digits and single hyphens)")
     if a.dry_run or a.apply:
         if not a.to:
             p.error("--to is required with --dry-run/--apply")
@@ -766,14 +809,11 @@ def _args(argv: Optional[List[str]]) -> argparse.Namespace:
                     "locked out during the move (--dry-run, --verify and --to em still work)")
         if a.to == 'em' and a.shape:
             p.error("--shape is refused with --to em (the entity-manager has no shape)")
-        if a.to == 'em' and (a.settle is not None or a.no_settle):
-            p.error("--settle/--no-settle only apply to --to iota")
-        if a.settle is not None and a.no_settle:
-            p.error("--settle and --no-settle exclude each other")
-        if a.settle is not None and a.settle < 0:
-            p.error("--settle must not be negative")
-        if a.settle is not None and a.settle == 0:
-            p.error("--settle 0 needs the explicit --no-settle")
+        if a.to == 'em' and a.settle is not None:
+            p.error("--settle only applies to --to iota")
+        if a.settle is not None and not (math.isfinite(a.settle)
+                                         and MIN_SETTLE <= a.settle <= MAX_SETTLE):
+            p.error(f"--settle must be between {MIN_SETTLE:g} and {MAX_SETTLE:g} seconds")
     elif not a.verify:
         p.error("one of --dry-run, --apply or --verify is required")
     return a
@@ -788,53 +828,82 @@ def _report_plan(items: List[Item], dry: bool) -> None:
             _say(f"{it.row.urn}: {verb} ({it.reason})")
 
 
-def main(argv: Optional[List[str]] = None) -> int:
-    args = _args(argv)
-    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
-    tenant = args.tenant
+def _plan_and_apply(args: argparse.Namespace, tenant: str, lock) -> Tuple[Optional[int], bool]:
+    """Everything up to and including the writes. (exit code, ok): a code ends the command; None
+    carries on to the verification. `lock` is the held exclusive lock with --apply, else None."""
+    if args.apply and args.to == 'iota':
+        try:
+            suspended = tenant_suspended(tenant)
+        except Exception as exc:
+            _say(f"cannot read the tenant: {type(exc).__name__}; nothing was written")
+            return 1, False
+        if suspended:
+            _say("tenant is suspended; nothing was written")
+            return 1, False
     try:
         rows = list_rows(tenant, args.device)
     except Exception as exc:
         _say(f"cannot read the devices of the tenant: {type(exc).__name__}")
-        return 1
+        return 1, False
     if args.device and not rows:
         _say(f"{args.device} is not linked to tenant {tenant}")
-        return 1
+        return 1, False
     if not rows:
         _say(f"tenant {tenant} has no devices")
         if not args.verify:
-            return 0
+            return 0, True
     ok = True
     if args.dry_run or args.apply:
         try:
             items = build_plan(tenant, rows, args.to, args.shape)
         except Exception as exc:
             _say(f"cannot validate: {type(exc).__name__}: {getattr(exc, 'message', exc)}")
-            return 1
+            return 1, False
         failures = [it for it in items if it.problems]
         if failures:
             _say(f"validation FAILED for {len(failures)} of {len(items)} device(s); nothing was written")
             for it in failures:
                 for problem in it.problems:
                     _say(f"  {it.row.urn}: {problem}")
-            return 1
+            return 1, False
         _report_plan(items, dry=args.dry_run)
+        settle = DEFAULT_SETTLE if args.settle is None else args.settle
         if args.dry_run and args.to == 'iota' and any(it.action == 'move' for it in items):
-            wait = 0.0 if args.no_settle else (DEFAULT_SETTLE if args.settle is None else args.settle)
-            _say(f"would wait {wait:g} s between the first PUTs and the row commits")
+            _say(f"would wait {settle:g} s between the first PUTs and the row commits")
         if args.apply:
             if args.to == 'iota':
-                settle = 0.0 if args.no_settle else (
-                    DEFAULT_SETTLE if args.settle is None else args.settle)
-                outcomes = apply_iota(tenant, items, args.shape, settle)
+                outcomes = apply_iota(lock, tenant, items, args.shape, settle)
             else:
-                outcomes = [apply_item(tenant, it, 'em', None) for it in items]
-            for out in outcomes:
-                if out.status != 'unchanged':
-                    _say(f"{out.urn}: {'FAILED' if out.status == 'failed' else out.status} - {out.text}")
+                outcomes = []
+                for it in items:
+                    out = apply_item(lock, tenant, it, 'em', None)
+                    _report_outcome(out)
+                    outcomes.append(out)
             failed = [o for o in outcomes if o.status == 'failed']
             _say(f"done: {len(outcomes) - len(failed)} ok, {len(failed)} failed")
             ok = not failed
+    return None, ok
+
+
+def main(argv: Optional[List[str]] = None) -> int:
+    args = _args(argv)
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
+    tenant = args.tenant
+    if args.apply:
+        # The lock is taken BEFORE the plan is read, and held until the last row is committed.
+        try:
+            with _exclusive_lock(tenant) as lock:
+                code, ok = _plan_and_apply(args, tenant, lock)
+        except writer_move_lock.MoveInProgress:
+            _say("a profile change or another move is running; nothing was written")
+            return 1
+        except writer_move_lock.LockUnavailable as exc:
+            _say(f"cannot take the writer move lock ({exc}); nothing was written")
+            return 1
+    else:
+        code, ok = _plan_and_apply(args, tenant, None)
+    if code is not None:
+        return code
     if args.verify:
         try:
             rows = list_rows(tenant)

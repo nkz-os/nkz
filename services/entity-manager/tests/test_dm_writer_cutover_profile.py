@@ -5,7 +5,7 @@ from tests.telemetry_fakes import TENANT  # noqa: F401,I001  (stubs first)
 
 import dataloggers  # noqa: E402
 from tests.test_dm_writer_cutover import (  # noqa: F401,E402  (fixtures)
-    BASE, MS, ONE_MS, Http, dm, http, move_enabled, run, sleeps, world)
+    BASE, MS, ONE_MS, Http, dm, http, move_enabled, real_tenant_normaliser, run, sleeps, world)
 
 URN = f"urn:ngsi-ld:Device:{TENANT}:S1"
 
