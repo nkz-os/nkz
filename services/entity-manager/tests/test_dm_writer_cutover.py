@@ -2157,19 +2157,19 @@ def test_interrupt_while_committing_reads_the_row_unreadable(world, capsys, capl
 
 @pytest.fixture(autouse=True)
 def sentinels():
-    """Stand-ins for SIGINT/SIGTERM: a missing handler records a hit instead of killing pytest."""
+    """Stand-ins for SIGINT/SIGTERM/SIGHUP: a missing handler records a hit instead of killing pytest."""
     hits = []
 
     def sentinel(signum, frame):
         hits.append(signum)
 
-    old = {s: signal.signal(s, sentinel) for s in (signal.SIGINT, signal.SIGTERM)}
+    old = {s: signal.signal(s, sentinel) for s in (signal.SIGINT, signal.SIGTERM, signal.SIGHUP)}
     yield SimpleNamespace(hits=hits, handler=sentinel)
     for s, h in old.items():
         signal.signal(s, h)
 
 
-@pytest.mark.parametrize("sig", [signal.SIGINT, signal.SIGTERM])
+@pytest.mark.parametrize("sig", [signal.SIGINT, signal.SIGTERM, signal.SIGHUP])
 def test_sigterm_behaves_like_ctrl_c(world, sentinels, capsys, sig):
     urns = [world.add("S1"), world.add("S2")]
     world.settle_agent()
@@ -2283,10 +2283,12 @@ def test_handlers_are_restored_on_exit(world, sentinels):
         assert run(*BASE, *argv) == 1
         assert signal.getsignal(signal.SIGINT) is sentinels.handler
         assert signal.getsignal(signal.SIGTERM) is sentinels.handler
+        assert signal.getsignal(signal.SIGHUP) is sentinels.handler
     world.on_sleep = None
     assert run(*BASE, *IOTA_SDM) == 0
     assert signal.getsignal(signal.SIGINT) is sentinels.handler
     assert signal.getsignal(signal.SIGTERM) is sentinels.handler
+    assert signal.getsignal(signal.SIGHUP) is sentinels.handler
 
 
 def test_a_signal_during_the_plan_exits_1_and_releases_the_lock(world, sentinels, monkeypatch, capsys):
@@ -2579,7 +2581,7 @@ def test_apply_iota_refuses_a_settle_outside_the_range(world):
 
 def test_the_docstring_describes_the_undo_and_not_the_old_paragraph():
     doc = cut.__doc__
-    assert "Undo (`_undo`)" in doc and "SIGINT and SIGTERM" in doc
+    assert "Undo (`_undo`)" in doc and "SIGINT, SIGTERM and SIGHUP" in doc
     assert "puts the Device-only mappings back on every device" not in doc
     assert doc.count("Order of the writes") == 1
 
@@ -2765,6 +2767,39 @@ def test_a_move_to_em_keeps_its_own_text_for_a_failed_put(world, capsys):
     assert run(*BASE, "--to", "em", "--apply") == 1
     out = capsys.readouterr().out
     assert "duplicate writes, no gap" in out and "may not hold the new mappings" not in out
+
+
+# -- the tenant is checked again before the first commit ----------------------------------------
+
+@pytest.mark.parametrize("how", ["suspended", "unreadable"])
+def test_a_tenant_suspended_during_the_wait_commits_nothing(world, capsys, how):
+    urn = world.add("S1")
+    world.settle_agent()
+    before = _snapshot(world)
+
+    def during_the_wait(seconds):
+        if how == "suspended":
+            world.tenants[TENANT] = "2026-11-01T00:00:00Z"
+        else:
+            world.tenant_read_fail = True
+
+    world.on_sleep = during_the_wait
+    assert run(*BASE, *IOTA_LEGACY) == 1
+    out = capsys.readouterr().out
+    assert "tenant is suspended" in out
+    assert world.rows[urn]["dm_writer"] == "em" and not world.events("update")
+    assert world.agent == before                       # the first mappings were put back
+    assert world.log[-1] == ("unlock",)
+
+
+def test_the_tenant_is_read_once_before_the_plan_and_once_after_the_wait(world):
+    world.add("S1")
+    world.settle_agent()
+    assert run(*BASE, *IOTA_LEGACY) == 0
+    reads = [i for i, e in enumerate(world.log) if e[0] == "read_tenant"]
+    waits = [i for i, e in enumerate(world.log) if e[0] == "sleep"]
+    commits = [i for i, e in enumerate(world.log) if e[0] == "update"]
+    assert len(reads) == 2 and reads[0] < waits[0] and waits[-1] < reads[1] < commits[0]
 
 
 # -- every injection point (property) ---------------------------------------------------------

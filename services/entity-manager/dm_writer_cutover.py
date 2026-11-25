@@ -84,8 +84,8 @@ outcome is undone. The row is read through the lock and decides:
   * the target state: the commit went through, the final PUT is sent and the device is `moved`;
   * anything else, no row, an unreadable row or no lock: the new mappings stay in the agent
     (duplicates, no gap), CRITICAL, the device is listed and the text says rerun.
-SIGINT and SIGTERM during the apply phase never raise: the handler sets a flag and writes one line to
-stderr. The batch looks at the flag before each device's first PUT, during the wait (slices of at
+SIGINT, SIGTERM and SIGHUP during the apply phase never raise: the handler sets a flag and writes one line to stderr.
+The batch looks at the flag before each device's first PUT, during the wait (slices of at
 most 0.5 s), before each commit and between the devices of `--to em`; a step in progress finishes and
 a committed row always gets its final PUT. After a stop (or any unexpected error) the final undo runs
 to the end and every device gets exactly one outcome; exit code 1. Printing never stops the batch.
@@ -312,9 +312,9 @@ _LOCK_LOST_LEFT = ("lock lost; the new mappings were left in the agent (no gap, 
 
 
 class _Signals:
-    """SIGINT and SIGTERM during the apply phase: the handler never raises. It sets a flag and writes
-    one line with `os.write` (a `print` from a handler that interrupted a `print` raises: stdout is
-    not re-entrant). The batch reads the flag at defined points (`stop_requested`). The previous
+    """SIGINT, SIGTERM and SIGHUP (a dropped terminal) during the apply phase: the handler never
+    raises. It sets a flag and writes one line with `os.write` (a `print` from a handler that
+    interrupted a `print` raises: stdout is not re-entrant). The batch reads the flag at defined points (`stop_requested`). The previous
     handlers are restored on exit."""
 
     def __init__(self):
@@ -323,7 +323,7 @@ class _Signals:
 
     def __enter__(self) -> "_Signals":
         try:
-            for sig in (signal.SIGINT, signal.SIGTERM):
+            for sig in (signal.SIGINT, signal.SIGTERM, signal.SIGHUP):
                 self._previous[sig] = signal.signal(sig, self._handle)
         except BaseException:
             self._restore()
@@ -710,6 +710,20 @@ def apply_iota(lock, tenant: str, items: List[Item], shape: str, settle: float) 
         return _apply_iota(holder, tenant, items, ('iota', shape), settle, signals)
 
 
+def _suspension_stop(tenant: str) -> str:
+    """'' while the tenant may still be committed; else the reason the batch stops. The check of the
+    start is not enough: the wait lasts minutes, and a suspended tenant is not moved (a tenant that
+    cannot be read counts as suspended: nothing is committed on a guess)."""
+    try:
+        if not tenant_suspended(tenant):
+            return ''
+    except Exception as exc:
+        logger.error("dm_cutover: tenant state unreadable before the commits (%s): tenant=%s",
+                     type(exc).__name__, tenant)
+        return "tenant is suspended (or its state could not be read)"
+    return "tenant is suspended"
+
+
 def _stop_reason(signals: "_Signals", failure: Optional[Exception]) -> str:
     if failure is not None:
         return f"stopped by an unexpected {type(failure).__name__}"
@@ -724,6 +738,7 @@ def _apply_iota(holder: _LockHolder, tenant: str, items: List[Item], target, set
     touched: List[Item] = []        # added BEFORE the first PUT
     inflight_repair: Optional[Item] = None
     failure: Optional[Exception] = None
+    stopped_for = ''
 
     def record(out: Outcome) -> None:
         outcomes[out.urn] = out
@@ -754,8 +769,10 @@ def _apply_iota(holder: _LockHolder, tenant: str, items: List[Item], target, set
         if pending and not halted():
             _say_safe(f"waiting {settle:g} s for in-flight notifications before committing the rows")
             _wait(settle, signals)
+            if not halted():
+                stopped_for = _suspension_stop(tenant)
         for it in pending:
-            if halted() or not holder.can_commit():
+            if stopped_for or halted() or not holder.can_commit():
                 break
             res = _commit_and_finish(holder, tenant, it, target)
             if isinstance(res, _NeedsUndo):
@@ -766,7 +783,7 @@ def _apply_iota(holder: _LockHolder, tenant: str, items: List[Item], target, set
         failure = exc
         logger.critical("dm_cutover: unexpected %s at %s in the batch; undoing what is not "
                         "settled: tenant=%s", type(exc).__name__, _frame(exc), tenant)
-    why = _stop_reason(signals, failure)
+    why = stopped_for or _stop_reason(signals, failure)
     for it in [it for it in touched if it.row.urn not in outcomes]:
         record(_undo(holder, tenant, it, target, why))
     for it in items:
