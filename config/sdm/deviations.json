@@ -78,7 +78,9 @@
         "Alert"
       ],
       "officialFor": [
-        "AgriParcel"
+        "AgriApp",
+        "AgriParcel",
+        "AgriProductType"
       ]
     },
     {
@@ -89,7 +91,9 @@
         "Building"
       ],
       "officialFor": [
-        "AgriParcel"
+        "AgriApp",
+        "AgriParcel",
+        "AgriProductType"
       ]
     },
     {
@@ -101,7 +105,9 @@
         "DeviceModel"
       ],
       "officialFor": [
-        "AgriParcel"
+        "AgriApp",
+        "AgriParcel",
+        "AgriProductType"
       ]
     },
     {
@@ -112,7 +118,9 @@
         "WeatherAlert"
       ],
       "officialFor": [
-        "AgriParcel"
+        "AgriApp",
+        "AgriParcel",
+        "AgriProductType"
       ]
     },
     {
@@ -196,12 +204,14 @@
       "platform": "https://schema.org/name",
       "official": "https://smartdatamodels.org/name",
       "types": [
+        "AgriApp",
         "AgriCrop",
         "AgriFarm",
         "AgriGreenhouse",
         "AgriParcel",
         "AgriParcelOperation",
         "AgriParcelRecord",
+        "AgriProductType",
         "AgriSoil",
         "Alert",
         "Animal",

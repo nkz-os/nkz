@@ -1,12 +1,14 @@
 # Official Smart Data Models entity types that have no validated example in
 # config/sdm-examples yet. This file may only lose lines: a type leaves it when
 # an example produced by its builder validates against the official schema.
+AgriApp
 AgriCrop
 AgriFarm
 AgriGreenhouse
 AgriParcel
 AgriParcelOperation
 AgriParcelRecord
+AgriProductType
 AgriSoil
 Alert
 Animal

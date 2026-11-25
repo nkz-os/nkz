@@ -57,6 +57,11 @@
     "sensingDate": "Official attribute of SDM EOProduct and EOSatelliteImagery (date and time of the acquisition), mapped to the SatelliteImagery subject IRI.",
     "productType": "Official attribute of SDM EOProduct and EOSatelliteImagery (type of the satellite product, e.g. S2MSI2A, GRD), mapped to the SatelliteImagery subject IRI.",
     "provider": "Official attribute of SDM EOSatelliteImagery (the provider of the algorithm), mapped to the SatelliteImagery subject IRI. Smart Data Models gives the same name another IRI in the Device subject; a single platform context can hold only one, and no platform entity uses the Device one.",
-    "analytics": "Official attribute of SDM EOSatelliteImagery (list of name/value pairs, value is a string). The model's schema defines it but the subject's published context does not list it yet, so the IRI here follows the Smart Data Models naming convention."
+    "analytics": "Official attribute of SDM EOSatelliteImagery (list of name/value pairs, value is a string). The model's schema defines it but the subject's published context does not list it yet, so the IRI here follows the Smart Data Models naming convention.",
+    "AgriApp": "Official SDM dataModel.Agrifood. An application of the agrifood domain; the source a relatedSource entry refers to.",
+    "AgriProductType": "Official SDM dataModel.Agrifood. A product type, including crop varieties (category cropVariety); an operation points to it with hasAgriProductType.",
+    "cropManagement": "Organic or conventional production of one crop cycle, on its sowing operation; not modelled in SDM",
+    "declaredCampaigns": "Past campaigns of a parcel declared without dates (crop, variety, yield, fallow); SDM has no undated crop history",
+    "hasSowingOperation": "Relationship from a field operation to the sowing operation that opened its crop cycle; not modelled in SDM"
   }
 }

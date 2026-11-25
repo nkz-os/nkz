@@ -1,11 +1,13 @@
 # Smart Data Models entity types in use. One name per line, sorted.
 # A new name must be in the official list of Smart Data Models and have a term in the platform context.
+AgriApp
 AgriCrop
 AgriFarm
 AgriGreenhouse
 AgriParcel
 AgriParcelOperation
 AgriParcelRecord
+AgriProductType
 AgriSoil
 Alert
 Animal

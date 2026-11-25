@@ -901,7 +901,10 @@
       "localServerPath": "https://smartdatamodels.org/dataModel.SatelliteImagery/localServerPath",
       "storageFormat": "https://smartdatamodels.org/dataModel.SatelliteImagery/storageFormat",
       "contentInformation": "https://smartdatamodels.org/dataModel.SatelliteImagery/contentInformation",
-      "analytics": "https://smartdatamodels.org/dataModel.SatelliteImagery/analytics"
+      "analytics": "https://smartdatamodels.org/dataModel.SatelliteImagery/analytics",
+      "cropManagement": "nkz:cropManagement",
+      "declaredCampaigns": "nkz:declaredCampaigns",
+      "hasSowingOperation": "nkz:hasSowingOperation"
     },
     "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.6.jsonld"
   ]

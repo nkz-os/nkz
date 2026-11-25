@@ -73,6 +73,7 @@ fails on it.
 | `CropHealthAssessment` | entidad | extension-declarada | Platform extension — no SDM equivalent |
 | `CropHealthZoneAssessment` | entidad | sin-revisar | Not yet reviewed |
 | `cropLifecycle` | atributo | extension-declarada | Annual or perennial, decides the degree-day accumulation window; not modelled in SDM |
+| `cropManagement` | atributo | extension-declarada | Organic or conventional production of one crop cycle, on its sowing operation; not modelled in SDM |
 | `cropRole` | atributo | extension-declarada | Role of a crop cycle in a rotation (main, cover, catch crop); not modelled in SDM |
 | `cropSeason` | atributo | extension-declarada | Crop-plan season label grouping planned cycles; not modelled in SDM |
 | `cropSegmentSeq` | atributo | extension-declarada | Order of a planned cycle within its crop-plan season; not modelled in SDM |
@@ -92,6 +93,8 @@ fails on it.
 | `EnergyStorageSystem` | entidad | extension-declarada | Platform extension — no SAREF4AGRI equivalent |
 | `expectedTerminationDate` | atributo | extension-declarada | Planned end of a crop cycle in a crop plan; SDM has harvesting intervals only for crop types |
 | `hasAgriManagementZone` | atributo | propuesta-sdm | Attribute of AgriPlantSample, AgriSoilSample (smart-data-models/incubated#283) |
+| `hasSowingOperation` | atributo | extension-declarada | Relationship from a field operation to the sowing operation that opened its crop cycle; not modelled in SDM |
+| `declaredCampaigns` | atributo | extension-declarada | Past campaigns of a parcel declared without dates (crop, variety, yield, fallow); SDM has no undated crop history |
 | `hasAgriPlant` | atributo | propuesta-sdm | Attribute of AgriPlantSample (smart-data-models/incubated#283) |
 | `hasAgriPlantReplacement` | atributo | propuesta-sdm | Attribute of AgriPlant (smart-data-models/incubated#283) |
 | `height` | atributo | propuesta-sdm | Attribute of AgriPlant (smart-data-models/incubated#283) |
