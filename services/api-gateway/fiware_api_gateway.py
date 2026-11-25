@@ -795,6 +795,8 @@ def enforce_pat_pagination():
     if "entities" in scopes:
         # GET /ngsi-ld/v1/entities — cap query param 'limit'
         if request.method == "GET" and path.startswith("/ngsi-ld/v1/entities"):
+            if any("\x00" in name for name in request.args):
+                return jsonify({"error": "Invalid parameter name"}), 400
             # Store capped limit for route handlers (request.args is immutable)
             g.pat_entity_limit = _capped_pat_limit(request.args.get("limit"))
             return None

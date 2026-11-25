@@ -127,6 +127,12 @@ def test_pat_parameter_names_must_be_plain(pat):
     assert pat.calls == []
 
 
+def test_pat_parameter_names_must_be_plain_in_lists(pat):
+    resp = pat.client.get("/ngsi-ld/v1/entities?limit=1&limit%00=1000", headers=pat.headers)
+    assert resp.status_code == 400
+    assert pat.calls == []
+
+
 def test_user_query_gets_no_limit(user):
     assert user(QUERY).status_code == 200
     assert "limit" not in user.calls[0]["params"]
