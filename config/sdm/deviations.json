@@ -338,6 +338,17 @@
       ]
     },
     {
+      "term": "softwareVersion",
+      "platform": "https://smartdatamodels.org/dataModel.Device/softwareVersion",
+      "official": "https://smartdatamodels.org/dataModel.ManufacturingMachine/softwareVersion",
+      "types": [
+        "ManufacturingMachine"
+      ],
+      "officialFor": [
+        "Device"
+      ]
+    },
+    {
       "term": "soilTemperature",
       "platform": "https://smartdatamodels.org/dataModel.Weather/soilTemperature",
       "official": "https://smartdatamodels.org/dataModel.Agrifood/soilTemperature",
@@ -354,6 +365,18 @@
       ],
       "officialFor": [
         "WeatherObserved"
+      ]
+    },
+    {
+      "term": "supportedProtocol",
+      "platform": "https://smartdatamodels.org/dataModel.Device/supportedProtocol",
+      "official": "https://smartdatamodels.org/dataModel.ManufacturingMachine/supportedProtocol",
+      "types": [
+        "ManufacturingMachine"
+      ],
+      "officialFor": [
+        "Device",
+        "DeviceModel"
       ]
     },
     {
