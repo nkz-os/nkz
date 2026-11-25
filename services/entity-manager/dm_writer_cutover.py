@@ -60,6 +60,10 @@ writes is not.
     60-600 s, default 60), then per device update the row and PUT again. The wait is there because
     a notification of a message the entity-manager handled before the first PUT can still be queued
     when the row commits; the entity-manager would then skip it (a reading lost) or handle it twice.
+    Right before each commit the agent's own document is read once and must still be the mappings the
+    first PUT sent (a late PUT of a profile change, or a device deleted and registered again, may
+    have replaced them with Device-only ones); different or unreadable: that device is not
+    committed and is undone ("the agent no longer holds the first mappings").
     The second PUT, after the commit, re-reads the profile and rebuilds the mappings: a profile
     change that ran `push_iota_attributes` while the row still said `em` would otherwise leave
     Device-only mappings on a device the entity-manager now skips.
@@ -158,6 +162,7 @@ class Item:
     action: str = 'move'            # move | repair | unchanged
     reason: str = ''
     old_attrs: Optional[list] = None
+    first_attrs: Optional[list] = None      # the mappings the first PUT of a move to iota sent
     problems: List[str] = field(default_factory=list)
 
 
@@ -563,15 +568,19 @@ def _read_row(holder: _LockHolder, urn: str) -> Optional[tuple]:
     raise _Unreadable("unreadable")
 
 
-def _after_commit(holder: _LockHolder, tenant: str, row: Row, target, stays: str) -> Outcome:
-    """The row is committed: send the final PUT. `stays` says what the agent keeps if it fails."""
+_IOTA_STAYS = "the agent may not hold the new mappings; "
+
+
+def _after_commit(holder: _LockHolder, tenant: str, row: Row, target, stays: str,
+                  rerun: str = "rerun") -> Outcome:
+    """The row is committed: send the final PUT. `stays` says what the agent holds if it fails."""
     try:
         _push_fresh(holder, tenant, row)
     except _LockLost:
-        return _fail(row, f"row updated to {target}; final PUT not sent (lock lost); {stays}rerun")
+        return _fail(row, f"row updated to {target}; final PUT not sent (lock lost); {stays}{rerun}")
     except Exception as exc:
         return _fail(row, f"row already updated to {target} but the final PUT failed "
-                          f"({type(exc).__name__}); {stays}rerun")
+                          f"({type(exc).__name__}); {stays}{rerun}")
     return Outcome(row.urn, 'moved', f"{row.state} -> {target}")
 
 
@@ -621,7 +630,7 @@ def _undo_with_lock(holder: _LockHolder, tenant: str, item: Item, target, why: s
                 return left(_LOCK_LOST_LEFT)
             if holder.generation != generation:
                 continue
-            return _after_commit(holder, tenant, row, target, "the first mappings stay in the agent; ")
+            return _after_commit(holder, tenant, row, target, _IOTA_STAYS, "rerun now")
         attrs, from_plan = _previous_mappings(tenant, item)
         if attrs is None:
             return left("previous mappings not buildable; the new mappings were left in the "
@@ -649,6 +658,7 @@ def _first_put(holder: _LockHolder, tenant: str, item: Item, target):
     row = item.row
     try:
         attrs = _build(tenant, row, target, item.code, item.measurements)
+        item.first_attrs = attrs
         if not holder.ensure() or holder.lost:
             return _fail(row, "lock lost; the first PUT was not sent; nothing was changed; rerun")
         _put(tenant, row.external_id, attrs)
@@ -664,8 +674,16 @@ def _row_changed(row: Row, text: str) -> Outcome:
 
 
 def _commit_and_finish(holder: _LockHolder, tenant: str, item: Item, target):
-    """Commit the row on the lock connection, then the final PUT. An Outcome, or `_NeedsUndo`."""
+    """Check the agent, commit the row on the lock connection, then the final PUT. An Outcome, or
+    `_NeedsUndo`.
+
+    The agent's own document must still be the one the first PUT sent: during the wait a profile
+    change that lost its lock, or a device deleted and registered again under the same external id,
+    may have replaced it with Device-only mappings, and committing the row over those would leave a
+    device nobody writes. Different or unreadable: nothing is committed and the device is undone."""
     row = item.row
+    if item.first_attrs is None or not _agent_matches(tenant, row.external_id, item.first_attrs):
+        return _NeedsUndo("the agent no longer holds the first mappings")
     try:
         holder.current.commit_state(row.urn, row.state, target)
     except writer_move_lock.RowChanged:
@@ -674,7 +692,7 @@ def _commit_and_finish(holder: _LockHolder, tenant: str, item: Item, target):
         return _NeedsUndo("the row changed since the plan; nothing was committed")
     except Exception as exc:
         return _NeedsUndo(f"row update failed ({type(exc).__name__})")
-    return _after_commit(holder, tenant, row, target, "the first mappings stay in the agent; ")
+    return _after_commit(holder, tenant, row, target, _IOTA_STAYS, "rerun now")
 
 
 def apply_iota(lock, tenant: str, items: List[Item], shape: str, settle: float) -> List[Outcome]:

@@ -72,6 +72,7 @@ class World:
         self.orion_fail = False
         self.on_sleep = None
         self.before_put = None        # callback(n, ext) run before the PUT is applied
+        self.before_get = None        # callback(ext) run when the agent's document is read
         self.locks = []               # every FakeLock the command created
         self.read_state_fail = False  # reads through the lock fail (the lock stays alive)
         self.retake_refused = False   # after a lock is lost, taking it again is refused
@@ -286,6 +287,9 @@ def _fake_iota(world):
         world.tick("put_after")
 
     def get(url, headers, device_id):
+        world.tick("get")
+        if world.before_get:
+            world.before_get(device_id)
         if world.get_fail or device_id not in world.agent:
             raise _IotaError(404)
         return {"device_id": device_id, "attributes": copy.deepcopy(world.agent[device_id])}
@@ -2640,6 +2644,129 @@ def test_a_repair_put_is_not_sent_without_the_lock(world, capsys):
     assert out.status == "failed" and "lock lost" in out.text and world.puts == 0
 
 
+# -- the agent is checked before a move commits ------------------------------------------------
+
+def _replace_the_first_mappings_during_the_wait(world, urn, device_registered_again=False):
+    """What a profile change that lost its lock does during the wait: it writes the Device-only
+    mappings of ITS profile into the agent. Or the device is deleted and registered again under the
+    same external id: a new row in the same state, a Device-only agent device."""
+    done = []
+
+    def late(seconds):
+        if done:
+            return
+        done.append(1)
+        world.agent["S1"] = _attrs(urn, "S1", ("em", None), ONE_MS)
+        if device_registered_again:
+            world.rows[urn] = dict(device_urn=urn, external_id="S1", dm_writer="em", dm_shape=None)
+
+    world.on_sleep = late
+
+
+@pytest.mark.parametrize("again", [False, True], ids=["late-put", "device-registered-again"])
+def test_first_mappings_replaced_during_the_wait_commit_nothing_and_are_put_back(world, capsys, again):
+    urn = world.add("S1")
+    world.settle_agent()
+    _replace_the_first_mappings_during_the_wait(world, urn, again)
+    assert run(*BASE, *IOTA_LEGACY) == 1
+    out = capsys.readouterr().out
+    assert world.rows[urn]["dm_writer"] == "em" and not world.events("update")
+    assert "the agent no longer holds the first mappings" in out
+    assert world.agent["S1"] == _attrs(urn, "S1", ("em", None))      # the previous mappings are back
+
+
+def test_the_agent_is_read_after_the_wait_and_before_the_commit(world):
+    urn = world.add("S1")
+    world.settle_agent()
+    reads = []
+    world.before_get = lambda ext: reads.append(len(world.log))
+    assert run(*BASE, *IOTA_LEGACY) == 0
+    assert reads and world.log.index(("sleep", 0.5)) < reads[-1] <= world.log.index(("update", urn, "iota", "legacy"))
+
+
+def test_a_slow_agent_does_not_stop_the_move(world):
+    urn = world.add("S1")
+    world.settle_agent()
+    world.before_get = lambda ext: world.log.append(("slow_get", ext))
+    assert run(*BASE, *IOTA_LEGACY) == 0
+    assert world.rows[urn]["dm_writer"] == "iota"
+
+
+def test_an_agent_document_that_cannot_be_read_commits_nothing(world, capsys):
+    """404 (`get_fail`) and a read that raises are the same: the first mappings are not known to be there."""
+    urn = world.add("S1")
+    world.settle_agent()
+    world.after_put = lambda n, ext: setattr(world, "get_fail", True)
+    assert run(*BASE, *IOTA_LEGACY) == 1
+    assert world.rows[urn]["dm_writer"] == "em" and not world.events("update")
+    assert "the agent no longer holds the first mappings" in capsys.readouterr().out
+    assert world.agent["S1"] == _attrs(urn, "S1", ("em", None))
+
+
+def test_an_agent_read_that_raises_commits_nothing(world, capsys):
+    urn = world.add("S1")
+    world.settle_agent()
+    world.inject = [("get", 0, "boom")]
+    world.counts.clear()
+    assert run(*BASE, *IOTA_LEGACY) == 1
+    assert world.rows[urn]["dm_writer"] == "em" and not world.events("update")
+    assert "the agent no longer holds the first mappings" in capsys.readouterr().out
+
+
+def test_the_profile_changed_during_the_wait_is_still_a_match(world):
+    """What the agent holds is compared with what THIS move sent, not with a fresh build."""
+    urn = world.add("S1")
+    world.settle_agent()
+    world.on_sleep = lambda seconds: world.profiles.__setitem__("p", copy.deepcopy(ONE_MS))
+    assert run(*BASE, *IOTA_LEGACY) == 0
+    assert world.agent["S1"] == _attrs(urn, "S1", ("iota", "legacy"), ONE_MS)
+
+
+def test_a_committed_row_whose_final_put_fails_says_the_agent_may_not_hold_the_mappings(world, capsys):
+    urn = world.add("S1")
+    world.settle_agent()
+    world.put_fail = lambda n, ext: n == 2
+    assert run(*BASE, *IOTA_LEGACY) == 1
+    out = capsys.readouterr().out
+    assert world.rows[urn]["dm_writer"] == "iota"
+    assert "the agent may not hold the new mappings; rerun now" in out
+    assert "first mappings stay" not in out
+
+
+def test_a_committed_row_whose_final_put_is_not_sent_says_the_same(world, capsys):
+    urn = world.add("S1")
+    world.settle_agent()
+    world.retake_refused = True
+    world.inject = [("commit_after", 0, "lost")]
+    assert run(*BASE, *IOTA_LEGACY) == 1
+    out = capsys.readouterr().out
+    assert "final PUT not sent (lock lost)" in out
+    assert "the agent may not hold the new mappings; rerun now" in out
+
+
+def test_a_committed_row_whose_profile_cannot_be_read_says_the_same(world, capsys):
+    urn = world.add("S1")
+    world.settle_agent()
+
+    def profile_gone(n, ext):
+        if ext == "S1" and n == 1:
+            world.on_sleep = lambda seconds: world.profiles.pop("p", None)
+
+    world.after_put = profile_gone
+    assert run(*BASE, *IOTA_LEGACY) == 1
+    out = capsys.readouterr().out
+    assert "the agent may not hold the new mappings; rerun now" in out
+
+
+def test_a_move_to_em_keeps_its_own_text_for_a_failed_put(world, capsys):
+    world.add("S1", writer="iota", shape="legacy")
+    world.settle_agent()
+    world.put_fail = lambda n, ext: True
+    assert run(*BASE, "--to", "em", "--apply") == 1
+    out = capsys.readouterr().out
+    assert "duplicate writes, no gap" in out and "may not hold the new mappings" not in out
+
+
 # -- every injection point (property) ---------------------------------------------------------
 
 def assert_no_silent_device(world, items, outcomes, strict=True):
@@ -2681,6 +2808,7 @@ EFFECTS = {
     "read": ("signal", "lost", "db", "boom"),
     "print": ("signal", "lost", "pipe", "valerr", "boom"),
     "alive": ("signal", "boom"), "orion": ("signal", "boom"),
+    "get": ("signal", "lost", "boom"),
 }
 CELLS = {"strict": 0, "weak": 0}
 
@@ -2770,7 +2898,7 @@ def test_no_injection_point_leaves_a_silent_device(monkeypatch, base_name, refus
     kinds = {k for k, _ in points}
     if base_name == "clean":
         assert {"put_before", "put_after", "sleep", "commit_before", "commit_after", "print",
-                "alive", "orion"} <= kinds
+                "alive", "orion", "get"} <= kinds
     cases = 0
     for kind, index in points:
         for effect in EFFECTS[kind]:
