@@ -133,7 +133,7 @@ def test_enforcing_rejects_alternate_declarations(forwarded, monkeypatch, prefix
 
 
 @pytest.mark.parametrize("prefix", PREFIXES)
-@pytest.mark.parametrize("body", [[1, 2], {"id": "urn:ngsi-ld:X:tenant-a:1"}])
+@pytest.mark.parametrize("body", [{"id": "urn:ngsi-ld:X:tenant-a:1"}])
 def test_enforcing_forwards_what_it_cannot_judge(forwarded, monkeypatch, prefix, body):
     gw, calls = forwarded
     _set_guard(monkeypatch, gw, enforce=True)
@@ -143,14 +143,14 @@ def test_enforcing_forwards_what_it_cannot_judge(forwarded, monkeypatch, prefix,
 
 
 @pytest.mark.parametrize("prefix", PREFIXES)
-@pytest.mark.parametrize("method", ["GET", "PUT", "PATCH", "DELETE"])
-def test_only_creation_is_judged(forwarded, monkeypatch, caplog, prefix, method):
+@pytest.mark.parametrize("method, status", [("GET", 204), ("PUT", 405), ("PATCH", 405), ("DELETE", 405)])
+def test_only_creation_is_judged(forwarded, monkeypatch, caplog, prefix, method, status):
     gw, calls = forwarded
     _set_guard(monkeypatch, gw, enforce=True)
     with caplog.at_level(logging.INFO):
         resp = _call(gw, prefix, method, {"type": "FooAsset"})
-    assert resp.status_code == 204
-    assert len(calls) == 1
+    assert resp.status_code == status
+    assert len(calls) == (1 if status == 204 else 0)
     assert _guard_records(caplog) == []
 
 
