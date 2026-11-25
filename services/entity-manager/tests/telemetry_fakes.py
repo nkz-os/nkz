@@ -27,6 +27,7 @@ class FakeState:
         self.iota_updates = 0
         self.iota_attrs = []  # (device_id, attributes) of every provision / update
         self.iota_devices = {}  # device_id -> the agent's document (gateway projection tests)
+        self.no_gateway_columns = False  # a schema before migration 123
         self.iota_strict = False  # True: provisioning an existing device answers 409
 
     @staticmethod
@@ -67,8 +68,17 @@ class _Cursor:
         self._rowcount = 0
         if "FOR UPDATE" in sql:
             log.append(("sql", "FOR UPDATE"))
+        if "gateway_" in sql and not sql.startswith("UPDATE") and "information_schema" not in sql:
+            log.append(("db", "gateway_read"))
+            if self.conn.state.no_gateway_columns:
+                import psycopg2.errors
+                raise psycopg2.errors.UndefinedColumn("no such column")
         if "pg_advisory_xact_lock" in sql:
             log.append(("sql", "lock", params[0]))
+        elif sql.startswith("SELECT column_name FROM information_schema.columns"):
+            log.append(("db", "gateway_schema"))
+            self._rows = [] if self.conn.state.no_gateway_columns else [
+                {"column_name": c} for c in params[0]]
         elif sql.startswith("SELECT deleted_at IS NOT NULL AS suspended FROM tenants WHERE tenant_id = %s"):
             self._rows = [{"suspended": params[0] in self.conn.state.suspended}]
         elif sql.startswith("SELECT 1 FROM tenants"):

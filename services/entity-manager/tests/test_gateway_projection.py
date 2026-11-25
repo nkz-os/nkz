@@ -58,10 +58,15 @@ def test_the_order_of_the_calls():
         log, ("sql", "lock"), ("sql", "FOR UPDATE"), ("db", "gateway_id"), ("sql", "commit"))
     assert first_lock < first_row < assign < commit1
     later = log[commit1 + 1:]
-    lock2, row2, entity, agent_get, provision, marker, acl, commit2 = indexes(
+    lock2, row2, entity, agent_get, provision, marker, commit_m = indexes(
         later, ("sql", "lock"), ("sql", "FOR UPDATE"), ("orion", "upsert"), ("iota", "get"),
-        ("iota", "provision"), ("db", "gateway_marker"), ("dynsec", "set_role_topics"), ("sql", "commit"))
-    assert lock2 < row2 < entity < agent_get < provision < marker < acl < commit2
+        ("iota", "provision"), ("db", "gateway_marker"), ("sql", "commit"))
+    assert lock2 < row2 < entity < agent_get < provision < marker < commit_m
+    # the marker is committed BEFORE the broker; then both locks again, then the topics
+    after = later[commit_m + 1:]
+    lock3, row3, acl, commit3 = indexes(
+        after, ("sql", "lock"), ("sql", "FOR UPDATE"), ("dynsec", "set_role_topics"), ("sql", "commit"))
+    assert lock3 < row3 < acl < commit3
     assert log[first_lock] == ("sql", "lock", f"ingestion:{TENANT}")
     assert st.dataloggers[DL]["gateway_external_id"].startswith("gw-")
     assert st.dataloggers[DL]["gateway_provisioned_at"] is not None
@@ -96,7 +101,7 @@ def test_the_entity_is_what_the_rows_say():
     ({"iota_get": 500}, "failed:agent_device", True, False),
     ({"provision": True}, "failed:agent_device", True, False),
     ({"set_role_topics": True}, "failed:acl", True, True),
-    ({"commit": True}, "failed:commit", True, True),
+    ({"commit": True}, "failed:marker", True, True),
 ])
 def test_a_failing_step_leaves_no_later_step_and_no_permission_without_the_agent_device(
         failing, outcome, orion_done, agent_done):
@@ -110,8 +115,8 @@ def test_a_failing_step_leaves_no_later_step_and_no_permission_without_the_agent
         assert BEACON not in st.role_topics.get(USER, set())
         assert not [e for e in st.log if e[:2] == ("dynsec", "set_role_topics")]
         assert not [e for e in st.log if e[:2] == ("db", "gateway_marker")]
-    # the marker is never persisted by a failed run
-    assert st.dataloggers[DL]["gateway_provisioned_at"] is None
+    # the marker is committed before the broker is asked, never behind it
+    assert (st.dataloggers[DL]["gateway_provisioned_at"] is not None) is (outcome == "failed:acl")
 
 
 def test_no_service_key_is_no_agent_device_and_no_permission():
@@ -383,12 +388,74 @@ def test_reconcile_keeps_the_beacon():
     assert out["topics"] == st.role_topics[USER] == {"/KEY123/S1/attrs", BEACON}
 
 
-def test_reconcile_with_the_flag_off_keeps_the_beacon_too(monkeypatch):
+def test_reconcile_with_the_flag_off_is_todays_and_reads_no_gateway_column(monkeypatch):
     monkeypatch.setenv(gateways.FLAG, "")
     st = seed(FakeState(), marker="then")
     with wired(st):
         out = dataloggers.reconcile_datalogger_acl(TENANT, DL)
-    assert BEACON in out["topics"]
+    assert out["topics"] == {"/KEY123/S1/attrs"}
+    assert not [e for e in st.log if e[0] == "db" and e[1] in ("gateway_read", "gateway_schema")]
+
+
+def test_a_broker_failure_after_the_marker_leaves_the_next_reconcile_adding_the_beacon():
+    st = seed(FakeState())
+    st.fail["set_role_topics"] = True
+    with wired(st):
+        assert project() == "failed:acl"
+        assert st.dataloggers[DL]["gateway_provisioned_at"] is not None  # committed first
+        st.fail.pop("set_role_topics")
+        out = dataloggers.reconcile_datalogger_acl(TENANT, DL)
+    assert out["topics"] == st.role_topics[USER] == {"/KEY123/S1/attrs", BEACON}
+
+
+def test_a_suspension_between_the_marker_and_the_broker_leaves_the_broker_alone():
+    st = seed(FakeState())
+    with wired(st) as w:
+        # suspend when the second transaction starts: it must stop at the ingestion lock
+        real_require = dataloggers.require_active_tenant
+        calls = []
+
+        def require(cur, tenant):
+            calls.append(1)
+            if len(calls) == 2:
+                st.suspended.add(tenant)
+            return real_require(cur, tenant)
+
+        with patch.object(dataloggers, "require_active_tenant", require):
+            assert project() == "off"
+    assert st.dataloggers[DL]["gateway_provisioned_at"] is not None
+    assert not [e for e in st.log if e[:2] == ("dynsec", "set_role_topics")]
+
+
+# ── no route depends on migration 123 ───────────────────────────────────────
+
+
+def test_before_the_migration_the_routes_and_topics_are_todays(monkeypatch):
+    for value in ("", TENANT):
+        monkeypatch.setenv(gateways.FLAG, value)
+        st = FakeState()
+        seed_datalogger(st, dl_id=DL, username=USER)
+        seed_device(st, DL, "S1")
+        st.no_gateway_columns = True
+        with wired(st):
+            out = dataloggers.reconcile_datalogger_acl(TENANT, DL)
+            assert dataloggers.require_usable_datalogger(TENANT, DL)["id"] == DL
+        assert out["topics"] == st.role_topics[USER] == {"/KEY123/S1/attrs"}
+
+
+def test_before_the_migration_the_projection_fails_with_the_schema_and_writes_nothing():
+    st = seed(FakeState(), gw=None)
+    st.no_gateway_columns = True
+    with wired(st):
+        assert project() == "failed:schema"
+    assert writes(st.log) == []
+    assert not [e for e in st.log if e[0] in ("orion", "iota", "dynsec")]
+    assert ("sql", "commit") not in st.log
+
+
+def test_the_row_read_by_every_route_has_no_gateway_column():
+    import inspect
+    assert "gateway" not in inspect.getsource(dataloggers._row)
 
 
 def test_rebuilding_a_lost_account_keeps_the_beacon():

@@ -189,8 +189,7 @@ def _dl_id(value) -> str:
 
 
 def _row(cur, tenant: str, dl_id: str, lock: bool = False) -> dict:
-    sql = ("SELECT id, name, kind, mqtt_username, status, created_at, "
-           "gateway_external_id, gateway_provisioned_at FROM iot_dataloggers "
+    sql = ("SELECT id, name, kind, mqtt_username, status FROM iot_dataloggers "
            "WHERE id = %s AND tenant_id = %s")
     if lock:
         sql += " FOR UPDATE"
@@ -201,19 +200,41 @@ def _row(cur, tenant: str, dl_id: str, lock: bool = False) -> dict:
     return row
 
 
+_GATEWAY_COLUMNS = ('created_at', 'gateway_external_id', 'gateway_provisioned_at')
+
+
+def gateway_columns(cur, tenant: str, dl_id: str) -> Optional[dict]:
+    """The gateway columns of a datalogger row (migration 123), or None when they do not exist.
+
+    Kept out of `_row` so no sensor or datalogger route depends on the migration; asked only by
+    the projection and, with the flag on, by `role_topics`. The schema is looked at first: a
+    failed SELECT would abort the caller's transaction.
+    """
+    cur.execute("SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' "
+                "AND table_name = 'iot_dataloggers' AND column_name = ANY(%s)", (list(_GATEWAY_COLUMNS),))
+    if len(cur.fetchall()) != len(_GATEWAY_COLUMNS):
+        return None
+    cur.execute("SELECT created_at, gateway_external_id, gateway_provisioned_at FROM iot_dataloggers "
+                "WHERE id = %s AND tenant_id = %s", (dl_id, tenant))
+    found = cur.fetchone()
+    return dict(found) if found else None
+
+
 def role_topics(cur, tenant: str, row: dict, apikey: Optional[str] = None) -> set:
     """The topics a datalogger's broker role must hold: the one place they are computed.
 
     Its sensors' topics, plus the beacon topic of its gateway once the projection has completed
-    (`gateway_provisioned_at`): the permission only exists after the IoT Agent device does, and
-    stays while the box exists, whatever the flag says. No IoT Agent call here. With no marker
-    the result is exactly the sensors' topics.
+    (`gateway_provisioned_at`): the permission only exists after the IoT Agent device does. No
+    IoT Agent call here. With the flag off, with the columns missing or with no marker, the
+    result is exactly the sensors' topics and, flag off, nothing new is read.
     """
     apikey = get_apikey(tenant) if apikey is None else apikey
     topics = {topic_for(apikey, d['external_id']) for d in _device_rows(cur, tenant, str(row['id']))}
-    external_id = row.get('gateway_external_id')
-    if row.get('gateway_provisioned_at') is not None and external_id:
-        topics.add(gateways.beacon_topic(apikey, external_id))
+    if not gateways.enabled(tenant):
+        return topics  # flag off: today's topics, no new column is read
+    gw = gateway_columns(cur, tenant, str(row['id'])) or {}
+    if gw.get('gateway_provisioned_at') is not None and gw.get('gateway_external_id'):
+        topics.add(gateways.beacon_topic(apikey, gw['gateway_external_id']))
     return topics
 
 

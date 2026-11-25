@@ -422,6 +422,12 @@ def project_gateway(tenant: str, dl_id: Any) -> str:
                     dataloggers.require_active_tenant(cur, tenant)  # ingestion lock, then deleted_at
                     step = "row"
                     row = dataloggers._row(cur, tenant, dl_id, lock=True)  # then the row lock
+                    step = "schema"
+                    columns = dataloggers.gateway_columns(cur, tenant, dl_id)
+                    if columns is None:  # migration 123 not applied: nothing is written
+                        conn.rollback()
+                        return failed("schema")
+                    row = {**row, **columns}
                     if row.get("gateway_external_id") is None:
                         # Committed before anything is written elsewhere: whatever the repair
                         # finds in Orion has an id that is in the table. Then both locks again.
@@ -464,11 +470,26 @@ def _project_locked(tenant: str, conn: Any, cur: Any, row: Mapping[str, Any]) ->
         step = "agent_device"
         _sync_agent_device(tenant, apikey, external_id, urn)
         if row.get("gateway_provisioned_at") is None:
+            # Committed before the broker is touched, so the marker is never behind it: if the
+            # broker call fails, the next sensor reconcile adds the beacon topic, not removes it.
             step = "marker"
             cur.execute("UPDATE iot_dataloggers SET gateway_provisioned_at = now() "
                         "WHERE id = %s AND tenant_id = %s AND gateway_provisioned_at IS NULL",
                         (dl_id, tenant))
-            row = {**row, "gateway_provisioned_at": True}
+            conn.commit()
+            # A new transaction: both locks again, in the same order, and the row as it is now.
+            step = "lock"
+            dataloggers.require_active_tenant(cur, tenant)
+            step = "row"
+            row = dataloggers._row(cur, tenant, dl_id, lock=True)
+            columns = dataloggers.gateway_columns(cur, tenant, dl_id)
+            if columns is None:
+                raise RuntimeError("the gateway columns are gone")
+            row = {**row, **columns}
+            if row["status"] == "revoked":
+                step = "commit"
+                conn.commit()
+                return DONE
         step = "acl"
         _set_topics(tenant, cur, row, apikey)
         step = "commit"
@@ -476,6 +497,8 @@ def _project_locked(tenant: str, conn: Any, cur: Any, row: Mapping[str, Any]) ->
         return DONE
     except Exception as exc:
         conn.rollback()
+        if _tenant_suspended(exc):
+            return OFF
         logger.error("gateway projection failed: tenant=%s datalogger=%s step=%s error=%s",
                      tenant, dl_id, step, type(exc).__name__)
         return failed(step)
