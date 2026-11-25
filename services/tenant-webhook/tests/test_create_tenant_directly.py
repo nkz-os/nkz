@@ -326,6 +326,74 @@ class TestFailedCreation:
         assert not hasattr(webhook_module.webhook_service, "_drop_orion_tenant_db")
 
 
+class TestInUse:
+    """A reserved id, or one whose broker data is still there, is refused
+    before anything is provisioned."""
+
+    @pytest.mark.parametrize("name, data, status, code", [
+        ("platform", False, 409, "TENANT_EXISTS"),
+        ("acme", True, 409, "TENANT_EXISTS"),
+        ("acme", RuntimeError("down"), 503, "STORAGE_UNAVAILABLE")])
+    def test_refused(self, client, admin_headers, patched_admin, webhook_module,
+                     name, data, status, code):
+        svc = webhook_module.webhook_service
+        with patch.object(svc, "get_db_connection", return_value=_no_duplicate_conn()), \
+             patch.object(svc, "_broker_has_data", side_effect=[data]), \
+             patch.object(svc, "provision_tenant_core") as provision:
+            resp = client.post(
+                "/api/admin/tenants",
+                data=json.dumps({"tenant_name": name, "email": "owner@example.test",
+                                 "plan": "basic"}),
+                headers=admin_headers,
+            )
+        assert resp.status_code == status and resp.get_json()["error_code"] == code
+        provision.assert_not_called()
+
+
+class TestRecord:
+    """The admin endpoint creates exactly the id it was asked for."""
+
+    def _post(self, client, admin_headers, webhook_module, conns, ensure):
+        svc = webhook_module.webhook_service
+        with patch.object(svc, "provision_tenant_core",
+                          return_value=webhook_module.TenantProvisioning("acme", True, "k")), \
+             patch.object(svc, "get_db_connection", side_effect=conns), \
+             patch.object(svc, "ensure_tenant_record", ensure), \
+             patch.object(svc, "create_keycloak_user",
+                          return_value={"success": True, "user_id": "u"}) as kc, \
+             patch.object(webhook_module, "_send_email_async"), \
+             patch.object(webhook_module, "audit_log"):
+            resp = client.post(
+                "/api/admin/tenants",
+                data=json.dumps({"tenant_name": "acme", "email": "owner@example.test",
+                                 "plan": "basic"}),
+                headers=admin_headers,
+            )
+        return resp, kc
+
+    def test_matches_nothing(self, client, admin_headers, patched_admin, webhook_module):
+        ensure = MagicMock(return_value="acme")
+        resp, _ = self._post(client, admin_headers, webhook_module,
+                             [_no_duplicate_conn(), _no_duplicate_conn()], ensure)
+        assert resp.status_code == 201, resp.data
+        assert ensure.call_args.kwargs["match"] == "none"
+
+    def test_lost_race(self, client, admin_headers, patched_admin, webhook_module):
+        ensure = MagicMock(side_effect=webhook_module.TenantExistsError("acme"))
+        resp, kc = self._post(client, admin_headers, webhook_module,
+                              [_no_duplicate_conn(), _no_duplicate_conn()], ensure)
+        assert resp.status_code == 409 and resp.get_json()["error_code"] == "TENANT_EXISTS"
+        kc.assert_not_called()
+
+    def test_no_record_no_account(self, client, admin_headers, patched_admin, webhook_module):
+        ensure = MagicMock()
+        resp, kc = self._post(client, admin_headers, webhook_module,
+                              [_no_duplicate_conn(), None], ensure)
+        assert resp.status_code == 503
+        ensure.assert_not_called()
+        kc.assert_not_called()
+
+
 class TestDuplicateCheck:
     """Nothing is provisioned for a taken name, nor without the check."""
 

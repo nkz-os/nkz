@@ -46,10 +46,12 @@ def test_register_verifies_code_with_authenticated_url(webhook_module, monkeypat
     store = MagicMock()
     store.get.return_value = None  # no code stored → rejected before any provisioning
     from_url = _fake_redis(monkeypatch, store)
-    resp = webhook_module.app.test_client().post(
-        "/webhook/register",
-        json={"email": "a@example.org", "organization_name": "o", "password": "p", "otp": "123456"},
-    )
+    with patch.object(webhook_module, "_tenant_id_available", return_value=True):
+        resp = webhook_module.app.test_client().post(
+            "/webhook/register",
+            json={"email": "a@example.org", "organization_name": "Acme", "password": "p",
+                  "otp": "123456"},
+        )
     from_url.assert_called_once_with(AUTH_URL, decode_responses=True)
     store.get.assert_called_once_with("registro:otp:a@example.org")
     assert resp.status_code == 401
