@@ -18,6 +18,7 @@ import requests
 from module_routes import module_bp
 from storage_routes import storage_bp
 from module_csp import is_entity_type_allowed, is_timeseries_allowed
+from parcel_guard import is_parcel_id
 import psycopg2
 from psycopg2.extras import RealDictCursor
 from datetime import datetime, timezone
@@ -939,7 +940,7 @@ def enforce_agriparcel_single_writer():
     # Only the id segment counts; attribute names such as /attrs/hasAgriParcel
     # belong to other entities that reference a parcel.
     entity_id = path.split("/ngsi-ld/v1/entities", 1)[1].lstrip("/").split("/", 1)[0]
-    if "AgriParcel" in entity_id and request.method in ("PUT", "PATCH", "DELETE"):
+    if is_parcel_id(entity_id) and request.method in ("PUT", "PATCH", "DELETE"):
         logger.warning("AgriParcel write blocked: %s %s from %s", request.method, path, request.remote_addr)
         return jsonify({
             "error": "AgriParcel writes must go through entity-manager API",
