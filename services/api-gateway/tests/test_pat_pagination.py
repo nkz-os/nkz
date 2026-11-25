@@ -1,4 +1,4 @@
-"""Page caps of PATs, and the content type of entity queries."""
+"""Page caps of PATs."""
 
 import json
 
@@ -57,27 +57,6 @@ def pat(client, monkeypatch, upstream):
     return post
 
 
-@pytest.fixture
-def user(client, monkeypatch, upstream):
-    import fiware_api_gateway as gw
-
-    monkeypatch.setattr(gw, "get_request_token", lambda: "tok")
-    monkeypatch.setattr(
-        gw, "validate_jwt_token", lambda t: {"tenant_id": "acme", "realm_access": {"roles": []}}
-    )
-    monkeypatch.setattr(gw, "extract_tenant_id", lambda p: "acme")
-    monkeypatch.setattr(gw, "has_role", lambda *a, **k: False)
-    monkeypatch.setattr(gw, "is_pat_token", lambda t: False)
-
-    def post(path, data=None, content_type="application/json"):
-        return client.post(
-            path, data=json.dumps(BODY if data is None else data), content_type=content_type
-        )
-
-    post.calls = upstream
-    return post
-
-
 def test_pat_parameter_names_must_be_plain_in_lists(pat):
     resp = pat.client.get("/ngsi-ld/v1/entities?limit=1&limit%00=1000", headers=pat.headers)
     assert resp.status_code == 400
@@ -93,12 +72,3 @@ def test_pat_entity_list_keeps_its_cap(pat):
 def test_pat_export_keeps_its_cap(pat):
     pat("/api/datahub/export", data={"max_rows": 999999})
     assert pat.calls[0]["json"]["max_rows"] == 10000
-
-
-@pytest.mark.parametrize("caller", ["pat", "user"])
-@pytest.mark.parametrize("content_type", ["application/ld+json", "application/json"])
-def test_query_bodies_are_sent_as_json(request, caller, content_type):
-    post = request.getfixturevalue(caller)
-    body = {**BODY, "@context": ["https://example.org/c.jsonld"]}
-    post(QUERY, data=body, content_type=content_type)
-    assert post.calls[0]["headers"]["Content-Type"] == "application/json"

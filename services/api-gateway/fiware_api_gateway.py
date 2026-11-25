@@ -84,6 +84,14 @@ from hash_utils import api_key_digest, salted_credential_digest  # noqa: E402
 from proxy_helpers import safe_json_proxy_response  # noqa: E402
 from ngsi_payload_guard import shorthand_null_attributes  # noqa: E402
 from entity_type_guard import EntityTypeGuard, declared_types  # noqa: E402
+from ngsi_read_guard import (  # noqa: E402
+    InvalidQuery,
+    entity_params,
+    list_params,
+    query_body,
+    query_params,
+    types_params,
+)
 from parcel_guard import creates_parcel_id, declares_parcel, is_parcel_id  # noqa: E402
 
 # Import Keycloak authentication
@@ -771,6 +779,17 @@ PAT_ENTITIES_DEFAULT_LIMIT = 100
 PAT_EXPORT_MAX_ROWS = 10000
 
 
+def _capped_pat_limit(raw):
+    """Page size of a PAT request: the one asked for, within bounds."""
+    try:
+        limit = int(raw) if raw else PAT_ENTITIES_DEFAULT_LIMIT
+    except (ValueError, TypeError):
+        limit = PAT_ENTITIES_DEFAULT_LIMIT
+    if limit < 1:
+        return PAT_ENTITIES_DEFAULT_LIMIT
+    return min(limit, PAT_ENTITIES_MAX_LIMIT)
+
+
 @app.before_request
 def enforce_pat_pagination():
     """Cap pagination and max_rows for PAT requests to entities/export endpoints."""
@@ -784,45 +803,13 @@ def enforce_pat_pagination():
     if "entities" in scopes:
         # GET /ngsi-ld/v1/entities — cap query param 'limit'
         if request.method == "GET" and path.startswith("/ngsi-ld/v1/entities"):
-            if any("\x00" in name for name in request.args):
-                return jsonify({"error": "Invalid parameter name"}), 400
-
-            limit_raw = request.args.get("limit") if request.args else None
-            if limit_raw:
-                try:
-                    limit = int(limit_raw)
-                except (ValueError, TypeError):
-                    limit = PAT_ENTITIES_DEFAULT_LIMIT
-                if limit > PAT_ENTITIES_MAX_LIMIT:
-                    limit = PAT_ENTITIES_MAX_LIMIT
-                elif limit < 1:
-                    limit = PAT_ENTITIES_DEFAULT_LIMIT
-            else:
-                limit = PAT_ENTITIES_DEFAULT_LIMIT
-
             # Store capped limit for route handlers (request.args is immutable)
-            g.pat_entity_limit = limit
+            g.pat_entity_limit = _capped_pat_limit(request.args.get("limit"))
             return None
 
-        # POST /ngsi-ld/v1/entityOperations/query — cap JSON body 'limit'
+        # POST /ngsi-ld/v1/entityOperations/query — the broker pages it by URL too
         if request.method == "POST" and path == "/ngsi-ld/v1/entityOperations/query":
-            if request.is_json:
-                body = request.get_json(silent=True) or {}
-                limit = body.get("limit")
-                if limit is not None:
-                    try:
-                        limit = int(limit)
-                    except (ValueError, TypeError):
-                        limit = PAT_ENTITIES_DEFAULT_LIMIT
-                    if limit > PAT_ENTITIES_MAX_LIMIT:
-                        limit = PAT_ENTITIES_MAX_LIMIT
-                    elif limit < 1:
-                        limit = PAT_ENTITIES_DEFAULT_LIMIT
-                else:
-                    limit = PAT_ENTITIES_DEFAULT_LIMIT
-                body["limit"] = limit
-                g.pat_modified_body = body
-
+            g.pat_entity_limit = _capped_pat_limit(request.args.get("limit"))
             return None
 
     # Export scope: cap max_rows
@@ -1370,6 +1357,24 @@ def _reject_shorthand_null(body, tenant, target):
     }), 400
 
 
+def _invalid_query(exc):
+    return jsonify({"error": "Invalid query parameter", "parameter": exc.parameter[:64]}), 400
+
+
+def _read_params(validate, *, paged=False):
+    """(parameters to forward, error response). A PAT page is capped before judging it."""
+    args = list(request.args.items(multi=True))
+    if paged and hasattr(g, "pat_entity_limit"):
+        if sum(name == "limit" for name, _ in args) > 1:
+            return None, _invalid_query(InvalidQuery("limit"))
+        args = [item for item in args if item[0] != "limit"]
+        args.append(("limit", str(g.pat_entity_limit)))
+    try:
+        return validate(args), None
+    except InvalidQuery as exc:
+        return None, _invalid_query(exc)
+
+
 @app.route(
     "/ngsi-ld/v1/entities/<path:entity_id>", methods=["GET", "PUT", "PATCH", "DELETE"]
 )
@@ -1386,6 +1391,12 @@ def entity_by_id(entity_id):
     if err:
         return err
 
+    params = None
+    if request.method in ("GET", "HEAD"):
+        params, invalid = _read_params(entity_params)
+        if invalid:
+            return invalid
+
     if request.method in ("PUT", "PATCH"):
         rejected = _reject_shorthand_null(request.get_json(silent=True), tenant, entity_id)
         if rejected:
@@ -1394,8 +1405,8 @@ def entity_by_id(entity_id):
     # Forward request to Orion-LD
     try:
         orion_url = f"{ORION_URL}/ngsi-ld/v1/entities/{entity_id}"
-        if request.method == "GET":
-            response = requests.get(orion_url, headers=headers, params=request.args, timeout=PROXY_TIMEOUT)
+        if request.method in ("GET", "HEAD"):
+            response = requests.get(orion_url, headers=headers, params=params, timeout=PROXY_TIMEOUT)
         elif request.method == "PUT":
             response = requests.put(orion_url, headers=headers, json=request.json, timeout=PROXY_TIMEOUT)
         elif request.method == "PATCH":
@@ -1428,6 +1439,12 @@ def entities():
     if err:
         return err
 
+    params = None
+    if request.method in ("GET", "HEAD"):
+        params, invalid = _read_params(list_params, paged=True)
+        if invalid:
+            return invalid
+
     # Inject @context into body for mutation requests so Orion-LD preserves
     # short entity types (e.g. "AgriParcel") instead of expanding to full
     # JSON-LD URIs (e.g. "https://saref.etsi.org/saref4agri/AgriParcel").
@@ -1456,10 +1473,7 @@ def entities():
     # Forward request to Orion-LD
     try:
         orion_url = f"{ORION_URL}/ngsi-ld/v1/entities"
-        if request.method == "GET":
-            params = dict(request.args)
-            if hasattr(g, "pat_entity_limit"):
-                params["limit"] = str(g.pat_entity_limit)
+        if request.method in ("GET", "HEAD"):
             response = requests.get(orion_url, headers=headers, params=params, timeout=PROXY_TIMEOUT)
         elif request.method == "POST":
             response = requests.post(orion_url, headers=headers, json=json_body, timeout=PROXY_TIMEOUT)
@@ -1482,9 +1496,6 @@ def entities():
 @app.route("/ngsi-ld/v1/entityOperations/query", methods=["POST", "GET"])
 def entity_operations_query():
     """Proxy NGSI-LD entityOperations/query to Orion-LD (complex queries with filters in body)."""
-    # Use PAT-modified body if present (from pagination interceptor)
-    json_body = getattr(g, "pat_modified_body", None)
-
     # header_mode="canonical" matches this route's pre-existing header build
     # 1:1 in both branches (PAT: gw_jwt + X-Delegated-Tenant-ID + X-Tenant-ID
     # + inject_fiware_headers; JWT: inject_fiware_headers + X-Tenant-ID +
@@ -1500,21 +1511,22 @@ def entity_operations_query():
     if err:
         return err
 
-    if json_body is None:
-        json_body = request.get_json(silent=True) or {}
+    if request.method != "POST":
+        return jsonify({"error": "Method not allowed"}), 405
+    params, invalid = _read_params(query_params, paged=True)
+    if invalid:
+        return invalid
+    try:
+        json_body = query_body(request.get_json(silent=True))
+    except InvalidQuery as exc:
+        return _invalid_query(exc)
 
     try:
         orion_url = f"{ORION_URL}/ngsi-ld/v1/entityOperations/query"
-
-        if request.method == "GET":
-            response = requests.get(
-                orion_url, headers=headers, params=request.args, timeout=60
-            )
-        else:
-            headers["Content-Type"] = "application/json"
-            response = requests.post(
-                orion_url, headers=headers, json=json_body, timeout=60
-            )
+        headers["Content-Type"] = "application/json"
+        response = requests.post(
+            orion_url, headers=headers, params=params, json=json_body, timeout=60
+        )
 
         if response.status_code >= 400:
             logger.error(
@@ -1539,10 +1551,13 @@ def entity_types(type_name=None):
     )
     if err:
         return err
+    params, invalid = _read_params(types_params)
+    if invalid:
+        return invalid
     path = "/ngsi-ld/v1/types" + (f"/{type_name}" if type_name else "")
     try:
         response = requests.get(
-            f"{ORION_URL}{path}", headers=headers, params=request.args, timeout=PROXY_TIMEOUT
+            f"{ORION_URL}{path}", headers=headers, params=params, timeout=PROXY_TIMEOUT
         )
         if response.status_code >= 400:
             logger.error(f"Orion-LD error {response.status_code} on {path}: {response.text[:300]}")
@@ -1675,12 +1690,14 @@ def get_sensors():
     headers = inject_fiware_headers(headers, tenant)
     headers["X-Tenant-ID"] = tenant
 
+    given, invalid = _read_params(list_params)
+    if invalid:
+        return invalid
+
     # Forward request to Orion-LD
     try:
         orion_url = f"{ORION_URL}/ngsi-ld/v1/entities"
-        params = {"type": SENSOR_ENTITY_TYPES}
-        # Merge with existing query params
-        params.update(request.args)
+        params = {"type": SENSOR_ENTITY_TYPES, **given}
 
         response = requests.get(orion_url, headers=headers, params=params, timeout=PROXY_TIMEOUT)
         if response.status_code >= 400:
