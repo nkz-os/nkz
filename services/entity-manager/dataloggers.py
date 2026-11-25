@@ -502,7 +502,9 @@ def set_datalogger_status(tenant: str, dl_id: str, revoke: bool) -> None:
         mqtt_dynsec.enable, mqtt_dynsec.disable)
     with get_db_connection_with_tenant(tenant) as conn:
         cur = conn.cursor(cursor_factory=RealDictCursor)
-        if not revoke:
+        if revoke:
+            _lock_ingestion(cur, tenant)  # a suspended tenant may still revoke
+        else:
             require_active_tenant(cur, tenant)
         row = _row(cur, tenant, dl_id, lock=True)
         username = row['mqtt_username']
