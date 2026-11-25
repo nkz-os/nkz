@@ -178,3 +178,102 @@ def test_the_ingestion_lock_comes_before_the_row_lock_so_nothing_deadlocks(db):
         t.join(30)
     other.close()
     assert errors == [] and out == ["done"]
+
+
+def _run(target, *args):
+    box = []
+    t = threading.Thread(target=lambda: box.append(target(*args)))
+    t.start()
+    return t, box
+
+
+def test_a_slow_orion_blocks_no_rotation_reconcile_or_suspension(db, monkeypatch):
+    conn, dsn, real_db = db
+    st = FakeState()
+    entered, release = threading.Event(), threading.Event()
+    real_sync = gateways._sync_entity
+
+    def slow(tenant, entity):
+        entered.set()
+        assert release.wait(30)
+        return real_sync(tenant, entity)
+
+    monkeypatch.setattr(gateways, "_sync_entity", slow)
+    with wired(st):
+        dataloggers.get_db_connection_with_tenant = real_db
+        projection, out = _run(gateways.project_gateway, TENANT, DL)
+        assert entered.wait(15)  # the projection is inside the Orion call
+
+        def operations():
+            dataloggers.rotate_datalogger(TENANT, DL)          # ingestion lock, then row lock
+            dataloggers.reconcile_datalogger_acl(TENANT, DL)   # row lock (a sensor registration/move)
+            conn.cursor().execute("UPDATE public.tenants SET deleted_at = now() WHERE tenant_id = %s", (TENANT,))
+            return dataloggers.set_tenant_ingestion(TENANT, False)  # ingestion lock
+
+        ops, result = _run(operations)
+        ops.join(10)
+        still_blocked = ops.is_alive()
+        release.set()
+        projection.join(30)
+        ops.join(30)
+    assert not still_blocked, "a datalogger operation waited for the slow Orion call"
+    assert result[0] == {"changed": 1, "failed": []}
+    assert out == ["off"] or out == ["done"]  # suspended in between: the topics step stops
+
+
+def test_two_projections_and_a_sensor_move_interleaved_end_equal_to_the_rows(db, monkeypatch):
+    conn, dsn, real_db = db
+    cur = conn.cursor()
+    DL2, USER2 = "22222222-2222-2222-2222-222222222222", "dl_bbbbbbbbbbbbbbbb"
+    cur.execute("INSERT INTO public.iot_dataloggers (id, tenant_id, name, kind, mqtt_username, created_at) "
+                "VALUES (%s, %s, 'Box 2', 'datak', %s, now())", (DL2, TENANT, USER2))
+    st = FakeState()
+    st.iota_strict = True
+    real_sync = gateways._sync_entity
+
+    def slow(tenant, entity):
+        time.sleep(0.25)
+        return real_sync(tenant, entity)
+
+    monkeypatch.setattr(gateways, "_sync_entity", slow)
+    with wired(st) as w:
+        dataloggers.get_db_connection_with_tenant = real_db
+        first = [_run(gateways.project_gateway, TENANT, DL) for _ in range(2)]
+        time.sleep(0.1)
+        cur.execute("UPDATE public.iot_datalogger_devices SET datalogger_id = %s WHERE external_id = 'S2'", (DL2,))
+        # an operation projects after its own commit, both loggers
+        later = [_run(gateways.project_gateway, TENANT, d) for d in (DL, DL2)]
+        for t, _ in first + later:
+            t.join(60)
+        outcomes = [box[0] for _, box in first + later]
+        assert outcomes == ["done"] * 4, outcomes
+        for dl, user, sensors in ((DL, USER, {"S1"}), (DL2, USER2, {"S2"})):
+            cur.execute("SELECT gateway_external_id, gateway_provisioned_at FROM public.iot_dataloggers "
+                        "WHERE id = %s", (dl,))
+            ext, marker = cur.fetchone()
+            entity = w.orion.device_models[f"urn:ngsi-ld:Device:{TENANT}:{ext}"]
+            assets = entity["controlledAsset"]["object"]
+            assets = assets if isinstance(assets, list) else [assets]
+            assert sorted(assets) == sorted(f"urn:ngsi-ld:Device:{TENANT}:{s}" for s in sensors)
+            assert marker is not None
+            assert st.role_topics[user] == {f"/KEY123/{s}/attrs" for s in sensors} | {f"/KEY123/{ext}/attrs"}
+    assert st.locked_network == []
+
+
+def test_a_gateway_lock_that_is_held_makes_the_projection_busy_and_touches_nothing(db, monkeypatch):
+    conn, dsn, real_db = db
+    monkeypatch.setattr(gateways, "LOCK_TIMEOUT", "300ms")
+    st = FakeState()
+    holder = psycopg2.connect(dsn)
+    holder.cursor().execute("SELECT pg_advisory_xact_lock(hashtext(%s))", (f"gateway:{DL}",))
+    try:
+        with wired(st):
+            dataloggers.get_db_connection_with_tenant = real_db
+            assert gateways.project_gateway(TENANT, DL) == "failed:busy"
+    finally:
+        holder.rollback()
+        holder.close()
+    assert [e for e in st.log if e[0] in ("orion", "iota", "dynsec", "db")] == []
+    cur = conn.cursor()
+    cur.execute("SELECT gateway_external_id FROM public.iot_dataloggers WHERE id = %s", (DL,))
+    assert cur.fetchone()[0] is None

@@ -538,6 +538,7 @@ def test_attribute_builders_and_pushes_are_called_only_in_the_helpers():
         # the projection after its entity exists
         ("gateways.py", "build_iota_attributes", "_sync_agent_device"),
         ("gateways.py", "provision_device", "_sync_agent_device"),
+        ("gateways.py", "update_device_attributes", "_sync_agent_device"),
         # the live conformance script puts the mappings on its own temporary device
         ("iota_dm_conformance.py", "device_attributes", "_main"),
         ("iota_dm_conformance.py", "device_attributes", "generator_hash"),

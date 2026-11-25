@@ -12,12 +12,29 @@ from types import SimpleNamespace
 from unittest.mock import MagicMock
 
 
+class _Log(list):
+    """The event log; notes any Orion or agent call made while the ingestion or a row lock is held."""
+
+    def __init__(self, state):
+        super().__init__()
+        self._state = state
+
+    def append(self, entry):
+        if entry and entry[0] in ("orion", "iota"):
+            for kinds in self._state.held.values():
+                if kinds & {"ingestion", "row"}:
+                    self._state.locked_network.append(entry)
+        super().append(entry)
+
+
 class FakeState:
     def __init__(self):
+        self.held = {}  # connection id -> {"ingestion", "row", "gateway"} currently held
+        self.locked_network = []  # network events seen while a datalogger lock was held
         self.dataloggers = {}
         self.devices = []
         self.profiles = {}
-        self.log = []
+        self.log = _Log(self)
         self.suspended = set()
         self.missing_clients = set()
         self.role_topics = {}
@@ -73,8 +90,18 @@ class _Cursor:
             if self.conn.state.no_gateway_columns:
                 import psycopg2.errors
                 raise psycopg2.errors.UndefinedColumn("no such column")
+        held = self.conn.state.held.setdefault(id(self.conn), set())
+        if "FOR UPDATE" in sql:
+            held.add("row")
         if "pg_advisory_xact_lock" in sql:
             log.append(("sql", "lock", params[0]))
+            kind = params[0].split(":")[0]
+            if kind == "gateway" and self.conn.state.fail.get("lock_timeout"):
+                import psycopg2.errors
+                raise psycopg2.errors.LockNotAvailable("lock timeout")
+            held.add(kind)
+        elif sql.startswith("SELECT set_config('lock_timeout'"):
+            log.append(("sql", "lock_timeout", params[0]))
         elif sql.startswith("SELECT column_name FROM information_schema.columns"):
             log.append(("db", "gateway_schema"))
             self._rows = [] if self.conn.state.no_gateway_columns else [
@@ -111,6 +138,12 @@ class _Cursor:
                 row["gateway_external_id"] = ext
                 self._rowcount = 1
             log.append(("db", "gateway_id"))
+        elif sql.startswith("UPDATE iot_dataloggers SET gateway_provisioned_at = NULL"):
+            row = w["dataloggers"].get(str(params[0]))
+            if row and row["tenant_id"] == params[1]:
+                row["gateway_provisioned_at"] = None
+                self._rowcount = 1
+            log.append(("db", "gateway_marker_clear"))
         elif sql.startswith("UPDATE iot_dataloggers SET gateway_provisioned_at"):
             row = w["dataloggers"].get(str(params[0]))
             if row and row["tenant_id"] == params[1] and row.get("gateway_provisioned_at") is None:
@@ -210,11 +243,15 @@ class FakeConn:
     def commit(self):
         if self.state.fail.get("commit"):
             raise RuntimeError("commit failed")
+        if self.state.fail.get("commit_of_marker") and self.state.log and self.state.log[-1] == ("db", "gateway_marker"):
+            raise RuntimeError("commit failed")
+        self.state.held.pop(id(self), None)
         self.state.dataloggers = self.working["dataloggers"]
         self.state.devices = self.working["devices"]
         self.state.log.append(("sql", "commit"))
 
     def rollback(self):
+        self.state.held.pop(id(self), None)
         self.state.log.append(("sql", "rollback"))
         self.working = copy.deepcopy({"dataloggers": self.state.dataloggers,
                                       "devices": self.state.devices})
@@ -223,7 +260,11 @@ class FakeConn:
 def fake_db(state):
     @contextmanager
     def _helper(tenant):
-        yield FakeConn(state)
+        conn = FakeConn(state)
+        try:
+            yield conn
+        finally:
+            state.held.pop(id(conn), None)
 
     return _helper
 
@@ -328,6 +369,9 @@ def fake_iota(state, apikey="KEY123"):
         state.log.append(("iota", "update", device_id))
         state.iota_attrs.append((device_id, attributes))
         state.iota_updates += 1
+        if device_id in state.iota_devices and not (
+                state.fail.get("iota_update") or device_id in state.iota_update_fail_for):
+            state.iota_devices[device_id]["attributes"] = copy.deepcopy(attributes)
         if state.fail.get("iota_update") or device_id in state.iota_update_fail_for:
             raise _IotAgentError(500, "boom")
         if state.after_update:
@@ -560,6 +604,8 @@ def wired(state, monkeypatch=None, host="mqtt.example.org", port="8883"):
     import blueprints.sensors as sensors
     import device_models
 
+    import dataloggers as _dl
+    _dl._columns_exist = False
     orion = FakeOrion(state)
     db = fake_db(state)
     dyn = fake_dynsec(state)

@@ -201,6 +201,7 @@ def _row(cur, tenant: str, dl_id: str, lock: bool = False) -> dict:
 
 
 _GATEWAY_COLUMNS = ('created_at', 'gateway_external_id', 'gateway_provisioned_at')
+_columns_exist = False  # once true it stays true in this process; false is never cached
 
 
 def gateway_columns(cur, tenant: str, dl_id: str) -> Optional[dict]:
@@ -210,10 +211,13 @@ def gateway_columns(cur, tenant: str, dl_id: str) -> Optional[dict]:
     the projection and, with the flag on, by `role_topics`. The schema is looked at first: a
     failed SELECT would abort the caller's transaction.
     """
-    cur.execute("SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' "
-                "AND table_name = 'iot_dataloggers' AND column_name = ANY(%s)", (list(_GATEWAY_COLUMNS),))
-    if len(cur.fetchall()) != len(_GATEWAY_COLUMNS):
-        return None
+    global _columns_exist
+    if not _columns_exist:
+        cur.execute("SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' "
+                    "AND table_name = 'iot_dataloggers' AND column_name = ANY(%s)", (list(_GATEWAY_COLUMNS),))
+        if len(cur.fetchall()) != len(_GATEWAY_COLUMNS):
+            return None
+        _columns_exist = True
     cur.execute("SELECT created_at, gateway_external_id, gateway_provisioned_at FROM iot_dataloggers "
                 "WHERE id = %s AND tenant_id = %s", (dl_id, tenant))
     found = cur.fetchone()

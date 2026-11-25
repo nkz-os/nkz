@@ -308,21 +308,24 @@ def entity_changes(stored: Mapping[str, Any], wanted: Mapping[str, Any]) -> tupl
     return changed, stale
 
 
-def agent_matches(doc: Mapping[str, Any], urn: str, apikey: str, attributes: List[Mapping[str, Any]]) -> bool:
-    """The agent's own document says what the projection would provision."""
+def agent_identity_ok(doc: Mapping[str, Any], urn: str, apikey: str) -> bool:
+    """The agent's device points at this gateway's entity (else it is autoprovisioned or foreign)."""
     if doc.get("entity_name") != urn or doc.get("entity_type") != "Device":
         return False
-    if "apikey" in doc and doc["apikey"] != apikey:
-        return False
+    return not ("apikey" in doc and doc["apikey"] != apikey)
+
+
+def agent_attributes_ok(doc: Mapping[str, Any], attributes: List[Mapping[str, Any]]) -> bool:
+    """The agent's own document carries the mappings the projection would provision."""
     stored = doc.get("attributes")
     if not isinstance(stored, list) or len(stored) != len(attributes):
         return False
-    for have, want in zip(stored, attributes):
-        if not isinstance(have, Mapping):
-            return False
-        if any(have.get(k) != want.get(k) for k in _AGENT_KEYS):
-            return False
-    return True
+    return all(isinstance(have, Mapping) and all(have.get(k) == want.get(k) for k in _AGENT_KEYS)
+               for have, want in zip(stored, attributes))
+
+
+def agent_matches(doc: Mapping[str, Any], urn: str, apikey: str, attributes: List[Mapping[str, Any]]) -> bool:
+    return agent_identity_ok(doc, urn, apikey) and agent_attributes_ok(doc, attributes)
 
 
 def _upsert_entity(tenant: str, entity: Dict[str, Any]) -> None:
@@ -349,12 +352,35 @@ def _sync_entity(tenant: str, entity: Dict[str, Any]) -> None:
         device_models.delete_attr(tenant, entity["id"], name)
 
 
-def _sync_agent_device(tenant: str, apikey: str, external_id: str, urn: str) -> None:
-    """R6: the device exists in the agent as the projection says, or is made so. No write when equal."""
+class _AgentGone(Exception):
+    """The agent has no usable device for the gateway any more (a replace failed half way)."""
+
+
+class _Off(Exception):
+    """Suspended tenant: nothing is touched."""
+
+
+class _Failed(Exception):
+    """A step failed; `args[0]` names it."""
+
+
+LOCK_TIMEOUT = "30s"
+UNCHANGED, UPDATED, REPLACED, CREATED = "unchanged", "updated", "replaced", "created"
+
+
+def _sync_agent_device(tenant: str, apikey: str, external_id: str, urn: str) -> str:
+    """R6 + R10. Returns `unchanged`, `updated` (PUT), `replaced` (DELETE + POST) or `created`.
+
+    Zero writes when the agent's document says what we would send. Attributes that differ on a
+    device that points at the right entity are PUT, never deleted (the entity exists by now).
+    DELETE + POST only when the entity name/type are wrong (an autoprovisioned device). Raises
+    `_AgentGone` when the device is gone or could not be made right after a delete/POST failed.
+    """
     import dataloggers
     iot_agent = dataloggers.iot_agent
     url, headers = dataloggers.iota_url(), dataloggers.iota_headers(tenant)
     attributes = build_iota_attributes(tenant, external_id, iota_dm_shape())
+    replaced = False
     for _ in range(2):
         try:
             doc = iot_agent.get_device(url, headers, external_id)
@@ -363,18 +389,22 @@ def _sync_agent_device(tenant: str, apikey: str, external_id: str, urn: str) -> 
                 raise
             doc = None
         if doc is not None:
-            if agent_matches(doc, urn, apikey, attributes):
-                return
-            # autoprovisioned bare, another entity name or other mappings: replace
+            if agent_identity_ok(doc, urn, apikey):
+                if agent_attributes_ok(doc, attributes):
+                    return REPLACED if replaced else UNCHANGED
+                iot_agent.update_device_attributes(url, headers, external_id, attributes)
+                return UPDATED
+            # autoprovisioned bare or foreign: replace
             if not iot_agent.delete_device(url, headers, external_id):
-                raise RuntimeError("the agent did not delete the device")
+                raise _AgentGone("the agent did not delete the device")
+            replaced = True
         try:
             iot_agent.provision_device(url, headers, apikey=apikey, device_id=external_id,
                                        entity_name=urn, entity_type="Device", attributes=attributes)
-            return
+            return REPLACED if replaced else CREATED
         except iot_agent.IotAgentError as exc:
             if exc.status_code != 409:
-                raise
+                raise _AgentGone("provisioning failed") from exc
             # created in between (a beacon autoprovisions): read it again and compare
     raise RuntimeError("the agent device kept changing")
 
@@ -398,107 +428,153 @@ def _set_topics(tenant: str, cur: Any, row: Mapping[str, Any], apikey: str) -> N
     dataloggers.mqtt_dynsec.set_role_topics(client, username, dataloggers.role_topics(cur, tenant, row, apikey))
 
 
-def project_gateway(tenant: str, dl_id: Any) -> str:
-    """Make Orion, the IoT Agent and the broker role say what the datalogger row says.
+def _short(tenant: str, dl_id: str, work: Any, trace: list, step: str) -> Any:
+    """One short transaction, R1 order: ingestion lock, deleted_at, row lock, the gateway columns.
 
-    Returns `done`, `off` (flag off or tenant suspended: nothing was touched) or `failed:<step>`.
-    Never raises; logs ids and exception type names only. Order is the protection against bare
-    entities and permissions without a device: Orion entity, then agent device, then the marker
-    and the role topics. A failed step leaves the later ones undone and the row rolled back.
+    `work(cur, row)` runs under both locks and must make no network call but the broker's (the
+    topics). The tenant suspended -> `_Off`; no columns -> `_Failed('schema')`; a lock that is
+    not given in `LOCK_TIMEOUT` -> `failed:busy` (by the caller).
     """
-    step = "start"
-    try:
-        if not enabled(tenant):
-            return OFF
-        import dataloggers
-        from psycopg2.extras import RealDictCursor
-        step = "row"
-        dl_id = dataloggers._dl_id(dl_id)
-        for _ in range(2):
-            with dataloggers.get_db_connection_with_tenant(tenant) as conn:
-                cur = conn.cursor(cursor_factory=RealDictCursor)
-                try:
-                    step = "lock"
-                    dataloggers.require_active_tenant(cur, tenant)  # ingestion lock, then deleted_at
-                    step = "row"
-                    row = dataloggers._row(cur, tenant, dl_id, lock=True)  # then the row lock
-                    step = "schema"
-                    columns = dataloggers.gateway_columns(cur, tenant, dl_id)
-                    if columns is None:  # migration 123 not applied: nothing is written
-                        conn.rollback()
-                        return failed("schema")
-                    row = {**row, **columns}
-                    if row.get("gateway_external_id") is None:
-                        # Committed before anything is written elsewhere: whatever the repair
-                        # finds in Orion has an id that is in the table. Then both locks again.
-                        step = "id"
-                        cur.execute("UPDATE iot_dataloggers SET gateway_external_id = %s "
-                                    "WHERE id = %s AND tenant_id = %s AND gateway_external_id IS NULL",
-                                    (new_external_id(), dl_id, tenant))
-                        conn.commit()
-                        continue
-                    return _project_locked(tenant, conn, cur, row)
-                except Exception as exc:
-                    conn.rollback()
-                    if _tenant_suspended(exc):
-                        return OFF
-                    raise
-        return failed("id")
-    except Exception as exc:
-        logger.error("gateway projection failed: tenant=%s datalogger=%s step=%s error=%s",
-                     tenant, dl_id, step, type(exc).__name__)
-        return failed(step)
-
-
-def _project_locked(tenant: str, conn: Any, cur: Any, row: Mapping[str, Any]) -> str:
     import dataloggers
-    external_id, dl_id = row["gateway_external_id"], str(row["id"])
-    urn = gateway_urn(tenant, external_id)
-    step = "entity"
-    try:
-        sensors = [d["device_urn"] for d in dataloggers._device_rows(cur, tenant, dl_id)]
-        entity = build_entity(tenant, row, sensors)
-        step = "orion_entity"
-        _sync_entity(tenant, entity)
-        if row["status"] == "revoked":
-            # The account is disabled by the user's revoke: the agent device and the topics stay.
-            step = "commit"
-            conn.commit()
-            return DONE
-        step = "service_group"
-        apikey = dataloggers.get_apikey(tenant)
-        step = "agent_device"
-        _sync_agent_device(tenant, apikey, external_id, urn)
-        if row.get("gateway_provisioned_at") is None:
-            # Committed before the broker is touched, so the marker is never behind it: if the
-            # broker call fails, the next sensor reconcile adds the beacon topic, not removes it.
-            step = "marker"
-            cur.execute("UPDATE iot_dataloggers SET gateway_provisioned_at = now() "
-                        "WHERE id = %s AND tenant_id = %s AND gateway_provisioned_at IS NULL",
-                        (dl_id, tenant))
-            conn.commit()
-            # A new transaction: both locks again, in the same order, and the row as it is now.
-            step = "lock"
+    from psycopg2.extras import RealDictCursor
+    with dataloggers.get_db_connection_with_tenant(tenant) as conn:
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        try:
+            cur.execute("SELECT set_config('lock_timeout', %s, true)", (LOCK_TIMEOUT,))
+            trace[:] = ["lock"]
             dataloggers.require_active_tenant(cur, tenant)
-            step = "row"
+            trace[:] = ["row"]
             row = dataloggers._row(cur, tenant, dl_id, lock=True)
             columns = dataloggers.gateway_columns(cur, tenant, dl_id)
-            if columns is None:
-                raise RuntimeError("the gateway columns are gone")
-            row = {**row, **columns}
-            if row["status"] == "revoked":
-                step = "commit"
-                conn.commit()
-                return DONE
-        step = "acl"
-        _set_topics(tenant, cur, row, apikey)
-        step = "commit"
-        conn.commit()
-        return DONE
+            if columns is None:  # migration 123 not applied: nothing is written
+                raise _Failed("schema")
+            trace[:] = [step]
+            result = work(cur, {**row, **columns})
+            conn.commit()
+            return result
+        except Exception as exc:
+            conn.rollback()
+            if _tenant_suspended(exc):
+                raise _Off() from None
+            raise
+
+
+def _is_lock_timeout(exc: Exception) -> bool:
+    return type(exc).__name__ == "LockNotAvailable"
+
+
+def project_gateway(tenant: str, dl_id: Any) -> str:
+    """Outcome only (`done`, `off` or `failed:<step>`); see `project_gateway_detailed`."""
+    return project_gateway_detailed(tenant, dl_id)[0]
+
+
+def project_gateway_detailed(tenant: str, dl_id: Any) -> tuple:
+    """Make Orion, the IoT Agent and the broker role say what the datalogger row says (R1b).
+
+    Returns (outcome, agent result): outcome is `done`, `off` (flag off or tenant suspended:
+    nothing was touched), `failed:<step>` or `failed:busy` (the gateway lock was not given in
+    `LOCK_TIMEOUT`); agent result is `unchanged`, `updated`, `replaced`, `created` or None.
+    Never raises; logs ids, the step and exception type names only.
+
+    Three steps. (a) A short transaction: ingestion lock, `deleted_at`, row lock, read the row,
+    the sensors and the marker. (b) The network calls (Orion entity, then agent device) holding
+    only a per-gateway advisory lock, so a slow Orion never blocks a sensor registration, a
+    rotation or a suspension. (c) Short transactions: the marker, then both locks again and the
+    topics computed from the rows as they are NOW. A row that changed during (b) is not an error:
+    whoever changed it projects after its own commit and waits for the gateway lock.
+    Order is the protection against bare entities and permissions without a device.
+    """
+    trace = ["start"]
+    agent = None
+    try:
+        if not enabled(tenant):
+            return OFF, None
+        import dataloggers
+        trace[:] = ["row"]
+        dl_id = dataloggers._dl_id(dl_id)
+        with dataloggers.get_db_connection_with_tenant(tenant) as gconn:
+            gcur = gconn.cursor()
+            try:
+                trace[:] = ["lock"]
+                gcur.execute("SELECT set_config('lock_timeout', %s, true)", (LOCK_TIMEOUT,))
+                gcur.execute("SELECT pg_advisory_xact_lock(hashtext(%s))", (f"gateway:{dl_id}",))
+                agent = _project_under_gateway_lock(tenant, dl_id, trace)
+            finally:
+                gconn.rollback()  # releases the gateway lock
+        return DONE, agent
+    except _Off:
+        return OFF, None
+    except _Failed as exc:
+        return failed(exc.args[0]), agent
     except Exception as exc:
-        conn.rollback()
-        if _tenant_suspended(exc):
-            return OFF
+        step = "busy" if _is_lock_timeout(exc) else trace[0]
         logger.error("gateway projection failed: tenant=%s datalogger=%s step=%s error=%s",
                      tenant, dl_id, step, type(exc).__name__)
-        return failed(step)
+        return failed(step), agent
+
+
+def _project_under_gateway_lock(tenant: str, dl_id: str, trace: list) -> Optional[str]:
+    import dataloggers
+
+    def assign_or_read(cur, row):
+        if row.get("gateway_external_id") is None:
+            # Committed before anything is written elsewhere: whatever the repair finds in Orion
+            # has an id that is in the table.
+            cur.execute("UPDATE iot_dataloggers SET gateway_external_id = %s "
+                        "WHERE id = %s AND tenant_id = %s AND gateway_external_id IS NULL",
+                        (new_external_id(), dl_id, tenant))
+            return None
+        sensors = [d["device_urn"] for d in dataloggers._device_rows(cur, tenant, dl_id)]
+        return row, sensors
+
+    snapshot = None
+    for _ in range(2):  # (a)
+        snapshot = _short(tenant, dl_id, assign_or_read, trace, "row")
+        if snapshot is not None:
+            break
+    if snapshot is None:
+        raise _Failed("id")
+    row, sensors = snapshot
+    external_id = row["gateway_external_id"]
+    urn = gateway_urn(tenant, external_id)
+    # (b) no database lock but the gateway's
+    entity = build_entity(tenant, row, sensors)
+    trace[:] = ["orion_entity"]
+    _sync_entity(tenant, entity)
+    if row["status"] == "revoked":
+        # The account is disabled by the user's revoke: the agent device and the topics stay.
+        return None
+    trace[:] = ["service_group"]
+    apikey = dataloggers.get_apikey(tenant)
+    trace[:] = ["agent_device"]
+    try:
+        agent = _sync_agent_device(tenant, apikey, external_id, urn)
+    except _AgentGone:
+        # No usable device: the permission must not stay. Marker off, topics at once.
+        logger.error("gateway projection: agent device gone: datalogger=%s", dl_id)
+        try:
+            trace[:] = ["marker"]
+            _short(tenant, dl_id, lambda cur, r: cur.execute(
+                "UPDATE iot_dataloggers SET gateway_provisioned_at = NULL "
+                "WHERE id = %s AND tenant_id = %s", (dl_id, tenant)), trace, "marker")
+            trace[:] = ["acl"]
+            _short(tenant, dl_id, lambda cur, r: _set_topics(tenant, cur, r, apikey), trace, "acl")
+        except Exception as exc:
+            logger.error("gateway projection: permission not withdrawn: datalogger=%s step=%s error=%s",
+                         dl_id, trace[0], type(exc).__name__)
+        raise _Failed("agent_device") from None
+    # (c) the marker first, in its own commit, so it is never behind the broker
+    if row.get("gateway_provisioned_at") is None:
+        trace[:] = ["marker"]
+        _short(tenant, dl_id, lambda cur, r: cur.execute(
+            "UPDATE iot_dataloggers SET gateway_provisioned_at = now() "
+            "WHERE id = %s AND tenant_id = %s AND gateway_provisioned_at IS NULL", (dl_id, tenant)),
+               trace, "marker")
+
+    def topics(cur, current):
+        if current["status"] != "revoked":
+            _set_topics(tenant, cur, current, apikey)
+
+    trace[:] = ["acl"]
+    _short(tenant, dl_id, topics, trace, "acl")
+    return agent

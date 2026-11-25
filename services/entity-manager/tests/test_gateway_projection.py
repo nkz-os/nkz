@@ -48,30 +48,41 @@ def indexes(log, *keys):
     return [next(i for i, e in enumerate(log) if e[:len(k)] == k) for k in keys]
 
 
-def test_the_order_of_the_calls():
+def _in_order(log, *keys):
+    """Each key appears after the previous one; returns the positions."""
+    pos, out = -1, []
+    for key in keys:
+        pos = next(i for i in range(pos + 1, len(log)) if log[i][:len(key)] == key)
+        out.append(pos)
+    return out
+
+
+def test_the_order_of_the_calls_and_no_network_under_a_datalogger_lock():
     st = seed(FakeState(), gw=None)
     with wired(st):
         assert project() == "done"
-    log = st.log
-    # id first, committed, then both locks again; ingestion lock before the row lock
-    first_lock, first_row, assign, commit1 = indexes(
-        log, ("sql", "lock"), ("sql", "FOR UPDATE"), ("db", "gateway_id"), ("sql", "commit"))
-    assert first_lock < first_row < assign < commit1
-    later = log[commit1 + 1:]
-    lock2, row2, entity, agent_get, provision, marker, commit_m = indexes(
-        later, ("sql", "lock"), ("sql", "FOR UPDATE"), ("orion", "upsert"), ("iota", "get"),
-        ("iota", "provision"), ("db", "gateway_marker"), ("sql", "commit"))
-    assert lock2 < row2 < entity < agent_get < provision < marker < commit_m
-    # the marker is committed BEFORE the broker; then both locks again, then the topics
-    after = later[commit_m + 1:]
-    lock3, row3, acl, commit3 = indexes(
-        after, ("sql", "lock"), ("sql", "FOR UPDATE"), ("dynsec", "set_role_topics"), ("sql", "commit"))
-    assert lock3 < row3 < acl < commit3
-    assert log[first_lock] == ("sql", "lock", f"ingestion:{TENANT}")
-    assert st.dataloggers[DL]["gateway_external_id"].startswith("gw-")
-    assert st.dataloggers[DL]["gateway_provisioned_at"] is not None
     ext = st.dataloggers[DL]["gateway_external_id"]
+    ingestion = ("sql", "lock", f"ingestion:{TENANT}")
+    _in_order(
+        st.log,
+        ("sql", "lock", f"gateway:{DL}"),                                   # the gateway lock first
+        ingestion, ("sql", "FOR UPDATE"), ("db", "gateway_id"), ("sql", "commit"),  # (a) the id
+        ingestion, ("sql", "FOR UPDATE"), ("sql", "commit"),                # (a) the rows
+        ("orion", "upsert"), ("iota", "get"), ("iota", "provision"),        # (b) no row lock held
+        ingestion, ("sql", "FOR UPDATE"), ("db", "gateway_marker"), ("sql", "commit"),   # (c) marker
+        ingestion, ("sql", "FOR UPDATE"), ("dynsec", "set_role_topics"), ("sql", "commit"))  # (c) topics
+    assert st.locked_network == []  # R1b: no Orion or agent call under the ingestion or row lock
+    assert ("sql", "lock_timeout", gateways.LOCK_TIMEOUT) in st.log
+    assert ext.startswith("gw-") and st.dataloggers[DL]["gateway_provisioned_at"] is not None
     assert st.role_topics[USER] == {"/KEY123/S1/attrs", f"/KEY123/{ext}/attrs"}
+
+
+def test_a_lock_that_is_not_given_in_time_is_busy_and_nothing_is_called():
+    st = seed(FakeState())
+    st.fail["lock_timeout"] = True
+    with wired(st):
+        assert project() == "failed:busy"
+    assert not [e for e in st.log if e[0] in ("orion", "iota", "dynsec", "db")]
 
 
 def test_the_id_is_committed_before_anything_is_written_elsewhere_and_survives_a_failure():
@@ -101,7 +112,7 @@ def test_the_entity_is_what_the_rows_say():
     ({"iota_get": 500}, "failed:agent_device", True, False),
     ({"provision": True}, "failed:agent_device", True, False),
     ({"set_role_topics": True}, "failed:acl", True, True),
-    ({"commit": True}, "failed:marker", True, True),
+    ({"commit_of_marker": True}, "failed:marker", True, True),
 ])
 def test_a_failing_step_leaves_no_later_step_and_no_permission_without_the_agent_device(
         failing, outcome, orion_done, agent_done):
@@ -112,8 +123,7 @@ def test_a_failing_step_leaves_no_later_step_and_no_permission_without_the_agent
         assert (URN in w.orion.device_models) is orion_done
     assert (GW in st.iota_devices) is agent_done
     if not agent_done:
-        assert BEACON not in st.role_topics.get(USER, set())
-        assert not [e for e in st.log if e[:2] == ("dynsec", "set_role_topics")]
+        assert BEACON not in st.role_topics.get(USER, set())  # a failed provisioning may withdraw
         assert not [e for e in st.log if e[:2] == ("db", "gateway_marker")]
     # the marker is committed before the broker is asked, never behind it
     assert (st.dataloggers[DL]["gateway_provisioned_at"] is not None) is (outcome == "failed:acl")
@@ -198,7 +208,7 @@ def test_a_suspended_tenant_touches_nothing():
     assert st.dataloggers[DL]["gateway_external_id"] is None
     assert [e for e in st.log if e[0] not in ("sql",)] == []
     assert ("sql", "FOR UPDATE") not in st.log  # the row is not even locked
-    assert st.log[0] == ("sql", "lock", f"ingestion:{TENANT}")
+    assert ("sql", "lock", f"ingestion:{TENANT}") in st.log
 
 
 @pytest.mark.parametrize("value", ["", "other-tenant", None])
@@ -339,14 +349,14 @@ def test_a_409_whose_document_cannot_be_read_fails():
     assert BEACON not in st.role_topics.get(USER, set())
 
 
-def test_a_changed_mapping_replaces_the_device():
+def test_a_changed_mapping_is_put_not_replaced():
     st = seed(FakeState())
     with wired(st):
         assert project() == "done"
         st.iota_devices[GW]["attributes"][0]["expression"] = "uptime"
         mark = len(st.log)
         assert project() == "done"
-    assert [e[:2] for e in writes(st.log[mark:])] == [("iota", "delete"), ("iota", "provision")]
+    assert [e[:2] for e in writes(st.log[mark:])] == [("iota", "update")]  # R10: PUT, no delete
 
 
 # ── role topics: one place ──────────────────────────────────────────────────
@@ -417,7 +427,7 @@ def test_a_suspension_between_the_marker_and_the_broker_leaves_the_broker_alone(
 
         def require(cur, tenant):
             calls.append(1)
-            if len(calls) == 2:
+            if len(calls) == 3:
                 st.suspended.add(tenant)
             return real_require(cur, tenant)
 
@@ -520,3 +530,99 @@ def test_a_second_run_sends_no_acl_command_to_the_broker():
         assert project() == "done"
     assert not {"addRoleACL", "removeRoleACL", "createRole"} & set(sent)
     assert "getClient" in sent
+
+
+# ── R10: PUT before DELETE, and no permission without a device ──────────────
+
+
+def detailed():
+    return gateways.project_gateway_detailed(TENANT, DL)
+
+
+def _device(**changes):
+    doc = {"device_id": GW, "entity_name": URN, "entity_type": "Device", "apikey": "KEY123",
+           "attributes": gateways.build_iota_attributes(TENANT, GW, "legacy")}
+    doc.update(changes)
+    return doc
+
+
+def test_outcomes_created_unchanged_updated_replaced():
+    st = seed(FakeState())
+    with wired(st):
+        assert detailed() == ("done", "created")
+        assert detailed() == ("done", "unchanged")
+        st.iota_devices[GW]["attributes"][0]["expression"] = "uptime"
+        assert detailed() == ("done", "updated")
+        assert detailed() == ("done", "unchanged")
+        st.iota_devices[GW]["entity_name"] = f"urn:ngsi-ld:Device:{GW}"
+        assert detailed() == ("done", "replaced")
+        assert detailed() == ("done", "unchanged")
+
+
+@pytest.mark.parametrize("key, value", [("expression", "uptime"), ("object_id", "other"),
+                                        ("type", "Text"), ("name", "x"), ("metadata", {})])
+def test_one_changed_attribute_key_is_one_put_and_no_delete(key, value):
+    st = seed(FakeState())
+    st.iota_devices[GW] = _device()
+    st.iota_devices[GW]["attributes"][0][key] = value
+    with wired(st):
+        assert detailed() == ("done", "updated")
+    assert [e[:2] for e in writes(st.log) if e[0] == "iota"] == [("iota", "update")]
+    assert ("iota", "delete", GW) not in st.log
+    assert st.iota_devices[GW]["attributes"] == gateways.build_iota_attributes(TENANT, GW, "legacy")
+
+
+def test_a_wrong_entity_name_is_deleted_and_provisioned_not_put():
+    st = seed(FakeState())
+    st.iota_devices[GW] = _device(entity_name=f"urn:ngsi-ld:Device:{GW}", attributes=[])
+    with wired(st):
+        assert detailed() == ("done", "replaced")
+    assert [e[:2] for e in writes(st.log) if e[0] == "iota"] == [("iota", "delete"), ("iota", "provision")]
+
+
+@pytest.mark.parametrize("device, fail", [
+    (_device(entity_name="x", attributes=[]), "provision"),   # replace: DELETE ok, POST fails
+    (None, "provision"),                                        # the device was lost, POST fails
+    (_device(entity_name="x", attributes=[]), "iota_delete"),   # the wrong device cannot be removed
+])
+def test_a_failed_replace_withdraws_the_permission_in_the_same_call(device, fail):
+    st = seed(FakeState(), marker="then")
+    st.role_topics[USER] = {"/KEY123/S1/attrs", BEACON}
+    if device:
+        st.iota_devices[GW] = device
+    st.fail[fail] = True
+    with wired(st):
+        assert detailed() == ("failed:agent_device", None)
+    assert st.dataloggers[DL]["gateway_provisioned_at"] is None
+    assert st.role_topics[USER] == {"/KEY123/S1/attrs"}
+    marker_clear, topics = indexes(st.log, ("db", "gateway_marker_clear"), ("dynsec", "set_role_topics"))
+    assert marker_clear < topics
+    assert st.locked_network == []
+
+
+def test_a_failed_put_keeps_the_marker_and_the_permission():
+    st = seed(FakeState(), marker="then")
+    st.role_topics[USER] = {"/KEY123/S1/attrs", BEACON}
+    st.iota_devices[GW] = _device()
+    st.iota_devices[GW]["attributes"][0]["expression"] = "uptime"
+    st.fail["iota_update"] = True
+    with wired(st):
+        assert project() == "failed:agent_device"
+    assert st.dataloggers[DL]["gateway_provisioned_at"] == "then"
+    assert st.role_topics[USER] == {"/KEY123/S1/attrs", BEACON}
+
+
+# ── "the gateway columns exist" is cached, "they are missing" is not ────────
+
+
+def test_missing_columns_are_never_cached_and_present_ones_are():
+    st = seed(FakeState())
+    st.no_gateway_columns = True
+    with wired(st):
+        assert project() == "failed:schema"
+        st.no_gateway_columns = False  # the migration is applied while the process runs
+        assert project() == "done"
+        st.log.clear()
+        out = dataloggers.reconcile_datalogger_acl(TENANT, DL)
+    assert BEACON in out["topics"]
+    assert ("db", "gateway_schema") not in st.log  # asked once, then remembered
