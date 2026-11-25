@@ -83,6 +83,7 @@ import os
 import signal
 import sys
 import time
+import traceback
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Sequence, Tuple
@@ -430,16 +431,31 @@ def _join(*parts: str) -> str:
 def _push_fresh(holder: _LockHolder, tenant: str, row: Row) -> None:
     """Re-read the profile and push what the row's committed state calls for.
 
-    The lock is checked right before the PUT: lost and not obtained again, nothing is sent
-    (`_LockLost`)."""
-    entity = dataloggers._orion_devices(tenant, [row.urn]).get(row.urn)
-    code = entity_profile_code(tenant, entity)
-    measurements = dataloggers._profile_measurements(tenant, code) if code else None
-    if measurements is None:
-        raise RuntimeError("profile not readable")
-    if not holder.ensure():
-        raise _LockLost()
-    dataloggers.push_iota_attributes(tenant, row.urn, row.external_id, code, measurements)
+    The lock is checked before the profile is read and again right before the PUT. When the
+    second check had to re-take the lock, a profile change may have run in the gap: the profile is
+    read again (twice at most); then nothing is sent (`_LockLost`)."""
+    for _ in range(2):
+        if not holder.ensure():
+            raise _LockLost()
+        generation = holder.generation
+        entity = dataloggers._orion_devices(tenant, [row.urn]).get(row.urn)
+        code = entity_profile_code(tenant, entity)
+        measurements = dataloggers._profile_measurements(tenant, code) if code else None
+        if measurements is None:
+            raise RuntimeError("profile not readable")
+        if not holder.ensure():
+            raise _LockLost()
+        if holder.generation != generation:
+            continue
+        dataloggers.push_iota_attributes(tenant, row.urn, row.external_id, code, measurements)
+        return
+    raise _LockLost()
+
+
+def _frame(exc: BaseException) -> str:
+    """File name and line of the last traceback entry: where it failed, never what it said."""
+    tb = traceback.extract_tb(exc.__traceback__)
+    return f"{os.path.basename(tb[-1].filename)}:{tb[-1].lineno}" if tb else "unknown"
 
 
 def _say_safe(text: str) -> None:
@@ -698,8 +714,8 @@ def _apply_iota(holder: _LockHolder, tenant: str, items: List[Item], target, set
                 record(res)
     except Exception as exc:
         failure = exc
-        logger.critical("dm_cutover: unexpected %s in the batch; undoing what is not settled: "
-                        "tenant=%s", type(exc).__name__, tenant)
+        logger.critical("dm_cutover: unexpected %s at %s in the batch; undoing what is not "
+                        "settled: tenant=%s", type(exc).__name__, _frame(exc), tenant)
     why = _stop_reason(signals, failure)
     for it in [it for it in touched if it.row.urn not in outcomes]:
         record(_undo(holder, tenant, it, target, why))
@@ -777,8 +793,8 @@ def apply_em(lock, tenant: str, items: List[Item]) -> List[Outcome]:
                 inflight = None
         except Exception as exc:
             failure = exc
-            logger.critical("dm_cutover: unexpected %s in the batch: tenant=%s",
-                            type(exc).__name__, tenant)
+            logger.critical("dm_cutover: unexpected %s at %s in the batch: tenant=%s",
+                            type(exc).__name__, _frame(exc), tenant)
         why = _stop_reason(signals, failure)
         if inflight is not None and inflight.row.urn not in outcomes:
             record(_settle_em(holder, tenant, inflight, why))

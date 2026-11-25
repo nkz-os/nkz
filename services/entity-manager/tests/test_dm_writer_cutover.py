@@ -3,6 +3,7 @@ import copy
 import importlib.util
 import logging
 import os
+import re
 import signal
 import sys
 from contextlib import contextmanager
@@ -2423,3 +2424,87 @@ def test_the_stop_flag_is_looked_at_between_devices_of_a_move_to_em(world, capsy
     assert world.rows[a]["dm_writer"] == "em" and world.agent["S1"] == _attrs(a, "S1", ("em", None))
     assert world.rows[b]["dm_writer"] == "iota"
     assert [ln for ln in capsys.readouterr().out.splitlines() if b in ln and "not started" in ln]
+
+
+# -- the profile is read after the lock is sure (fix round 2) ---------------------------------
+
+def _profile_changes_in_the_gap(world, monkeypatch):
+    """The first profile read of the apply phase returns the OLD profile; then the lock dies and a
+    profile change lands before the lock is taken again."""
+    real = dataloggers._profile_measurements
+    state = {"calls": 0}
+
+    def reading(tenant, code):
+        state["calls"] += 1
+        got = real(tenant, code)
+        if state["calls"] == 1:
+            world.lose_lock()
+            world.profiles["p"] = copy.deepcopy(ONE_MS)
+        return got
+
+    monkeypatch.setattr(dataloggers, "_profile_measurements", reading)
+    return state
+
+
+def test_the_final_put_carries_the_profile_read_after_the_lock_was_retaken(world, monkeypatch):
+    urn = world.add("S1")
+    world.settle_agent()
+    items = cut.build_plan(TENANT, cut.list_rows(TENANT), "iota", "sdm")
+    # the first profile read of the apply phase is the one of the final PUT
+    state = _profile_changes_in_the_gap(world, monkeypatch)
+    with FakeLock(world, TENANT) as lock:
+        outcomes = cut.apply_iota(lock, TENANT, items, "sdm", 60.0)
+    assert [o.status for o in outcomes] == ["moved"] and state["calls"] == 2
+    assert world.agent["S1"] == _attrs(urn, "S1", ("iota", "sdm"), ONE_MS)
+
+
+def test_the_undo_of_a_committed_row_carries_the_profile_read_after_the_re_take(world, monkeypatch):
+    urn = world.add("S1")
+    world.settle_agent()
+    items = cut.build_plan(TENANT, cut.list_rows(TENANT), "iota", "sdm")
+    world.inject = [("commit_after", 0, "unknown")]        # the row is written; the outcome unknown
+    state = _profile_changes_in_the_gap(world, monkeypatch)
+    with FakeLock(world, TENANT) as lock:
+        outcomes = cut.apply_iota(lock, TENANT, items, "sdm", 60.0)
+    assert outcomes[0].status == "moved" and state["calls"] == 2
+    assert world.agent["S1"] == _attrs(urn, "S1", ("iota", "sdm"), ONE_MS)
+
+
+def test_a_repair_carries_the_profile_read_after_the_re_take(world, monkeypatch):
+    urn = world.add("S1", writer="iota", shape="sdm")
+    world.agent["S1"] = _attrs(urn, "S1", ("em", None))
+    items = cut.build_plan(TENANT, cut.list_rows(TENANT), "iota", "sdm")
+    assert items[0].action == "repair"
+    state = _profile_changes_in_the_gap(world, monkeypatch)
+    with FakeLock(world, TENANT) as lock:
+        out = cut.apply_item(lock, TENANT, items[0], "iota", "sdm")
+    assert out.status == "repaired" and state["calls"] == 2
+    assert world.agent["S1"] == _attrs(urn, "S1", ("iota", "sdm"), ONE_MS)
+
+
+def test_a_move_to_em_carries_the_profile_read_after_the_re_take(world, monkeypatch):
+    urn = world.add("S1", writer="iota", shape="sdm")
+    world.settle_agent()
+    items = cut.build_plan(TENANT, cut.list_rows(TENANT), "em", None)
+    state = _profile_changes_in_the_gap(world, monkeypatch)
+    with FakeLock(world, TENANT) as lock:
+        outcomes = cut.apply_em(lock, TENANT, items)
+    assert outcomes[0].status == "moved" and state["calls"] == 2
+    assert world.agent["S1"] == _attrs(urn, "S1", ("em", None), ONE_MS)
+
+
+def test_the_catch_all_log_names_the_failing_frame_and_nothing_it_said(world, caplog):
+    world.add("S1")
+    world.settle_agent()
+
+    def crash(seconds):
+        raise RuntimeError("SECRET-TEXT-IN-A-MESSAGE")
+
+    world.on_sleep = crash
+    with caplog.at_level(logging.DEBUG):
+        assert run(*BASE, *IOTA_SDM) == 1
+    line = [r for r in caplog.records if "unexpected RuntimeError at" in r.getMessage()]
+    assert len(line) == 1 and line[0].levelno == logging.CRITICAL
+    assert re.search(r"at test_dm_writer_cutover\.py:\d+ ", line[0].getMessage())
+    assert "SECRET-TEXT-IN-A-MESSAGE" not in caplog.text
+    assert not any(r.exc_info for r in line)
