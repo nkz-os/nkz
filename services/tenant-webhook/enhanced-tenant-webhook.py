@@ -1524,22 +1524,6 @@ class EnhancedTenantWebhookService:
             logger.error(f"Failed to ensure Orion-LD DB for tenant {tenant_id}: {e}")
             return False
 
-    def _drop_orion_tenant_db(self, tenant_id: str) -> bool:
-        """Drop the Orion-LD MongoDB database for tenant_id.
-
-        Used by the atomic rollback path in create_tenant_directly. Idempotent
-        — dropping a non-existent DB is a no-op.
-        """
-        try:
-            client = pymongo.MongoClient(MONGODB_URI, serverSelectionTimeoutMS=5000)
-            db_name = f"orion-{normalize_tenant_id(tenant_id)}"
-            client.drop_database(db_name)
-            logger.info(f"Dropped Orion-LD DB {db_name} during rollback")
-            return True
-        except Exception as e:
-            logger.error(f"Failed to drop Orion-LD DB for tenant {tenant_id}: {e}")
-            return False
-
     def provision_tenant_core(
         self, tenant_id: str, plan_info: dict[str, Any]
     ) -> TenantProvisioning:
@@ -3480,7 +3464,7 @@ def get_tenant_plan():
 def create_tenant_directly():
     """Create a tenant directly without activation code (PlatformAdmin only).
 
-    Atomic creation order:
+    Creation order:
       1. Validate input.
       2. Normalize tenant_id (canonical).
       3. Reject duplicates (DB lookup).
@@ -3488,7 +3472,7 @@ def create_tenant_directly():
          (runs first so a failure leaves nothing half-baked).
       5. Create Postgres tenant record + tier_quotas row.
       6. Create Keycloak owner user.
-    On any failure after step 4 we roll back in reverse order.
+    A failure stops the flow and destroys nothing.
     """
     data = request.get_json(silent=True) or {}
     tenant_name_raw = (data.get("tenant_name") or "").strip()
@@ -3526,29 +3510,36 @@ def create_tenant_directly():
         "code": "ADMIN_CREATED",
     }
 
-    # --- 3b. Duplicate check --------------------------------------------
+    # --- 3b. Duplicate check (nothing is provisioned without it) ---------
     dup_conn = webhook_service.get_db_connection()
-    if dup_conn:
-        try:
-            cur = dup_conn.cursor()
-            cur.execute("SELECT 1 FROM tenants WHERE tenant_id = %s", (tenant_id,))
-            if cur.fetchone():
-                cur.close()
-                return jsonify({
-                    "error": f"Tenant {tenant_id!r} already exists",
-                    "error_code": "TENANT_EXISTS",
-                }), 409
-            cur.close()
-        finally:
-            dup_conn.close()
+    if not dup_conn:
+        return jsonify({"error": "Database unavailable",
+                        "error_code": "DB_UNAVAILABLE"}), 503
+    try:
+        cur = dup_conn.cursor()
+        cur.execute("SELECT 1 FROM tenants WHERE tenant_id = %s", (tenant_id,))
+        duplicate = cur.fetchone() is not None
+        cur.close()
+    except Exception as e:
+        return _internal_error(
+            e, "create_tenant_directly.duplicate_check", status=503,
+            user_message="Database unavailable", error_code="DB_UNAVAILABLE",
+        )
+    finally:
+        dup_conn.close()
+    if duplicate:
+        return jsonify({
+            "error": f"Tenant {tenant_id!r} already exists",
+            "error_code": "TENANT_EXISTS",
+        }), 409
 
     # --- 4. Tenant storage: Orion-LD Mongo database + API key -----------
     # The same provisioning step serves the activation-code and self-service
-    # flows. A partial result is rolled back here so no orphan database stays.
+    # flows. A failure drops nothing: another request may own the database,
+    # and an empty one left behind is reused by the next creation.
     logger.info(f"Creating tenant {tenant_id} directly by admin")
     provisioning = webhook_service.provision_tenant_core(tenant_id, plan_info)
     if not provisioning.orion_db:
-        webhook_service._drop_orion_tenant_db(tenant_id)
         return _internal_error(
             RuntimeError("; ".join(provisioning.errors)), "create_tenant_directly.provision",
             user_message="Failed to provision tenant storage",
@@ -3556,7 +3547,6 @@ def create_tenant_directly():
         )
     api_key = provisioning.api_key
     if api_key is None:
-        webhook_service._drop_orion_tenant_db(tenant_id)
         return _internal_error(
             RuntimeError("; ".join(provisioning.errors)), "create_tenant_directly.api_key",
             user_message="Failed to generate API key",
@@ -3577,7 +3567,6 @@ def create_tenant_directly():
                 "admin",
             )
         except Exception as e:
-            webhook_service._drop_orion_tenant_db(tenant_id)
             return _internal_error(
                 e, "create_tenant_directly.db",
                 user_message="Failed to persist tenant record",
