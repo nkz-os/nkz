@@ -681,6 +681,22 @@ def start_deletion(tenant: str, dl_id: str, external_id: Any) -> bool:
                   lambda: delete_gateway(tenant, str(dl_id), external_id), lambda: None, _DELETE_TURN)
 
 
+def removal_steps(tenant: str, external_id: str, entity: bool = True) -> list:
+    """R13's order as (step, call) pairs: agent device, the gateway's DMs, then the entity.
+
+    `entity=False` leaves the Device entity out (the repair removes it only when it saw it as a
+    network Device). Every call is idempotent; a missing target is not an error.
+    """
+    import dataloggers
+    urn = gateway_urn(tenant, external_id)
+    steps = [("agent_device", lambda: dataloggers.delete_iota_device(tenant, external_id))]
+    steps += [("measurement", lambda dm=c.dm_id: dataloggers.delete_orion_entity(tenant, dm))
+              for c in gateway_channels(tenant, external_id, DEFAULT_SHAPE)]
+    if entity:
+        steps.append(("orion_entity", lambda: dataloggers.delete_orion_entity(tenant, urn)))
+    return steps
+
+
 def delete_gateway(tenant: str, dl_id: str, external_id: str) -> None:
     """Agent device, then the gateway's DeviceMeasurements, then the entity, under its lock.
 
@@ -688,7 +704,6 @@ def delete_gateway(tenant: str, dl_id: str, external_id: str) -> None:
     is a WARNING and the next steps are still tried (the repair removes what is left).
     """
     import dataloggers
-    urn = gateway_urn(tenant, external_id)
     with dataloggers.get_db_connection_with_tenant(tenant) as conn:
         cur = conn.cursor()
         try:
@@ -700,11 +715,7 @@ def delete_gateway(tenant: str, dl_id: str, external_id: str) -> None:
                            tenant, dl_id, type(exc).__name__)
             return
         try:
-            steps = [("agent_device", lambda: dataloggers.delete_iota_device(tenant, external_id))]
-            steps += [("measurement", lambda dm=c.dm_id: dataloggers.delete_orion_entity(tenant, dm))
-                      for c in gateway_channels(tenant, external_id, DEFAULT_SHAPE)]
-            steps.append(("orion_entity", lambda: dataloggers.delete_orion_entity(tenant, urn)))
-            for step, call in steps:
+            for step, call in removal_steps(tenant, external_id):
                 try:
                     call()
                 except Exception as exc:
