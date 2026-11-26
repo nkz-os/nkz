@@ -219,3 +219,103 @@ def test_example_agriproducttype():
 
 def test_example_agriapp():
     _assert_example("AgriApp.json", build_eppo_app("acme"))
+
+
+# ---- writers -----------------------------------------------------------------
+
+import httpx  # noqa: E402
+
+from nkz_platform_sdk.crops import ensure_crop, ensure_variety  # noqa: E402
+
+
+def _status(code):
+    req = httpx.Request("POST", "http://orion.invalid/x")
+    return httpx.HTTPStatusError("e", request=req, response=httpx.Response(code, request=req))
+
+
+class _Writer:
+    def __init__(self, fail=None):
+        self.created, self.fail = [], fail or {}
+
+    async def create_entity(self, entity):
+        self.created.append(entity)
+        code = self.fail.get(entity["type"])
+        if code:
+            raise _status(code)
+        return {}
+
+
+@pytest.mark.asyncio
+async def test_ensure_crop_creates_the_app_and_the_crop():
+    w = _Writer()
+    urn = await ensure_crop(w, "acme", "TRZAX", role="main_crop")
+    assert urn == "urn:ngsi-ld:AgriCrop:acme:TRZAX"
+    assert [e["type"] for e in w.created] == ["AgriApp", "AgriCrop"]
+    assert w.created[1] == build_crop("acme", resolve_identity("TRZAX"))
+
+
+@pytest.mark.asyncio
+async def test_ensure_crop_409_is_success_and_nothing_is_patched():
+    w = _Writer(fail={"AgriApp": 409, "AgriCrop": 409})
+    assert await ensure_crop(w, "acme", "wheat", role="main_crop") == "urn:ngsi-ld:AgriCrop:acme:TRZAX"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("code", [400, 500, 404])
+async def test_ensure_crop_any_other_error_raises(code):
+    with pytest.raises(httpx.HTTPStatusError):
+        await ensure_crop(_Writer(fail={"AgriCrop": code}), "acme", "TRZAX", role="main_crop")
+
+
+@pytest.mark.asyncio
+async def test_ensure_crop_fallow_has_no_app():
+    w = _Writer()
+    assert await ensure_crop(w, "acme", "fallow", role="main_crop") == f"urn:ngsi-ld:AgriCrop:acme:{FALLOW_KEY}"
+    assert [e["type"] for e in w.created] == ["AgriCrop"]
+
+
+@pytest.mark.asyncio
+async def test_ensure_crop_free_text_only_for_cover_and_catch():
+    w = _Writer()
+    urn = await ensure_crop(w, "acme", "  Mezcla de Leguminosas ", role="cover_crop")
+    assert urn == "urn:ngsi-ld:AgriCrop:acme:x-mezcla-de-leguminosas"
+    assert w.created[0]["name"]["value"] == "Mezcla de Leguminosas" and w.created[0]["type"] == "AgriCrop"
+    assert await ensure_crop(_Writer(), "acme", "zzz unknown", role="catch_crop")
+    for bad in ("zzz unknown", "QQQQQ"):
+        with pytest.raises(ValueError):
+            await ensure_crop(_Writer(), "acme", bad, role="main_crop")
+    with pytest.raises(ValueError):
+        await ensure_crop(_Writer(), "acme", "!!!", role="cover_crop")
+
+
+@pytest.mark.asyncio
+async def test_ensure_crop_refuses_a_main_crop_without_eppo_and_unknown_roles():
+    # an identity without EPPO that is not fallow (none in the table today) would raise; roles are checked
+    with pytest.raises(ValueError):
+        await ensure_crop(_Writer(), "acme", "TRZAX", role="boss")
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("tenant", ["Acme", "ac me", "acme:x", "", "a/b", "acme\n"])
+async def test_the_tenant_is_validated_before_anything_is_built_or_sent(tenant):
+    w = _Writer()
+    with pytest.raises(ValueError):
+        await ensure_crop(w, tenant, "TRZAX", role="main_crop")
+    with pytest.raises(ValueError):
+        await ensure_variety(w, tenant, "TRZAX", "Marius")
+    assert w.created == []
+
+
+@pytest.mark.asyncio
+async def test_ensure_variety_creates_409_ok_and_validates_the_key():
+    w = _Writer()
+    urn = await ensure_variety(w, "acme", "TRZAX", "Marius")
+    assert urn == "urn:ngsi-ld:AgriProductType:acme:TRZAX-marius" and w.created[0]["name"]["value"] == "Marius"
+    assert await ensure_variety(_Writer(fail={"AgriProductType": 409}), "acme", "TRZAX", "Marius") == urn
+    with pytest.raises(httpx.HTTPStatusError):
+        await ensure_variety(_Writer(fail={"AgriProductType": 500}), "acme", "TRZAX", "Marius")
+    for bad in ("TR ZAX", "a:b", "a/b", ""):
+        with pytest.raises(ValueError):
+            await ensure_variety(w, "acme", bad, "Marius")
+    with pytest.raises(ValueError):
+        await ensure_variety(w, "acme", "TRZAX", "!!!")

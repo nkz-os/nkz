@@ -64,6 +64,10 @@ class ModuleActivation:
         """
         created, skipped, errors, entity_ids = 0, 0, [], []
         for ent_def in entities:
+            if ent_def["type"] == "AgriCrop":
+                logger.warning(
+                    "ensure_entities: AgriCrop placeholders are deprecated (AgriCrop is a catalogue "
+                    "entity); use nkz_platform_sdk.crops.ensure_crop")
             body = self._build_entity(parcel_id, ent_def["type"], ent_def["id_suffix"])
             eid = body["id"]
             entity_ids.append(eid)

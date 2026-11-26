@@ -106,3 +106,19 @@ async def test_get_status_checks_both_relationship_names():
     )
     await activation.close()
     assert status == {"AgriCrop": "ok", "CropHealthAssessment": "unavailable"}
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_ensure_entities_warns_that_agricrop_is_deprecated_but_still_creates_it(caplog):
+    import logging
+
+    post = respx.post(f"{ORION}/ngsi-ld/v1/entities").mock(return_value=Response(201))
+    activation = make_activation()
+    with caplog.at_level(logging.WARNING):
+        result = await activation.ensure_entities(PARCEL, [{"type": "AgriCrop", "id_suffix": "default"}])
+        other = await activation.ensure_entities(PARCEL, [{"type": "CropHealthAssessment", "id_suffix": "latest"}])
+    await activation.close()
+    assert result["created"] == 1 and other["created"] == 1 and len(post.calls) == 2
+    warnings = [r for r in caplog.records if r.levelno == logging.WARNING and "AgriCrop" in r.getMessage()]
+    assert len(warnings) == 1

@@ -189,3 +189,68 @@ def build_variety(tenant: str, crop_key: str, name: str) -> dict:
         "category": _prop(["cropVariety"]),
         "root": _prop(True),
     }
+
+
+# ---- writers -----------------------------------------------------------------
+
+_TENANT = re.compile(r"[a-z0-9_-]+")
+_KEY = re.compile(r"[A-Za-z0-9_-]+")
+_ROLES = frozenset({"main_crop", "cover_crop", "catch_crop"})
+_FREE_TEXT_ROLES = frozenset({"cover_crop", "catch_crop"})
+
+
+def _check_tenant(tenant: str) -> str:
+    if not isinstance(tenant, str) or not _TENANT.fullmatch(tenant):
+        raise ValueError("tenant must match ^[a-z0-9_-]+$")
+    return tenant
+
+
+async def _create_once(client: Any, entity: dict) -> None:
+    """POST; an existing entity (409) is the expected outcome and is never patched. Anything else raises."""
+    import httpx
+
+    try:
+        await client.create_entity(entity)
+    except httpx.HTTPStatusError as e:
+        if e.response is None or e.response.status_code != 409:
+            raise
+
+
+async def ensure_crop(client: Any, tenant: str, code_or_name: str, *, role: str) -> str:
+    """Make sure the tenant's catalogue ``AgriCrop`` exists and return its URN.
+
+    A known species gets its table identity (and the tenant's EPPO ``AgriApp`` when it has an EPPO
+    code). An unknown name is accepted only for a cover or catch crop (key ``x-{normalized}``, name =
+    the text). A main crop without EPPO is refused: it would be unidentifiable downstream.
+    ASSUMPTION: fallow (no EPPO by definition) is allowed in any role; it is declared, not sown.
+    """
+    _check_tenant(tenant)
+    if role not in _ROLES:
+        raise ValueError(f"unknown crop role: {role!r}")
+    identity = resolve_identity(code_or_name)
+    if identity is not None:
+        if role == "main_crop" and not identity.eppo and identity.key != FALLOW_KEY:
+            raise ValueError("a main crop needs an EPPO code")
+        if identity.eppo:
+            await _create_once(client, build_eppo_app(tenant))
+        entity = build_crop(tenant, identity)
+    else:
+        if role not in _FREE_TEXT_ROLES:
+            raise ValueError("unknown crop: only a cover or catch crop may be free text")
+        text = code_or_name.strip() if isinstance(code_or_name, str) else ""
+        slug = _normalize_name(text)
+        if not slug:
+            raise ValueError("crop name has no alphanumeric character")
+        entity = {"id": crop_urn(tenant, f"x-{slug}"), "type": "AgriCrop", "name": _prop(text)}
+    await _create_once(client, entity)
+    return entity["id"]
+
+
+async def ensure_variety(client: Any, tenant: str, crop_key: str, name: str) -> str:
+    """Make sure the variety ``AgriProductType`` exists and return its URN (``name`` kept byte for byte)."""
+    _check_tenant(tenant)
+    if not isinstance(crop_key, str) or not _KEY.fullmatch(crop_key):
+        raise ValueError("crop_key must match ^[A-Za-z0-9_-]+$")
+    entity = build_variety(tenant, crop_key, name)
+    await _create_once(client, entity)
+    return entity["id"]
