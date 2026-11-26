@@ -8,3 +8,4 @@ python-dateutil==2.9.0
 requests==2.34.2
 nkz-platform-sdk>=0.9.3
 minio==7.2.20
+redis==5.2.1

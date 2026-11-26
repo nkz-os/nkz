@@ -25,6 +25,7 @@ from app.services.agro_status import (
     _usda_texture_class,
     _extract_float,
 )
+from app.services.agro_status_cache import get_agro_status_cache
 from common.ngsi_headers import inject_fiware_headers
 from common.ngsi_read_guard import valid_identifier
 
@@ -777,6 +778,10 @@ def get_parcel_agro_status(
     Applies spatial downscaling for parcel-specific microclimate.
     """
     parcel_id = _normalize_parcel_id(parcel_id)
+    cache = get_agro_status_cache()
+    cached = cache.get(tenant_id, parcel_id)
+    if cached is not None:
+        return cached
     try:
         # 1. Get parcel from Orion-LD
         headers = _orion_headers(tenant_id)
@@ -1214,6 +1219,7 @@ def get_parcel_agro_status(
         # 7. Persist agroStatus to Orion-LD (non-blocking, best-effort)
         _persist_agro_status_to_orion(tenant_id, parcel_id, result)
 
+        cache.set(tenant_id, parcel_id, result)
         return result
 
     except requests.exceptions.Timeout:
