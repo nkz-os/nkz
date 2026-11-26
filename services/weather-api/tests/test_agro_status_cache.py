@@ -6,6 +6,7 @@ import os
 import sys
 from datetime import datetime, timezone
 from unittest.mock import MagicMock
+from urllib.parse import quote
 
 import pytest
 
@@ -63,7 +64,11 @@ def _resp(status: int, payload):
     return m
 
 
-def _setup_agro_endpoint(monkeypatch, cache: AgroStatusCache, tenant: str = "tenant-a"):
+def _setup_agro_endpoint(
+    monkeypatch,
+    cache: AgroStatusCache,
+    tenant: str | None = "tenant-a",
+):
     from fastapi.testclient import TestClient
     from app.auth import require_auth as _require_auth
     from app.main import app
@@ -80,6 +85,7 @@ def _setup_agro_endpoint(monkeypatch, cache: AgroStatusCache, tenant: str = "ten
         },
     }
     orion_calls = {"count": 0}
+    current_tenant = {"value": tenant}
 
     def fake_get(url, headers=None, params=None, timeout=None):
         if "/ngsi-ld/v1/entities/urn:ngsi-ld:AgriParcel:" in url:
@@ -124,7 +130,7 @@ def _setup_agro_endpoint(monkeypatch, cache: AgroStatusCache, tenant: str = "ten
         calc_calls["count"] += 1
         return {
             "parcel_id": parcel_urn,
-            "tenant_marker": tenant,
+            "tenant_marker": current_tenant["value"],
             "semaphores": {"spraying": "optimal", "workability": "optimal", "irrigation": "satisfied"},
             "weather": {
                 "temperature": 18.5,
@@ -134,14 +140,17 @@ def _setup_agro_endpoint(monkeypatch, cache: AgroStatusCache, tenant: str = "ten
         }
 
     monkeypatch.setattr(parcels, "calculate_agro_status", fake_calc)
-    app.dependency_overrides[_require_auth] = lambda: tenant
-    return TestClient(app), app, _require_auth, orion_calls, calc_calls
+    if tenant is not None:
+        app.dependency_overrides[_require_auth] = lambda: current_tenant["value"]
+    else:
+        app.dependency_overrides.pop(_require_auth, None)
+    return TestClient(app), app, _require_auth, orion_calls, calc_calls, current_tenant
 
 
 def test_cache_miss_then_hit(monkeypatch):
     fake_redis = FakeRedis()
     cache = AgroStatusCache(fake_redis, ttl_s=300)
-    client, app, dep, orion_calls, calc_calls = _setup_agro_endpoint(
+    client, app, dep, orion_calls, calc_calls, _ = _setup_agro_endpoint(
         monkeypatch, cache, tenant="tenant-a"
     )
     try:
@@ -179,9 +188,117 @@ def test_tenant_isolation_in_cache_key():
     assert cache.get("tenant-c", parcel_id) is None
 
 
+def test_tenant_a_cached_response_not_returned_to_tenant_b(monkeypatch):
+    fake_redis = FakeRedis()
+    cache = AgroStatusCache(fake_redis, ttl_s=300)
+    client, app, dep, orion_calls, calc_calls, current_tenant = _setup_agro_endpoint(
+        monkeypatch, cache, tenant="tenant-a"
+    )
+    try:
+        r_a = client.get("/api/weather/parcel/parcel-1/agro-status")
+        assert r_a.status_code == 200
+        assert r_a.json()["tenant_marker"] == "tenant-a"
+        assert orion_calls["count"] == 1
+        assert calc_calls["count"] == 1
+
+        # Tenant B requesting the same parcel must miss tenant A's cache entry
+        current_tenant["value"] = "tenant-b"
+        r_b = client.get("/api/weather/parcel/parcel-1/agro-status")
+        assert r_b.status_code == 200
+        assert r_b.json()["tenant_marker"] == "tenant-b"
+        assert orion_calls["count"] == 2
+        assert calc_calls["count"] == 2
+
+        # Canonical URN for tenant B hits tenant B's cached entry (not tenant A's)
+        r_b_urn = client.get(
+            "/api/weather/parcel/urn:ngsi-ld:AgriParcel:parcel-1/agro-status"
+        )
+        assert r_b_urn.status_code == 200
+        assert r_b_urn.json()["tenant_marker"] == "tenant-b"
+        assert orion_calls["count"] == 2
+        assert calc_calls["count"] == 2
+    finally:
+        app.dependency_overrides.pop(dep, None)
+
+
+@pytest.mark.parametrize(
+    "bad_parcel_id",
+    ["urn:a:b?attrs=x", "urn:a:b#x", 'urn:a:b"', "urn:a:b%00"],
+)
+def test_invalid_parcel_id_fails_before_cache(monkeypatch, bad_parcel_id):
+    fake_redis = FakeRedis()
+    cache = AgroStatusCache(fake_redis, ttl_s=300)
+    get_spy = MagicMock(wraps=cache.get)
+    monkeypatch.setattr(cache, "get", get_spy)
+    client, app, dep, orion_calls, calc_calls, _ = _setup_agro_endpoint(
+        monkeypatch, cache, tenant="tenant-a"
+    )
+    try:
+        resp = client.get(
+            f"/api/weather/parcel/{quote(bad_parcel_id, safe='')}/agro-status"
+        )
+        assert resp.status_code == 400
+        assert resp.json() == {"detail": "Invalid parcel id"}
+        get_spy.assert_not_called()
+        assert fake_redis.get_calls == []
+        assert fake_redis.setex_calls == []
+        assert orion_calls["count"] == 0
+        assert calc_calls["count"] == 0
+    finally:
+        app.dependency_overrides.pop(dep, None)
+
+
+def test_missing_and_invalid_auth_fail_before_cache(monkeypatch):
+    from nkz_platform_sdk.crypto import generate_hmac_signature
+
+    fake_redis = FakeRedis()
+    cache = AgroStatusCache(fake_redis, ttl_s=300)
+    # Pre-populate tenant-a cache to ensure auth blocks before any cache lookup
+    cache.set(
+        "tenant-a",
+        "urn:ngsi-ld:AgriParcel:parcel-1",
+        {"parcel_id": "urn:ngsi-ld:AgriParcel:parcel-1", "tenant_marker": "tenant-a"},
+    )
+    get_spy = MagicMock(wraps=cache.get)
+    monkeypatch.setattr(cache, "get", get_spy)
+
+    monkeypatch.setenv("HMAC_SECRET", "test-hmac-secret")
+    monkeypatch.setenv("REQUIRE_HMAC_SIGNATURE", "true")
+
+    client, app, dep, orion_calls, calc_calls, _ = _setup_agro_endpoint(
+        monkeypatch, cache, tenant=None
+    )
+    try:
+        # 1. No auth headers at all
+        r_missing = client.get("/api/weather/parcel/parcel-1/agro-status")
+        assert r_missing.status_code == 401
+
+        # 2. Unsigned X-Tenant-ID when signature is enforced
+        r_unsigned = client.get(
+            "/api/weather/parcel/parcel-1/agro-status",
+            headers={"X-Tenant-ID": "tenant-a"},
+        )
+        assert r_unsigned.status_code == 401
+
+        # 3. Signature minted for tenant-b replayed with X-Tenant-ID: tenant-a
+        bad_sig = generate_hmac_signature("test-hmac-secret", "", "tenant-b")
+        r_forged = client.get(
+            "/api/weather/parcel/parcel-1/agro-status",
+            headers={"X-Tenant-ID": "tenant-a", "X-Auth-Signature": bad_sig},
+        )
+        assert r_forged.status_code == 401
+
+        get_spy.assert_not_called()
+        assert fake_redis.get_calls == []
+        assert orion_calls["count"] == 0
+        assert calc_calls["count"] == 0
+    finally:
+        app.dependency_overrides.pop(dep, None)
+
+
 def test_redis_failure_fails_open(monkeypatch, caplog):
     cache = AgroStatusCache(FailingRedis(), ttl_s=600)
-    client, app, dep, orion_calls, calc_calls = _setup_agro_endpoint(
+    client, app, dep, orion_calls, calc_calls, _ = _setup_agro_endpoint(
         monkeypatch, cache, tenant="tenant-a"
     )
     try:
