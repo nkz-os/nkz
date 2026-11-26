@@ -269,6 +269,11 @@
  "revoke:fail": [
   [
    "sql",
+   "lock",
+   "ingestion:tenant-a"
+  ],
+  [
+   "sql",
    "FOR UPDATE"
   ],
   [
@@ -283,6 +288,11 @@
   ]
  ],
  "revoke:ok": [
+  [
+   "sql",
+   "lock",
+   "ingestion:tenant-a"
+  ],
   [
    "sql",
    "FOR UPDATE"
