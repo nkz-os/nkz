@@ -25,9 +25,25 @@ from nkz_platform_sdk.crops import eppo_of, is_fallow, species_lifecycle
 
 logger = logging.getLogger(__name__)
 
+
+class CropDataUnavailable(Exception):
+    """The broker could not answer for this parcel, or its data cannot be read as a timeline."""
+
+
+class ParcelNotFound(CropDataUnavailable):
+    """The parcel does not exist in this tenant."""
+
+
+class CropDataRejected(CropDataUnavailable):
+    """The broker answered but refused the request (4xx other than 404/408/429):
+    a request bug, not an outage."""
+
 ASSIGN_TOLERANCE_DAYS = 60
 # An annual main crop stands at most this long after its sowing: a later harvest is not its own.
 MAX_ANNUAL_STANDING_DAYS = 366
+# "finished" is the official SDM value for a done operation, "completed" the one written today.
+# TODO(operations block): move to the operation-class term when that block defines it.
+_DONE = frozenset({"completed", "finished"})
 _CLOSED = {"harvested", "terminated"}
 _EXCLUDED = {"cancelled"}
 _FACTS = ("actual", "declared")  # a sowing that happened (field op) or a person stated
@@ -452,7 +468,7 @@ def resolve_crop_cycles(
         if status == "suggested":
             hints.append(_op_ref(o, d, "suggested"))
             continue
-        if status != "completed":
+        if status not in _DONE:
             continue
         typ = _value(o.get("operationType"))
         is_start = typ == "sowing"
@@ -651,7 +667,8 @@ def resolve_crop_cycles(
 # through ``resolve_crop_cycles`` untouched.
 
 _NKZ_NS = "https://nkz-os.org/ns/"
-_PLANNED, _COMPLETED = "planned", "completed"
+_PLANNED = "planned"
+_CAMPAIGN_RANGE = (1900, 2200)
 _DECLARED_ID = "{parcel}#declared-{campaign}"
 # A fallow is valid from 1 August of the previous year to 31 July of its campaign.
 _FALLOW_WINDOW_START = (8, 1)
@@ -677,9 +694,14 @@ def _crop_target(o: dict) -> str | None:
     return _str_read(o, "hasAgriCrop", "refAgriCrop")
 
 
+def _is_agricrop(entity: dict) -> bool:
+    t = _value(entity.get("type"))
+    return isinstance(t, str) and (t == "AgriCrop" or t.endswith("/AgriCrop"))
+
+
 def _is_catalogue(crop: dict) -> bool:
-    """A catalogue crop carries no parcel link."""
-    return _read(crop, "hasAgriParcel", "refAgriParcel") is None
+    """A catalogue crop is an AgriCrop with no parcel link."""
+    return _is_agricrop(crop) and _read(crop, "hasAgriParcel", "refAgriParcel") is None
 
 
 @dataclass(frozen=True)
@@ -722,7 +744,8 @@ def _without_crop(o: dict) -> dict:
 
 def _entry_campaign(entry: dict) -> int | None:
     v = _value(entry.get("campaign"))
-    return v if isinstance(v, int) and not isinstance(v, bool) else None
+    ok = isinstance(v, int) and not isinstance(v, bool) and _CAMPAIGN_RANGE[0] <= v <= _CAMPAIGN_RANGE[1]
+    return v if ok else None
 
 
 def _parcel_id_of(data: ParcelCropData) -> str:
@@ -815,18 +838,18 @@ def _resolve_catalogue(data: ParcelCropData, parcel_id: str, at: date, campaign_
         crop = _catalogue_crop(data, crop_urn)
         status = _value(o.get("status"))
         if (crop is not None and _value(o.get("operationType")) == "sowing" and _belongs(o, parcel_id)
-                and status in (_PLANNED, _COMPLETED)):
-            day = _op_day(o) if status == _COMPLETED else _plan_day(o)
-            if day is None and status == _COMPLETED:
-                logger.warning("crop catalogue: completed sowing without a date ignored op=%s", o.get("id"))
-                continue
+                and (status == _PLANNED or status in _DONE)):
+            day = _op_day(o) if status in _DONE else _plan_day(o)
+            if day is None and status in _DONE:
+                # Never skipped: a sowing that happened but has no date would silently drop a cycle.
+                raise CropDataUnavailable(f"completed sowing without a date: {o.get('id')}")
             sowings.append(_Sowing(
                 op=o, id=str(o.get("id")), crop_urn=crop_urn, crop=crop,
                 role=_read(o, "cropRole") or "main_crop", day=day,
-                manual=status == _COMPLETED and _read(o, "plantingDateSource") == "manual"))
+                manual=status in _DONE and _read(o, "plantingDateSource") == "manual"))
         else:
             rest.append(o)
-    done = sorted((s for s in sowings if _value(s.op.get("status")) == _COMPLETED), key=lambda s: (s.day, s.id))
+    done = sorted((s for s in sowings if _value(s.op.get("status")) in _DONE), key=lambda s: (s.day, s.id))
     plans = sorted((s for s in sowings if _value(s.op.get("status")) == _PLANNED),
                    key=lambda s: (s.day or date.max, s.id))
 
@@ -834,7 +857,7 @@ def _resolve_catalogue(data: ParcelCropData, parcel_id: str, at: date, campaign_
     for o in rest:
         kind = _end_kind(o)
         day = _op_day(o)
-        if kind and day and _value(o.get("status")) == _COMPLETED:
+        if kind and day and _value(o.get("status")) in _DONE:
             end_ops.append((day, kind, _crop_target(o), _str_read(o, "hasSowingOperation")))
 
     def lifecycle_hint(s: _Sowing) -> str | None:
@@ -842,7 +865,7 @@ def _resolve_catalogue(data: ParcelCropData, parcel_id: str, at: date, campaign_
         return lc if lc in (_ANNUAL, _PERENNIAL) else species_lifecycle(eppo_of(s.crop))
 
     def ended_between(lo: date, hi: date, group: dict) -> bool:
-        crop_urn, role, _manual = group["key"]
+        crop_urn, role = group["key"]
         ids = {m.id for m in group["members"]}
         for day, kind, target, sowing_id in end_ops:
             if not lo <= day <= hi or target not in (None, crop_urn):
@@ -858,7 +881,7 @@ def _resolve_catalogue(data: ParcelCropData, parcel_id: str, at: date, campaign_
     groups: list[dict] = []
     last: dict[tuple, dict] = {}
     for s in done:
-        key = (s.crop_urn, s.role, s.manual)
+        key = (s.crop_urn, s.role)
         g = last.get(key)
         if g is not None:
             first = g["members"][0]
@@ -869,12 +892,16 @@ def _resolve_catalogue(data: ParcelCropData, parcel_id: str, at: date, campaign_
         groups.append(g)
         last[key] = g
 
+    for g in groups:
+        # The latest member decides the provenance, as the resolver does for its dates.
+        g["manual"] = g["members"][-1].manual
+
     # A sowing that falls in the window of a plan of the same crop completes that plan.
     used: set[str] = set()
     for g in groups:
-        crop_urn, role, manual = g["key"]
+        crop_urn, role = g["key"]
         first = g["members"][0]
-        if manual or any(_read(m.op, "cropSeason") is not None for m in g["members"]):
+        if g["manual"] or any(_read(m.op, "cropSeason") is not None for m in g["members"]):
             continue  # a declared planting ignores plans; a completed plan carries its own
         best, best_key = None, None
         for p in plans:
@@ -925,7 +952,7 @@ def _resolve_catalogue(data: ParcelCropData, parcel_id: str, at: date, campaign_
             op_cycle[m.id] = cid
         if plan:
             op_cycle[plan.id] = cid
-        if g["key"][2]:  # declared planting: its date is the start, no sowing operation is passed
+        if g["manual"]:  # declared planting: its date is the start, no sowing operation is passed
             d["plantingDateSource"] = "manual"
             d["plantingDate"] = max(m.day for m in members).isoformat()
             continue
@@ -943,7 +970,8 @@ def _resolve_catalogue(data: ParcelCropData, parcel_id: str, at: date, campaign_
         if sw_end is not None:
             d["sowingWindowEnd"] = sw_end.isoformat()
         for m in members:
-            ops_out.append({**m.op, "hasAgriCrop": cid, _LINKED_CYCLE_KEY: cid})
+            if not m.manual:
+                ops_out.append({**m.op, "hasAgriCrop": cid, _LINKED_CYCLE_KEY: cid})
 
     for p in plans:
         if p.id in used:
@@ -965,8 +993,8 @@ def _resolve_catalogue(data: ParcelCropData, parcel_id: str, at: date, campaign_
     for entry in declared_campaign_entries(data.parcel):
         campaign = _entry_campaign(entry)
         if campaign is None:
-            logger.warning("crop catalogue: declared campaign without an integer campaign ignored parcel=%s", parcel_id)
-            continue
+            raise CropDataUnavailable(f"declared campaign malformed (integer {_CAMPAIGN_RANGE[0]}-{_CAMPAIGN_RANGE[1]}"
+                                      f" expected): {parcel_id}")
         n = seen_campaigns[campaign] = seen_campaigns.get(campaign, 0) + 1
         cid = _DECLARED_ID.format(parcel=parcel_id, campaign=campaign) + ("" if n == 1 else f"-{n}")
         crop_urn = _entry_crop(entry)

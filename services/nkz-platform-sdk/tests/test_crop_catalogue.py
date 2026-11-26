@@ -690,14 +690,13 @@ async def test_a_catalogue_parcel_with_one_readable_and_one_missing_target_is_un
 
 
 @pytest.mark.asyncio
-async def test_declared_campaigns_with_a_missing_crop_are_unavailable_only_if_another_declared_crop_exists(caplog):
+async def test_declared_campaigns_with_a_missing_crop_are_unavailable():
+    one = {"declaredCampaigns": {"campaign": 2025, "crop": WHEAT["id"]}}
     both = {"declaredCampaigns": [{"campaign": 2025, "crop": WHEAT["id"]}, {"campaign": 2024, "crop": BARLEY["id"]}]}
     with pytest.raises(CropDataUnavailable):
+        await load_parcel_crops(FakeClient(parcel=one), P)
+    with pytest.raises(CropDataUnavailable):
         await load_parcel_crops(FakeClient(parcel=both, entities=[WHEAT]), P)
-    only = {"declaredCampaigns": {"campaign": 2025, "crop": WHEAT["id"]}}
-    with caplog.at_level(logging.WARNING):
-        d = await load_parcel_crops(FakeClient(parcel=only), P)
-    assert run(d).previous.species is None and any(WHEAT["id"] in r.getMessage() for r in caplog.records)
 
 
 @pytest.mark.asyncio
@@ -771,14 +770,229 @@ async def test_fetch_crop_timeline_reads_the_catalogue_shape(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_a_dangling_crop_link_in_a_legacy_only_parcel_keeps_todays_timeline(monkeypatch, caplog):
+async def test_a_dangling_crop_link_in_a_legacy_only_parcel_keeps_todays_timeline(monkeypatch):
     import nkz_platform_sdk.crop_timeline as ct
 
     legacy = lcrop("a", status="planned", plantingDate="2026-03-01", harvestDate="2026-07-01")
     ops = [lop("s", "sowing", "2026-03-10"), lop("h", "harvesting", "2026-07-01", hasAgriCrop=curn("deleted"))]
     client = FakeClient(legacy=[legacy], ops=ops)
     monkeypatch.setattr(ct, "OrionClient", lambda *a, **k: client)
-    with caplog.at_level(logging.WARNING):
-        got = await fetch_crop_timeline("acme", "p1", date(2026, 10, 9))
+    got = await fetch_crop_timeline("acme", "p1", date(2026, 10, 9))
     assert got == resolve_crop_cycles(P, [legacy], ops, date(2026, 10, 9)).to_dict()
-    assert any(curn("deleted") in r.getMessage() and r.levelno == logging.WARNING for r in caplog.records)
+    assert client.gets == [P]
+
+
+# ── Review round: evidence, dangling, type, URN, finished, campaign, dates, grouping ──
+
+async def _load(client):
+    return await load_parcel_crops(client, P)
+
+
+@pytest.mark.asyncio
+async def test_r1_a_parcel_without_evidence_of_the_new_shape_reads_nothing_extra():
+    prod = f"urn:ngsi-ld:AgriProductType:{T}:x"
+    ops = [lop("s", "sowing", "2026-03-01"),
+           lop("h", "harvesting", "2026-07-01", hasAgriCrop=curn("gone"), hasAgriProductType=prod)]
+    client = FakeClient(legacy=[lcrop("a", status="active", plantingDate="2026-03-01")], ops=ops)
+    d = await _load(client)
+    assert client.gets == [P] and d.legacy_crops and has_catalogue_shape(d) is False
+
+
+@pytest.mark.asyncio
+async def test_r2_a_missing_crop_on_a_sowing_or_declared_entry_is_unavailable_even_alone():
+    with pytest.raises(CropDataUnavailable):
+        await _load(FakeClient(ops=[sow("s", WHEAT, "2026-03-01")]))
+    with pytest.raises(CropDataUnavailable):
+        await _load(FakeClient(parcel={"declaredCampaigns": {"campaign": 2025, "crop": WHEAT["id"]}}))
+
+
+@pytest.mark.asyncio
+async def test_r2_a_missing_crop_on_a_harvest_is_dropped_with_a_warning(caplog):
+    ops = [sow("s", WHEAT, "2026-03-01"), harvest("h", "2026-07-01", crop=BARLEY)]
+    with caplog.at_level(logging.WARNING):
+        d = await _load(FakeClient(ops=ops, entities=[WHEAT]))
+    h = next(o for o in d.operations if o["id"] == oid("h"))
+    assert "hasAgriCrop" not in h and any(BARLEY["id"] in r.getMessage() for r in caplog.records)
+
+
+@pytest.mark.asyncio
+async def test_r3_only_an_agricrop_is_a_crop():
+    other = {"id": curn("zzz"), "type": "Animal", "name": "cow"}
+    assert has_catalogue_shape(data([sow("s", other, "2026-03-01")], crops={other["id"]: other})) is False
+    with pytest.raises(CropDataUnavailable):
+        await _load(FakeClient(ops=[sow("s", other, "2026-03-01")], entities=[other]))
+    d = await _load(FakeClient(ops=[sow("s", WHEAT, "2026-03-01"), harvest("h", "2026-07-01", crop=other)],
+                               entities=[WHEAT, other]))
+    assert "hasAgriCrop" not in next(o for o in d.operations if o["id"] == oid("h"))
+    iri = {**WHEAT, "type": "https://saref.etsi.org/saref4agri/AgriCrop"}
+    assert has_catalogue_shape(data([sow("s", iri, "2026-03-01")], crops={iri["id"]: iri}))
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("bad", ["urn:ngsi-ld:AgriCrop:acme:x#frag", "http://host/x", "urn:ngsi-ld:AgriCrop:a b",
+                                 "urn:ngsi-ld:AgriCrop:acme:x?y=1", "urn:ngsi-ld:AgriCrop:acme/x", "x"])
+async def test_r4_a_link_that_is_not_a_urn_is_never_sent_to_the_broker(bad):
+    client = FakeClient(ops=[sow("s", WHEAT, "2026-03-01") | {"hasAgriCrop": bad}], entities=[WHEAT])
+    with pytest.raises(CropDataUnavailable):
+        await _load(client)
+    assert bad not in client.gets
+    client = FakeClient(ops=[sow("s", WHEAT, "2026-03-01"), harvest("h", "2026-07-01", crop=WHEAT) | {"hasAgriCrop": bad}],
+                        entities=[WHEAT])
+    d = await _load(client)
+    assert bad not in client.gets and "hasAgriCrop" not in next(o for o in d.operations if o["id"] == oid("h"))
+
+
+def test_r5_finished_is_completed():
+    for status in ("completed", "finished"):
+        legacy = resolve_crop_cycles(
+            P, [lcrop("a", status="planned", plantingDate="2026-03-01", harvestDate="2026-11-30")],
+            [lop("s", "sowing", "2026-03-12", status=status), lop("h", "harvesting", "2026-07-01", status=status)], AT)
+        assert legacy.cycles[0].start.provenance == "actual" and legacy.cycles[0].end.provenance == "actual"
+        t = run(data([plan("p", WHEAT, "2026-03-01"), sow("s", WHEAT, "2026-03-12", status=status),
+                      harvest("h", "2026-07-01", sowing="s", status=status)]))
+        assert cyc(t, "p").start.provenance == "actual" and cyc(t, "p").status == "harvested"
+
+
+@pytest.mark.parametrize("bad", [1899, 2201, "2025", None, 10**9, True, 2025.0])
+def test_r6_a_malformed_declared_campaign_is_unavailable(bad):
+    entry = {"campaign": bad, "crop": WHEAT["id"]} if bad is not None else {"crop": WHEAT["id"]}
+    with pytest.raises(CropDataUnavailable):
+        run(data([], parcel={"declaredCampaigns": entry}))
+
+
+def test_r7_a_completed_catalogue_sowing_without_a_date_is_unavailable():
+    o = sow("s", WHEAT, "2026-03-01")
+    del o["endedAt"]
+    with pytest.raises(CropDataUnavailable):
+        run(data([o]))
+
+
+def test_r8_a_declared_planting_and_a_recorded_sowing_within_60_days_are_one_cycle():
+    declared = sow("m", WHEAT, "2026-03-01", plantingDateSource="manual")
+    recorded = sow("r", WHEAT, "2026-03-20")
+    t = run(data([declared, recorded]))
+    assert [c.crop_id for c in t.cycles] == [oid("m")]
+    assert t.current.start.date == date(2026, 3, 20) and t.current.start.provenance == "actual"
+    later = run(data([sow("r", WHEAT, "2026-03-01"), sow("m", WHEAT, "2026-03-20", plantingDateSource="manual")]))
+    assert len(later.cycles) == 1 and later.current.start.provenance == "declared"
+    assert later.current.start.date == date(2026, 3, 20)
+
+
+# ── Differential against origin/main ──────────────────────────────────────────
+
+def _origin_modules():
+    import subprocess
+    import sys
+    import types
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parents[1]
+    base = "services/nkz-platform-sdk/nkz_platform_sdk"
+    try:
+        top = subprocess.run(["git", "-C", str(root), "rev-parse", "--show-toplevel"], capture_output=True,
+                             text=True, check=True).stdout.strip()
+        src = {n: subprocess.run(["git", "-C", top, "show", f"origin/main:{base}/{n}.py"], capture_output=True,
+                                 text=True, check=True).stdout for n in ("crop_cycles", "crop_timeline")}
+    except (OSError, subprocess.CalledProcessError):
+        pytest.skip("git or origin/main not available")
+    cycles = types.ModuleType("origin_crop_cycles")
+    sys.modules["origin_crop_cycles"] = cycles
+    exec(compile(src["crop_cycles"], "origin_crop_cycles", "exec"), cycles.__dict__)
+    timeline = types.ModuleType("origin_crop_timeline")
+    text = src["crop_timeline"].replace("from nkz_platform_sdk.crop_cycles import resolve_crop_cycles",
+                                        "from origin_crop_cycles import resolve_crop_cycles")
+    sys.modules["origin_crop_timeline"] = timeline
+    exec(compile(text, "origin_crop_timeline", "exec"), timeline.__dict__)
+    return cycles, timeline
+    return cycles, timeline
+
+
+def _random_case(rnd, with_sowing_links):
+    n = rnd.randint(0, 4)
+    ids = [f"urn:ngsi-ld:AgriCrop:{T}:c{i}" for i in range(n)]
+    crops = []
+    for cid in ids:
+        c = {"id": cid, "type": "AgriCrop", "hasAgriParcel": P if rnd.random() > 0.1 else "urn:ngsi-ld:AgriParcel:z",
+             "status": rnd.choice(["planned", "active", "harvested", "terminated", "cancelled", None]),
+             "cropRole": rnd.choice(["main_crop", "cover_crop", "catch_crop"]),
+             "species": rnd.choice(["TRZAX", "OLVEU", "wheat", None])}
+        if rnd.random() < 0.7:
+            c["cropLifecycle"] = rnd.choice(["annual", "perennial", "weird"])
+        day = lambda: date(2025, 1, 1).toordinal() + rnd.randint(0, 900)  # noqa: E731
+        for k in ("plantingDate", "sowingWindowStart", "harvestDate", "expectedTerminationDate", "actualPlantingDate",
+                  "actualTerminationDate", "terminationDate"):
+            if rnd.random() < 0.4:
+                c[k] = date.fromordinal(day()).isoformat()
+        if rnd.random() < 0.3:
+            c["plantingDateSource"] = "manual"
+        if rnd.random() < 0.1:
+            c["nkz:declaredCampaign"] = rnd.randint(2020, 2027)
+        if rnd.random() < 0.1:
+            c["provenance"] = "placeholder"
+        crops.append(c)
+    ops = []
+    for i in range(rnd.randint(0, 8)):
+        typ = rnd.choice(["sowing", "harvesting", "tillage", "tillage", "spraying"])
+        o = lop(f"o{i}", typ, date.fromordinal(date(2025, 1, 1).toordinal() + rnd.randint(0, 900)).isoformat(),
+                status=rnd.choice(["completed", "completed", "completed", "suggested", "planned"]))
+        if typ == "tillage":
+            o["tillageType"] = rnd.choice(["uprooting", "roller_crimper", "mowing", "ploughing"])
+        if typ == "harvesting" and rnd.random() < 0.5:
+            o["harvestedWeight"] = rnd.randint(1, 5000)
+        if (typ != "sowing" or with_sowing_links) and rnd.random() < 0.5:
+            o[rnd.choice(["hasAgriCrop", "refAgriCrop"])] = rnd.choice(ids + [curn("stale")]) if ids else curn("stale")
+        ops.append(o)
+    return crops, ops, date.fromordinal(date(2025, 1, 1).toordinal() + rnd.randint(0, 1000))
+
+
+def _plain(t):
+    def cy(x):
+        return None if x is None else {k: v for k, v in x.items() if k not in NEW_KEYS}
+
+    out = dict(t)
+    for k in ("current", "previous", "next", "pending"):
+        out[k] = cy(t[k])
+    out["cycles"] = [cy(x) for x in t["cycles"]]
+    return out
+
+
+def test_differential_legacy_shape_equals_origin_main_resolver():
+    import random
+
+    old, _ = _origin_modules()
+    rnd = random.Random(20261126)
+    for _i in range(600):
+        crops, ops, at = _random_case(rnd, with_sowing_links=True)
+        want = old.resolve_crop_cycles(P, crops, ops, at).to_dict()
+        got = resolve_parcel_crops(data(ops, legacy=crops, crops={}), at).to_dict()
+        assert _plain(got) == want, (crops, ops, at)
+
+
+@pytest.mark.asyncio
+async def test_differential_fetch_legacy_only_same_result_and_same_broker_calls(monkeypatch):
+    import random
+
+    import nkz_platform_sdk.crop_timeline as ct
+
+    _, old = _origin_modules()
+    rnd = random.Random(7)
+    for _i in range(150):
+        crops, ops, at = _random_case(rnd, with_sowing_links=False)
+        crops = [c for c in crops if c["hasAgriParcel"] == P]
+        results = []
+        for mod in (old, ct):
+            client = FakeClient(legacy=crops, ops=ops)
+            monkeypatch.setattr(mod, "OrionClient", lambda *a, _c=client, **k: _c)
+            results.append((await mod.fetch_crop_timeline("acme", "p1", at), client.gets, client.queries))
+        assert _plain(results[1][0]) == results[0][0] and results[1][1:] == results[0][1:]
+
+
+@pytest.mark.parametrize("name", list(SCENARIOS))
+def test_finished_gives_the_same_timeline_as_completed_in_both_shapes(name):
+    crops, ops, at = SCENARIOS[name]
+    done = [{**o, "status": "finished"} if o["status"] == "completed" else o for o in ops]
+    want = resolve_crop_cycles(P, crops, ops, at).to_dict()
+    assert resolve_crop_cycles(P, crops, done, at).to_dict() == want
+    live = [c for c in crops if c.get("provenance") != "placeholder"]
+    new_data, idmap = to_new(live, done)
+    assert strip(resolve_parcel_crops(new_data, at).to_dict(), idmap) == strip(want, {})

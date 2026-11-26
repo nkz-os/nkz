@@ -9,12 +9,16 @@ A failure is ``None`` (logged), never an empty timeline.
 from __future__ import annotations
 
 import logging
+import re
 from datetime import date, datetime, timezone
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 import httpx
 
 from nkz_platform_sdk.crop_cycles import (
+    CropDataRejected,
+    CropDataUnavailable,
+    ParcelNotFound,
     ParcelCropData,
     declared_campaign_entries,
     has_catalogue_shape,
@@ -22,7 +26,8 @@ from nkz_platform_sdk.crop_cycles import (
     resolve_parcel_crops,
     _crop_target,
     _entry_crop,
-    _is_catalogue,
+    _value,
+    _is_agricrop,
     _without_crop,
     _str_read,
 )
@@ -30,23 +35,12 @@ from nkz_platform_sdk.orion import OrionClient
 
 logger = logging.getLogger(__name__)
 
+_VALID_URN = re.compile(r"^urn:ngsi-ld:[A-Za-z][A-Za-z0-9]*:[A-Za-z0-9._:%-]+$")
+
 _PAGE = 500
 # Only operations that can set a cycle boundary: years of sprays and irrigations
 # must not push a parcel's sowings out of the page.
 _BOUNDARY_OPERATIONS = 'operationType=="sowing","harvesting","tillage"'
-
-
-class CropDataUnavailable(Exception):
-    """The broker could not answer for this parcel."""
-
-
-class ParcelNotFound(CropDataUnavailable):
-    """The parcel does not exist in this tenant."""
-
-
-class CropDataRejected(CropDataUnavailable):
-    """The broker answered but refused the request (4xx other than 404/408/429):
-    a request bug, not an outage."""
 
 
 def normalize_parcel_urn(parcel_id: str) -> str:
@@ -117,47 +111,60 @@ async def _read_parcel_crops(client: OrionClient, parcel_urn: str) -> ParcelCrop
     except (httpx.HTTPError, ValueError) as e:
         raise _read_error(e, parcel_urn) from e
 
+    # Evidence of the new shape: a sowing that points to a crop, or declared campaigns. Legacy sowings never
+    # carry a crop link: without evidence nothing extra is read (a stale link on a harvest is the
+    # reconciler's leftover and must not cost the timeline).
+    declared = declared_campaign_entries(parcel)
+    candidate = bool(declared) or any(
+        _value(o.get("operationType")) == "sowing" and _crop_target(o) for o in ops)
+    if not candidate:
+        return ParcelCropData(parcel={"id": parcel_urn, **parcel}, operations=tuple(ops),
+                              legacy_crops=tuple(legacy))
+
     # Crops and varieties are read by id, one at a time and never twice: no query grows with the data.
     # The parcel's own hasAgriCrop is the reconciler's output: the timeline never needs it, never read.
     legacy_ids = {c.get("id") for c in legacy}
-    targets: dict[str, None] = {}
-    for entity in ops:
-        urn = _crop_target(entity)
+    strict: dict[str, None] = {}  # a sowing's or a declared campaign's crop: it must exist
+    lenient: dict[str, None] = {}  # a harvest or tillage link: may be a deleted legacy cycle
+    for o in ops:
+        urn = _crop_target(o)
         if urn and urn not in legacy_ids:
-            targets[urn] = None
-    for entry in declared_campaign_entries(parcel):
+            (strict if _value(o.get("operationType")) == "sowing" else lenient)[urn] = None
+    for entry in declared:
         urn = _entry_crop(entry)
         if urn and urn not in legacy_ids:
-            targets[urn] = None
+            strict[urn] = None
+    for urn in strict:
+        lenient.pop(urn, None)
+    tenant = getattr(client, "tenant_id", None)
     crops: dict[str, dict] = {}
-    dangling: list[str] = []
-    for urn in targets:
-        try:
-            crops[urn] = await client.get_entity(urn, options="keyValues")
-        except httpx.HTTPStatusError as e:
-            if e.response is not None and e.response.status_code == 404:
-                dangling.append(urn)
-                continue
-            raise _read_error(e, parcel_urn) from e
-        except (httpx.HTTPError, ValueError) as e:
-            raise _read_error(e, parcel_urn) from e
-    if dangling:
-        # A recreated parcel that lost a catalogue crop must not resolve as "no crop": when another target
-        # proves the catalogue shape it is an error. A legacy parcel with a stale link keeps its timeline:
-        # the link is dropped (the operation has no crop) and logged.
-        if any(_is_catalogue(c) for c in crops.values()):
-            raise CropDataUnavailable(f"catalogue crop not found: {dangling[0]}")
-        gone = set(dangling)
-        for urn in dangling:
-            logger.warning("crop catalogue: dangling crop link dropped tenant=%s parcel=%s target=%s",
-                           getattr(client, "tenant_id", None), parcel_urn, urn)
-        ops = [_without_crop(o) if _crop_target(o) in gone else o for o in ops]
-        entries = [{**e, "crop": None} if _entry_crop(e) in gone else e for e in declared_campaign_entries(parcel)]
-        if entries:
-            parcel = {**parcel, "declaredCampaigns": entries}
+    dropped: set[str] = set()
+    for urn, must_exist in [(u, True) for u in strict] + [(u, False) for u in lenient]:
+        entity = None
+        if _VALID_URN.match(urn):  # never send anything else to the broker
+            try:
+                entity = await client.get_entity(urn, options="keyValues")
+            except httpx.HTTPStatusError as e:
+                if e.response is None or e.response.status_code != 404:
+                    raise _read_error(e, parcel_urn) from e
+            except (httpx.HTTPError, ValueError) as e:
+                raise _read_error(e, parcel_urn) from e
+        if entity is not None and _is_agricrop(entity):
+            crops[urn] = entity
+            continue
+        if must_exist:
+            raise CropDataUnavailable(f"catalogue crop not found or not an AgriCrop: {urn}")
+        logger.warning("crop catalogue: dangling crop link dropped tenant=%s parcel=%s target=%s",
+                       tenant, parcel_urn, urn)
+        dropped.add(urn)
+    if dropped:
+        ops = [_without_crop(o) if _crop_target(o) in dropped else o for o in ops]
 
     products: dict[str, dict] = {}
     for urn in dict.fromkeys(u for u in (_str_read(o, "hasAgriProductType") for o in ops) if u):
+        if not _VALID_URN.match(urn):
+            logger.warning("crop catalogue: invalid variety link ignored parcel=%s", parcel_urn)
+            continue
         try:
             products[urn] = await client.get_entity(urn, options="keyValues")
         except httpx.HTTPStatusError as e:
@@ -214,4 +221,8 @@ async def fetch_crop_timeline(
         return None
     finally:
         await client.close()
-    return resolve_parcel_crops(data, at or local_today(data.parcel)).to_dict()
+    try:
+        return resolve_parcel_crops(data, at or local_today(data.parcel)).to_dict()
+    except CropDataUnavailable as e:
+        logger.warning("crop timeline unavailable tenant=%s parcel=%s: %s", tenant_id, urn, e)
+        return None
