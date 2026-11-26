@@ -626,3 +626,12 @@ def test_missing_columns_are_never_cached_and_present_ones_are():
         out = dataloggers.reconcile_datalogger_acl(TENANT, DL)
     assert BEACON in out["topics"]
     assert ("db", "gateway_schema") not in st.log  # asked once, then remembered
+
+
+def test_a_sensor_urn_that_does_not_build_an_entity_is_logged_with_its_own_step(monkeypatch, caplog):
+    st = seed(FakeState())
+    monkeypatch.setattr(dataloggers, "_device_rows", lambda cur, tenant, dl_id: [{"device_urn": "not-a-urn"}])
+    with wired(st), caplog.at_level(logging.ERROR):
+        assert project() == "failed:entity"
+    assert [e for e in st.log if e[:2] == ("orion", "upsert")] == []
+    assert any("step=entity" in x.getMessage() for x in caplog.records)

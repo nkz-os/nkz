@@ -2370,7 +2370,7 @@
       "intro": "Every {{seconds}} seconds, publish this message to the beacon topic so the platform knows the datalogger is alive:",
       "uptime_hint": "\"uptime\" is the number of seconds since the datalogger started, as an integer.",
       "optional": "Optional: \"softwareVersion\" (text), \"batteryLevel\" (0 to 1) and \"rssi\" (dBm).",
-      "no_time_instant": "Do not send TimeInstant: the platform uses the time the message arrives.",
+      "no_time_instant": "Do not send TimeInstant: the platform uses the time the message arrives. A malformed TimeInstant drops the whole message.",
       "show": "Show beacon instructions",
       "hide": "Hide beacon instructions",
       "not_ready": "Not ready yet; try again in a minute.",

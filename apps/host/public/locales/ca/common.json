@@ -2370,7 +2370,7 @@
       "intro": "Cada {{seconds}} segons, publica aquest missatge al tòpic del batec perquè la plataforma sàpiga que el datalogger està viu:",
       "uptime_hint": "\"uptime\" és el nombre de segons des que va arrencar el datalogger, com a enter.",
       "optional": "Opcional: \"softwareVersion\" (text), \"batteryLevel\" (de 0 a 1) i \"rssi\" (dBm).",
-      "no_time_instant": "No enviïs TimeInstant: la plataforma fa servir el moment en què arriba el missatge.",
+      "no_time_instant": "No enviïs TimeInstant: la plataforma fa servir el moment en què arriba el missatge. Un TimeInstant mal format descarta el missatge sencer.",
       "show": "Mostra les instruccions del batec",
       "hide": "Amaga les instruccions del batec",
       "not_ready": "Encara no està llest; torna-ho a provar d'aquí a un minut.",

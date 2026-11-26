@@ -2370,7 +2370,7 @@
       "intro": "Cada {{seconds}} segundos, publica este mensaje en el tópico del latido para que la plataforma sepa que el datalogger está vivo:",
       "uptime_hint": "\"uptime\" es el número de segundos desde que arrancó el datalogger, como entero.",
       "optional": "Opcional: \"softwareVersion\" (texto), \"batteryLevel\" (de 0 a 1) y \"rssi\" (dBm).",
-      "no_time_instant": "No envíes TimeInstant: la plataforma usa el momento en que llega el mensaje.",
+      "no_time_instant": "No envíes TimeInstant: la plataforma usa el momento en que llega el mensaje. Un TimeInstant mal formado descarta el mensaje entero.",
       "show": "Mostrar instrucciones del latido",
       "hide": "Ocultar instrucciones del latido",
       "not_ready": "Aún no está listo; vuelve a intentarlo en un minuto.",

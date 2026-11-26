@@ -22,13 +22,16 @@ export function slugifyExternalId(name: string): string {
     .slice(0, 64);
 }
 
+const DEVICE_CATEGORY_IRI = 'https://smartdatamodels.org/dataModel.Device/deviceCategory';
+
 /**
  * A gateway is a Device whose `deviceCategory` includes `network`. Orion returns a one-element
- * list as a plain string, and a stored value may arrive as `{ value }`: read every form.
+ * list as a plain string, and a stored value may arrive as `{ value }`: read every form. The
+ * attribute itself may come under its full IRI when the read carried no `@context`.
  */
 export function isGatewayDevice(entity: any): boolean {
   if (!entity || entity.type !== 'Device') return false;
-  const raw = entity.deviceCategory;
+  const raw = entity.deviceCategory ?? entity[DEVICE_CATEGORY_IRI];
   const value = raw && typeof raw === 'object' && !Array.isArray(raw) && 'value' in raw ? raw.value : raw;
   return (Array.isArray(value) ? value : [value]).includes('network');
 }

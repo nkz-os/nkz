@@ -504,6 +504,7 @@ def test_golden_record_exists_and_covers_every_value_class():
             assert f"{attr}: {label}" in ids
     for needed in ("numeric string", "fraction", "negative", "huge", "zero", "typical"):
         assert needed in {l for l, _ in gateway_jexl.VALUES["uptime"]}, needed
+    # "garbage TimeInstant" is recorded per attribute; the live agent drops that whole message.
     assert {"whole message", "empty message", "past TimeInstant", "garbage TimeInstant"} <= ids
 
 

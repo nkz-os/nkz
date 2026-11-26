@@ -55,6 +55,9 @@ def messages():
         ("no uptime", {"batteryLevel": 0.5, "rssi": -60, "softwareVersion": "2"}),
         ("past TimeInstant", {**FULL, "TimeInstant": "2020-01-01T00:00:00Z"}),
         ("future TimeInstant", {**FULL, "TimeInstant": "2099-01-01T00:00:00Z"}),
+        # The live agent drops this whole message (an unparseable TimeInstant fails the agent before
+        # any mapping runs); the harness evaluates attribute by attribute, so its record here shows
+        # per-attribute writes. The mappings never read TimeInstant either way.
         ("garbage TimeInstant", {**FULL, "TimeInstant": "garbage"}),
         ("bad uptime, good rest", {**FULL, "uptime": "abc"}),
         ("extra keys", {**FULL, "foo": 1, "location": [1, 2], "deviceState": "x"}),

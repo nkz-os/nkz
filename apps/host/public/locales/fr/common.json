@@ -2370,7 +2370,7 @@
       "intro": "Toutes les {{seconds}} secondes, publiez ce message sur le topic du signal de vie pour que la plateforme sache que le datalogger est actif :",
       "uptime_hint": "\"uptime\" est le nombre de secondes écoulées depuis le démarrage du datalogger, en entier.",
       "optional": "Facultatif : \"softwareVersion\" (texte), \"batteryLevel\" (de 0 à 1) et \"rssi\" (dBm).",
-      "no_time_instant": "N'envoyez pas TimeInstant : la plateforme utilise l'heure d'arrivée du message.",
+      "no_time_instant": "N'envoyez pas TimeInstant : la plateforme utilise l'heure d'arrivée du message. Un TimeInstant mal formé fait rejeter le message entier.",
       "show": "Afficher les instructions du signal de vie",
       "hide": "Masquer les instructions du signal de vie",
       "not_ready": "Pas encore prêt ; réessayez dans une minute.",

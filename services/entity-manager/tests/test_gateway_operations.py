@@ -311,6 +311,38 @@ def test_start_projection_never_raises_when_a_thread_cannot_start(monkeypatch, c
     gateways.join_background(10)
 
 
+def test_start_projection_never_raises_when_a_thread_cannot_be_created(monkeypatch, caplog):
+    def boom(self, *a, **kw):
+        raise RuntimeError("cannot create a thread")
+    monkeypatch.setattr(threading.Thread, "__init__", boom)
+    with caplog.at_level(logging.WARNING):
+        assert gateways.start_projection(TENANT, [DL]) is False
+        assert gateways.start_deletion(TENANT, DL, GW) is False
+    monkeypatch.undo()
+    monkeypatch.setenv(gateways.FLAG, TENANT)
+    monkeypatch.setattr(gateways, "project_gateway", lambda t, d: "done")
+    assert gateways.start_projection(TENANT, [DL]) is True    # the slot was given back
+    gateways.join_background(10)
+
+
+def test_a_committed_operation_is_still_answered_when_no_thread_can_be_created(monkeypatch):
+    def boom(self, *a, **kw):
+        raise RuntimeError("cannot create a thread")
+    st = base_state()
+    with wired(st):
+        monkeypatch.setattr(threading.Thread, "__init__", boom)
+        resp = _revoke(st, client())
+    assert resp.status_code == 200
+
+
+def test_a_committed_delete_is_still_answered_when_no_thread_can_be_created(monkeypatch):
+    def boom(self, *a, **kw):
+        raise RuntimeError("cannot create a thread")
+    st = gateway_state()
+    w, resp = delete_dl(st, setup=lambda w: monkeypatch.setattr(threading.Thread, "__init__", boom))
+    assert resp.status_code == 204 and DL not in st.dataloggers
+
+
 # ── deletion of a datalogger takes its gateway with it ────────────────────────
 
 DMS = [f"urn:ngsi-ld:DeviceMeasurement:{TENANT}:{GW}:{n}" for n in ("uptime", "batteryLevel", "rssi")]

@@ -542,6 +542,7 @@ def _project_under_gateway_lock(tenant: str, dl_id: str, trace: list) -> Optiona
     external_id = row["gateway_external_id"]
     urn = gateway_urn(tenant, external_id)
     # (b) no database lock but the gateway's
+    trace[:] = ["entity"]
     entity = build_entity(tenant, row, sensors)
     trace[:] = ["orion_entity"]
     _sync_entity(tenant, entity)
@@ -623,6 +624,7 @@ def _spawn(tenant: str, what: str, ids: List[str], job: Any, release: Any, turn:
             with _threads_lock:
                 _threads.discard(threading.current_thread())
 
+    thread = None  # the constructor itself can fail
     try:
         thread = threading.Thread(target=run, name=f"gateway-{what}", daemon=True)
         with _threads_lock:

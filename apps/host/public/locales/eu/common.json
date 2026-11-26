@@ -2370,7 +2370,7 @@
       "intro": "{{seconds}} segundoro, argitaratu mezu hau taupadaren topikoan, plataformak datalogger-a bizirik dagoela jakin dezan:",
       "uptime_hint": "\"uptime\" datalogger-a abiatu zenetik igarotako segundo kopurua da, zenbaki oso gisa.",
       "optional": "Aukerakoa: \"softwareVersion\" (testua), \"batteryLevel\" (0tik 1era) eta \"rssi\" (dBm).",
-      "no_time_instant": "Ez bidali TimeInstant: plataformak mezua iristen den unea erabiltzen du.",
+      "no_time_instant": "Ez bidali TimeInstant: plataformak mezua iristen den unea erabiltzen du. Gaizki osatutako TimeInstant batek mezu osoa baztertzen du.",
       "show": "Erakutsi taupadaren argibideak",
       "hide": "Ezkutatu taupadaren argibideak",
       "not_ready": "Oraindik ez dago prest; saiatu berriro minutu batean.",
