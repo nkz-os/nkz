@@ -46,7 +46,7 @@ def _fake_world(st, w, monkeypatch):
     """Listings from the fakes; the Orion delete reaches the entities the SDK upsert created."""
     monkeypatch.setattr(gr, "list_orion_devices", lambda t: list(w.orion.device_models.values()))
     monkeypatch.setattr(gr, "list_agent_devices",
-                        lambda t: [{"device_id": k, "entity_type": "Device"} for k in list(st.iota_devices)])
+                        lambda t: [dict(d) for d in list(st.iota_devices.values())])
 
     def delete_entity(tenant, urn):
         st.log.append(("orion", "delete", urn))
@@ -99,16 +99,16 @@ def test_the_job_lock_is_released_when_the_run_ends(pg):
 def test_the_guard_reads_the_table_under_the_orphan_lock(pg):
     conn, dsn_, real_db = pg
     cur = conn.cursor()
-    with gr.orphan_guard(TENANT, ORPHAN) as verdict:
+    with gr.orphan_guard(TENANT, ORPHAN, False) as verdict:
         assert verdict is None
         cur.execute("SELECT count(*) FROM pg_locks WHERE locktype = 'advisory' AND granted")
         assert cur.fetchone()[0] >= 1
     cur.execute("UPDATE public.iot_dataloggers SET gateway_external_id = %s WHERE id = %s", (ORPHAN, DL))
-    with gr.orphan_guard(TENANT, ORPHAN) as verdict:
+    with gr.orphan_guard(TENANT, ORPHAN, False) as verdict:
         assert verdict == "now in the table"
     cur.execute("UPDATE public.iot_dataloggers SET gateway_external_id = NULL WHERE id = %s", (DL,))
     cur.execute("UPDATE public.tenants SET deleted_at = now() WHERE tenant_id = %s", (TENANT,))
-    with gr.orphan_guard(TENANT, ORPHAN) as verdict:
+    with gr.orphan_guard(TENANT, ORPHAN, False) as verdict:
         assert verdict == "tenant suspended"
 
 
@@ -135,6 +135,46 @@ def test_an_id_that_enters_the_table_between_the_listing_and_the_removal_is_kept
         assert gr.main([]) == 0
     assert _deleted(st, ORPHAN, _urn(ORPHAN)) == []
     assert ORPHAN in st.iota_devices and _urn(ORPHAN) in w.orion.device_models
+
+
+def test_the_guard_refuses_a_sensor_id_and_an_agent_device_of_another_entity(pg, monkeypatch):
+    conn, dsn_, real_db = pg
+    st = FakeState()
+    cur = conn.cursor()
+    with wired(st) as w:
+        dataloggers.get_db_connection_with_tenant = real_db
+        # a sensor registered under the gateway id (before the id was reserved)
+        cur.execute("INSERT INTO public.iot_datalogger_devices (datalogger_id, tenant_id, device_urn, external_id) "
+                    "VALUES (%s, %s, %s, %s)", (DL, TENANT, _urn("S9"), ORPHAN))
+        with gr.orphan_guard(TENANT, ORPHAN, False) as verdict:
+            assert verdict == "is a sensor"
+        cur.execute("DELETE FROM public.iot_datalogger_devices WHERE external_id = %s", (ORPHAN,))
+        # the agent device of that id points at a sensor entity
+        st.iota_devices[DEAD] = {"device_id": DEAD, "entity_type": "Device", "entity_name": _urn("S1"),
+                                 "attributes": []}
+        with gr.orphan_guard(TENANT, DEAD, True) as verdict:
+            assert verdict == "agent device is not this gateway's"
+        with gr.orphan_guard(TENANT, DEAD, False) as verdict:  # no agent removal asked: nothing to refuse
+            assert verdict is None
+        st.iota_devices[DEAD]["entity_name"] = _urn(DEAD)
+        with gr.orphan_guard(TENANT, DEAD, True) as verdict:
+            assert verdict is None
+        st.iota_devices.pop(DEAD)  # gone meanwhile: nothing to refuse either
+        with gr.orphan_guard(TENANT, DEAD, True) as verdict:
+            assert verdict is None
+
+
+def test_a_sensors_agent_device_with_a_gateway_id_survives_the_whole_job(pg, monkeypatch):
+    conn, dsn_, real_db = pg
+    st = FakeState()
+    with wired(st) as w:
+        dataloggers.get_db_connection_with_tenant = real_db
+        _fake_world(st, w, monkeypatch)
+        st.iota_devices[ORPHAN] = {"device_id": ORPHAN, "entity_type": "Device",
+                                   "entity_name": _urn("S1"), "attributes": []}
+        monkeypatch.setattr(gateways, "project_gateway_detailed", lambda t, d: ("done", None))
+        assert gr.main([]) == 0
+    assert ORPHAN in st.iota_devices and _deleted(st, ORPHAN) == []
 
 
 # ── R18: projection, deletion and the job at the same time ───────────────────────────────

@@ -35,6 +35,10 @@ def device(tenant, ext, category=("network",), etype="Device"):
     return entity
 
 
+def agent_doc(ext, name=None, etype="Device"):
+    return {"device_id": ext, "entity_type": etype, "entity_name": name or urn(T, ext)}
+
+
 class World:
     """What the seams answer, and a record of everything the job did."""
 
@@ -56,10 +60,14 @@ class World:
         self.fail_reads = {}           # tenant -> read numbers (0-based) that raise
         self.table_after_projection = None
         self.removal_failures = set()
+        self.sensor_ids = {T: set()}   # tenant -> external ids in iot_datalogger_devices
+        self.sensor_errors = set()
+        self.agent_removed = []
         monkeypatch.setattr(gr, "list_active_tenants", lambda: list(self.tenants))
         monkeypatch.setattr(gr, "read_table", self.read_table)
         monkeypatch.setattr(gr, "list_orion_devices", self.list_orion)
         monkeypatch.setattr(gr, "list_agent_devices", self.list_agent)
+        monkeypatch.setattr(gr, "read_sensor_ids", self.read_sensor_ids)
         monkeypatch.setattr(gr, "orphan_guard", self.orphan_guard)
         monkeypatch.setattr(gr, "run_removal", self.run_removal)
         monkeypatch.setattr(gr, "job_lock", self.job_lock)
@@ -88,16 +96,22 @@ class World:
             raise RuntimeError("agent down")
         return list(self.agent[tenant])
 
+    def read_sensor_ids(self, tenant):
+        if tenant in self.sensor_errors:
+            raise RuntimeError("sensor table unreadable")
+        return set(self.sensor_ids.get(tenant, ()))
+
     @contextmanager
-    def orphan_guard(self, tenant, ext):
+    def orphan_guard(self, tenant, ext, agent):
         self.guarded.append((tenant, ext))
         verdict = self.guard.get((tenant, ext))
         if isinstance(verdict, Exception):
             raise verdict
         yield verdict
 
-    def run_removal(self, tenant, ext, entity):
+    def run_removal(self, tenant, ext, entity, agent):
         self.removed.append((tenant, ext, entity))
+        self.agent_removed.append((tenant, ext, agent))
         return ["agent_device"] if (tenant, ext) in self.removal_failures else []
 
     @contextmanager
@@ -192,20 +206,20 @@ UNTOUCHABLE_IDS = [
 def test_an_id_that_is_not_exactly_a_gateway_id_is_never_removed(world, ext):
     world.orion[T] = [{"id": f"urn:ngsi-ld:Device:{T}:{ext}", "type": "Device",
                        "deviceCategory": {"type": "Property", "value": ["network"]}}]
-    world.agent[T] = [{"device_id": ext, "entity_type": "Device"}]
+    world.agent[T] = [agent_doc(ext)]
     assert run() == 0
     assert world.removed == [] and world.guarded == []
 
 
 def test_a_sensor_is_never_removed(world):
     world.orion[T] = [device(T, "S1", category=("sensor",)), device(T, "S2", category=None)]
-    world.agent[T] = [{"device_id": "S1", "entity_type": "Device"}]
+    world.agent[T] = [agent_doc("S1")]
     assert run() == 0 and world.removed == []
 
 
 def test_a_manufacturing_machine_with_a_gateway_id_is_never_removed(world):
     world.orion[T] = [device(T, GW, etype="ManufacturingMachine")]
-    world.agent[T] = [{"device_id": GW, "entity_type": "ManufacturingMachine"}]
+    world.agent[T] = [agent_doc(GW, etype="ManufacturingMachine")]
     assert run() == 0 and world.removed == []
 
 
@@ -230,21 +244,21 @@ def test_another_tenants_urn_is_never_removed(world):
 def test_an_id_that_is_in_the_table_is_never_removed(world):
     world.tables[T] = [("dl-1", GW)]
     world.orion[T] = [device(T, GW)]
-    world.agent[T] = [{"device_id": GW, "entity_type": "Device"}]
+    world.agent[T] = [agent_doc(GW)]
     assert run() == 0 and world.removed == []
 
 
 def test_an_orphan_in_orion_and_one_in_the_agent_are_removed(world):
     world.tables[T] = [("dl-1", GW)]
     world.orion[T] = [device(T, GW), device(T, GW2)]
-    world.agent[T] = [{"device_id": GW, "entity_type": "Device"},
-                      {"device_id": "gw-aaaaaaaaaaaa", "entity_type": "Device"}]
+    world.agent[T] = [agent_doc(GW),
+                      agent_doc("gw-aaaaaaaaaaaa")]
     assert run() == 0
     assert world.removed == [(T, "gw-aaaaaaaaaaaa", False), (T, GW2, True)]
 
 
 def test_the_entity_goes_only_when_it_was_seen_as_a_network_device(world):
-    world.agent[T] = [{"device_id": GW, "entity_type": "Device"}]
+    world.agent[T] = [agent_doc(GW)]
     world.orion[T] = [device(T, GW, category=("sensor",))]
     assert run() == 0
     assert world.removed == [(T, GW, False)]
@@ -254,14 +268,17 @@ def test_the_removal_order_is_the_agent_device_then_the_measurements_then_the_en
     calls = []
     monkeypatch.setattr(dataloggers, "delete_iota_device", lambda t, e: calls.append(("agent", e)))
     monkeypatch.setattr(dataloggers, "delete_orion_entity", lambda t, u: calls.append(("orion", u)))
-    assert gr.run_removal(T, GW, True) == []
+    assert gr.run_removal(T, GW, True, True) == []
     assert [c[0] for c in calls] == ["agent", "orion", "orion", "orion", "orion"]
     assert calls[0] == ("agent", GW)
     assert calls[-1] == ("orion", urn(T, GW))
     assert all(u.startswith(f"urn:ngsi-ld:DeviceMeasurement:{T}:{GW}:") for _, u in calls[1:-1])
     calls.clear()
-    assert gr.run_removal(T, GW, False) == []
+    assert gr.run_removal(T, GW, False, True) == []
     assert [c[0] for c in calls] == ["agent", "orion", "orion", "orion"]
+    calls.clear()
+    assert gr.run_removal(T, GW, True, False) == []  # no agent device of this gateway: not touched
+    assert [c[0] for c in calls] == ["orion", "orion", "orion", "orion"]
 
 
 def test_a_failing_removal_step_is_reported_and_the_next_ones_still_run(monkeypatch):
@@ -272,8 +289,103 @@ def test_a_failing_removal_step_is_reported_and_the_next_ones_still_run(monkeypa
 
     monkeypatch.setattr(dataloggers, "delete_iota_device", agent)
     monkeypatch.setattr(dataloggers, "delete_orion_entity", lambda t, u: calls.append(u))
-    assert gr.run_removal(T, GW, True) == ["agent_device"]
+    assert gr.run_removal(T, GW, True, True) == ["agent_device"]
     assert len(calls) == 4
+
+
+# ── an agent device that is not this gateway's (fix round 1) ─────────────────────────────
+
+def test_an_agent_device_with_a_gateway_id_that_points_at_a_sensor_is_never_removed(world):
+    world.agent[T] = [agent_doc(GW, name=urn(T, "S1"))]
+    assert run() == 0
+    assert world.removed == [] and world.guarded == []
+
+
+def test_an_agent_device_that_points_at_another_tenants_gateway_is_never_removed(world):
+    world.agent[T] = [agent_doc(GW, name=urn("other", GW))]
+    assert run() == 0 and world.removed == []
+
+
+def test_an_agent_device_without_an_entity_name_is_never_removed(world):
+    world.agent[T] = [{"device_id": GW, "entity_type": "Device"}]
+    assert run() == 0 and world.removed == []
+
+
+@pytest.mark.parametrize("etype", [None, "ManufacturingMachine", "Thing"])
+def test_an_agent_device_that_is_not_a_device_is_never_removed(world, etype):
+    doc = agent_doc(GW)
+    if etype is None:
+        del doc["entity_type"]
+    else:
+        doc["entity_type"] = etype
+    world.agent[T] = [doc]
+    assert run() == 0 and world.removed == []
+
+
+def test_an_id_that_is_an_external_id_of_a_sensor_is_never_removed(world):
+    world.sensor_ids[T] = {GW}
+    world.agent[T] = [agent_doc(GW)]
+    world.orion[T] = [device(T, GW)]
+    assert run() == 0 and world.removed == []
+
+
+def test_a_sensor_table_that_cannot_be_read_removes_no_agent_device_but_fails_the_run(world):
+    world.sensor_errors.add(T)
+    world.agent[T] = [agent_doc(GW)]
+    assert run() == 1 and world.removed == []
+
+
+def test_the_agent_device_is_removed_only_when_it_passed_the_checks(world):
+    world.orion[T] = [device(T, GW), device(T, GW2)]
+    world.agent[T] = [agent_doc(GW), agent_doc(GW2, name=urn(T, "S1"))]
+    assert run() == 0
+    assert world.agent_removed == [(T, GW, True), (T, GW2, False)]
+
+
+def test_agent_candidates_needs_the_gateway_urn_the_type_and_a_free_id():
+    ok = agent_doc(GW)
+    assert gr.agent_candidates(T, [ok], set()) == [GW]
+    assert gr.agent_candidates(T, [agent_doc(GW, name=urn(T, "S1"))], set()) == []
+    assert gr.agent_candidates(T, [agent_doc(GW, etype="ManufacturingMachine")], set()) == []
+    assert gr.agent_candidates(T, [ok], {GW}) == []
+
+
+# ── migration 123 missing ────────────────────────────────────────────────────────────────
+
+def test_a_schema_without_the_gateway_columns_removes_nothing_and_fails(monkeypatch):
+    import psycopg2.errors
+
+    class Cur:
+        def execute(self, sql, params=()):
+            raise psycopg2.errors.UndefinedColumn("gateway_external_id")
+
+    class Conn:
+        def cursor(self, *a, **k):
+            return Cur()
+
+        def rollback(self):
+            pass
+
+    @contextmanager
+    def db(tenant):
+        yield Conn()
+
+    removed = []
+    monkeypatch.setenv(gateways.FLAG, "*")
+    monkeypatch.setattr(dataloggers, "get_db_connection_with_tenant", db)
+    monkeypatch.setattr(gr, "list_active_tenants", lambda: [T])
+    monkeypatch.setattr(gr, "job_lock", lambda: _held())
+    monkeypatch.setattr(gr, "list_orion_devices", lambda t: [device(T, GW)])
+    monkeypatch.setattr(gr, "list_agent_devices", lambda t: [agent_doc(GW)])
+    monkeypatch.setattr(gr, "run_removal", lambda *a: removed.append(a) or [])
+    monkeypatch.setattr(gateways, "project_gateway_detailed", lambda t, d: removed.append("p") or ("done", None))
+    assert run() == 1
+    assert removed == []
+
+
+@contextmanager
+def _held():
+    yield True
 
 
 # ── a table that could not be read ───────────────────────────────────────────────────────
@@ -281,7 +393,7 @@ def test_a_failing_removal_step_is_reported_and_the_next_ones_still_run(monkeypa
 def test_a_table_that_cannot_be_read_removes_nothing_and_projects_nothing(world):
     world.table_errors[T] = 0
     world.orion[T] = [device(T, GW)]
-    world.agent[T] = [{"device_id": GW2, "entity_type": "Device"}]
+    world.agent[T] = [agent_doc(GW2)]
     assert run() == 1
     assert world.removed == [] and world.projected == [] and world.guarded == []
 
@@ -298,7 +410,7 @@ def test_a_table_that_cannot_be_read_after_the_projections_removes_nothing(world
     world.tables[T] = [("dl-1", GW)]
     world.table_errors[T] = 1  # the first read works, the second raises
     world.orion[T] = [device(T, GW2)]
-    world.agent[T] = [{"device_id": GW2, "entity_type": "Device"}]
+    world.agent[T] = [agent_doc(GW2)]
     assert run() == 1
     assert world.projected == [(T, "dl-1")]
     assert world.removed == [] and world.guarded == []
@@ -306,7 +418,7 @@ def test_a_table_that_cannot_be_read_after_the_projections_removes_nothing(world
 
 def test_a_listing_that_failed_is_never_taken_as_empty(world):
     world.orion_error.add(T)
-    world.agent[T] = [{"device_id": GW, "entity_type": "Device"}]
+    world.agent[T] = [agent_doc(GW)]
     assert run() == 1
     # the agent side was readable and its orphan goes; nothing is inferred from the Orion failure
     assert world.removed == [(T, GW, False)]
@@ -542,7 +654,7 @@ def test_the_job_lock_is_the_documented_advisory_lock(monkeypatch):
 def test_a_dry_run_writes_nothing_and_says_what_it_would_do(world, caplog):
     world.tables[T] = [("dl-1", None), ("dl-2", GW)]
     world.orion[T] = [device(T, GW), device(T, GW2)]
-    world.agent[T] = [{"device_id": "gw-aaaaaaaaaaaa", "entity_type": "Device"}]
+    world.agent[T] = [agent_doc("gw-aaaaaaaaaaaa")]
     with caplog.at_level(logging.INFO):
         assert run("--dry-run") == 0
     assert world.projected == [] and world.removed == [] and world.guarded == []
@@ -566,6 +678,12 @@ def test_a_dry_run_with_an_unreadable_table_says_so_and_fails(world):
 
 # ── arguments, logs ──────────────────────────────────────────────────────────────────────
 
+def test_help_exits_zero(world, capsys, monkeypatch):
+    monkeypatch.setattr(gr, "job_lock", lambda: pytest.fail("lock taken"))
+    assert run("--help") == 0
+    assert "--dry-run" in capsys.readouterr().out
+
+
 @pytest.mark.parametrize("argv", [["--bogus"], ["--tenant"], ["extra"], ["--tenant", ""]])
 def test_bad_arguments_exit_two_and_touch_nothing(world, argv, monkeypatch):
     monkeypatch.setattr(gr, "job_lock", lambda: pytest.fail("lock taken"))
@@ -583,7 +701,7 @@ def test_logs_carry_no_secret_from_an_exception(world, caplog, monkeypatch):
     monkeypatch.setattr(gateways, "project_gateway_detailed", boom)
     world.orion_error.add(T)
     world.guard[(T, GW2)] = RuntimeError(secret)
-    world.agent[T] = [{"device_id": GW2, "entity_type": "Device"}]
+    world.agent[T] = [agent_doc(GW2)]
     with caplog.at_level(logging.DEBUG):
         run()
     text = "\n".join(r.getMessage() + str(r.exc_info) for r in caplog.records)

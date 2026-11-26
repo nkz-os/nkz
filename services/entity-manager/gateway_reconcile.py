@@ -15,8 +15,10 @@ query runs under that tenant's RLS context, `iot_dataloggers` has no cross-tenan
 Deletion safety, all of it required:
   * the id must match `gw-[0-9a-f]{12}` exactly (`fullmatch`), the Orion entity must be a `Device`
     whose id is the gateway URN of THIS tenant and whose `deviceCategory` holds `network`; an agent
-    device must not say it is anything but a `Device`. A VPN gateway, a sensor, a machine or
-    `gw-XYZ` never qualifies. The Orion entity is removed only when it was seen as such;
+    device must be a `Device` whose `entity_name` is that same URN, and its id must not be the
+    `external_id` of a sensor in `iot_datalogger_devices`. A VPN gateway, a sensor, a machine or
+    `gw-XYZ` never qualifies. The Orion entity and the agent device are each removed only when
+    they were seen as this gateway's (and the agent device is read again under the guard);
   * nothing is removed for a tenant whose table could not be read (twice: before and after the
     projections), and an error is never read as "no rows". A listing that fails or does not add up
     removes nothing on its own side;
@@ -157,10 +159,12 @@ def list_agent_devices(tenant: str) -> List[dict]:
 
 
 @contextmanager
-def orphan_guard(tenant: str, external_id: str) -> Iterator[Optional[str]]:
+def orphan_guard(tenant: str, external_id: str, agent: bool = False) -> Iterator[Optional[str]]:
     """Holds `gateway-orphan:<id>` and says whether the id may still be removed.
 
-    Yields None when it may, else the reason (it is in the table now, or the tenant is suspended).
+    Yields None when it may, else the reason (it is in the table now, it is a sensor's external id,
+    the tenant is suspended, or, when `agent` is asked, the agent device is not this gateway's: read
+    again here, a missing one is fine).
     Raises when it cannot decide: the caller then removes nothing. The connection stays inside the
     block, so the lock covers the removal; it is released by the rollback.
     """
@@ -176,15 +180,45 @@ def orphan_guard(tenant: str, external_id: str) -> Iterator[Optional[str]]:
                 cur.execute("SELECT 1 FROM iot_dataloggers WHERE tenant_id = %s AND gateway_external_id = %s",
                             (tenant, external_id))
                 verdict = "now in the table" if cur.fetchone() else None
+                if verdict is None:
+                    cur.execute("SELECT 1 FROM iot_datalogger_devices WHERE tenant_id = %s AND external_id = %s",
+                                (tenant, external_id))
+                    verdict = "is a sensor" if cur.fetchone() else None
+                if verdict is None and agent:
+                    doc = _agent_document(tenant, external_id)
+                    if doc is not None and not _agent_is_gateway(tenant, external_id, doc):
+                        verdict = "agent device is not this gateway's"
             yield verdict
         finally:
             conn.rollback()
 
 
-def run_removal(tenant: str, external_id: str, entity: bool) -> List[str]:
+def read_sensor_ids(tenant: str) -> set:
+    """External ids of the tenant's sensors (`iot_datalogger_devices`); raises on any error."""
+    with dataloggers.get_db_connection_with_tenant(tenant) as conn:
+        try:
+            cur = conn.cursor()
+            cur.execute("SELECT external_id FROM iot_datalogger_devices WHERE tenant_id = %s", (tenant,))
+            return {r[0] for r in cur.fetchall()}
+        finally:
+            conn.rollback()
+
+
+def _agent_document(tenant: str, external_id: str) -> Optional[dict]:
+    """The agent's document of the device, None when it does not exist; raises on any other error."""
+    iot_agent = dataloggers.iot_agent
+    try:
+        return iot_agent.get_device(dataloggers.iota_url(), dataloggers.iota_headers(tenant), external_id)
+    except iot_agent.IotAgentError as exc:
+        if exc.status_code == 404:
+            return None
+        raise
+
+
+def run_removal(tenant: str, external_id: str, entity: bool, agent: bool) -> List[str]:
     """R13's order; returns the steps that failed (each is tried whatever the ones before did)."""
     failed: List[str] = []
-    for step, call in gateways.removal_steps(tenant, external_id, entity=entity):
+    for step, call in gateways.removal_steps(tenant, external_id, entity=entity, agent=agent):
         try:
             call()
         except Exception as exc:
@@ -221,14 +255,19 @@ def orion_candidates(tenant: str, entities: Sequence[Any]) -> List[str]:
     return found
 
 
-def agent_candidates(docs: Sequence[Any]) -> List[str]:
-    """External ids of the agent devices shaped like a gateway that do not claim to be anything else."""
+def _agent_is_gateway(tenant: str, ext: str, doc: Any) -> bool:
+    return (isinstance(doc, dict) and doc.get("entity_type") == "Device"
+            and doc.get("entity_name") == gateways.gateway_urn(tenant, ext))
+
+
+def agent_candidates(tenant: str, docs: Sequence[Any], sensor_ids: set) -> List[str]:
+    """External ids of the agent devices that are this tenant's gateways: gateway-shaped id, a
+    `Device` whose entity is the gateway URN, and an id that no sensor of the tenant uses."""
     found = []
     for doc in docs:
-        if not isinstance(doc, dict):
-            continue
-        ext = doc.get("device_id")
-        if gateways.is_gateway_external_id(ext) and doc.get("entity_type") in (None, "Device"):
+        ext = doc.get("device_id") if isinstance(doc, dict) else None
+        if (gateways.is_gateway_external_id(ext) and ext not in sensor_ids
+                and _agent_is_gateway(tenant, ext, doc)):
             found.append(ext)
     return found
 
@@ -262,13 +301,15 @@ def _sweep(tenant: str, known: set, dry_run: bool, budget: _Budget) -> bool:
         logger.error("gateway repair: orion listing failed, nothing removed from it: tenant=%s error=%s",
                      tenant, type(exc).__name__)
         ok = False
+    sensor_ids: set = set()
     try:
-        agent_seen = set(agent_candidates(list_agent_devices(tenant)))
+        sensor_ids = read_sensor_ids(tenant)
+        agent_seen = set(agent_candidates(tenant, list_agent_devices(tenant), sensor_ids))
     except Exception as exc:
-        logger.error("gateway repair: agent listing failed, nothing removed from it: tenant=%s error=%s",
+        logger.error("gateway repair: agent side unreadable, nothing removed from it: tenant=%s error=%s",
                      tenant, type(exc).__name__)
         ok = False
-    for ext in sorted((entity_seen | agent_seen) - known):
+    for ext in sorted((entity_seen | agent_seen) - known - sensor_ids):
         if not budget.take():
             logger.info("gateway repair: deferred: tenant=%s id=%s outcome=deferred", tenant, ext)
             continue
@@ -278,11 +319,11 @@ def _sweep(tenant: str, known: set, dry_run: bool, budget: _Budget) -> bool:
                         tenant, ext, entity, ext in agent_seen)
             continue
         try:
-            with orphan_guard(tenant, ext) as verdict:
+            with orphan_guard(tenant, ext, ext in agent_seen) as verdict:
                 if verdict is not None:
                     logger.info("gateway repair: not removed: tenant=%s id=%s outcome=%s", tenant, ext, verdict)
                     continue
-                failed = run_removal(tenant, ext, entity)
+                failed = run_removal(tenant, ext, entity, ext in agent_seen)
         except Exception as exc:
             logger.error("gateway repair: not removed, could not decide: tenant=%s id=%s error=%s",
                          tenant, ext, type(exc).__name__)
@@ -330,13 +371,14 @@ def _parser() -> argparse.ArgumentParser:
     return p
 
 
-def _args(argv: Optional[Sequence[str]]) -> Optional[argparse.Namespace]:
+def _args(argv: Optional[Sequence[str]]) -> Any:
+    """The namespace, or the exit code (`--help` 0, anything unusable 2)."""
     try:
         args = _parser().parse_args(argv)
-    except SystemExit:
-        return None
+    except SystemExit as exc:
+        return exc.code if isinstance(exc.code, int) else 2
     if args.tenant is not None and not args.tenant.strip():
-        return None
+        return 2
     return args
 
 
@@ -371,8 +413,8 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     logging.basicConfig(level=logging.INFO, stream=sys.stdout,
                         format="%(asctime)s %(levelname)s %(name)s %(message)s")
     args = _args(argv)
-    if args is None:
-        return 2
+    if isinstance(args, int):
+        return args
     return run(args.tenant, args.dry_run)
 
 

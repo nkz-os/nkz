@@ -681,15 +681,17 @@ def start_deletion(tenant: str, dl_id: str, external_id: Any) -> bool:
                   lambda: delete_gateway(tenant, str(dl_id), external_id), lambda: None, _DELETE_TURN)
 
 
-def removal_steps(tenant: str, external_id: str, entity: bool = True) -> list:
+def removal_steps(tenant: str, external_id: str, entity: bool = True, agent: bool = True) -> list:
     """R13's order as (step, call) pairs: agent device, the gateway's DMs, then the entity.
 
-    `entity=False` leaves the Device entity out (the repair removes it only when it saw it as a
-    network Device). Every call is idempotent; a missing target is not an error.
+    `entity=False` leaves the Device entity out and `agent=False` the agent device (the repair
+    removes each only when it saw it as this gateway's). Every call is idempotent; a missing target is not an error.
     """
     import dataloggers
     urn = gateway_urn(tenant, external_id)
-    steps = [("agent_device", lambda: dataloggers.delete_iota_device(tenant, external_id))]
+    steps = []
+    if agent:
+        steps.append(("agent_device", lambda: dataloggers.delete_iota_device(tenant, external_id)))
     steps += [("measurement", lambda dm=c.dm_id: dataloggers.delete_orion_entity(tenant, dm))
               for c in gateway_channels(tenant, external_id, DEFAULT_SHAPE)]
     if entity:
