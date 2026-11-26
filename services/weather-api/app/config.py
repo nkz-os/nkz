@@ -33,6 +33,14 @@ class Settings:
         self.weather_map_url = os.getenv(
             "WEATHER_MAP_URL", "http://weather-map-backend:8080"
         ).rstrip("/")
+        self.redis_url = os.getenv("REDIS_URL", "").strip()
+        self.redis_password = os.getenv("REDIS_PASSWORD", "").strip()
+        try:
+            self.agro_status_cache_ttl_s = int(
+                os.getenv("AGRO_STATUS_CACHE_TTL_S", "600")
+            )
+        except ValueError:
+            self.agro_status_cache_ttl_s = 600
         self.log_level = os.getenv("LOG_LEVEL", "INFO")
 
         # Auth — not used directly by this service (api-gateway validates),
