@@ -589,7 +589,17 @@ def delete_datalogger(tenant: str, dl_id: str) -> None:
             conn.rollback()
             raise ApiError(409, 'Datalogger still has devices')
         # Only with the flag on: its gateway goes with it once the row is gone.
-        gateway = (gateway_columns(cur, tenant, dl_id) or {}) if gateways.enabled(tenant) else {}
+        gateway = {}
+        if gateways.enabled(tenant):
+            # A failed read must not fail the user's delete (the repair cleans up): a savepoint
+            # keeps the transaction, and its row lock, usable.
+            cur.execute("SAVEPOINT gateway_columns")
+            try:
+                gateway = gateway_columns(cur, tenant, dl_id) or {}
+            except Exception as exc:
+                cur.execute("ROLLBACK TO SAVEPOINT gateway_columns")
+                logger.warning("gateway columns not read on delete: datalogger=%s error=%s",
+                               dl_id, type(exc).__name__)
         cur.execute("DELETE FROM iot_dataloggers WHERE id = %s AND tenant_id = %s", (dl_id, tenant))
         try:
             mqtt_dynsec.delete_account(client, row['mqtt_username'])

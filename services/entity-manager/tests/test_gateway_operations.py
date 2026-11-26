@@ -524,3 +524,108 @@ def test_a_sensor_id_that_only_contains_gw_still_registers():
     with wired(st):
         r = post(client(), "/api/sensors/register", dict(BASE, external_id="s-gw-1"))
     assert r.status_code == 201
+
+
+# ── fix round 1: a deletion is never dropped ────────────────────────────────
+
+GW2 = "gw-ba9876543210"
+GW2_URN = f"urn:ngsi-ld:Device:{TENANT}:{GW2}"
+
+
+def test_a_deletion_runs_even_while_a_projection_holds_the_slot(rec):
+    st = gateway_state()
+    seed_datalogger(st, dl_id=DL2, username=ROLE2)
+    r = rec(st)
+    r.release = threading.Event()
+    with wired(st) as w:
+        w.orion.entities[GW_URN] = {"id": GW_URN}
+        c = client()
+        assert post(c, f"/api/sensors/dataloggers/{DL2}/revoke").status_code == 200
+        assert r.entered.wait(5)                       # the projection holds the slot
+        assert c.delete(f"/api/sensors/dataloggers/{DL}", headers=AUTH).status_code == 204
+        deadline = threading.Event()
+        for _ in range(100):                            # the deletion finishes while it is held
+            if GW not in st.iota_devices and GW_URN not in w.orion.entities:
+                break
+            deadline.wait(0.05)
+        assert GW not in st.iota_devices and GW_URN not in w.orion.entities
+        r.release.set()
+        gateways.join_background(10)
+    assert [c_[1] for c_ in r.calls] == [DL2]
+
+
+def test_two_deletions_at_once_both_complete():
+    st = gateway_state()
+    seed_datalogger(st, dl_id=DL2, username=ROLE2)
+    st.dataloggers[DL2].update(gateway_external_id=GW2, gateway_provisioned_at="now", created_at=None)
+    st.iota_devices[GW2] = {"device_id": GW2, "entity_name": GW2_URN}
+    gate = threading.Event()
+    with wired(st) as w:
+        for u in (GW_URN, GW2_URN):
+            w.orion.entities[u] = {"id": u}
+        orig = w.iota.delete_device
+
+        def slow(url, headers, device_id):
+            assert gate.wait(10)
+            return orig(url, headers, device_id)
+        w.iota.delete_device = slow
+        c = client()
+        assert c.delete(f"/api/sensors/dataloggers/{DL}", headers=AUTH).status_code == 204
+        assert c.delete(f"/api/sensors/dataloggers/{DL2}", headers=AUTH).status_code == 204
+        gate.set()
+        gateways.join_background(10)
+    assert st.iota_devices == {} and GW_URN not in w.orion.entities and GW2_URN not in w.orion.entities
+
+
+def test_an_unreadable_gateway_column_does_not_fail_the_delete(monkeypatch, caplog):
+    st = gateway_state()
+
+    def boom(*a, **kw):
+        raise RuntimeError("read failed")
+    monkeypatch.setattr(dataloggers, "gateway_columns", boom)
+    with caplog.at_level(logging.INFO):
+        w, resp = delete_dl(st)
+    assert resp.status_code == 204 and DL not in st.dataloggers
+    assert not [e for e in st.log if e[:2] in (("iota", "delete"), ("orion", "delete"))]
+    assert any(x.levelno == logging.WARNING and "RuntimeError" in x.getMessage() for x in caplog.records)
+    assert ("sql", "rollback") not in st.log          # the transaction was kept, not abandoned
+
+
+# ── fix round 1: with the flag off, the side effects are the base's ─────────
+
+SIDE = os.path.join(os.path.dirname(__file__), "recordings", "gateway_operations_side_effects_base.json")
+_ID = __import__("re").compile(r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}")
+_USER = __import__("re").compile(r"dl_[0-9a-f]{16}")
+
+
+def _mask_log(value):
+    if isinstance(value, (list, tuple)):
+        return [_mask_log(v) for v in value]
+    if isinstance(value, str):
+        return _USER.sub("<user>", _ID.sub("<id>", value))
+    return value
+
+
+def _side_cases():
+    cases = [(n, f) for n in OPS for f in (False, True)]
+    return cases + [("delete_datalogger", False), ("delete_datalogger_gateway", False)]
+
+
+@pytest.mark.parametrize("name,fail", _side_cases())
+def test_with_the_flag_off_the_side_effects_are_the_ones_recorded_on_base(name, fail, monkeypatch):
+    monkeypatch.delenv(gateways.FLAG)
+    if name.startswith("delete_datalogger"):
+        st = gateway_state() if name.endswith("gateway") else base_state(sensors=())
+        with wired(st):
+            client().delete(f"/api/sensors/dataloggers/{DL}", headers=AUTH)
+            gateways.join_background(10)
+    else:
+        st, _r, _resp = run_op(name, fail=fail)
+    got = _mask_log(list(st.log))
+    key = f"{name}:{'fail' if fail else 'ok'}"
+    if os.environ.get("RECORD_BASE"):
+        data = json.load(open(SIDE)) if os.path.exists(SIDE) else {}
+        data[key] = got
+        json.dump(data, open(SIDE, "w"), indent=1, sort_keys=True)
+        return
+    assert got == json.load(open(SIDE))[key]

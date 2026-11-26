@@ -587,41 +587,62 @@ def _project_under_gateway_lock(tenant: str, dl_id: str, trace: list) -> Optiona
 # One job per process at a time: a user's request never waits for a projection, and a burst of
 # operations cannot pile up threads against Orion. A skipped projection converges in the repair.
 _SLOT = threading.Semaphore(1)
-_current: Optional[threading.Thread] = None
+# Deletions never share that slot (a skipped deletion would leave the gateway behind until the
+# repair): each has its own thread, which waits its turn here, one at a time, inside the thread.
+_DELETE_TURN = threading.Semaphore(1)
+_threads: set = set()
+_threads_lock = threading.Lock()
 
 
 def join_background(timeout: Optional[float] = None) -> None:
-    """Wait for the running background job, if any (tests, shutdown)."""
-    thread = _current
-    if thread is not None and thread.is_alive():
+    """Wait for the running background jobs, if any (tests, shutdown)."""
+    with _threads_lock:
+        running = list(_threads)
+    for thread in running:
         thread.join(timeout)
 
 
-def _start(tenant: str, what: str, ids: List[str], job: Any) -> bool:
-    """Run `job()` in a daemon thread if no other job runs in this process. Never raises."""
-    global _current
-    if not _SLOT.acquire(blocking=False):
-        logger.info("gateway %s skipped, another one is running: tenant=%s datalogger=%s",
-                    what, tenant, ",".join(ids))
-        return False
-
+def _spawn(tenant: str, what: str, ids: List[str], job: Any, release: Any, turn: Any = None) -> bool:
+    """Start the daemon thread; `release()` runs when it ends. Never raises."""
     def run() -> None:
         try:
-            job()
+            if turn is not None:
+                turn.acquire()
+            try:
+                job()
+            finally:
+                if turn is not None:
+                    turn.release()
         except Exception as exc:  # a background job must never die silently
             logger.warning("gateway %s failed: tenant=%s datalogger=%s error=%s",
                            what, tenant, ",".join(ids), type(exc).__name__)
         finally:
-            _SLOT.release()
+            release()
+            with _threads_lock:
+                _threads.discard(threading.current_thread())
 
     try:
         thread = threading.Thread(target=run, name=f"gateway-{what}", daemon=True)
-        _current = thread
+        with _threads_lock:
+            _threads.add(thread)
         thread.start()
     except Exception as exc:
-        _SLOT.release()
+        with _threads_lock:
+            _threads.discard(thread)
         logger.warning("gateway %s not started: tenant=%s datalogger=%s error=%s",
                        what, tenant, ",".join(ids), type(exc).__name__)
+        return False
+    return True
+
+
+def _start(tenant: str, what: str, ids: List[str], job: Any) -> bool:
+    """Run `job()` in a daemon thread if no other projection runs in this process."""
+    if not _SLOT.acquire(blocking=False):
+        logger.info("gateway %s skipped, another one is running: tenant=%s datalogger=%s",
+                    what, tenant, ",".join(ids))
+        return False
+    if not _spawn(tenant, what, ids, job, _SLOT.release):
+        _SLOT.release()
         return False
     return True
 
@@ -656,7 +677,8 @@ def start_deletion(tenant: str, dl_id: str, external_id: Any) -> bool:
             return False
     except Exception:
         return False
-    return _start(tenant, "deletion", [str(dl_id)], lambda: delete_gateway(tenant, str(dl_id), external_id))
+    return _spawn(tenant, "deletion", [str(dl_id)],
+                  lambda: delete_gateway(tenant, str(dl_id), external_id), lambda: None, _DELETE_TURN)
 
 
 def delete_gateway(tenant: str, dl_id: str, external_id: str) -> None:

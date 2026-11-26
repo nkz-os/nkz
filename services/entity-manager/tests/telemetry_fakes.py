@@ -83,6 +83,8 @@ class _Cursor:
         log = self.conn.state.log
         self._rows = []
         self._rowcount = 0
+        if sql.startswith(("SAVEPOINT", "ROLLBACK TO SAVEPOINT")):
+            return
         if "FOR UPDATE" in sql:
             log.append(("sql", "FOR UPDATE"))
         if "gateway_" in sql and not sql.startswith("UPDATE") and "information_schema" not in sql:
