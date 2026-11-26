@@ -41,7 +41,7 @@ def _require_auth(f=None, **kwargs):
 
 _common_mock = MagicMock()
 _common_mock.require_auth = _require_auth
-_common_mock.inject_fiware_headers = lambda h, **kw: dict(h)
+_common_mock.inject_fiware_headers = lambda h, t=None, **kw: dict(h)
 _common_mock.internal_error = lambda *a, **kw: ({"error": "internal"}, 500)
 for _mod in ("common", "common.auth_middleware", "common.api_errors", "common.ngsi_headers"):
     sys.modules.setdefault(_mod, _common_mock)

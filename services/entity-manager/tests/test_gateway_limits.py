@@ -1,6 +1,5 @@
 """A gateway (a Device whose deviceCategory includes "network") is not a sensor: it uses up
 no slot of the sensor limit and is not in the usage figures. Other types are untouched."""
-import pytest
 from unittest.mock import MagicMock, patch
 
 from requests.structures import CaseInsensitiveDict
@@ -8,12 +7,6 @@ from requests.structures import CaseInsensitiveDict
 from tests.telemetry_fakes import TENANT  # noqa: F401  (puts the service dirs on sys.path)
 
 from helpers import tenant_limits  # noqa: E402
-
-
-@pytest.fixture(autouse=True)
-def headers(monkeypatch):
-    # Another test module may have replaced the stub with one that takes no tenant.
-    monkeypatch.setattr(tenant_limits, "inject_fiware_headers", lambda h, t=None, **kw: dict(h))
 
 
 GATEWAY_Q = '(deviceCategory!="network"|!deviceCategory)'

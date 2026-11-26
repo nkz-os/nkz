@@ -425,7 +425,7 @@ def _require_auth(f=None, **kwargs):
 
 _common_mock = MagicMock()
 _common_mock.require_auth = _require_auth
-_common_mock.inject_fiware_headers = lambda h, **kw: dict(h)
+_common_mock.inject_fiware_headers = lambda h, t=None, **kw: dict(h)
 _common_mock.internal_error = lambda *a, **kw: ({"error": "internal"}, 500)
 # Every common.* module the blueprints import at module level must exist when this file
 # is the first to load them (a MagicMock `common` is not a package).
@@ -606,8 +606,6 @@ def wired(state, monkeypatch=None, host="mqtt.example.org", port="8883"):
     import blueprints.sensors as sensors
     import device_models
 
-    import dataloggers as _dl
-    _dl._columns_exist = False
     orion = FakeOrion(state)
     db = fake_db(state)
     dyn = fake_dynsec(state)
@@ -634,6 +632,7 @@ def wired(state, monkeypatch=None, host="mqtt.example.org", port="8883"):
                 "location": None}
 
     with patch.dict(os.environ, env), \
+         patch.object(dataloggers, "_columns_exist", False), \
          patch.object(dataloggers, "get_db_connection_with_tenant", db), \
          patch.object(dataloggers, "mqtt_dynsec", dyn), \
          patch.object(dataloggers, "iot_agent", iota), \
