@@ -21,3 +21,14 @@ export function slugifyExternalId(name: string): string {
     .replace(/^_+|_+$/g, '')
     .slice(0, 64);
 }
+
+/**
+ * A gateway is a Device whose `deviceCategory` includes `network`. Orion returns a one-element
+ * list as a plain string, and a stored value may arrive as `{ value }`: read every form.
+ */
+export function isGatewayDevice(entity: any): boolean {
+  if (!entity || entity.type !== 'Device') return false;
+  const raw = entity.deviceCategory;
+  const value = raw && typeof raw === 'object' && !Array.isArray(raw) && 'value' in raw ? raw.value : raw;
+  return (Array.isArray(value) ? value : [value]).includes('network');
+}

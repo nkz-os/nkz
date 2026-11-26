@@ -286,6 +286,12 @@ def provision_iot_device(entity_id: str, entity_type: str, tenant_id: str,
     
     return result
 
+# A gateway is a Device whose deviceCategory includes "network". The `|!deviceCategory`
+# branch keeps Devices with no category: `!=` alone drops them. The short name needs the
+# platform Link (inject_fiware_headers sends it) to resolve to the official term.
+DEVICE_NOT_GATEWAY_Q = '(deviceCategory!="network"|!deviceCategory)'
+
+
 def _check_tenant_limits(tenant_id: str, entity_type: str) -> bool:
     """Check if tenant has reached the limit for the given entity type"""
     limit = 0
@@ -305,6 +311,8 @@ def _check_tenant_limits(tenant_id: str, entity_type: str) -> bool:
             'options': 'count',
             'limit': 1  # We only need the count header
         }
+        if entity_type == 'Device':
+            params['q'] = DEVICE_NOT_GATEWAY_Q  # gateways do not use up the sensor limit
         headers = inject_fiware_headers({}, tenant_id)
         
         response = requests.get(orion_url, params=params, headers=headers, timeout=5)
@@ -657,6 +665,8 @@ def list_entity_instances(entity_type):
             'type': entity_type,
             'options': 'count'
         }
+        if entity_type == 'Device':
+            params['q'] = DEVICE_NOT_GATEWAY_Q  # gateways are not sensors
         
         # Add pagination support
         limit = request.args.get('limit', type=int)
