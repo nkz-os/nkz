@@ -7,6 +7,7 @@ import threading
 
 import pytest
 
+from tests.telemetry_fakes import _resp  # noqa: E402
 from tests.telemetry_fakes import (AUTH, PARCEL, PROFILE, TENANT, FakeState, client,
                                    seed_datalogger, seed_device, wired)
 
@@ -371,18 +372,47 @@ def test_the_delete_response_is_the_same_and_the_job_waits_for_no_request():
     assert GW not in st.iota_devices
 
 
-@pytest.mark.parametrize("failing", ["iota_delete", "orion_delete"])
-def test_each_failed_deletion_step_is_logged_and_the_rest_still_tried(failing, caplog):
+def _removals(st):
+    return [e[-1] for e in st.log if e[:2] in (("iota", "delete"), ("orion", "delete"))]
+
+
+def test_a_failed_agent_deletion_stops_the_removal_and_keeps_the_entity(caplog):
     st = gateway_state()
-    st.fail[failing] = True
+    st.fail["iota_delete"] = True
     with caplog.at_level(logging.INFO):
         w, resp = delete_dl(st)
     assert resp.status_code == 204
-    attempted = [e for e in st.log if e[:2] in (("iota", "delete"), ("orion", "delete"))]
-    assert [e[-1] for e in attempted] == [GW] + DMS + [GW_URN]
+    assert _removals(st) == [GW]
+    assert GW_URN in w.orion.entities and all(d in w.orion.entities for d in DMS)
     warnings = [x for x in caplog.records if x.levelno == logging.WARNING]
-    assert len(warnings) >= (1 if failing == "iota_delete" else 4)
+    assert len(warnings) >= 1
     assert not any(DL in x.getMessage() and ROLE in x.getMessage() for x in warnings)
+
+
+def _fail_one_measurement(w):
+    orig = w.orion.delete
+
+    def delete(url, **kw):
+        if url.rsplit("/entities/", 1)[-1] == DMS[1]:
+            w.orion.state.log.append(("orion", "delete", DMS[1]))
+            return _resp(500)
+        return orig(url, **kw)
+    w.orion.delete = delete
+
+
+def test_a_failed_measurement_deletion_keeps_the_entity_and_the_next_run_finishes(caplog):
+    st = gateway_state()
+    with caplog.at_level(logging.INFO):
+        w, resp = delete_dl(st, setup=_fail_one_measurement)
+    assert resp.status_code == 204
+    assert _removals(st) == [GW, DMS[0], DMS[1]]       # stopped at the failed step
+    assert GW_URN in w.orion.entities                    # the anchor the repair finds
+    assert [x for x in caplog.records if x.levelno == logging.WARNING]
+    st.log.clear()
+    with wired(st) as w2:
+        w2.orion.entities.update({GW_URN: {"id": GW_URN}, DMS[1]: {"id": DMS[1]}, DMS[2]: {"id": DMS[2]}})
+        gateways.delete_gateway(TENANT, DL, GW)
+        assert GW_URN not in w2.orion.entities and not any(d in w2.orion.entities for d in DMS)
 
 
 def test_the_gateway_lock_not_given_in_time_deletes_nothing_and_warns(caplog):

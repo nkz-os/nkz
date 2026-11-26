@@ -703,7 +703,8 @@ def delete_gateway(tenant: str, dl_id: str, external_id: str) -> None:
     """Agent device, then the gateway's DeviceMeasurements, then the entity, under its lock.
 
     Holding `gateway:<dl_id>` means no projection interleaves. Every step is idempotent; a failure
-    is a WARNING and the next steps are still tried (the repair removes what is left).
+    is a WARNING and stops the removal: the entity goes last, so it stays as the anchor from which
+    the repair finds and finishes what is left.
     """
     import dataloggers
     with dataloggers.get_db_connection_with_tenant(tenant) as conn:
@@ -723,5 +724,6 @@ def delete_gateway(tenant: str, dl_id: str, external_id: str) -> None:
                 except Exception as exc:
                     logger.warning("gateway deletion: step=%s failed: tenant=%s datalogger=%s error=%s",
                                    step, tenant, dl_id, type(exc).__name__)
+                    break
         finally:
             conn.rollback()  # releases the gateway lock

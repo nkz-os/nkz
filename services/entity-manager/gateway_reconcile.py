@@ -216,7 +216,11 @@ def _agent_document(tenant: str, external_id: str) -> Optional[dict]:
 
 
 def run_removal(tenant: str, external_id: str, entity: bool, agent: bool) -> List[str]:
-    """R13's order; returns the steps that failed (each is tried whatever the ones before did)."""
+    """Agent device, the gateway's measurements, then the entity; stops at the first failure.
+
+    The entity goes last and only when everything else is gone, so a failed step leaves it as the
+    anchor the next run finds. Returns the steps that failed (at most one).
+    """
     failed: List[str] = []
     for step, call in gateways.removal_steps(tenant, external_id, entity=entity, agent=agent):
         try:
@@ -225,6 +229,7 @@ def run_removal(tenant: str, external_id: str, entity: bool, agent: bool) -> Lis
             logger.warning("gateway repair: removal step failed: tenant=%s id=%s step=%s error=%s",
                            tenant, external_id, step, type(exc).__name__)
             failed.append(step)
+            break
     return failed
 
 

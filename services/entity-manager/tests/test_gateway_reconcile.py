@@ -281,7 +281,7 @@ def test_the_removal_order_is_the_agent_device_then_the_measurements_then_the_en
     assert [c[0] for c in calls] == ["orion", "orion", "orion", "orion"]
 
 
-def test_a_failing_removal_step_is_reported_and_the_next_ones_still_run(monkeypatch):
+def test_a_failing_removal_step_stops_the_removal_before_the_entity(monkeypatch):
     calls = []
 
     def agent(t, e):
@@ -290,7 +290,26 @@ def test_a_failing_removal_step_is_reported_and_the_next_ones_still_run(monkeypa
     monkeypatch.setattr(dataloggers, "delete_iota_device", agent)
     monkeypatch.setattr(dataloggers, "delete_orion_entity", lambda t, u: calls.append(u))
     assert gr.run_removal(T, GW, True, True) == ["agent_device"]
-    assert len(calls) == 4
+    assert calls == []
+
+
+def test_a_failed_measurement_keeps_the_entity_as_the_anchor_and_the_next_run_finishes(monkeypatch):
+    calls = []
+    broken = {"on": True}
+
+    def orion(t, u):
+        if broken["on"] and u.endswith(":batteryLevel"):
+            raise RuntimeError("orion down")
+        calls.append(u)
+
+    monkeypatch.setattr(dataloggers, "delete_iota_device", lambda t, e: None)
+    monkeypatch.setattr(dataloggers, "delete_orion_entity", orion)
+    assert gr.run_removal(T, GW, True, True) == ["measurement"]
+    assert urn(T, GW) not in calls and len(calls) == 1
+    broken["on"] = False
+    calls.clear()
+    assert gr.run_removal(T, GW, True, True) == []
+    assert calls[-1] == urn(T, GW) and len(calls) == 4
 
 
 # ── an agent device that is not this gateway's (fix round 1) ─────────────────────────────
