@@ -10,7 +10,12 @@ import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { AlertTriangle, Check, Copy, FileDown, X } from 'lucide-react';
 import { Button, Input } from '@nekazari/ui-kit';
-import { getDataloggerConfig, type MqttEndpoint } from '@/services/dataloggersApi';
+import {
+  getDataloggerConfig,
+  type DataloggerBeacon,
+  type DataloggerKind,
+  type MqttEndpoint,
+} from '@/services/dataloggersApi';
 
 export interface DataloggerCredentialsModalProps {
   isOpen: boolean;
@@ -22,7 +27,13 @@ export interface DataloggerCredentialsModalProps {
   topic?: string;
   /** Extra notice shown above the credentials. */
   hint?: string;
+  /** With `beacon`, a generic_mqtt datalogger is told what to publish so the platform sees it alive. */
+  kind?: DataloggerKind;
+  beacon?: DataloggerBeacon;
 }
+
+/** The message a generic MQTT datalogger publishes every `intervalSeconds` (never a TimeInstant). */
+export const BEACON_MESSAGE = '{"uptime": <seconds since start, integer>}';
 
 export function DataloggerCredentialsModal({
   isOpen,
@@ -31,6 +42,8 @@ export function DataloggerCredentialsModal({
   credentials,
   topic,
   hint,
+  kind,
+  beacon,
 }: DataloggerCredentialsModalProps) {
   const { t } = useTranslation();
   const [copied, setCopied] = useState<string | null>(null);
@@ -111,6 +124,21 @@ export function DataloggerCredentialsModal({
               {field(t('dataloggers.credentials.username'), credentials.username ?? '', 'username')}
               {field(t('dataloggers.credentials.password'), credentials.password ?? '', 'password', true)}
               {topic && field(t('dataloggers.credentials.topic'), topic, 'topic')}
+              {kind === 'generic_mqtt' && beacon && (
+                <div className="space-y-2 border-t border-nkz-border pt-4" data-testid="datalogger-beacon">
+                  <h3 className="text-sm font-semibold text-nkz-text-primary">{t('dataloggers.beacon.title')}</h3>
+                  {field(t('dataloggers.beacon.topic'), beacon.topic, 'beacon-topic')}
+                  <p className="text-sm text-nkz-text-secondary">
+                    {t('dataloggers.beacon.intro', { seconds: beacon.intervalSeconds })}
+                  </p>
+                  <pre className="text-xs font-mono bg-nkz-surface-sunken text-nkz-text-primary rounded-lg p-3 overflow-x-auto">
+                    {BEACON_MESSAGE}
+                  </pre>
+                  <p className="text-xs text-nkz-text-secondary">{t('dataloggers.beacon.uptime_hint')}</p>
+                  <p className="text-xs text-nkz-text-secondary">{t('dataloggers.beacon.optional')}</p>
+                  <p className="text-xs text-nkz-warning-strong">{t('dataloggers.beacon.no_time_instant')}</p>
+                </div>
+              )}
             </>
           ) : (
             <div className="bg-nkz-warning-soft border border-nkz-warning/30 rounded-lg px-4 py-3 space-y-2">

@@ -2359,6 +2359,18 @@
       "download_failed": "Ezin izan da konfigurazioa deskargatu",
       "saved": "Kredentzialak gorde ditut"
     },
+    "gateway": {
+      "last_seen": "Azkenekoz ikusia {{time}}",
+      "not_received": "Oraindik ez da bihotz-taupadarik jaso"
+    },
+    "beacon": {
+      "title": "Konexio-taupada",
+      "topic": "Taupadaren gaia",
+      "intro": "{{seconds}} segundoro, argitaratu mezu hau taupadaren gaian, plataformak datalogger-a bizirik dagoela jakin dezan:",
+      "uptime_hint": "\"uptime\" datalogger-a abiatu zenetik igarotako segundo kopurua da, zenbaki oso gisa.",
+      "optional": "Aukerakoa: \"softwareVersion\" (testua), \"batteryLevel\" (0tik 1era) eta \"rssi\" (dBm).",
+      "no_time_instant": "Ez bidali TimeInstant: plataformak mezua iristen den unea erabiltzen du."
+    },
     "needs_rotation": {
       "title": "Datalogger-aren pasahitza behar da",
       "message": "Sentsorea erregistratu da, baina datalogger honen MQTT kontua ez dago zerbitzarian eta oraindik ezin du argitaratu. Berregin bere pasahitza Ezarpenak → Datalogger-ak atalean eta eguneratu datalogger-a.",

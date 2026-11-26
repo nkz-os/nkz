@@ -2359,6 +2359,18 @@
       "download_failed": "The configuration could not be downloaded",
       "saved": "I have saved the credentials"
     },
+    "gateway": {
+      "last_seen": "Last seen {{time}}",
+      "not_received": "Beacon not received yet"
+    },
+    "beacon": {
+      "title": "Connection beacon",
+      "topic": "Beacon topic",
+      "intro": "Every {{seconds}} seconds, publish this message to the beacon topic so the platform knows the datalogger is alive:",
+      "uptime_hint": "\"uptime\" is the number of seconds since the datalogger started, as an integer.",
+      "optional": "Optional: \"softwareVersion\" (text), \"batteryLevel\" (0 to 1) and \"rssi\" (dBm).",
+      "no_time_instant": "Do not send TimeInstant: the platform uses the time the message arrives."
+    },
     "needs_rotation": {
       "title": "Datalogger password needed",
       "message": "The sensor was registered, but this datalogger's MQTT account does not exist on the broker, so it cannot publish yet. Regenerate its password in Settings → Dataloggers and update the datalogger.",

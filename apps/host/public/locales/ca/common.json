@@ -2359,6 +2359,18 @@
       "download_failed": "No s'ha pogut descarregar la configuració",
       "saved": "He desat les credencials"
     },
+    "gateway": {
+      "last_seen": "Vist per última vegada {{time}}",
+      "not_received": "Encara no s'ha rebut el batec"
+    },
+    "beacon": {
+      "title": "Batec de connexió",
+      "topic": "Tema del batec",
+      "intro": "Cada {{seconds}} segons, publica aquest missatge al tema del batec perquè la plataforma sàpiga que el datalogger està viu:",
+      "uptime_hint": "\"uptime\" és el nombre de segons des que va arrencar el datalogger, com a enter.",
+      "optional": "Opcional: \"softwareVersion\" (text), \"batteryLevel\" (de 0 a 1) i \"rssi\" (dBm).",
+      "no_time_instant": "No enviïs TimeInstant: la plataforma fa servir el moment en què arriba el missatge."
+    },
     "needs_rotation": {
       "title": "Contrasenya del datalogger pendent",
       "message": "El sensor s'ha registrat, però el compte MQTT d'aquest datalogger no existeix al servidor i encara no pot publicar. Regenera'n la contrasenya a Ajustos → Dataloggers i actualitza el datalogger.",

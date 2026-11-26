@@ -2359,6 +2359,18 @@
       "download_failed": "La configuration n'a pas pu être téléchargée",
       "saved": "J'ai enregistré les identifiants"
     },
+    "gateway": {
+      "last_seen": "Vu pour la dernière fois {{time}}",
+      "not_received": "Signal de vie pas encore reçu"
+    },
+    "beacon": {
+      "title": "Signal de vie de connexion",
+      "topic": "Sujet du signal de vie",
+      "intro": "Toutes les {{seconds}} secondes, publiez ce message sur le sujet du signal de vie pour que la plateforme sache que le datalogger est actif :",
+      "uptime_hint": "\"uptime\" est le nombre de secondes écoulées depuis le démarrage du datalogger, en entier.",
+      "optional": "Facultatif : \"softwareVersion\" (texte), \"batteryLevel\" (de 0 à 1) et \"rssi\" (dBm).",
+      "no_time_instant": "N'envoyez pas TimeInstant : la plateforme utilise l'heure d'arrivée du message."
+    },
     "needs_rotation": {
       "title": "Mot de passe du datalogger requis",
       "message": "Le capteur est enregistré, mais le compte MQTT de ce datalogger n'existe pas sur le serveur et il ne peut pas encore publier. Régénérez son mot de passe dans Paramètres → Dataloggers et mettez à jour le datalogger.",

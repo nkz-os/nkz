@@ -2359,6 +2359,18 @@
       "download_failed": "Não foi possível transferir a configuração",
       "saved": "Guardei as credenciais"
     },
+    "gateway": {
+      "last_seen": "Visto pela última vez {{time}}",
+      "not_received": "Ainda não foi recebido o sinal de vida"
+    },
+    "beacon": {
+      "title": "Sinal de vida da ligação",
+      "topic": "Tópico do sinal de vida",
+      "intro": "A cada {{seconds}} segundos, publique esta mensagem no tópico do sinal de vida para que a plataforma saiba que o datalogger está ativo:",
+      "uptime_hint": "\"uptime\" é o número de segundos desde que o datalogger arrancou, como inteiro.",
+      "optional": "Opcional: \"softwareVersion\" (texto), \"batteryLevel\" (de 0 a 1) e \"rssi\" (dBm).",
+      "no_time_instant": "Não envie TimeInstant: a plataforma usa o momento em que a mensagem chega."
+    },
     "needs_rotation": {
       "title": "Palavra-passe do datalogger necessária",
       "message": "O sensor foi registado, mas a conta MQTT deste datalogger não existe no servidor e ainda não pode publicar. Regenere a sua palavra-passe em Definições → Dataloggers e atualize o datalogger.",

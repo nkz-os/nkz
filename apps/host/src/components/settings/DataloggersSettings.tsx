@@ -6,6 +6,8 @@
  */
 import { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { formatDistanceToNow, isValid, parseISO, type Locale } from 'date-fns';
+import { ca, enUS, es, eu, fr, pt } from 'date-fns/locale';
 import { Button } from '@nekazari/ui-kit';
 import { useConfirm } from '@/context/ConfirmContext';
 import { useToastContext } from '@/context/ToastContext';
@@ -19,6 +21,7 @@ import {
   revokeDatalogger,
   rotateDatalogger,
   type Datalogger,
+  type DataloggerBeacon,
   type MqttEndpoint,
 } from '@/services/dataloggersApi';
 
@@ -26,10 +29,22 @@ interface OneTimeCredentials {
   datalogger: { id: string; name: string };
   credentials: MqttEndpoint;
   hint?: string;
+  kind: Datalogger['kind'];
+  beacon?: DataloggerBeacon;
+}
+
+const DATE_LOCALES: Record<string, Locale> = { ca, es, eu, fr, pt };
+
+/** «5 minutes ago» in the interface language, or null when `iso` is not a date. */
+export function relativeTime(iso: string, language: string | undefined): string | null {
+  const when = parseISO(iso);
+  if (!isValid(when)) return null;
+  const locale = DATE_LOCALES[(language ?? 'en').slice(0, 2)] ?? enUS;
+  return formatDistanceToNow(when, { addSuffix: true, locale });
 }
 
 export function DataloggersSettings() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const confirm = useConfirm();
   const toast = useToastContext();
   const [items, setItems] = useState<Datalogger[] | null>(null);
@@ -82,6 +97,7 @@ export function DataloggersSettings() {
         setOneTime({
           datalogger: { id: d.id, name: d.name },
           credentials: { configured: true, username: d.username, password },
+          kind: d.kind,
           hint: t('dataloggers.rotate.config_failed'),
         });
         return;
@@ -89,6 +105,8 @@ export function DataloggersSettings() {
       // Host and port come from /config (it never carries the password).
       setOneTime({
         datalogger: { id: d.id, name: d.name },
+        kind: d.kind,
+        beacon: config.beacon,
         credentials: config.mqtt.configured === false
           ? { configured: false, reason: config.mqtt.reason, username: d.username }
           : { ...config.mqtt, password },
@@ -116,6 +134,12 @@ export function DataloggersSettings() {
       await deleteDatalogger(d.id);
       await reload();
     }, t('dataloggers.errors.delete_failed'));
+  };
+
+  // Never received (or a date that cannot be read) is the same line.
+  const lastSeen = (iso: string | null) => {
+    const ago = iso ? relativeTime(iso, i18n?.language) : null;
+    return ago ? t('dataloggers.gateway.last_seen', { time: ago }) : t('dataloggers.gateway.not_received');
   };
 
   return (
@@ -160,6 +184,11 @@ export function DataloggersSettings() {
                   {d.devices.map((dev) => dev.externalId).join(', ')}
                 </p>
               )}
+              {d.gateway && (
+                <p className="text-xs text-nkz-text-muted" data-testid={`datalogger-gateway-${d.id}`}>
+                  {lastSeen(d.gateway.lastSeen)}
+                </p>
+              )}
               <div className="flex flex-wrap gap-2">
                 <Button type="button" variant="secondary" size="sm" disabled={busy} onClick={() => void onRotate(d)}>
                   {t('dataloggers.rotate.action')}
@@ -190,6 +219,8 @@ export function DataloggersSettings() {
           datalogger={oneTime.datalogger}
           credentials={oneTime.credentials}
           hint={oneTime.hint}
+          kind={oneTime.kind}
+          beacon={oneTime.beacon}
         />
       )}
     </div>

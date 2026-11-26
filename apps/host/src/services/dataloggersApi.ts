@@ -28,6 +28,24 @@ export interface Datalogger {
   status: DataloggerStatus;
   created_at?: string | null;
   devices: DataloggerDevice[];
+  /** The datalogger's gateway device; null when the platform shows none (feature off, no id yet, or unreadable). */
+  gateway: DataloggerGateway | null;
+}
+
+/** Liveness of a datalogger's gateway device. `lastSeen` is the arrival time of its last beacon. */
+export interface DataloggerGateway {
+  urn: string;
+  /** ISO-8601, or null when no beacon has arrived yet. */
+  lastSeen: string | null;
+  /** dBm. */
+  rssi: number | null;
+  softwareVersion: string | null;
+}
+
+/** What a datalogger of kind generic_mqtt must publish to be seen as alive. */
+export interface DataloggerBeacon {
+  topic: string;
+  intervalSeconds: number;
 }
 
 /** MQTT endpoint as the backend answers it: either usable, or the reason it is not. */
@@ -58,6 +76,8 @@ export interface DataloggerConfig {
     topic: string;
     measurements: Array<{ key: string; sdmAttribute: string | null; unit: string | null }>;
   }>;
+  /** Only once the gateway is provisioned. */
+  beacon?: DataloggerBeacon;
 }
 
 export interface RegisterSensorRequest {
@@ -99,9 +119,35 @@ export interface SensorProfile {
 const BASE = '/api/sensors';
 const enc = encodeURIComponent;
 
+const orNull = <T,>(value: unknown, ok: (v: unknown) => v is T): T | null => (ok(value) ? value : null);
+const isString = (v: unknown): v is string => typeof v === 'string' && v !== '';
+const isNumber = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v);
+
+/** The `gateway` member of a list item; anything that is not the documented shape is null. */
+export function parseGateway(raw: unknown): DataloggerGateway | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const g = raw as Record<string, unknown>;
+  if (!isString(g.urn)) return null;
+  return {
+    urn: g.urn,
+    lastSeen: orNull(g.lastSeen, isString),
+    rssi: orNull(g.rssi, isNumber),
+    softwareVersion: orNull(g.softwareVersion, isString),
+  };
+}
+
+/** The `beacon` member of a config; absent unless it has a topic and an interval. */
+export function parseBeacon(raw: unknown): DataloggerBeacon | undefined {
+  if (!raw || typeof raw !== 'object') return undefined;
+  const b = raw as Record<string, unknown>;
+  if (!isString(b.topic) || !isNumber(b.intervalSeconds)) return undefined;
+  return { topic: b.topic, intervalSeconds: b.intervalSeconds };
+}
+
 export async function listDataloggers(): Promise<Datalogger[]> {
   const res = await api.get(`${BASE}/dataloggers`);
-  return Array.isArray(res.data) ? res.data : [];
+  if (!Array.isArray(res.data)) return [];
+  return res.data.map((d: Datalogger) => ({ ...d, gateway: parseGateway((d as { gateway?: unknown }).gateway) }));
 }
 
 export async function createDatalogger(name: string, kind: DataloggerKind): Promise<CreatedDatalogger> {
@@ -111,7 +157,9 @@ export async function createDatalogger(name: string, kind: DataloggerKind): Prom
 
 export async function getDataloggerConfig(id: string): Promise<DataloggerConfig> {
   const res = await api.get(`${BASE}/dataloggers/${enc(id)}/config`);
-  return res.data;
+  const beacon = parseBeacon(res.data?.beacon);
+  const { beacon: _raw, ...rest } = res.data ?? {};
+  return beacon ? { ...rest, beacon } : rest;
 }
 
 export async function rotateDatalogger(id: string): Promise<{ password: string }> {
