@@ -1,0 +1,44 @@
+{
+ "config:cols": {
+  "body": "{\"datalogger_id\":\"<id>\",\"devices\":[{\"externalId\":\"S1\",\"measurements\":[{\"key\":\"r1\",\"sdmAttribute\":\"airTemperature\",\"unit\":\"\\u00b0C\"},{\"key\":\"hum\",\"sdmAttribute\":\"relativeHumidity\",\"unit\":\"%\"}],\"name\":\"S1\",\"topic\":\"/KEY123/S1/attrs\"},{\"externalId\":\"S2\",\"measurements\":[{\"key\":\"r1\",\"sdmAttribute\":\"airTemperature\",\"unit\":\"\\u00b0C\"},{\"key\":\"hum\",\"sdmAttribute\":\"relativeHumidity\",\"unit\":\"%\"}],\"name\":\"S2\",\"topic\":\"/KEY123/S2/attrs\"}],\"mqtt\":{\"apikey\":\"KEY123\",\"host\":\"mqtt.example.org\",\"password\":null,\"port\":8883,\"username\":\"dl_aaaaaaaaaaaaaaaa\"},\"name\":\"Logger\"}\n",
+  "log": [],
+  "orion_calls": 0,
+  "status": 200,
+  "type": "application/json"
+ },
+ "config:nocols": {
+  "body": "{\"datalogger_id\":\"<id>\",\"devices\":[{\"externalId\":\"S1\",\"measurements\":[{\"key\":\"r1\",\"sdmAttribute\":\"airTemperature\",\"unit\":\"\\u00b0C\"},{\"key\":\"hum\",\"sdmAttribute\":\"relativeHumidity\",\"unit\":\"%\"}],\"name\":\"S1\",\"topic\":\"/KEY123/S1/attrs\"},{\"externalId\":\"S2\",\"measurements\":[{\"key\":\"r1\",\"sdmAttribute\":\"airTemperature\",\"unit\":\"\\u00b0C\"},{\"key\":\"hum\",\"sdmAttribute\":\"relativeHumidity\",\"unit\":\"%\"}],\"name\":\"S2\",\"topic\":\"/KEY123/S2/attrs\"}],\"mqtt\":{\"apikey\":\"KEY123\",\"host\":\"mqtt.example.org\",\"password\":null,\"port\":8883,\"username\":\"dl_aaaaaaaaaaaaaaaa\"},\"name\":\"Logger\"}\n",
+  "log": [],
+  "orion_calls": 0,
+  "status": 200,
+  "type": "application/json"
+ },
+ "list:cols": {
+  "body": "[{\"created_at\":null,\"devices\":[{\"deviceUrn\":\"urn:ngsi-ld:Device:tenant-a:S1\",\"externalId\":\"S1\"},{\"deviceUrn\":\"urn:ngsi-ld:Device:tenant-a:S2\",\"externalId\":\"S2\"}],\"id\":\"<id>\",\"kind\":\"datak\",\"name\":\"Logger\",\"status\":\"active\",\"username\":\"dl_aaaaaaaaaaaaaaaa\"},{\"created_at\":null,\"devices\":[],\"id\":\"<id>\",\"kind\":\"datak\",\"name\":\"Second\",\"status\":\"active\",\"username\":\"dl_bbbbbbbbbbbbbbbb\"}]\n",
+  "log": [],
+  "orion_calls": 0,
+  "status": 200,
+  "type": "application/json"
+ },
+ "list:nocols": {
+  "body": "[{\"created_at\":null,\"devices\":[{\"deviceUrn\":\"urn:ngsi-ld:Device:tenant-a:S1\",\"externalId\":\"S1\"},{\"deviceUrn\":\"urn:ngsi-ld:Device:tenant-a:S2\",\"externalId\":\"S2\"}],\"id\":\"<id>\",\"kind\":\"datak\",\"name\":\"Logger\",\"status\":\"active\",\"username\":\"dl_aaaaaaaaaaaaaaaa\"},{\"created_at\":null,\"devices\":[],\"id\":\"<id>\",\"kind\":\"datak\",\"name\":\"Second\",\"status\":\"active\",\"username\":\"dl_bbbbbbbbbbbbbbbb\"}]\n",
+  "log": [],
+  "orion_calls": 0,
+  "status": 200,
+  "type": "application/json"
+ },
+ "list_empty:cols": {
+  "body": "[]\n",
+  "log": [],
+  "orion_calls": 0,
+  "status": 200,
+  "type": "application/json"
+ },
+ "list_empty:nocols": {
+  "body": "[]\n",
+  "log": [],
+  "orion_calls": 0,
+  "status": 200,
+  "type": "application/json"
+ }
+}

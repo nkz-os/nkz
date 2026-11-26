@@ -209,6 +209,17 @@ _GATEWAY_COLUMNS = ('created_at', 'gateway_external_id', 'gateway_provisioned_at
 _columns_exist = False  # once true it stays true in this process; false is never cached
 
 
+def _gateway_columns_exist(cur) -> bool:
+    global _columns_exist
+    if not _columns_exist:
+        cur.execute("SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' "
+                    "AND table_name = 'iot_dataloggers' AND column_name = ANY(%s)", (list(_GATEWAY_COLUMNS),))
+        if len(cur.fetchall()) != len(_GATEWAY_COLUMNS):
+            return False
+        _columns_exist = True
+    return True
+
+
 def gateway_columns(cur, tenant: str, dl_id: str) -> Optional[dict]:
     """The gateway columns of a datalogger row (migration 123), or None when they do not exist.
 
@@ -216,13 +227,8 @@ def gateway_columns(cur, tenant: str, dl_id: str) -> Optional[dict]:
     the projection and, with the flag on, by `role_topics`. The schema is looked at first: a
     failed SELECT would abort the caller's transaction.
     """
-    global _columns_exist
-    if not _columns_exist:
-        cur.execute("SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' "
-                    "AND table_name = 'iot_dataloggers' AND column_name = ANY(%s)", (list(_GATEWAY_COLUMNS),))
-        if len(cur.fetchall()) != len(_GATEWAY_COLUMNS):
-            return None
-        _columns_exist = True
+    if not _gateway_columns_exist(cur):
+        return None
     cur.execute("SELECT created_at, gateway_external_id, gateway_provisioned_at FROM iot_dataloggers "
                 "WHERE id = %s AND tenant_id = %s", (dl_id, tenant))
     found = cur.fetchone()
@@ -358,17 +364,92 @@ def list_dataloggers(tenant: str) -> list:
         cur.execute("SELECT datalogger_id, device_urn, external_id FROM iot_datalogger_devices "
                     "WHERE tenant_id = %s ORDER BY external_id", (tenant,))
         devices = cur.fetchall()
+        # Flag off: nothing below runs and the answer is today's, key for key.
+        gateway_ext = _gateway_ids(cur, tenant) if gateways.enabled(tenant) else None
+    status = _gateway_status(tenant, [gateways.gateway_urn(tenant, e) for e in gateway_ext.values()]) \
+        if gateway_ext else None
     out = []
     for r in rows:
         rid = str(r['id'])
         created = r.get('created_at')
-        out.append({
+        item = {
             'id': rid, 'name': r['name'], 'kind': r['kind'],
             'username': r['mqtt_username'], 'status': r['status'],
             'created_at': created.isoformat() if hasattr(created, 'isoformat') else created,
             'devices': [{'externalId': d['external_id'], 'deviceUrn': d['device_urn']}
                         for d in devices if str(d['datalogger_id']) == rid],
-        })
+        }
+        if gateway_ext is not None:
+            ext = gateway_ext.get(rid)
+            item['gateway'] = (status[gateways.gateway_urn(tenant, ext)]
+                               if ext and status is not None else None)
+        out.append(item)
+    return out
+
+
+def _gateway_ids(cur, tenant: str) -> dict:
+    """`{datalogger id: gateway external id}` for the tenant, or {} when they cannot be read.
+
+    Runs in a savepoint: a failed read (schema before migration 123, a lost connection state)
+    must not fail the list, which then answers without gateways.
+    """
+    cur.execute("SAVEPOINT gateway_ids")
+    try:
+        if not _gateway_columns_exist(cur):
+            return {}
+        cur.execute("SELECT id, gateway_external_id FROM iot_dataloggers WHERE tenant_id = %s", (tenant,))
+        return {str(r['id']): r['gateway_external_id'] for r in cur.fetchall()
+                if r.get('gateway_external_id') and gateways.is_gateway_external_id(r['gateway_external_id'])}
+    except Exception as exc:
+        cur.execute("ROLLBACK TO SAVEPOINT gateway_ids")
+        logger.warning("gateway ids not read for the list: error=%s", type(exc).__name__)
+        return {}
+
+
+_STATUS_ATTRS = 'dateLastValueReported,rssi,softwareVersion'
+
+
+def _scalar(ent: dict, key: str):
+    v = (ent or {}).get(key)
+    v = v.get('value') if isinstance(v, dict) else v
+    if isinstance(v, dict) and '@value' in v:  # a DateTime as Orion may return it
+        v = v['@value']
+    return v
+
+
+def _gateway_status(tenant: str, urns: list) -> Optional[dict]:
+    """`{gateway urn: {urn, lastSeen, rssi, softwareVersion}}` from one Orion read for all of them
+    (chunks of 50 URNs only to keep the URL short), or None when Orion cannot be read.
+
+    A gateway whose entity is missing or has no value yet reads as never seen: nulls.
+    """
+    entities = {}
+    try:
+        headers = inject_fiware_headers({'Accept': 'application/json'}, tenant=tenant,
+                                        has_context_in_body=False)
+        for i in range(0, len(urns), 50):
+            chunk = urns[i:i + 50]
+            resp = requests.get(
+                f"{ORION_URL}/ngsi-ld/v1/entities?id={','.join(chunk)}&type=Device"
+                f"&attrs={_STATUS_ATTRS}&limit=1000", headers=headers, timeout=10)
+            if resp.status_code != 200:
+                raise RuntimeError(f"orion {resp.status_code}")
+            for ent in resp.json():
+                entities[ent.get('id')] = ent
+    except Exception as exc:
+        logger.warning("gateway status not read: error=%s", type(exc).__name__)
+        return None
+    out = {}
+    for urn in urns:
+        ent = entities.get(urn, {})
+        last, rssi, version = (_scalar(ent, 'dateLastValueReported'), _scalar(ent, 'rssi'),
+                               _scalar(ent, 'softwareVersion'))
+        out[urn] = {
+            'urn': urn,
+            'lastSeen': last if isinstance(last, str) and last else None,
+            'rssi': rssi if isinstance(rssi, (int, float)) and not isinstance(rssi, bool) else None,
+            'softwareVersion': version if isinstance(version, str) and version else None,
+        }
     return out
 
 
@@ -412,6 +493,7 @@ def get_datalogger_config(tenant: str, dl_id: str) -> dict:
         cur = conn.cursor(cursor_factory=RealDictCursor)
         row = _row(cur, tenant, dl_id)
         devices = _device_rows(cur, tenant, dl_id)
+        gateway = _provisioned_gateway(cur, tenant, dl_id) if gateways.enabled(tenant) else None
     apikey = get_apikey(tenant)
     entities = _orion_devices(tenant, [d['device_urn'] for d in devices]) if devices else {}
     profile_of = {urn: entity_profile_code(tenant, e) for urn, e in entities.items()}
@@ -441,7 +523,30 @@ def get_datalogger_config(tenant: str, dl_id: str) -> dict:
     ep = mqtt_endpoint_for_devices()
     mqtt = {k: ep[k] for k in ('host', 'port') if k in ep} if ep.get('configured') else dict(ep)
     mqtt.update({'username': row['mqtt_username'], 'apikey': apikey, 'password': None})
-    return {'datalogger_id': dl_id, 'name': row['name'], 'mqtt': mqtt, 'devices': out_devices}
+    config = {'datalogger_id': dl_id, 'name': row['name'], 'mqtt': mqtt, 'devices': out_devices}
+    if gateway:
+        config['beacon'] = {'topic': gateways.beacon_topic(apikey, gateway),
+                            'intervalSeconds': gateways.BEACON_INTERVAL_S}
+    return config
+
+
+def _provisioned_gateway(cur, tenant: str, dl_id: str) -> Optional[str]:
+    """The gateway's external id once its projection completed (`gateway_provisioned_at`), else None.
+
+    A savepoint keeps a failed read from failing the configuration: it then has no beacon.
+    """
+    cur.execute("SAVEPOINT gateway_beacon")
+    try:
+        gw = gateway_columns(cur, tenant, dl_id) or {}
+    except Exception as exc:
+        cur.execute("ROLLBACK TO SAVEPOINT gateway_beacon")
+        logger.warning("gateway columns not read for the config: datalogger=%s error=%s",
+                       dl_id, type(exc).__name__)
+        return None
+    if gw.get('gateway_provisioned_at') is not None and gateways.is_gateway_external_id(
+            gw.get('gateway_external_id')):
+        return gw['gateway_external_id']
+    return None
 
 
 @in_step('acl', 'ACL update failed')
