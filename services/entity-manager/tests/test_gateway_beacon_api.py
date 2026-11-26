@@ -85,7 +85,32 @@ def test_a_gateway_never_seen_has_nulls_and_one_read_serves_all_gateways():
     reads = [u for u in w.orion.gets if "dateLastValueReported" in u]
     assert len(reads) == 1 and URN in reads[0] and URN2 in reads[0]
     assert "attrs=dateLastValueReported,rssi,softwareVersion" in reads[0]
-    assert f"id={URN}" in reads[0] or f"id={URN2}" in reads[0]
+    ids = reads[0].split("id=")[1].split("&")[0].split(",")
+    assert sorted(ids) == sorted([URN, URN2])
+
+
+def test_more_than_50_gateways_take_two_reads_and_are_merged():
+    st = FakeState()
+    urns = {}
+    for i in range(51):
+        dl = f"00000000-0000-0000-0000-{i:012d}"
+        gw = f"gw-{i:012x}"
+        seed_datalogger(st, dl_id=dl, username=f"dl_{i:016x}", name=f"L{i}")
+        st.dataloggers[dl].update(gateway_external_id=gw, gateway_provisioned_at="now")
+        urns[dl] = f"urn:ngsi-ld:Device:{TENANT}:{gw}"
+
+    def setup(w):
+        for i, u in enumerate(urns.values()):
+            w.orion.entities[u] = device(u, rssi=-i)
+    w, resp = get(LIST, st, setup)
+    reads = [u for u in w.orion.gets if "dateLastValueReported" in u]
+    assert len(reads) == 2
+    sizes = sorted(len(r.split("id=")[1].split("&")[0].split(",")) for r in reads)
+    assert sizes == [1, 50]
+    got = {i["id"]: i["gateway"] for i in resp.get_json()}
+    assert all(got[dl]["urn"] == u for dl, u in urns.items())
+    assert got["00000000-0000-0000-0000-000000000050"]["rssi"] == -50   # in the second chunk
+    assert got["00000000-0000-0000-0000-000000000000"]["rssi"] == 0
 
 
 def test_a_datalogger_without_gateway_id_has_null_and_is_not_asked_for():

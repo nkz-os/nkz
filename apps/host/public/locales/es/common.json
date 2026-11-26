@@ -2361,15 +2361,20 @@
     },
     "gateway": {
       "last_seen": "Visto por última vez {{time}}",
-      "not_received": "Aún no se ha recibido el latido"
+      "not_received": "Aún no se ha recibido el latido",
+      "just_now": "ahora mismo"
     },
     "beacon": {
       "title": "Latido de conexión",
-      "topic": "Tema del latido",
-      "intro": "Cada {{seconds}} segundos, publica este mensaje en el tema del latido para que la plataforma sepa que el datalogger está vivo:",
+      "topic": "Tópico del latido",
+      "intro": "Cada {{seconds}} segundos, publica este mensaje en el tópico del latido para que la plataforma sepa que el datalogger está vivo:",
       "uptime_hint": "\"uptime\" es el número de segundos desde que arrancó el datalogger, como entero.",
       "optional": "Opcional: \"softwareVersion\" (texto), \"batteryLevel\" (de 0 a 1) y \"rssi\" (dBm).",
-      "no_time_instant": "No envíes TimeInstant: la plataforma usa el momento en que llega el mensaje."
+      "no_time_instant": "No envíes TimeInstant: la plataforma usa el momento en que llega el mensaje.",
+      "show": "Mostrar instrucciones del latido",
+      "hide": "Ocultar instrucciones del latido",
+      "not_ready": "Aún no está listo; vuelve a intentarlo en un minuto.",
+      "load_failed": "No se pudieron cargar las instrucciones del latido"
     },
     "needs_rotation": {
       "title": "Contraseña del datalogger pendiente",

@@ -2361,15 +2361,20 @@
     },
     "gateway": {
       "last_seen": "Azkenekoz ikusia {{time}}",
-      "not_received": "Oraindik ez da bihotz-taupadarik jaso"
+      "not_received": "Oraindik ez da bihotz-taupadarik jaso",
+      "just_now": "orain bertan"
     },
     "beacon": {
       "title": "Konexio-taupada",
-      "topic": "Taupadaren gaia",
-      "intro": "{{seconds}} segundoro, argitaratu mezu hau taupadaren gaian, plataformak datalogger-a bizirik dagoela jakin dezan:",
+      "topic": "Taupadaren topikoa",
+      "intro": "{{seconds}} segundoro, argitaratu mezu hau taupadaren topikoan, plataformak datalogger-a bizirik dagoela jakin dezan:",
       "uptime_hint": "\"uptime\" datalogger-a abiatu zenetik igarotako segundo kopurua da, zenbaki oso gisa.",
       "optional": "Aukerakoa: \"softwareVersion\" (testua), \"batteryLevel\" (0tik 1era) eta \"rssi\" (dBm).",
-      "no_time_instant": "Ez bidali TimeInstant: plataformak mezua iristen den unea erabiltzen du."
+      "no_time_instant": "Ez bidali TimeInstant: plataformak mezua iristen den unea erabiltzen du.",
+      "show": "Erakutsi taupadaren argibideak",
+      "hide": "Ezkutatu taupadaren argibideak",
+      "not_ready": "Oraindik ez dago prest; saiatu berriro minutu batean.",
+      "load_failed": "Ezin izan dira taupadaren argibideak kargatu"
     },
     "needs_rotation": {
       "title": "Datalogger-aren pasahitza behar da",

@@ -2361,7 +2361,8 @@
     },
     "gateway": {
       "last_seen": "Visto pela última vez {{time}}",
-      "not_received": "Ainda não foi recebido o sinal de vida"
+      "not_received": "Ainda não foi recebido o sinal de vida",
+      "just_now": "agora mesmo"
     },
     "beacon": {
       "title": "Sinal de vida da ligação",
@@ -2369,7 +2370,11 @@
       "intro": "A cada {{seconds}} segundos, publique esta mensagem no tópico do sinal de vida para que a plataforma saiba que o datalogger está ativo:",
       "uptime_hint": "\"uptime\" é o número de segundos desde que o datalogger arrancou, como inteiro.",
       "optional": "Opcional: \"softwareVersion\" (texto), \"batteryLevel\" (de 0 a 1) e \"rssi\" (dBm).",
-      "no_time_instant": "Não envie TimeInstant: a plataforma usa o momento em que a mensagem chega."
+      "no_time_instant": "Não envie TimeInstant: a plataforma usa o momento em que a mensagem chega.",
+      "show": "Mostrar instruções do sinal de vida",
+      "hide": "Ocultar instruções do sinal de vida",
+      "not_ready": "Ainda não está pronto; tente novamente dentro de um minuto.",
+      "load_failed": "Não foi possível carregar as instruções do sinal de vida"
     },
     "needs_rotation": {
       "title": "Palavra-passe do datalogger necessária",
