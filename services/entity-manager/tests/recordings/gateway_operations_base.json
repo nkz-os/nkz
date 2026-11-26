@@ -1,0 +1,117 @@
+{
+ "create:fail": {
+  "body": {
+   "error": "Could not save the datalogger",
+   "step": "db_commit"
+  },
+  "status": 502,
+  "type": "application/json"
+ },
+ "create:ok": {
+  "body": {
+   "devices": [],
+   "id": "<x>",
+   "mqtt": {
+    "configured": true,
+    "host": "mqtt.example.org",
+    "password": "<x>",
+    "port": 8883,
+    "protocol": "mqtts",
+    "username": "<x>"
+   }
+  },
+  "status": 201,
+  "type": "application/json"
+ },
+ "delete_sensor:fail": {
+  "body": {
+   "error": "ACL update failed",
+   "step": "acl"
+  },
+  "status": 502,
+  "type": "application/json"
+ },
+ "delete_sensor:ok": {
+  "body": "",
+  "status": 204,
+  "type": "text/html; charset=utf-8"
+ },
+ "enable:fail": {
+  "body": {
+   "error": "Could not save the datalogger",
+   "step": "db_commit"
+  },
+  "status": 502,
+  "type": "application/json"
+ },
+ "enable:ok": {
+  "body": {
+   "status": "active"
+  },
+  "status": 200,
+  "type": "application/json"
+ },
+ "move:fail": {
+  "body": {
+   "error": "ACL update failed",
+   "step": "acl"
+  },
+  "status": 502,
+  "type": "application/json"
+ },
+ "move:ok": {
+  "body": {
+   "datalogger_id": "22222222-2222-2222-2222-222222222222",
+   "entity_id": "urn:ngsi-ld:Device:tenant-a:S1"
+  },
+  "status": 200,
+  "type": "application/json"
+ },
+ "register:fail": {
+  "body": {
+   "error": "IoT Agent device provisioning failed",
+   "step": "iota_device"
+  },
+  "status": 502,
+  "type": "application/json"
+ },
+ "register:ok": {
+  "body": {
+   "datalogger_id": "11111111-1111-1111-1111-111111111111",
+   "entity_id": "urn:ngsi-ld:Device:tenant-a:S1",
+   "topic": "/KEY123/S1/attrs"
+  },
+  "status": 201,
+  "type": "application/json"
+ },
+ "revoke:fail": {
+  "body": {
+   "error": "Could not save the datalogger",
+   "step": "db_commit"
+  },
+  "status": 502,
+  "type": "application/json"
+ },
+ "revoke:ok": {
+  "body": {
+   "status": "revoked"
+  },
+  "status": 200,
+  "type": "application/json"
+ },
+ "rotate:fail": {
+  "body": {
+   "error": "Could not rebuild the MQTT account",
+   "step": "mqtt_account"
+  },
+  "status": 502,
+  "type": "application/json"
+ },
+ "rotate:ok": {
+  "body": {
+   "password": "<x>"
+  },
+  "status": 200,
+  "type": "application/json"
+ }
+}

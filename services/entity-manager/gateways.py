@@ -31,6 +31,7 @@ import logging
 import os
 import re
 import secrets
+import threading
 from types import MappingProxyType
 from typing import Any, Dict, Iterable, List, Mapping, Optional
 
@@ -406,7 +407,8 @@ def _sync_agent_device(tenant: str, apikey: str, external_id: str, urn: str) -> 
             if exc.status_code != 409:
                 raise _AgentGone("provisioning failed") from exc
             # created in between (a beacon autoprovisions): read it again and compare
-    raise RuntimeError("the agent device kept changing")
+    # R14: a second 409 leaves no usable device: the marker goes and the topics are recomputed
+    raise _AgentGone("the agent device kept changing")
 
 
 def _tenant_suspended(exc: Exception) -> bool:
@@ -578,3 +580,113 @@ def _project_under_gateway_lock(tenant: str, dl_id: str, trace: list) -> Optiona
     trace[:] = ["acl"]
     _short(tenant, dl_id, topics, trace, "acl")
     return agent
+
+
+# ── operations: the projection and the deletion run in the background (R12, R13) ─────────
+
+# One job per process at a time: a user's request never waits for a projection, and a burst of
+# operations cannot pile up threads against Orion. A skipped projection converges in the repair.
+_SLOT = threading.Semaphore(1)
+_current: Optional[threading.Thread] = None
+
+
+def join_background(timeout: Optional[float] = None) -> None:
+    """Wait for the running background job, if any (tests, shutdown)."""
+    thread = _current
+    if thread is not None and thread.is_alive():
+        thread.join(timeout)
+
+
+def _start(tenant: str, what: str, ids: List[str], job: Any) -> bool:
+    """Run `job()` in a daemon thread if no other job runs in this process. Never raises."""
+    global _current
+    if not _SLOT.acquire(blocking=False):
+        logger.info("gateway %s skipped, another one is running: tenant=%s datalogger=%s",
+                    what, tenant, ",".join(ids))
+        return False
+
+    def run() -> None:
+        try:
+            job()
+        except Exception as exc:  # a background job must never die silently
+            logger.warning("gateway %s failed: tenant=%s datalogger=%s error=%s",
+                           what, tenant, ",".join(ids), type(exc).__name__)
+        finally:
+            _SLOT.release()
+
+    try:
+        thread = threading.Thread(target=run, name=f"gateway-{what}", daemon=True)
+        _current = thread
+        thread.start()
+    except Exception as exc:
+        _SLOT.release()
+        logger.warning("gateway %s not started: tenant=%s datalogger=%s error=%s",
+                       what, tenant, ",".join(ids), type(exc).__name__)
+        return False
+    return True
+
+
+def start_projection(tenant: str, dl_ids: Iterable[Any]) -> bool:
+    """After a user operation has COMMITTED: project the affected gateways in the background.
+
+    Nothing is started with the flag off. The caller's response is never affected: a failed
+    projection is a WARNING and the repair converges it.
+    """
+    try:
+        if not enabled(tenant):
+            return False
+        ids = [str(i) for i in dl_ids]
+    except Exception:
+        return False
+
+    def job() -> None:
+        for dl_id in ids:
+            outcome = project_gateway(tenant, dl_id)
+            if outcome not in (DONE, OFF):
+                logger.warning("gateway projection: tenant=%s datalogger=%s outcome=%s",
+                               tenant, dl_id, outcome)
+
+    return _start(tenant, "projection", ids, job)
+
+
+def start_deletion(tenant: str, dl_id: str, external_id: Any) -> bool:
+    """After the datalogger row is deleted and committed: remove its gateway in the background."""
+    try:
+        if not enabled(tenant) or not is_gateway_external_id(external_id):
+            return False
+    except Exception:
+        return False
+    return _start(tenant, "deletion", [str(dl_id)], lambda: delete_gateway(tenant, str(dl_id), external_id))
+
+
+def delete_gateway(tenant: str, dl_id: str, external_id: str) -> None:
+    """Agent device, then the gateway's DeviceMeasurements, then the entity, under its lock.
+
+    Holding `gateway:<dl_id>` means no projection interleaves. Every step is idempotent; a failure
+    is a WARNING and the next steps are still tried (the repair removes what is left).
+    """
+    import dataloggers
+    urn = gateway_urn(tenant, external_id)
+    with dataloggers.get_db_connection_with_tenant(tenant) as conn:
+        cur = conn.cursor()
+        try:
+            cur.execute("SELECT set_config('lock_timeout', %s, true)", (LOCK_TIMEOUT,))
+            cur.execute("SELECT pg_advisory_xact_lock(hashtext(%s))", (f"gateway:{dl_id}",))
+        except Exception as exc:
+            conn.rollback()
+            logger.warning("gateway deletion: lock not taken: tenant=%s datalogger=%s error=%s",
+                           tenant, dl_id, type(exc).__name__)
+            return
+        try:
+            steps = [("agent_device", lambda: dataloggers.delete_iota_device(tenant, external_id))]
+            steps += [("measurement", lambda dm=c.dm_id: dataloggers.delete_orion_entity(tenant, dm))
+                      for c in gateway_channels(tenant, external_id, DEFAULT_SHAPE)]
+            steps.append(("orion_entity", lambda: dataloggers.delete_orion_entity(tenant, urn)))
+            for step, call in steps:
+                try:
+                    call()
+                except Exception as exc:
+                    logger.warning("gateway deletion: step=%s failed: tenant=%s datalogger=%s error=%s",
+                                   step, tenant, dl_id, type(exc).__name__)
+        finally:
+            conn.rollback()  # releases the gateway lock

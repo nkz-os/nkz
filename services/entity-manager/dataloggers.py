@@ -169,16 +169,21 @@ def parse_device_urn(tenant: str, urn: str) -> str:
     external_id = external_id_of(tenant, urn)
     if external_id is None:
         raise ApiError(404, 'Device not found')
+    if gateways.is_gateway_urn(urn):
+        raise ApiError(409, 'This is a gateway, not a sensor', 'gateway')
     return external_id
+
+
+def reject_gateway_external_id(external_id) -> None:
+    """400 for an id that starts with `gw-` (any case): that namespace belongs to gateways."""
+    if isinstance(external_id, str) and external_id[:3].lower() == 'gw-':
+        raise ApiError(400, 'external_id must not start with gw-')
 
 
 def is_registered_device_urn(tenant: str, urn: str) -> bool:
     """True for the URN shape register_sensor writes (tenant-scoped externalId)."""
-    try:
-        parse_device_urn(tenant, urn)
-    except ApiError:
-        return False
-    return True
+    # A gateway URN has this shape too: the delete route must reach the guard of parse_device_urn.
+    return external_id_of(tenant, urn) is not None
 
 
 def _dl_id(value) -> str:
@@ -338,6 +343,7 @@ def create_datalogger(tenant: str, name: str, kind: str) -> dict:
                          username, type(exc).__name__)
             _run_undo(lambda: mqtt_dynsec.delete_account(client, username), 'delete_account')
             raise ApiError(502, 'Could not save the datalogger', 'db_commit')
+    gateways.start_projection(tenant, [dl_id])
     return {'id': dl_id, 'username': username, 'password': password,
             'mqtt': {**endpoint, 'username': username, 'password': password}}
 
@@ -511,6 +517,7 @@ def rotate_datalogger(tenant: str, dl_id: str) -> dict:
         except Exception as exc:
             # The broker already holds the new password; the timestamp is metadata only.
             logger.error("rotation timestamp not saved: datalogger=%s error=%s", username, type(exc).__name__)
+    gateways.start_projection(tenant, [dl_id])
     return {'password': password}
 
 
@@ -568,6 +575,7 @@ def set_datalogger_status(tenant: str, dl_id: str, revoke: bool) -> None:
         except Exception:
             _run_undo(lambda: undo(client, username), 'restore_account_state')
             raise ApiError(502, 'Could not save the datalogger', 'db_commit')
+    gateways.start_projection(tenant, [dl_id])
 
 
 @in_step('db', 'Database error')
@@ -580,6 +588,8 @@ def delete_datalogger(tenant: str, dl_id: str) -> None:
         if _device_rows(cur, tenant, dl_id):
             conn.rollback()
             raise ApiError(409, 'Datalogger still has devices')
+        # Only with the flag on: its gateway goes with it once the row is gone.
+        gateway = (gateway_columns(cur, tenant, dl_id) or {}) if gateways.enabled(tenant) else {}
         cur.execute("DELETE FROM iot_dataloggers WHERE id = %s AND tenant_id = %s", (dl_id, tenant))
         try:
             mqtt_dynsec.delete_account(client, row['mqtt_username'])
@@ -594,6 +604,7 @@ def delete_datalogger(tenant: str, dl_id: str) -> None:
             # The account is gone but the row stays: rotate rebuilds it.
             logger.critical("datalogger %s: account deleted, row kept", row['mqtt_username'])
             raise ApiError(502, 'Could not save the datalogger', 'db_commit')
+    gateways.start_deletion(tenant, dl_id, gateway.get('gateway_external_id'))
 
 
 # ── devices ────────────────────────────────────────────────────────────
@@ -654,6 +665,7 @@ def unlink_and_reconcile(tenant: str, urn: str) -> None:
                     (tenant, urn))
 
     reconcile_datalogger_acl(tenant, str(link['datalogger_id']), mutate=_delete_link)
+    gateways.start_projection(tenant, [str(link['datalogger_id'])])
 
 
 def undo_link(tenant: str, urn: str) -> None:
@@ -885,6 +897,7 @@ def move_device(tenant: str, urn: str, new_dl_id) -> None:
         for dl in (target['id'], old_id):
             _run_undo(lambda dl=dl: reconcile_datalogger_acl(tenant, dl), 'reconcile')
         raise
+    gateways.start_projection(tenant, [target['id'], old_id])
 
 
 @in_step('link', 'Database error')
