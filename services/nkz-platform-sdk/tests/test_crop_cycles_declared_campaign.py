@@ -108,6 +108,9 @@ def test_dated_cycle_to_dict_unchanged_but_new_key():
         "planned_start": None, "planned_end": "2025-07-10", "harvests": [],
         "harvest_campaigns": [],
         "variety": None, "declared_yield_kg_ha": None, "harvested_weight_kg": None,
+        "kind": "crop", "crop": None, "crop_name": None, "irrigation_regime": None,
+        "termination_method": None, "season": None, "species_lifecycle": None,
+        "planned_sowing_end": None,
     }
 
 

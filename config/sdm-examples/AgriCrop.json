@@ -1,0 +1,25 @@
+{
+  "id": "urn:ngsi-ld:AgriCrop:acme:TRZAX",
+  "type": "AgriCrop",
+  "name": {
+    "type": "Property",
+    "value": "wheat"
+  },
+  "alternateName": {
+    "type": "Property",
+    "value": "Triticum aestivum"
+  },
+  "agroVocConcept": {
+    "type": "Property",
+    "value": "http://aims.fao.org/aos/agrovoc/c_7951"
+  },
+  "relatedSource": {
+    "type": "Property",
+    "value": [
+      {
+        "application": "urn:ngsi-ld:AgriApp:acme:eppo-gd",
+        "applicationEntityId": "TRZAX"
+      }
+    ]
+  }
+}

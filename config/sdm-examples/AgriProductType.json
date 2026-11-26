@@ -1,0 +1,18 @@
+{
+  "id": "urn:ngsi-ld:AgriProductType:acme:TRZAX-marius",
+  "type": "AgriProductType",
+  "name": {
+    "type": "Property",
+    "value": "Marius"
+  },
+  "category": {
+    "type": "Property",
+    "value": [
+      "cropVariety"
+    ]
+  },
+  "root": {
+    "type": "Property",
+    "value": true
+  }
+}
