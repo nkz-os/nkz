@@ -177,7 +177,7 @@ def test_a_sensors_agent_device_with_a_gateway_id_survives_the_whole_job(pg, mon
     assert ORPHAN in st.iota_devices and _deleted(st, ORPHAN) == []
 
 
-# ── R18: projection, deletion and the job at the same time ───────────────────────────────
+# ── projection, deletion and the job at the same time ───────────────────────────────
 
 def test_a_deletion_that_starts_while_a_projection_holds_the_gateway_lock_runs_after_it(pg, monkeypatch):
     conn, dsn_, real_db = pg

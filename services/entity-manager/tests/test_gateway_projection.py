@@ -1,4 +1,4 @@
-"""project_gateway: order, failure, idempotence, suspension, flag and the R6 paths (in-memory fakes)."""
+"""project_gateway: order, failure, idempotence, suspension, flag and the paths of an existing agent device (in-memory fakes)."""
 import datetime
 import logging
 from unittest.mock import patch
@@ -71,7 +71,7 @@ def test_the_order_of_the_calls_and_no_network_under_a_datalogger_lock():
         ("orion", "upsert"), ("iota", "get"), ("iota", "provision"),        # (b) no row lock held
         ingestion, ("sql", "FOR UPDATE"), ("db", "gateway_marker"), ("sql", "commit"),   # (c) marker
         ingestion, ("sql", "FOR UPDATE"), ("dynsec", "set_role_topics"), ("sql", "commit"))  # (c) topics
-    assert st.locked_network == []  # R1b: no Orion or agent call under the ingestion or row lock
+    assert st.locked_network == []  # no Orion or agent call under the ingestion or row lock
     assert ("sql", "lock_timeout", gateways.LOCK_TIMEOUT) in st.log
     assert ext.startswith("gw-") and st.dataloggers[DL]["gateway_provisioned_at"] is not None
     assert st.role_topics[USER] == {"/KEY123/S1/attrs", f"/KEY123/{ext}/attrs"}
@@ -270,7 +270,7 @@ def test_it_never_raises_and_logs_only_ids_and_type_names(caplog):
     assert "RuntimeError" in caplog.text or "ApiError" in caplog.text
 
 
-# ── R6 ──────────────────────────────────────────────────────────────────────
+# ── an existing agent device ──────────────────────────────────────────────────────────────────────
 
 
 def test_a_409_on_an_equal_device_is_done_without_a_write():
@@ -356,7 +356,7 @@ def test_a_changed_mapping_is_put_not_replaced():
         st.iota_devices[GW]["attributes"][0]["expression"] = "uptime"
         mark = len(st.log)
         assert project() == "done"
-    assert [e[:2] for e in writes(st.log[mark:])] == [("iota", "update")]  # R10: PUT, no delete
+    assert [e[:2] for e in writes(st.log[mark:])] == [("iota", "update")]  # PUT, no delete
 
 
 # ── role topics: one place ──────────────────────────────────────────────────
@@ -532,7 +532,7 @@ def test_a_second_run_sends_no_acl_command_to_the_broker():
     assert "getClient" in sent
 
 
-# ── R10: PUT before DELETE, and no permission without a device ──────────────
+# ── PUT before DELETE, and no permission without a device ──────────────
 
 
 def detailed():

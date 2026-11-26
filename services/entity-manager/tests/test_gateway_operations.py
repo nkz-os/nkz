@@ -1,4 +1,4 @@
-"""Task 3: user operations start the gateway projection after their commit, in the background;
+"""User operations start the gateway projection after their commit, in the background;
 deleting a datalogger removes its gateway; sensor routes refuse a gateway URN."""
 import json
 import logging
@@ -458,7 +458,7 @@ def test_the_deletion_only_touches_ids_of_gateway_shape():
     assert not [e for e in st.log if e[:2] in (("iota", "delete"), ("orion", "delete"))]
 
 
-# ── R14 ─────────────────────────────────────────────────────────────────────
+# ── a second 409 from the agent ─────────────────────────────────────────────────────────────────────
 
 def test_a_second_409_clears_the_marker_and_recomputes_the_topics():
     st = base_state()
@@ -556,7 +556,7 @@ def test_a_sensor_id_that_only_contains_gw_still_registers():
     assert r.status_code == 201
 
 
-# ── fix round 1: a deletion is never dropped ────────────────────────────────
+# ── a deletion is never dropped ────────────────────────────────
 
 GW2 = "gw-ba9876543210"
 GW2_URN = f"urn:ngsi-ld:Device:{TENANT}:{GW2}"
@@ -621,7 +621,7 @@ def test_an_unreadable_gateway_column_does_not_fail_the_delete(monkeypatch, capl
     assert ("sql", "rollback") not in st.log          # the transaction was kept, not abandoned
 
 
-# ── fix round 1: with the flag off, the side effects are the base's ─────────
+# ── with the flag off, the side effects are main's ─────────
 
 SIDE = os.path.join(os.path.dirname(__file__), "recordings", "gateway_operations_side_effects_base.json")
 _ID = __import__("re").compile(r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}")

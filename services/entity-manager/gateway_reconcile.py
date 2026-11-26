@@ -10,7 +10,7 @@ query runs under that tenant's RLS context, `iot_dataloggers` has no cross-tenan
      one after the other in this thread (a row with no gateway id gets one);
   2. read the table AGAIN (ids assigned in step 1 are in it), list the network Devices in Orion and
      the devices of the IoT Agent, and remove the ones whose id is `gw-<12 lowercase hex>` and is
-     not in the table: agent device, the gateway's DeviceMeasurements, then the entity (R13).
+     not in the table: agent device, the gateway's DeviceMeasurements, then the entity.
 
 Deletion safety, all of it required:
   * the id must match `gw-[0-9a-f]{12}` exactly (`fullmatch`), the Orion entity must be a `Device`
@@ -28,7 +28,7 @@ Deletion safety, all of it required:
     is read once more: an id that appeared in it since the listing is NOT removed, and neither is
     anything of a tenant that was suspended meanwhile. The projection commits a new id before it
     creates anything in Orion, so an entity that exists always has its row committed first.
-    That lock is the only one held during the removal (no ingestion or row lock, R1b).
+    That lock is the only one held during the removal (no ingestion or row lock).
 
 One job lock, `pg_try_advisory_lock(hashtext('gateway-reconcile'))` on a dedicated connection: a
 second run exits 0 at once. `--dry-run` reads and prints what it would do; it writes nothing.

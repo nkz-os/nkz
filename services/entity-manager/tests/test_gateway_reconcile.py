@@ -312,7 +312,7 @@ def test_a_failed_measurement_keeps_the_entity_as_the_anchor_and_the_next_run_fi
     assert calls[-1] == urn(T, GW) and len(calls) == 4
 
 
-# ── an agent device that is not this gateway's (fix round 1) ─────────────────────────────
+# ── an agent device that is not this gateway's ─────────────────────────────
 
 def test_an_agent_device_with_a_gateway_id_that_points_at_a_sensor_is_never_removed(world):
     world.agent[T] = [agent_doc(GW, name=urn(T, "S1"))]

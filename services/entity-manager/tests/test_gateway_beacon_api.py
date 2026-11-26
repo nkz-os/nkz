@@ -1,4 +1,4 @@
-"""Task 5 (R19): the list carries each datalogger's gateway status, the config its beacon."""
+"""The list carries each datalogger's gateway status, the config its beacon."""
 import json
 
 import pytest

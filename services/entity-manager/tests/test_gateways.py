@@ -2,9 +2,9 @@
 
 A datalogger is an official `Device` (`deviceCategory` network) with a beacon. These tests pin
 what the entity-manager writes (`build_entity`), what the IoT Agent writes (`build_iota_attributes`)
-and the rulings R4/R5 of the design. The agent's JEXL is evaluated by `gateway_jexl.py` in the
-agent image; its recorded results (`fixtures/gateway_jexl_golden.json`) are checked here against the
-rulings, and bound to the generated mappings by a digest. Set NKZ_JEXL_LIVE=1 (docker) to run the
+and the value rules of the beacon. The agent's JEXL is evaluated by `gateway_jexl.py` in the
+agent image; its recorded results (`fixtures/gateway_jexl_golden.json`) are checked here against
+those rules, and bound to the generated mappings by a digest. Set NKZ_JEXL_LIVE=1 (docker) to run the
 agent again instead of trusting the record.
 """
 import copy
@@ -226,7 +226,7 @@ def validator():
 
 def schema_findings(validator, entity):
     """Findings of the official JSON Schema only. The `@context` checks wait for the four terms
-    (ruling R9); an array the broker returns as one value is not a failure."""
+    (not yet in the broker's context); an array the broker returns as one value is not a failure."""
     return [f for f in validator.check_entity(entity, single_for_array=True) if f.kind == "schema"]
 
 
@@ -292,7 +292,7 @@ class TestUnits:
 # ── the IoT Agent mappings ──────────────────────────────────────────────────
 
 # The expressions, exactly as the agent evaluates them. Each is a row of the golden record
-# (`fixtures/gateway_jexl_golden.json`): the agent's JEXL ran every value class of R4 over them.
+# (`fixtures/gateway_jexl_golden.json`): the agent's JEXL ran every value class over them.
 UPTIME_OK = ("(((uptime|typeof) == 'number') && uptime >= 0 && uptime < 1000000000000"
              " && (uptime|floor) == uptime)")
 BATTERY_OK = ("(((batteryLevel|typeof) == 'number') && ((batteryLevel >= 0 && batteryLevel <= 1)"
@@ -357,7 +357,7 @@ class TestMappingStructure:
             "metadata": {"unitCode": {"type": "Text", "value": "DBM"}}}
 
     def test_dlvr_condition_is_the_uptime_dm_condition(self, shape):
-        """R4: `dateLastValueReported` is written exactly when the `uptime` DM is written."""
+        """`dateLastValueReported` is written exactly when the `uptime` DM is written."""
         attrs = mappings(shape)
         dlvr = next(a for a in device_mappings(attrs) if a["name"] == "dateLastValueReported")
         uptime_dm = of_entity(attrs, dm_id("uptime"))
@@ -379,20 +379,20 @@ class TestMappingStructure:
             assert dm["controlledProperty"]["expression"] == f"{ok} ? '{channel}' : null"
 
     def test_uptime_rejects_strings(self, shape):
-        """R4: a JSON number only. Pinned against the golden rows `uptime: numeric string`, `mixed string`."""
+        """A JSON number only. Pinned against the golden rows `uptime: numeric string`, `mixed string`."""
         for a in [*of_entity(mappings(shape), dm_id("uptime")), *device_mappings(mappings(shape))]:
             if a["object_id"] == "uptime":
                 assert "'string'" not in a["expression"]
                 assert "(uptime|typeof) == 'number'" in a["expression"]
 
     def test_battery_range_is_zero_to_one_or_minus_one(self, shape):
-        """R4: `batteryLevel` 5 is refused. Golden rows `batteryLevel: five`, `just above one`, `unknown`."""
+        """`batteryLevel` 5 is refused. Golden rows `batteryLevel: five`, `just above one`, `unknown`."""
         expr = next(a for a in of_entity(mappings(shape), dm_id("batteryLevel")) if a["name"] == "numValue")["expression"]
         assert expr.startswith(BATTERY_OK)
         assert "<= 1" in expr and ">= 0" in expr and "== -1" in expr
 
     def test_series_ignores_time_instant(self, shape):
-        """R5: `dateObserved` is the arrival time and `timeSource` is `server`; the box's clock is never read."""
+        """`dateObserved` is the arrival time and `timeSource` is `server`; the box's clock is never read."""
         attrs = mappings(shape)
         for a in attrs:
             assert a["object_id"] != "TimeInstant"
@@ -449,7 +449,7 @@ def test_unknown_shape_is_refused():
         gateways.build_iota_attributes(TENANT, EXT, "other")
 
 
-# ── every value class of R4, by the agent's own JEXL (golden record) ────────
+# ── every value class, by the agent's own JEXL (golden record) ────────
 
 
 def _golden():
@@ -461,7 +461,7 @@ def _is_number(v):
 
 
 def expected_series(message):
-    """The ruling R4 as plain Python: {channel: value} the series must hold for this message."""
+    """The value rules as plain Python: {channel: value} the series must hold for this message."""
     out = {}
     up = message.get("uptime")
     if _is_number(up) and 0 <= up < 10 ** 12 and float(up).is_integer():
@@ -516,7 +516,7 @@ def test_golden_is_bound_to_the_generated_mappings(shape):
 
 
 @pytest.mark.parametrize("shape,case_id", GOLDEN_CASES)
-def test_agent_writes_what_the_ruling_says(shape, case_id):
+def test_agent_writes_what_the_value_rules_say(shape, case_id):
     case = next(c for c in _golden()["shapes"][shape]["cases"] if c["id"] == case_id)
     message, written = case["message"], case["written"]
     series = expected_series(message)
@@ -528,7 +528,7 @@ def test_agent_writes_what_the_ruling_says(shape, case_id):
         channel = entity.rsplit(":", 1)[1]
         assert entity == dm_id(channel, GOLD_EXT), entity
         got_series[channel] = attrs["numValue"]["value"]
-        # one measurement writes all of its attributes, with the arrival time (R5), never the box's
+        # one measurement writes all of its attributes, with the arrival time, never the box's
         assert attrs["dateObserved"]["value"] == "<NOW>"
         assert attrs["timeSource"]["value"] == "server"
         assert attrs["refDevice"]["value"] == GOLD_URN
@@ -551,7 +551,7 @@ def test_agent_writes_what_the_ruling_says(shape, case_id):
 
 
 def test_dlvr_is_written_exactly_when_the_uptime_series_is():
-    """R4, on every recorded case of both shapes: Device and series never disagree."""
+    """On every recorded case of both shapes: Device and series never disagree."""
     for shape in SHAPES:
         for case in _golden()["shapes"][shape]["cases"]:
             dlvr = "dateLastValueReported" in case["written"].get("<primary>", {})
@@ -559,7 +559,7 @@ def test_dlvr_is_written_exactly_when_the_uptime_series_is():
 
 
 def test_every_value_class_of_every_attribute_is_recorded_with_its_outcome():
-    """The table the rulings draw, by label, so a drift in either side is visible in one place."""
+    """The table the value rules draw, by label, so a drift in either side is visible in one place."""
     accepted = {
         "uptime": {"zero", "typical", "max", "integral float"},
         "batteryLevel": {"zero", "half", "one", "unknown"},

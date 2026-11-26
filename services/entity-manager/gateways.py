@@ -14,14 +14,14 @@ Contract (design 2026-11-25):
   * Series: one `DeviceMeasurement` per beacon key (`uptime` SEC, `batteryLevel` C62, `rssi` DBM),
     written by the IoT Agent, no profile and no deployment.
 
-Rulings R4/R5: the generator of sensor mappings (`common/iota_dm_mappings.py`) trusts the profile
+The generator of sensor mappings (`common/iota_dm_mappings.py`) trusts the profile
 and reads `TimeInstant`; a gateway has strict guards on what it accepts and its instants are the
 arrival time. So the DM mappings of a gateway are built here, from the same `Channel`
 description, and the generator is left as it is for sensors. Each guard below is the JEXL the IoT
 Agent evaluates, checked with the agent's own library over every value class (see
 `tests/gateway_jexl.py` and `tests/fixtures/gateway_jexl_golden.json`).
 
-R7: QoS 1 may deliver a beacon twice; both readings are stored (same `uptime`, arrival instants
+QoS 1 may deliver a beacon twice; both readings are stored (same `uptime`, arrival instants
 tens of milliseconds apart). No dedup here.
 """
 from __future__ import annotations
@@ -164,7 +164,7 @@ def build_entity(tenant: str, row: Mapping[str, Any], sensor_urns: Iterable[str]
 
 # ── the IoT Agent mappings of the beacon ────────────────────────────────────
 
-# The guards (R4). `typeof` is JavaScript's: a JSON number is 'number', a numeric string is
+# The guards. `typeof` is JavaScript's: a JSON number is 'number', a numeric string is
 # 'string', `true` is 'boolean', a list or object is 'object'; a JSON null is removed from the
 # agent's context before the expression runs.
 UPTIME_OK = ("(((uptime|typeof) == 'number') && uptime >= 0 && uptime < 1000000000000"
@@ -216,7 +216,7 @@ def _dm_mappings(channels: List[Channel], device_urn: str) -> List[Dict[str, Any
         value = mapping(channel.key, "numValue", "Number", f"{ok} ? {channel.key} : null")
         value["metadata"] = {"unitCode": {"type": "Text", "value": channel.unit_code}}
         out.append(value)
-        # R5: arrival time, never the box's clock. Read from the channel's own key, so a
+        # Arrival time, never the box's clock. Read from the channel's own key, so a
         # `TimeInstant` in the message is not read at all.
         out.append(mapping(channel.key, "dateObserved", "DateTime", f"{ok} ? {_NOW} : null"))
         out.append(mapping(channel.key, "timeSource", "Text", f"{ok} ? 'server' : null"))
@@ -229,7 +229,7 @@ def _dm_mappings(channels: List[Channel], device_urn: str) -> List[Dict[str, Any
 def _device_mappings() -> List[Dict[str, Any]]:
     """What the IoT Agent writes on the `Device` itself. Never `uptime` or `batteryLevel`."""
     return [
-        # R4: written exactly when the `uptime` series is: the same guard, from one place.
+        # Written exactly when the `uptime` series is: the same guard, from one place.
         {"object_id": "uptime", "name": "dateLastValueReported", "type": "DateTime",
          "expression": f"{UPTIME_OK} ? {_NOW} : null"},
         {"object_id": "softwareVersion", "name": "softwareVersion", "type": "Text",
@@ -370,7 +370,9 @@ UNCHANGED, UPDATED, REPLACED, CREATED = "unchanged", "updated", "replaced", "cre
 
 
 def _sync_agent_device(tenant: str, apikey: str, external_id: str, urn: str) -> str:
-    """R6 + R10. Returns `unchanged`, `updated` (PUT), `replaced` (DELETE + POST) or `created`.
+    """Create the agent device, or compare and bring an existing one in line.
+
+    Returns `unchanged`, `updated` (PUT), `replaced` (DELETE + POST) or `created`.
 
     Zero writes when the agent's document says what we would send. Attributes that differ on a
     device that points at the right entity are PUT, never deleted (the entity exists by now).
@@ -407,7 +409,7 @@ def _sync_agent_device(tenant: str, apikey: str, external_id: str, urn: str) -> 
             if exc.status_code != 409:
                 raise _AgentGone("provisioning failed") from exc
             # created in between (a beacon autoprovisions): read it again and compare
-    # R14: a second 409 leaves no usable device: the marker goes and the topics are recomputed
+    # A second 409 leaves no usable device: the marker goes and the topics are recomputed
     raise _AgentGone("the agent device kept changing")
 
 
@@ -424,14 +426,14 @@ def _set_topics(tenant: str, cur: Any, row: Mapping[str, Any], apikey: str) -> N
     except Exception as exc:
         if dataloggers._broker_error(exc) != dataloggers._CLIENT_NOT_FOUND:
             raise
-        # R2: an account the broker lost is for `rotate`; nothing is created here.
+        # An account the broker lost is for `rotate`; nothing is created here.
         logger.warning("gateway projection: datalogger %s is unknown to the broker", username)
         return
     dataloggers.mqtt_dynsec.set_role_topics(client, username, dataloggers.role_topics(cur, tenant, row, apikey))
 
 
 def _short(tenant: str, dl_id: str, work: Any, trace: list, step: str) -> Any:
-    """One short transaction, R1 order: ingestion lock, deleted_at, row lock, the gateway columns.
+    """One short transaction, in this order: ingestion lock, deleted_at, row lock, the gateway columns.
 
     `work(cur, row)` runs under both locks and must make no network call but the broker's (the
     topics). The tenant suspended -> `_Off`; no columns -> `_Failed('schema')`; a lock that is
@@ -471,7 +473,7 @@ def project_gateway(tenant: str, dl_id: Any) -> str:
 
 
 def project_gateway_detailed(tenant: str, dl_id: Any) -> tuple:
-    """Make Orion, the IoT Agent and the broker role say what the datalogger row says (R1b).
+    """Make Orion, the IoT Agent and the broker role say what the datalogger row says.
 
     Returns (outcome, agent result): outcome is `done`, `off` (flag off or tenant suspended:
     nothing was touched), `failed:<step>` or `failed:busy` (the gateway lock was not given in
@@ -582,7 +584,7 @@ def _project_under_gateway_lock(tenant: str, dl_id: str, trace: list) -> Optiona
     return agent
 
 
-# ── operations: the projection and the deletion run in the background (R12, R13) ─────────
+# ── operations: the projection and the deletion run in the background ──────────────────
 
 # One job per process at a time: a user's request never waits for a projection, and a burst of
 # operations cannot pile up threads against Orion. A skipped projection converges in the repair.
@@ -682,7 +684,7 @@ def start_deletion(tenant: str, dl_id: str, external_id: Any) -> bool:
 
 
 def removal_steps(tenant: str, external_id: str, entity: bool = True, agent: bool = True) -> list:
-    """R13's order as (step, call) pairs: agent device, the gateway's DMs, then the entity.
+    """The removal order as (step, call) pairs: agent device, the gateway's DMs, then the entity.
 
     `entity=False` leaves the Device entity out and `agent=False` the agent device (the repair
     removes each only when it saw it as this gateway's). Every call is idempotent; a missing target is not an error.

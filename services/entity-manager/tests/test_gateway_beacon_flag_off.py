@@ -1,5 +1,6 @@
-"""Task 5: with the flag off (or the tenant not listed), the list and config answers and their side
-effects are the ones recorded on base 7aaee92 (RECORD_BASE=1 on a clean export of that commit)."""
+"""With the flag off (or the tenant not listed), the list and config answers and their side
+effects are the ones recorded on main before the gateway code existed (RECORD_BASE=1 on a clean
+export of that main commit)."""
 import json
 import os
 import re
