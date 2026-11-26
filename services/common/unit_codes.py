@@ -80,6 +80,11 @@ _UNIT_CODES: Dict[str, Optional[str]] = {
     "umol/m2/s": "C62",
     "°C": "CEL",
     "µm": "4H",
+    # Added 2026-11-25 for the gateway beacon series (not catalogue symbols). Checked in the
+    # official UNECE Recommendation 20 list, Revision 17 (2021), sheet "Annex I", common code
+    # `SEC` = "second [unit of time]", symbol `s`; `DBM` = "Decibel-milliwatts", symbol `dBm`.
+    "dBm": "DBM",
+    "s": "SEC",
 }
 
 # Every symbol mapped to C62 — either genuinely dimensionless (SPAD), a data type stranded in

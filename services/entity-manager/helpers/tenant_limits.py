@@ -170,6 +170,23 @@ def _is_robot(entity_type, entity_data) -> bool:
     return category == ROBOT_MACHINE_CATEGORY
 
 
+# A gateway is a Device whose deviceCategory includes "network" and is not a sensor. The
+# `|!deviceCategory` branch keeps Devices with no category (`!=` alone drops them); the short
+# name resolves to the official term because inject_fiware_headers sends the platform Link.
+DEVICE_NOT_GATEWAY_Q = '(deviceCategory!="network"|!deviceCategory)'
+
+
+def _count_sensors(tenant: str) -> int:
+    """Sensors of a tenant over every sensor type, gateways excluded; unknown counts as 0."""
+    total = 0
+    for sensor_type in SENSOR_ENTITY_TYPES:
+        q = DEVICE_NOT_GATEWAY_Q if sensor_type == 'Device' else None
+        count = _count_entities_by_type(sensor_type, tenant, q=q)
+        if isinstance(count, int) and count > 0:
+            total += count
+    return total
+
+
 def _count_robots(tenant: str) -> int:
     """Robots of a tenant, legacy types plus robot machines; unknown counts as 0."""
     total = 0
@@ -311,10 +328,7 @@ def _gather_usage_for_tenant(tenant: str) -> Dict[str, Any]:
 
     robots_total = _count_robots(tenant)
 
-    for entity_type in SENSOR_ENTITY_TYPES:
-        count = _count_entities_by_type(entity_type, tenant)
-        if isinstance(count, int) and count > 0:
-            sensors_total += count
+    sensors_total = _count_sensors(tenant)
 
     for entity_type in PARCEL_ENTITY_TYPES:
         count = _count_parcels(entity_type, tenant)

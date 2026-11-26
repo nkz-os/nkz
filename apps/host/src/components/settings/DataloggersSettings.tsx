@@ -6,9 +6,12 @@
  */
 import { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { formatDistanceToNow, isValid, parseISO, type Locale } from 'date-fns';
+import { ca, enUS, es, eu, fr, pt } from 'date-fns/locale';
 import { Button } from '@nekazari/ui-kit';
 import { useConfirm } from '@/context/ConfirmContext';
 import { useToastContext } from '@/context/ToastContext';
+import { BeaconInstructions } from '@/components/settings/BeaconInstructions';
 import { DataloggerCredentialsModal } from '@/components/EntityWizard/DataloggerCredentialsModal';
 import {
   apiErrorMessage,
@@ -19,6 +22,7 @@ import {
   revokeDatalogger,
   rotateDatalogger,
   type Datalogger,
+  type DataloggerBeacon,
   type MqttEndpoint,
 } from '@/services/dataloggersApi';
 
@@ -26,10 +30,22 @@ interface OneTimeCredentials {
   datalogger: { id: string; name: string };
   credentials: MqttEndpoint;
   hint?: string;
+  kind: Datalogger['kind'];
+  beacon?: DataloggerBeacon;
+}
+
+const DATE_LOCALES: Record<string, Locale> = { ca, es, eu, fr, pt };
+
+/** «5 minutes ago» in the interface language, or null when `iso` is not a date. */
+export function relativeTime(iso: string, language: string | undefined): string | null {
+  const when = parseISO(iso);
+  if (!isValid(when)) return null;
+  const locale = DATE_LOCALES[(language ?? 'en').slice(0, 2)] ?? enUS;
+  return formatDistanceToNow(when, { addSuffix: true, locale });
 }
 
 export function DataloggersSettings() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const confirm = useConfirm();
   const toast = useToastContext();
   const [items, setItems] = useState<Datalogger[] | null>(null);
@@ -37,6 +53,11 @@ export function DataloggersSettings() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [oneTime, setOneTime] = useState<OneTimeCredentials | null>(null);
+  // Relative times are re-read every minute while the page is open.
+  const [, setTick] = useState(0);
+  // Beacon instructions opened in a row: loading, the beacon (null = not ready), or the error text.
+  type Panel = { state: 'loading' } | { state: 'ready'; beacon: DataloggerBeacon | null } | { state: 'error'; message: string };
+  const [panels, setPanels] = useState<Record<string, Panel>>({});
 
   const reload = useCallback(async () => {
     try {
@@ -51,6 +72,26 @@ export function DataloggersSettings() {
   useEffect(() => {
     void reload();
   }, [reload]);
+
+  useEffect(() => {
+    const timer = setInterval(() => setTick((n) => n + 1), 60_000);
+    return () => clearInterval(timer);
+  }, []);
+
+  const onToggleBeacon = async (d: Datalogger) => {
+    if (panels[d.id]) {
+      setPanels(({ [d.id]: _closed, ...rest }) => rest);
+      return;
+    }
+    setPanels((p) => ({ ...p, [d.id]: { state: 'loading' } }));
+    try {
+      const config = await getDataloggerConfig(d.id);
+      setPanels((p) => (p[d.id] ? { ...p, [d.id]: { state: 'ready', beacon: config.beacon ?? null } } : p));
+    } catch (err) {
+      const message = apiErrorMessage(err, t('dataloggers.beacon.load_failed'));
+      setPanels((p) => (p[d.id] ? { ...p, [d.id]: { state: 'error', message } } : p));
+    }
+  };
 
   const run = async (id: string, action: () => Promise<void>, failure: string) => {
     setBusyId(id);
@@ -82,6 +123,7 @@ export function DataloggersSettings() {
         setOneTime({
           datalogger: { id: d.id, name: d.name },
           credentials: { configured: true, username: d.username, password },
+          kind: d.kind,
           hint: t('dataloggers.rotate.config_failed'),
         });
         return;
@@ -89,6 +131,8 @@ export function DataloggersSettings() {
       // Host and port come from /config (it never carries the password).
       setOneTime({
         datalogger: { id: d.id, name: d.name },
+        kind: d.kind,
+        beacon: config.beacon,
         credentials: config.mqtt.configured === false
           ? { configured: false, reason: config.mqtt.reason, username: d.username }
           : { ...config.mqtt, password },
@@ -116,6 +160,17 @@ export function DataloggersSettings() {
       await deleteDatalogger(d.id);
       await reload();
     }, t('dataloggers.errors.delete_failed'));
+  };
+
+  // Never received (or a date that cannot be read) is the same line.
+  // A time ahead of ours (clock skew) is «just now».
+  const lastSeen = (iso: string | null) => {
+    const when = iso ? parseISO(iso) : null;
+    if (!iso || !when || !isValid(when)) return t('dataloggers.gateway.not_received');
+    const ago = when.getTime() > Date.now()
+      ? t('dataloggers.gateway.just_now')
+      : relativeTime(iso, i18n?.language);
+    return <time dateTime={iso}>{t('dataloggers.gateway.last_seen', { time: ago })}</time>;
   };
 
   return (
@@ -160,6 +215,31 @@ export function DataloggersSettings() {
                   {d.devices.map((dev) => dev.externalId).join(', ')}
                 </p>
               )}
+              {d.gateway && (
+                <p className="text-xs text-nkz-text-muted" data-testid={`datalogger-gateway-${d.id}`}>
+                  {lastSeen(d.gateway.lastSeen)}
+                </p>
+              )}
+              {d.kind === 'generic_mqtt' && d.gateway && d.gateway.lastSeen === null && (
+                <div className="space-y-2">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    data-testid="beacon-toggle"
+                    onClick={() => void onToggleBeacon(d)}
+                  >
+                    {panels[d.id] ? t('dataloggers.beacon.hide') : t('dataloggers.beacon.show')}
+                  </Button>
+                  {panels[d.id]?.state === 'loading' && <p className="text-xs text-nkz-text-muted">{t('loading')}</p>}
+                  {panels[d.id]?.state === 'error' && (
+                    <p className="text-sm text-nkz-danger-strong">{(panels[d.id] as { message: string }).message}</p>
+                  )}
+                  {panels[d.id]?.state === 'ready' && (
+                    <BeaconInstructions beacon={(panels[d.id] as { beacon: DataloggerBeacon | null }).beacon} />
+                  )}
+                </div>
+              )}
               <div className="flex flex-wrap gap-2">
                 <Button type="button" variant="secondary" size="sm" disabled={busy} onClick={() => void onRotate(d)}>
                   {t('dataloggers.rotate.action')}
@@ -190,6 +270,8 @@ export function DataloggersSettings() {
           datalogger={oneTime.datalogger}
           credentials={oneTime.credentials}
           hint={oneTime.hint}
+          kind={oneTime.kind}
+          beacon={oneTime.beacon}
         />
       )}
     </div>

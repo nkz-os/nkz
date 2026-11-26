@@ -106,4 +106,45 @@ describe('useAssets', () => {
     expect(found).toMatchObject({ type: 'AgriPlant', category: 'vegetation', parentId: PARCEL });
     expect(found?.name).toContain('T-1');
   });
+  describe('gateways among the Devices', () => {
+    const device = (id: string, category?: unknown) => ({
+      id: `urn:ngsi-ld:Device:tenant-a:${id}`,
+      type: 'Device',
+      name: { type: 'Property', value: id },
+      ...(category === undefined ? {} : { deviceCategory: category }),
+    });
+    const gateways = [
+      device('gw-0123456789ab', ['network']),
+      device('gw-aaaaaaaaaaaa', 'network'),
+      device('gw-bbbbbbbbbbbb', { type: 'Property', value: ['network'] }),
+      device('gw-cccccccccccc', { type: 'Property', value: 'network' }),
+      device('gw-dddddddddddd', { type: 'Property', value: ['sensor', 'network'] }),
+    ];
+    const kept = [
+      device('plain'),
+      device('probe', ['sensor']),
+      device('probe-scalar', 'sensor'),
+      device('probe-prop', { type: 'Property', value: ['sensor'] }),
+      device('empty', []),
+    ];
+
+    it('keeps gateways out of the assets and the counts, and everything else in', async () => {
+      api.getRobots.mockResolvedValue([]);
+      api.getMachines.mockResolvedValue([]);
+      api.getLivestock.mockResolvedValue([]);
+      api.getWeatherStations.mockResolvedValue([]);
+      api.getSDMEntityInstances.mockImplementation(async (type: string) =>
+        type === 'Device' ? [...gateways, ...kept] : type === 'AgriSensor' ? [{ id: 'urn:ngsi-ld:AgriSensor:s1', type: 'AgriSensor' }] : []);
+
+      const { result } = renderHook(() => useAssets());
+      await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+      const ids = result.current.assets.map(a => a.id);
+      for (const g of gateways) expect(ids).not.toContain(g.id);
+      for (const k of kept) expect(ids).toContain(k.id);
+      expect(result.current.countsByType.Device).toBe(kept.length);
+      expect(result.current.countsByCategory.sensors).toBe(kept.length + 1);
+      expect(result.current.totalCount).toBe(kept.length + 2); // + the AgriSensor and the parcel
+    });
+  });
 });

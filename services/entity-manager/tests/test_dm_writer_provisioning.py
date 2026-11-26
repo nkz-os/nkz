@@ -534,6 +534,11 @@ def test_attribute_builders_and_pushes_are_called_only_in_the_helpers():
         # the cutover command: first push of a move to iota, and the restore (other half of
         # push_iota_attributes, see its module docstring)
         ("dm_writer_cutover.py", "update_device_attributes", "_put"),
+        # a gateway has no sensor writer state: its own mappings (gateways.py), provisioned by
+        # the projection after its entity exists
+        ("gateways.py", "build_iota_attributes", "_sync_agent_device"),
+        ("gateways.py", "provision_device", "_sync_agent_device"),
+        ("gateways.py", "update_device_attributes", "_sync_agent_device"),
         # the live conformance script puts the mappings on its own temporary device
         ("iota_dm_conformance.py", "device_attributes", "_main"),
         ("iota_dm_conformance.py", "device_attributes", "generator_hash"),

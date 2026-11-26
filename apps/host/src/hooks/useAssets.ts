@@ -7,6 +7,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { logger } from '@/utils/logger';
 import api from '@/services/api';
+import { isGatewayDevice } from '@/utils/deviceIds';
 import { parcelApi } from '@/services/parcelApi';
 import { useToastContext } from '@/context/ToastContext';
 import {
@@ -172,6 +173,8 @@ export function useAssets(options: UseAssetsOptions = {}): UseAssetsReturn {
       const addEntities = (result: PromiseSettledResult<any[]>, type: string) => {
         if (result.status === 'fulfilled' && Array.isArray(result.value)) {
           result.value.forEach(entity => {
+            // A gateway is network equipment, not a sensor or a map asset.
+            if (isGatewayDevice({ ...entity, type: entity.type || type })) return;
             try {
               allAssets.push(normalizeToAsset({ ...entity, type: entity.type || type }));
             } catch (e) {

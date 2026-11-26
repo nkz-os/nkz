@@ -1,0 +1,3837 @@
+{
+ "agent_image": "fiware/iotagent-json:3.13.0",
+ "tenant": "acme",
+ "external_id": "gw-aaaaaaaaaaaa",
+ "shapes": {
+  "legacy": {
+   "mappings_sha256": "3f8644a41a58f3549c00930f4c2dcdba20be0388c140f7823b31cf20fe62007e",
+   "cases": [
+    {
+     "id": "uptime: zero",
+     "message": {
+      "uptime": 0
+     },
+     "written": {
+      "urn:ngsi-ld:DeviceMeasurement:acme:gw-aaaaaaaaaaaa:uptime": {
+       "numValue": {
+        "value": 0,
+        "metadata": {
+         "unitCode": {
+          "type": "Text",
+          "value": "SEC"
+         }
+        },
+        "type": "Number"
+       },
+       "dateObserved": {
+        "value": "<NOW>",
+        "type": "DateTime"
+       },
+       "timeSource": {
+        "value": "server",
+        "type": "Text"
+       },
+       "refDevice": {
+        "value": "urn:ngsi-ld:Device:acme:gw-aaaaaaaaaaaa",
+        "type": "Relationship"
+       },
+       "controlledProperty": {
+        "value": "uptime",
+        "type": "Text"
+       },
+       "measurementType": {
+        "value": "uptime",
+        "type": "Text"
+       }
+      },
+      "<primary>": {
+       "dateLastValueReported": {
+        "value": "<NOW>",
+        "type": "DateTime"
+       }
+      }
+     }
+    },
+    {
+     "id": "uptime: typical",
+     "message": {
+      "uptime": 86400
+     },
+     "written": {
+      "urn:ngsi-ld:DeviceMeasurement:acme:gw-aaaaaaaaaaaa:uptime": {
+       "numValue": {
+        "value": 86400,
+        "metadata": {
+         "unitCode": {
+          "type": "Text",
+          "value": "SEC"
+         }
+        },
+        "type": "Number"
+       },
+       "dateObserved": {
+        "value": "<NOW>",
+        "type": "DateTime"
+       },
+       "timeSource": {
+        "value": "server",
+        "type": "Text"
+       },
+       "refDevice": {
+        "value": "urn:ngsi-ld:Device:acme:gw-aaaaaaaaaaaa",
+        "type": "Relationship"
+       },
+       "controlledProperty": {
+        "value": "uptime",
+        "type": "Text"
+       },
+       "measurementType": {
+        "value": "uptime",
+        "type": "Text"
+       }
+      },
+      "<primary>": {
+       "dateLastValueReported": {
+        "value": "<NOW>",
+        "type": "DateTime"
+       }
+      }
+     }
+    },
+    {
+     "id": "uptime: max",
+     "message": {
+      "uptime": 999999999999
+     },
+     "written": {
+      "urn:ngsi-ld:DeviceMeasurement:acme:gw-aaaaaaaaaaaa:uptime": {
+       "numValue": {
+        "value": 999999999999,
+        "metadata": {
+         "unitCode": {
+          "type": "Text",
+          "value": "SEC"
+         }
+        },
+        "type": "Number"
+       },
+       "dateObserved": {
+        "value": "<NOW>",
+        "type": "DateTime"
+       },
+       "timeSource": {
+        "value": "server",
+        "type": "Text"
+       },
+       "refDevice": {
+        "value": "urn:ngsi-ld:Device:acme:gw-aaaaaaaaaaaa",
+        "type": "Relationship"
+       },
+       "controlledProperty": {
+        "value": "uptime",
+        "type": "Text"
+       },
+       "measurementType": {
+        "value": "uptime",
+        "type": "Text"
+       }
+      },
+      "<primary>": {
+       "dateLastValueReported": {
+        "value": "<NOW>",
+        "type": "DateTime"
+       }
+      }
+     }
+    },
+    {
+     "id": "uptime: limit",
+     "message": {
+      "uptime": 1000000000000.0
+     },
+     "written": {}
+    },
+    {
+     "id": "uptime: fraction",
+     "message": {
+      "uptime": 3.7
+     },
+     "written": {}
+    },
+    {
+     "id": "uptime: integral float",
+     "message": {
+      "uptime": 5.0
+     },
+     "written": {
+      "urn:ngsi-ld:DeviceMeasurement:acme:gw-aaaaaaaaaaaa:uptime": {
+       "numValue": {
+        "value": 5,
+        "metadata": {
+         "unitCode": {
+          "type": "Text",
+          "value": "SEC"
+         }
+        },
+        "type": "Number"
+       },
+       "dateObserved": {
+        "value": "<NOW>",
+        "type": "DateTime"
+       },
+       "timeSource": {
+        "value": "server",
+        "type": "Text"
+       },
+       "refDevice": {
+        "value": "urn:ngsi-ld:Device:acme:gw-aaaaaaaaaaaa",
+        "type": "Relationship"
+       },
+       "controlledProperty": {
+        "value": "uptime",
+        "type": "Text"
+       },
+       "measurementType": {
+        "value": "uptime",
+        "type": "Text"
+       }
+      },
+      "<primary>": {
+       "dateLastValueReported": {
+        "value": "<NOW>",
+        "type": "DateTime"
+       }
+      }
+     }
+    },
+    {
+     "id": "uptime: negative",
+     "message": {
+      "uptime": -5
+     },
+     "written": {}
+    },
+    {
+     "id": "uptime: huge",
+     "message": {
+      "uptime": 1e+20
+     },
+     "written": {}
+    },
+    {
+     "id": "uptime: numeric string",
+     "message": {
+      "uptime": "86400"
+     },
+     "written": {}
+    },
+    {
+     "id": "uptime: fraction string",
+     "message": {
+      "uptime": "3.5"
+     },
+     "written": {}
+    },
+    {
+     "id": "uptime: text",
+     "message": {
+      "uptime": "abc"
+     },
+     "written": {}
+    },
+    {
+     "id": "uptime: mixed string",
+     "message": {
+      "uptime": "12abc"
+     },
+     "written": {}
+    },
+    {
+     "id": "uptime: null",
+     "message": {
+      "uptime": null
+     },
+     "written": {}
+    },
+    {
+     "id": "uptime: true",
+     "message": {
+      "uptime": true
+     },
+     "written": {}
+    },
+    {
+     "id": "uptime: false",
+     "message": {
+      "uptime": false
+     },
+     "written": {}
+    },
+    {
+     "id": "uptime: list",
+     "message": {
+      "uptime": [
+       1
+      ]
+     },
+     "written": {}
+    },
+    {
+     "id": "uptime: object",
+     "message": {
+      "uptime": {
+       "a": 1
+      }
+     },
+     "written": {}
+    },
+    {
+     "id": "uptime: empty string",
+     "message": {
+      "uptime": ""
+     },
+     "written": {}
+    },
+    {
+     "id": "batteryLevel: zero",
+     "message": {
+      "batteryLevel": 0
+     },
+     "written": {
+      "urn:ngsi-ld:DeviceMeasurement:acme:gw-aaaaaaaaaaaa:batteryLevel": {
+       "numValue": {
+        "value": 0,
+        "metadata": {
+         "unitCode": {
+          "type": "Text",
+          "value": "C62"
+         }
+        },
+        "type": "Number"
+       },
+       "dateObserved": {
+        "value": "<NOW>",
+        "type": "DateTime"
+       },
+       "timeSource": {
+        "value": "server",
+        "type": "Text"
+       },
+       "refDevice": {
+        "value": "urn:ngsi-ld:Device:acme:gw-aaaaaaaaaaaa",
+        "type": "Relationship"
+       },
+       "controlledProperty": {
+        "value": "batteryLevel",
+        "type": "Text"
+       },
+       "measurementType": {
+        "value": "batteryLevel",
+        "type": "Text"
+       }
+      }
+     }
+    },
+    {
+     "id": "batteryLevel: half",
+     "message": {
+      "batteryLevel": 0.5
+     },
+     "written": {
+      "urn:ngsi-ld:DeviceMeasurement:acme:gw-aaaaaaaaaaaa:batteryLevel": {
+       "numValue": {
+        "value": 0.5,
+        "metadata": {
+         "unitCode": {
+          "type": "Text",
+          "value": "C62"
+         }
+        },
+        "type": "Number"
+       },
+       "dateObserved": {
+        "value": "<NOW>",
+        "type": "DateTime"
+       },
+       "timeSource": {
+        "value": "server",
+        "type": "Text"
+       },
+       "refDevice": {
+        "value": "urn:ngsi-ld:Device:acme:gw-aaaaaaaaaaaa",
+        "type": "Relationship"
+       },
+       "controlledProperty": {
+        "value": "batteryLevel",
+        "type": "Text"
+       },
+       "measurementType": {
+        "value": "batteryLevel",
+        "type": "Text"
+       }
+      }
+     }
+    },
+    {
+     "id": "batteryLevel: one",
+     "message": {
+      "batteryLevel": 1
+     },
+     "written": {
+      "urn:ngsi-ld:DeviceMeasurement:acme:gw-aaaaaaaaaaaa:batteryLevel": {
+       "numValue": {
+        "value": 1,
+        "metadata": {
+         "unitCode": {
+          "type": "Text",
+          "value": "C62"
+         }
+        },
+        "type": "Number"
+       },
+       "dateObserved": {
+        "value": "<NOW>",
+        "type": "DateTime"
+       },
+       "timeSource": {
+        "value": "server",
+        "type": "Text"
+       },
+       "refDevice": {
+        "value": "urn:ngsi-ld:Device:acme:gw-aaaaaaaaaaaa",
+        "type": "Relationship"
+       },
+       "controlledProperty": {
+        "value": "batteryLevel",
+        "type": "Text"
+       },
+       "measurementType": {
+        "value": "batteryLevel",
+        "type": "Text"
+       }
+      }
+     }
+    },
+    {
+     "id": "batteryLevel: unknown",
+     "message": {
+      "batteryLevel": -1
+     },
+     "written": {
+      "urn:ngsi-ld:DeviceMeasurement:acme:gw-aaaaaaaaaaaa:batteryLevel": {
+       "numValue": {
+        "value": -1,
+        "metadata": {
+         "unitCode": {
+          "type": "Text",
+          "value": "C62"
+         }
+        },
+        "type": "Number"
+       },
+       "dateObserved": {
+        "value": "<NOW>",
+        "type": "DateTime"
+       },
+       "timeSource": {
+        "value": "server",
+        "type": "Text"
+       },
+       "refDevice": {
+        "value": "urn:ngsi-ld:Device:acme:gw-aaaaaaaaaaaa",
+        "type": "Relationship"
+       },
+       "controlledProperty": {
+        "value": "batteryLevel",
+        "type": "Text"
+       },
+       "measurementType": {
+        "value": "batteryLevel",
+        "type": "Text"
+       }
+      }
+     }
+    },
+    {
+     "id": "batteryLevel: five",
+     "message": {
+      "batteryLevel": 5
+     },
+     "written": {}
+    },
+    {
+     "id": "batteryLevel: just above one",
+     "message": {
+      "batteryLevel": 1.0001
+     },
+     "written": {}
+    },
+    {
+     "id": "batteryLevel: negative fraction",
+     "message": {
+      "batteryLevel": -0.5
+     },
+     "written": {}
+    },
+    {
+     "id": "batteryLevel: huge",
+     "message": {
+      "batteryLevel": 1e+20
+     },
+     "written": {}
+    },
+    {
+     "id": "batteryLevel: numeric string",
+     "message": {
+      "batteryLevel": "0.5"
+     },
+     "written": {}
+    },
+    {
+     "id": "batteryLevel: text",
+     "message": {
+      "batteryLevel": "abc"
+     },
+     "written": {}
+    },
+    {
+     "id": "batteryLevel: null",
+     "message": {
+      "batteryLevel": null
+     },
+     "written": {}
+    },
+    {
+     "id": "batteryLevel: true",
+     "message": {
+      "batteryLevel": true
+     },
+     "written": {}
+    },
+    {
+     "id": "batteryLevel: list",
+     "message": {
+      "batteryLevel": [
+       0.5
+      ]
+     },
+     "written": {}
+    },
+    {
+     "id": "batteryLevel: object",
+     "message": {
+      "batteryLevel": {}
+     },
+     "written": {}
+    },
+    {
+     "id": "batteryLevel: empty string",
+     "message": {
+      "batteryLevel": ""
+     },
+     "written": {}
+    },
+    {
+     "id": "rssi: typical",
+     "message": {
+      "rssi": -71
+     },
+     "written": {
+      "urn:ngsi-ld:DeviceMeasurement:acme:gw-aaaaaaaaaaaa:rssi": {
+       "numValue": {
+        "value": -71,
+        "metadata": {
+         "unitCode": {
+          "type": "Text",
+          "value": "DBM"
+         }
+        },
+        "type": "Number"
+       },
+       "dateObserved": {
+        "value": "<NOW>",
+        "type": "DateTime"
+       },
+       "timeSource": {
+        "value": "server",
+        "type": "Text"
+       },
+       "refDevice": {
+        "value": "urn:ngsi-ld:Device:acme:gw-aaaaaaaaaaaa",
+        "type": "Relationship"
+       },
+       "controlledProperty": {
+        "value": "rssi",
+        "type": "Text"
+       },
+       "measurementType": {
+        "value": "rssi",
+        "type": "Text"
+       }
+      },
+      "<primary>": {
+       "rssi": {
+        "value": -71,
+        "metadata": {
+         "unitCode": {
+          "type": "Text",
+          "value": "DBM"
+         }
+        },
+        "type": "Number"
+       }
+      }
+     }
+    },
+    {
+     "id": "rssi: fraction",
+     "message": {
+      "rssi": -71.5
+     },
+     "written": {
+      "urn:ngsi-ld:DeviceMeasurement:acme:gw-aaaaaaaaaaaa:rssi": {
+       "numValue": {
+        "value": -71.5,
+        "metadata": {
+         "unitCode": {
+          "type": "Text",
+          "value": "DBM"
+         }
+        },
+        "type": "Number"
+       },
+       "dateObserved": {
+        "value": "<NOW>",
+        "type": "DateTime"
+       },
+       "timeSource": {
+        "value": "server",
+        "type": "Text"
+       },
+       "refDevice": {
+        "value": "urn:ngsi-ld:Device:acme:gw-aaaaaaaaaaaa",
+        "type": "Relationship"
+       },
+       "controlledProperty": {
+        "value": "rssi",
+        "type": "Text"
+       },
+       "measurementType": {
+        "value": "rssi",
+        "type": "Text"
+       }
+      },
+      "<primary>": {
+       "rssi": {
+        "value": -71.5,
+        "metadata": {
+         "unitCode": {
+          "type": "Text",
+          "value": "DBM"
+         }
+        },
+        "type": "Number"
+       }
+      }
+     }
+    },
+    {
+     "id": "rssi: zero",
+     "message": {
+      "rssi": 0
+     },
+     "written": {
+      "urn:ngsi-ld:DeviceMeasurement:acme:gw-aaaaaaaaaaaa:rssi": {
+       "numValue": {
+        "value": 0,
+        "metadata": {
+         "unitCode": {
+          "type": "Text",
+          "value": "DBM"
+         }
+        },
+        "type": "Number"
+       },
+       "dateObserved": {
+        "value": "<NOW>",
+        "type": "DateTime"
+       },
+       "timeSource": {
+        "value": "server",
+        "type": "Text"
+       },
+       "refDevice": {
+        "value": "urn:ngsi-ld:Device:acme:gw-aaaaaaaaaaaa",
+        "type": "Relationship"
+       },
+       "controlledProperty": {
+        "value": "rssi",
+        "type": "Text"
+       },
+       "measurementType": {
+        "value": "rssi",
+        "type": "Text"
+       }
+      },
+      "<primary>": {
+       "rssi": {
+        "value": 0,
+        "metadata": {
+         "unitCode": {
+          "type": "Text",
+          "value": "DBM"
+         }
+        },
+        "type": "Number"
+       }
+      }
+     }
+    },
+    {
+     "id": "rssi: floor",
+     "message": {
+      "rssi": -200
+     },
+     "written": {
+      "urn:ngsi-ld:DeviceMeasurement:acme:gw-aaaaaaaaaaaa:rssi": {
+       "numValue": {
+        "value": -200,
+        "metadata": {
+         "unitCode": {
+          "type": "Text",
+          "value": "DBM"
+         }
+        },
+        "type": "Number"
+       },
+       "dateObserved": {
+        "value": "<NOW>",
+        "type": "DateTime"
+       },
+       "timeSource": {
+        "value": "server",
+        "type": "Text"
+       },
+       "refDevice": {
+        "value": "urn:ngsi-ld:Device:acme:gw-aaaaaaaaaaaa",
+        "type": "Relationship"
+       },
+       "controlledProperty": {
+        "value": "rssi",
+        "type": "Text"
+       },
+       "measurementType": {
+        "value": "rssi",
+        "type": "Text"
+       }
+      },
+      "<primary>": {
+       "rssi": {
+        "value": -200,
+        "metadata": {
+         "unitCode": {
+          "type": "Text",
+          "value": "DBM"
+         }
+        },
+        "type": "Number"
+       }
+      }
+     }
+    },
+    {
+     "id": "rssi: below floor",
+     "message": {
+      "rssi": -201
+     },
+     "written": {}
+    },
+    {
+     "id": "rssi: positive",
+     "message": {
+      "rssi": 1
+     },
+     "written": {}
+    },
+    {
+     "id": "rssi: huge",
+     "message": {
+      "rssi": 1e+20
+     },
+     "written": {}
+    },
+    {
+     "id": "rssi: numeric string",
+     "message": {
+      "rssi": "-71"
+     },
+     "written": {}
+    },
+    {
+     "id": "rssi: text",
+     "message": {
+      "rssi": "abc"
+     },
+     "written": {}
+    },
+    {
+     "id": "rssi: null",
+     "message": {
+      "rssi": null
+     },
+     "written": {}
+    },
+    {
+     "id": "rssi: true",
+     "message": {
+      "rssi": true
+     },
+     "written": {}
+    },
+    {
+     "id": "rssi: list",
+     "message": {
+      "rssi": [
+       -71
+      ]
+     },
+     "written": {}
+    },
+    {
+     "id": "rssi: object",
+     "message": {
+      "rssi": {}
+     },
+     "written": {}
+    },
+    {
+     "id": "rssi: empty string",
+     "message": {
+      "rssi": ""
+     },
+     "written": {}
+    },
+    {
+     "id": "softwareVersion: typical",
+     "message": {
+      "softwareVersion": "1.2.3"
+     },
+     "written": {
+      "<primary>": {
+       "softwareVersion": {
+        "value": "1.2.3",
+        "type": "Text"
+       }
+      }
+     }
+    },
+    {
+     "id": "softwareVersion: 64 chars",
+     "message": {
+      "softwareVersion": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+     },
+     "written": {
+      "<primary>": {
+       "softwareVersion": {
+        "value": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "type": "Text"
+       }
+      }
+     }
+    },
+    {
+     "id": "softwareVersion: 65 chars",
+     "message": {
+      "softwareVersion": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+     },
+     "written": {}
+    },
+    {
+     "id": "softwareVersion: empty string",
+     "message": {
+      "softwareVersion": ""
+     },
+     "written": {}
+    },
+    {
+     "id": "softwareVersion: number",
+     "message": {
+      "softwareVersion": 123
+     },
+     "written": {}
+    },
+    {
+     "id": "softwareVersion: numeric string",
+     "message": {
+      "softwareVersion": "123"
+     },
+     "written": {
+      "<primary>": {
+       "softwareVersion": {
+        "value": "123",
+        "type": "Text"
+       }
+      }
+     }
+    },
+    {
+     "id": "softwareVersion: null",
+     "message": {
+      "softwareVersion": null
+     },
+     "written": {}
+    },
+    {
+     "id": "softwareVersion: true",
+     "message": {
+      "softwareVersion": true
+     },
+     "written": {}
+    },
+    {
+     "id": "softwareVersion: list",
+     "message": {
+      "softwareVersion": [
+       "1"
+      ]
+     },
+     "written": {}
+    },
+    {
+     "id": "softwareVersion: object",
+     "message": {
+      "softwareVersion": {}
+     },
+     "written": {}
+    },
+    {
+     "id": "softwareVersion: blank",
+     "message": {
+      "softwareVersion": " "
+     },
+     "written": {
+      "<primary>": {
+       "softwareVersion": {
+        "value": " ",
+        "type": "Text"
+       }
+      }
+     }
+    },
+    {
+     "id": "whole message",
+     "message": {
+      "uptime": 86400,
+      "softwareVersion": "1.2.3",
+      "batteryLevel": 0.82,
+      "rssi": -71
+     },
+     "written": {
+      "urn:ngsi-ld:DeviceMeasurement:acme:gw-aaaaaaaaaaaa:uptime": {
+       "numValue": {
+        "value": 86400,
+        "metadata": {
+         "unitCode": {
+          "type": "Text",
+          "value": "SEC"
+         }
+        },
+        "type": "Number"
+       },
+       "dateObserved": {
+        "value": "<NOW>",
+        "type": "DateTime"
+       },
+       "timeSource": {
+        "value": "server",
+        "type": "Text"
+       },
+       "refDevice": {
+        "value": "urn:ngsi-ld:Device:acme:gw-aaaaaaaaaaaa",
+        "type": "Relationship"
+       },
+       "controlledProperty": {
+        "value": "uptime",
+        "type": "Text"
+       },
+       "measurementType": {
+        "value": "uptime",
+        "type": "Text"
+       }
+      },
+      "urn:ngsi-ld:DeviceMeasurement:acme:gw-aaaaaaaaaaaa:batteryLevel": {
+       "numValue": {
+        "value": 0.82,
+        "metadata": {
+         "unitCode": {
+          "type": "Text",
+          "value": "C62"
+         }
+        },
+        "type": "Number"
+       },
+       "dateObserved": {
+        "value": "<NOW>",
+        "type": "DateTime"
+       },
+       "timeSource": {
+        "value": "server",
+        "type": "Text"
+       },
+       "refDevice": {
+        "value": "urn:ngsi-ld:Device:acme:gw-aaaaaaaaaaaa",
+        "type": "Relationship"
+       },
+       "controlledProperty": {
+        "value": "batteryLevel",
+        "type": "Text"
+       },
+       "measurementType": {
+        "value": "batteryLevel",
+        "type": "Text"
+       }
+      },
+      "urn:ngsi-ld:DeviceMeasurement:acme:gw-aaaaaaaaaaaa:rssi": {
+       "numValue": {
+        "value": -71,
+        "metadata": {
+         "unitCode": {
+          "type": "Text",
+          "value": "DBM"
+         }
+        },
+        "type": "Number"
+       },
+       "dateObserved": {
+        "value": "<NOW>",
+        "type": "DateTime"
+       },
+       "timeSource": {
+        "value": "server",
+        "type": "Text"
+       },
+       "refDevice": {
+        "value": "urn:ngsi-ld:Device:acme:gw-aaaaaaaaaaaa",
+        "type": "Relationship"
+       },
+       "controlledProperty": {
+        "value": "rssi",
+        "type": "Text"
+       },
+       "measurementType": {
+        "value": "rssi",
+        "type": "Text"
+       }
+      },
+      "<primary>": {
+       "dateLastValueReported": {
+        "value": "<NOW>",
+        "type": "DateTime"
+       },
+       "softwareVersion": {
+        "value": "1.2.3",
+        "type": "Text"
+       },
+       "rssi": {
+        "value": -71,
+        "metadata": {
+         "unitCode": {
+          "type": "Text",
+          "value": "DBM"
+         }
+        },
+        "type": "Number"
+       }
+      }
+     }
+    },
+    {
+     "id": "empty message",
+     "message": {},
+     "written": {}
+    },
+    {
+     "id": "uptime only",
+     "message": {
+      "uptime": 7
+     },
+     "written": {
+      "urn:ngsi-ld:DeviceMeasurement:acme:gw-aaaaaaaaaaaa:uptime": {
+       "numValue": {
+        "value": 7,
+        "metadata": {
+         "unitCode": {
+          "type": "Text",
+          "value": "SEC"
+         }
+        },
+        "type": "Number"
+       },
+       "dateObserved": {
+        "value": "<NOW>",
+        "type": "DateTime"
+       },
+       "timeSource": {
+        "value": "server",
+        "type": "Text"
+       },
+       "refDevice": {
+        "value": "urn:ngsi-ld:Device:acme:gw-aaaaaaaaaaaa",
+        "type": "Relationship"
+       },
+       "controlledProperty": {
+        "value": "uptime",
+        "type": "Text"
+       },
+       "measurementType": {
+        "value": "uptime",
+        "type": "Text"
+       }
+      },
+      "<primary>": {
+       "dateLastValueReported": {
+        "value": "<NOW>",
+        "type": "DateTime"
+       }
+      }
+     }
+    },
+    {
+     "id": "no uptime",
+     "message": {
+      "batteryLevel": 0.5,
+      "rssi": -60,
+      "softwareVersion": "2"
+     },
+     "written": {
+      "urn:ngsi-ld:DeviceMeasurement:acme:gw-aaaaaaaaaaaa:batteryLevel": {
+       "numValue": {
+        "value": 0.5,
+        "metadata": {
+         "unitCode": {
+          "type": "Text",
+          "value": "C62"
+         }
+        },
+        "type": "Number"
+       },
+       "dateObserved": {
+        "value": "<NOW>",
+        "type": "DateTime"
+       },
+       "timeSource": {
+        "value": "server",
+        "type": "Text"
+       },
+       "refDevice": {
+        "value": "urn:ngsi-ld:Device:acme:gw-aaaaaaaaaaaa",
+        "type": "Relationship"
+       },
+       "controlledProperty": {
+        "value": "batteryLevel",
+        "type": "Text"
+       },
+       "measurementType": {
+        "value": "batteryLevel",
+        "type": "Text"
+       }
+      },
+      "urn:ngsi-ld:DeviceMeasurement:acme:gw-aaaaaaaaaaaa:rssi": {
+       "numValue": {
+        "value": -60,
+        "metadata": {
+         "unitCode": {
+          "type": "Text",
+          "value": "DBM"
+         }
+        },
+        "type": "Number"
+       },
+       "dateObserved": {
+        "value": "<NOW>",
+        "type": "DateTime"
+       },
+       "timeSource": {
+        "value": "server",
+        "type": "Text"
+       },
+       "refDevice": {
+        "value": "urn:ngsi-ld:Device:acme:gw-aaaaaaaaaaaa",
+        "type": "Relationship"
+       },
+       "controlledProperty": {
+        "value": "rssi",
+        "type": "Text"
+       },
+       "measurementType": {
+        "value": "rssi",
+        "type": "Text"
+       }
+      },
+      "<primary>": {
+       "softwareVersion": {
+        "value": "2",
+        "type": "Text"
+       },
+       "rssi": {
+        "value": -60,
+        "metadata": {
+         "unitCode": {
+          "type": "Text",
+          "value": "DBM"
+         }
+        },
+        "type": "Number"
+       }
+      }
+     }
+    },
+    {
+     "id": "past TimeInstant",
+     "message": {
+      "uptime": 86400,
+      "softwareVersion": "1.2.3",
+      "batteryLevel": 0.82,
+      "rssi": -71,
+      "TimeInstant": "2020-01-01T00:00:00Z"
+     },
+     "written": {
+      "urn:ngsi-ld:DeviceMeasurement:acme:gw-aaaaaaaaaaaa:uptime": {
+       "numValue": {
+        "value": 86400,
+        "metadata": {
+         "unitCode": {
+          "type": "Text",
+          "value": "SEC"
+         }
+        },
+        "type": "Number"
+       },
+       "dateObserved": {
+        "value": "<NOW>",
+        "type": "DateTime"
+       },
+       "timeSource": {
+        "value": "server",
+        "type": "Text"
+       },
+       "refDevice": {
+        "value": "urn:ngsi-ld:Device:acme:gw-aaaaaaaaaaaa",
+        "type": "Relationship"
+       },
+       "controlledProperty": {
+        "value": "uptime",
+        "type": "Text"
+       },
+       "measurementType": {
+        "value": "uptime",
+        "type": "Text"
+       }
+      },
+      "urn:ngsi-ld:DeviceMeasurement:acme:gw-aaaaaaaaaaaa:batteryLevel": {
+       "numValue": {
+        "value": 0.82,
+        "metadata": {
+         "unitCode": {
+          "type": "Text",
+          "value": "C62"
+         }
+        },
+        "type": "Number"
+       },
+       "dateObserved": {
+        "value": "<NOW>",
+        "type": "DateTime"
+       },
+       "timeSource": {
+        "value": "server",
+        "type": "Text"
+       },
+       "refDevice": {
+        "value": "urn:ngsi-ld:Device:acme:gw-aaaaaaaaaaaa",
+        "type": "Relationship"
+       },
+       "controlledProperty": {
+        "value": "batteryLevel",
+        "type": "Text"
+       },
+       "measurementType": {
+        "value": "batteryLevel",
+        "type": "Text"
+       }
+      },
+      "urn:ngsi-ld:DeviceMeasurement:acme:gw-aaaaaaaaaaaa:rssi": {
+       "numValue": {
+        "value": -71,
+        "metadata": {
+         "unitCode": {
+          "type": "Text",
+          "value": "DBM"
+         }
+        },
+        "type": "Number"
+       },
+       "dateObserved": {
+        "value": "<NOW>",
+        "type": "DateTime"
+       },
+       "timeSource": {
+        "value": "server",
+        "type": "Text"
+       },
+       "refDevice": {
+        "value": "urn:ngsi-ld:Device:acme:gw-aaaaaaaaaaaa",
+        "type": "Relationship"
+       },
+       "controlledProperty": {
+        "value": "rssi",
+        "type": "Text"
+       },
+       "measurementType": {
+        "value": "rssi",
+        "type": "Text"
+       }
+      },
+      "<primary>": {
+       "dateLastValueReported": {
+        "value": "<NOW>",
+        "type": "DateTime"
+       },
+       "softwareVersion": {
+        "value": "1.2.3",
+        "type": "Text"
+       },
+       "rssi": {
+        "value": -71,
+        "metadata": {
+         "unitCode": {
+          "type": "Text",
+          "value": "DBM"
+         }
+        },
+        "type": "Number"
+       }
+      }
+     }
+    },
+    {
+     "id": "future TimeInstant",
+     "message": {
+      "uptime": 86400,
+      "softwareVersion": "1.2.3",
+      "batteryLevel": 0.82,
+      "rssi": -71,
+      "TimeInstant": "2099-01-01T00:00:00Z"
+     },
+     "written": {
+      "urn:ngsi-ld:DeviceMeasurement:acme:gw-aaaaaaaaaaaa:uptime": {
+       "numValue": {
+        "value": 86400,
+        "metadata": {
+         "unitCode": {
+          "type": "Text",
+          "value": "SEC"
+         }
+        },
+        "type": "Number"
+       },
+       "dateObserved": {
+        "value": "<NOW>",
+        "type": "DateTime"
+       },
+       "timeSource": {
+        "value": "server",
+        "type": "Text"
+       },
+       "refDevice": {
+        "value": "urn:ngsi-ld:Device:acme:gw-aaaaaaaaaaaa",
+        "type": "Relationship"
+       },
+       "controlledProperty": {
+        "value": "uptime",
+        "type": "Text"
+       },
+       "measurementType": {
+        "value": "uptime",
+        "type": "Text"
+       }
+      },
+      "urn:ngsi-ld:DeviceMeasurement:acme:gw-aaaaaaaaaaaa:batteryLevel": {
+       "numValue": {
+        "value": 0.82,
+        "metadata": {
+         "unitCode": {
+          "type": "Text",
+          "value": "C62"
+         }
+        },
+        "type": "Number"
+       },
+       "dateObserved": {
+        "value": "<NOW>",
+        "type": "DateTime"
+       },
+       "timeSource": {
+        "value": "server",
+        "type": "Text"
+       },
+       "refDevice": {
+        "value": "urn:ngsi-ld:Device:acme:gw-aaaaaaaaaaaa",
+        "type": "Relationship"
+       },
+       "controlledProperty": {
+        "value": "batteryLevel",
+        "type": "Text"
+       },
+       "measurementType": {
+        "value": "batteryLevel",
+        "type": "Text"
+       }
+      },
+      "urn:ngsi-ld:DeviceMeasurement:acme:gw-aaaaaaaaaaaa:rssi": {
+       "numValue": {
+        "value": -71,
+        "metadata": {
+         "unitCode": {
+          "type": "Text",
+          "value": "DBM"
+         }
+        },
+        "type": "Number"
+       },
+       "dateObserved": {
+        "value": "<NOW>",
+        "type": "DateTime"
+       },
+       "timeSource": {
+        "value": "server",
+        "type": "Text"
+       },
+       "refDevice": {
+        "value": "urn:ngsi-ld:Device:acme:gw-aaaaaaaaaaaa",
+        "type": "Relationship"
+       },
+       "controlledProperty": {
+        "value": "rssi",
+        "type": "Text"
+       },
+       "measurementType": {
+        "value": "rssi",
+        "type": "Text"
+       }
+      },
+      "<primary>": {
+       "dateLastValueReported": {
+        "value": "<NOW>",
+        "type": "DateTime"
+       },
+       "softwareVersion": {
+        "value": "1.2.3",
+        "type": "Text"
+       },
+       "rssi": {
+        "value": -71,
+        "metadata": {
+         "unitCode": {
+          "type": "Text",
+          "value": "DBM"
+         }
+        },
+        "type": "Number"
+       }
+      }
+     }
+    },
+    {
+     "id": "garbage TimeInstant",
+     "message": {
+      "uptime": 86400,
+      "softwareVersion": "1.2.3",
+      "batteryLevel": 0.82,
+      "rssi": -71,
+      "TimeInstant": "garbage"
+     },
+     "written": {
+      "urn:ngsi-ld:DeviceMeasurement:acme:gw-aaaaaaaaaaaa:uptime": {
+       "numValue": {
+        "value": 86400,
+        "metadata": {
+         "unitCode": {
+          "type": "Text",
+          "value": "SEC"
+         }
+        },
+        "type": "Number"
+       },
+       "dateObserved": {
+        "value": "<NOW>",
+        "type": "DateTime"
+       },
+       "timeSource": {
+        "value": "server",
+        "type": "Text"
+       },
+       "refDevice": {
+        "value": "urn:ngsi-ld:Device:acme:gw-aaaaaaaaaaaa",
+        "type": "Relationship"
+       },
+       "controlledProperty": {
+        "value": "uptime",
+        "type": "Text"
+       },
+       "measurementType": {
+        "value": "uptime",
+        "type": "Text"
+       }
+      },
+      "urn:ngsi-ld:DeviceMeasurement:acme:gw-aaaaaaaaaaaa:batteryLevel": {
+       "numValue": {
+        "value": 0.82,
+        "metadata": {
+         "unitCode": {
+          "type": "Text",
+          "value": "C62"
+         }
+        },
+        "type": "Number"
+       },
+       "dateObserved": {
+        "value": "<NOW>",
+        "type": "DateTime"
+       },
+       "timeSource": {
+        "value": "server",
+        "type": "Text"
+       },
+       "refDevice": {
+        "value": "urn:ngsi-ld:Device:acme:gw-aaaaaaaaaaaa",
+        "type": "Relationship"
+       },
+       "controlledProperty": {
+        "value": "batteryLevel",
+        "type": "Text"
+       },
+       "measurementType": {
+        "value": "batteryLevel",
+        "type": "Text"
+       }
+      },
+      "urn:ngsi-ld:DeviceMeasurement:acme:gw-aaaaaaaaaaaa:rssi": {
+       "numValue": {
+        "value": -71,
+        "metadata": {
+         "unitCode": {
+          "type": "Text",
+          "value": "DBM"
+         }
+        },
+        "type": "Number"
+       },
+       "dateObserved": {
+        "value": "<NOW>",
+        "type": "DateTime"
+       },
+       "timeSource": {
+        "value": "server",
+        "type": "Text"
+       },
+       "refDevice": {
+        "value": "urn:ngsi-ld:Device:acme:gw-aaaaaaaaaaaa",
+        "type": "Relationship"
+       },
+       "controlledProperty": {
+        "value": "rssi",
+        "type": "Text"
+       },
+       "measurementType": {
+        "value": "rssi",
+        "type": "Text"
+       }
+      },
+      "<primary>": {
+       "dateLastValueReported": {
+        "value": "<NOW>",
+        "type": "DateTime"
+       },
+       "softwareVersion": {
+        "value": "1.2.3",
+        "type": "Text"
+       },
+       "rssi": {
+        "value": -71,
+        "metadata": {
+         "unitCode": {
+          "type": "Text",
+          "value": "DBM"
+         }
+        },
+        "type": "Number"
+       }
+      }
+     }
+    },
+    {
+     "id": "bad uptime, good rest",
+     "message": {
+      "uptime": "abc",
+      "softwareVersion": "1.2.3",
+      "batteryLevel": 0.82,
+      "rssi": -71
+     },
+     "written": {
+      "urn:ngsi-ld:DeviceMeasurement:acme:gw-aaaaaaaaaaaa:batteryLevel": {
+       "numValue": {
+        "value": 0.82,
+        "metadata": {
+         "unitCode": {
+          "type": "Text",
+          "value": "C62"
+         }
+        },
+        "type": "Number"
+       },
+       "dateObserved": {
+        "value": "<NOW>",
+        "type": "DateTime"
+       },
+       "timeSource": {
+        "value": "server",
+        "type": "Text"
+       },
+       "refDevice": {
+        "value": "urn:ngsi-ld:Device:acme:gw-aaaaaaaaaaaa",
+        "type": "Relationship"
+       },
+       "controlledProperty": {
+        "value": "batteryLevel",
+        "type": "Text"
+       },
+       "measurementType": {
+        "value": "batteryLevel",
+        "type": "Text"
+       }
+      },
+      "urn:ngsi-ld:DeviceMeasurement:acme:gw-aaaaaaaaaaaa:rssi": {
+       "numValue": {
+        "value": -71,
+        "metadata": {
+         "unitCode": {
+          "type": "Text",
+          "value": "DBM"
+         }
+        },
+        "type": "Number"
+       },
+       "dateObserved": {
+        "value": "<NOW>",
+        "type": "DateTime"
+       },
+       "timeSource": {
+        "value": "server",
+        "type": "Text"
+       },
+       "refDevice": {
+        "value": "urn:ngsi-ld:Device:acme:gw-aaaaaaaaaaaa",
+        "type": "Relationship"
+       },
+       "controlledProperty": {
+        "value": "rssi",
+        "type": "Text"
+       },
+       "measurementType": {
+        "value": "rssi",
+        "type": "Text"
+       }
+      },
+      "<primary>": {
+       "softwareVersion": {
+        "value": "1.2.3",
+        "type": "Text"
+       },
+       "rssi": {
+        "value": -71,
+        "metadata": {
+         "unitCode": {
+          "type": "Text",
+          "value": "DBM"
+         }
+        },
+        "type": "Number"
+       }
+      }
+     }
+    },
+    {
+     "id": "extra keys",
+     "message": {
+      "uptime": 86400,
+      "softwareVersion": "1.2.3",
+      "batteryLevel": 0.82,
+      "rssi": -71,
+      "foo": 1,
+      "location": [
+       1,
+       2
+      ],
+      "deviceState": "x"
+     },
+     "written": {
+      "urn:ngsi-ld:DeviceMeasurement:acme:gw-aaaaaaaaaaaa:uptime": {
+       "numValue": {
+        "value": 86400,
+        "metadata": {
+         "unitCode": {
+          "type": "Text",
+          "value": "SEC"
+         }
+        },
+        "type": "Number"
+       },
+       "dateObserved": {
+        "value": "<NOW>",
+        "type": "DateTime"
+       },
+       "timeSource": {
+        "value": "server",
+        "type": "Text"
+       },
+       "refDevice": {
+        "value": "urn:ngsi-ld:Device:acme:gw-aaaaaaaaaaaa",
+        "type": "Relationship"
+       },
+       "controlledProperty": {
+        "value": "uptime",
+        "type": "Text"
+       },
+       "measurementType": {
+        "value": "uptime",
+        "type": "Text"
+       }
+      },
+      "urn:ngsi-ld:DeviceMeasurement:acme:gw-aaaaaaaaaaaa:batteryLevel": {
+       "numValue": {
+        "value": 0.82,
+        "metadata": {
+         "unitCode": {
+          "type": "Text",
+          "value": "C62"
+         }
+        },
+        "type": "Number"
+       },
+       "dateObserved": {
+        "value": "<NOW>",
+        "type": "DateTime"
+       },
+       "timeSource": {
+        "value": "server",
+        "type": "Text"
+       },
+       "refDevice": {
+        "value": "urn:ngsi-ld:Device:acme:gw-aaaaaaaaaaaa",
+        "type": "Relationship"
+       },
+       "controlledProperty": {
+        "value": "batteryLevel",
+        "type": "Text"
+       },
+       "measurementType": {
+        "value": "batteryLevel",
+        "type": "Text"
+       }
+      },
+      "urn:ngsi-ld:DeviceMeasurement:acme:gw-aaaaaaaaaaaa:rssi": {
+       "numValue": {
+        "value": -71,
+        "metadata": {
+         "unitCode": {
+          "type": "Text",
+          "value": "DBM"
+         }
+        },
+        "type": "Number"
+       },
+       "dateObserved": {
+        "value": "<NOW>",
+        "type": "DateTime"
+       },
+       "timeSource": {
+        "value": "server",
+        "type": "Text"
+       },
+       "refDevice": {
+        "value": "urn:ngsi-ld:Device:acme:gw-aaaaaaaaaaaa",
+        "type": "Relationship"
+       },
+       "controlledProperty": {
+        "value": "rssi",
+        "type": "Text"
+       },
+       "measurementType": {
+        "value": "rssi",
+        "type": "Text"
+       }
+      },
+      "<primary>": {
+       "dateLastValueReported": {
+        "value": "<NOW>",
+        "type": "DateTime"
+       },
+       "softwareVersion": {
+        "value": "1.2.3",
+        "type": "Text"
+       },
+       "rssi": {
+        "value": -71,
+        "metadata": {
+         "unitCode": {
+          "type": "Text",
+          "value": "DBM"
+         }
+        },
+        "type": "Number"
+       }
+      }
+     }
+    },
+    {
+     "id": "keys named like DM attributes",
+     "message": {
+      "uptime": 5,
+      "numValue": 9,
+      "name": "x",
+      "type": "y",
+      "id": "z",
+      "refDevice": "urn:x",
+      "controlledProperty": "p",
+      "measurementType": "m",
+      "dateObserved": "2001-01-01T00:00:00Z",
+      "timeSource": "device",
+      "dateLastValueReported": "2001-01-01T00:00:00Z"
+     },
+     "written": {
+      "urn:ngsi-ld:DeviceMeasurement:acme:gw-aaaaaaaaaaaa:uptime": {
+       "numValue": {
+        "value": 5,
+        "metadata": {
+         "unitCode": {
+          "type": "Text",
+          "value": "SEC"
+         }
+        },
+        "type": "Number"
+       },
+       "dateObserved": {
+        "value": "<NOW>",
+        "type": "DateTime"
+       },
+       "timeSource": {
+        "value": "server",
+        "type": "Text"
+       },
+       "refDevice": {
+        "value": "urn:ngsi-ld:Device:acme:gw-aaaaaaaaaaaa",
+        "type": "Relationship"
+       },
+       "controlledProperty": {
+        "value": "uptime",
+        "type": "Text"
+       },
+       "measurementType": {
+        "value": "uptime",
+        "type": "Text"
+       }
+      },
+      "<primary>": {
+       "dateLastValueReported": {
+        "value": "<NOW>",
+        "type": "DateTime"
+       }
+      }
+     }
+    }
+   ]
+  },
+  "sdm": {
+   "mappings_sha256": "ae911619bb4d471cdb6815b68c367ccb08c639a3862723cc6ad7c97aa1939e4f",
+   "cases": [
+    {
+     "id": "uptime: zero",
+     "message": {
+      "uptime": 0
+     },
+     "written": {
+      "urn:ngsi-ld:DeviceMeasurement:acme:gw-aaaaaaaaaaaa:uptime": {
+       "numValue": {
+        "value": 0,
+        "metadata": {
+         "unitCode": {
+          "type": "Text",
+          "value": "SEC"
+         }
+        },
+        "type": "Number"
+       },
+       "dateObserved": {
+        "value": "<NOW>",
+        "type": "DateTime"
+       },
+       "timeSource": {
+        "value": "server",
+        "type": "Text"
+       },
+       "refDevice": {
+        "value": "urn:ngsi-ld:Device:acme:gw-aaaaaaaaaaaa",
+        "type": "Relationship"
+       },
+       "controlledProperty": {
+        "value": "uptime",
+        "type": "Text"
+       },
+       "measurementType": {
+        "value": "instant",
+        "type": "Text"
+       },
+       "name": {
+        "value": "uptime",
+        "type": "Text"
+       }
+      },
+      "<primary>": {
+       "dateLastValueReported": {
+        "value": "<NOW>",
+        "type": "DateTime"
+       }
+      }
+     }
+    },
+    {
+     "id": "uptime: typical",
+     "message": {
+      "uptime": 86400
+     },
+     "written": {
+      "urn:ngsi-ld:DeviceMeasurement:acme:gw-aaaaaaaaaaaa:uptime": {
+       "numValue": {
+        "value": 86400,
+        "metadata": {
+         "unitCode": {
+          "type": "Text",
+          "value": "SEC"
+         }
+        },
+        "type": "Number"
+       },
+       "dateObserved": {
+        "value": "<NOW>",
+        "type": "DateTime"
+       },
+       "timeSource": {
+        "value": "server",
+        "type": "Text"
+       },
+       "refDevice": {
+        "value": "urn:ngsi-ld:Device:acme:gw-aaaaaaaaaaaa",
+        "type": "Relationship"
+       },
+       "controlledProperty": {
+        "value": "uptime",
+        "type": "Text"
+       },
+       "measurementType": {
+        "value": "instant",
+        "type": "Text"
+       },
+       "name": {
+        "value": "uptime",
+        "type": "Text"
+       }
+      },
+      "<primary>": {
+       "dateLastValueReported": {
+        "value": "<NOW>",
+        "type": "DateTime"
+       }
+      }
+     }
+    },
+    {
+     "id": "uptime: max",
+     "message": {
+      "uptime": 999999999999
+     },
+     "written": {
+      "urn:ngsi-ld:DeviceMeasurement:acme:gw-aaaaaaaaaaaa:uptime": {
+       "numValue": {
+        "value": 999999999999,
+        "metadata": {
+         "unitCode": {
+          "type": "Text",
+          "value": "SEC"
+         }
+        },
+        "type": "Number"
+       },
+       "dateObserved": {
+        "value": "<NOW>",
+        "type": "DateTime"
+       },
+       "timeSource": {
+        "value": "server",
+        "type": "Text"
+       },
+       "refDevice": {
+        "value": "urn:ngsi-ld:Device:acme:gw-aaaaaaaaaaaa",
+        "type": "Relationship"
+       },
+       "controlledProperty": {
+        "value": "uptime",
+        "type": "Text"
+       },
+       "measurementType": {
+        "value": "instant",
+        "type": "Text"
+       },
+       "name": {
+        "value": "uptime",
+        "type": "Text"
+       }
+      },
+      "<primary>": {
+       "dateLastValueReported": {
+        "value": "<NOW>",
+        "type": "DateTime"
+       }
+      }
+     }
+    },
+    {
+     "id": "uptime: limit",
+     "message": {
+      "uptime": 1000000000000.0
+     },
+     "written": {}
+    },
+    {
+     "id": "uptime: fraction",
+     "message": {
+      "uptime": 3.7
+     },
+     "written": {}
+    },
+    {
+     "id": "uptime: integral float",
+     "message": {
+      "uptime": 5.0
+     },
+     "written": {
+      "urn:ngsi-ld:DeviceMeasurement:acme:gw-aaaaaaaaaaaa:uptime": {
+       "numValue": {
+        "value": 5,
+        "metadata": {
+         "unitCode": {
+          "type": "Text",
+          "value": "SEC"
+         }
+        },
+        "type": "Number"
+       },
+       "dateObserved": {
+        "value": "<NOW>",
+        "type": "DateTime"
+       },
+       "timeSource": {
+        "value": "server",
+        "type": "Text"
+       },
+       "refDevice": {
+        "value": "urn:ngsi-ld:Device:acme:gw-aaaaaaaaaaaa",
+        "type": "Relationship"
+       },
+       "controlledProperty": {
+        "value": "uptime",
+        "type": "Text"
+       },
+       "measurementType": {
+        "value": "instant",
+        "type": "Text"
+       },
+       "name": {
+        "value": "uptime",
+        "type": "Text"
+       }
+      },
+      "<primary>": {
+       "dateLastValueReported": {
+        "value": "<NOW>",
+        "type": "DateTime"
+       }
+      }
+     }
+    },
+    {
+     "id": "uptime: negative",
+     "message": {
+      "uptime": -5
+     },
+     "written": {}
+    },
+    {
+     "id": "uptime: huge",
+     "message": {
+      "uptime": 1e+20
+     },
+     "written": {}
+    },
+    {
+     "id": "uptime: numeric string",
+     "message": {
+      "uptime": "86400"
+     },
+     "written": {}
+    },
+    {
+     "id": "uptime: fraction string",
+     "message": {
+      "uptime": "3.5"
+     },
+     "written": {}
+    },
+    {
+     "id": "uptime: text",
+     "message": {
+      "uptime": "abc"
+     },
+     "written": {}
+    },
+    {
+     "id": "uptime: mixed string",
+     "message": {
+      "uptime": "12abc"
+     },
+     "written": {}
+    },
+    {
+     "id": "uptime: null",
+     "message": {
+      "uptime": null
+     },
+     "written": {}
+    },
+    {
+     "id": "uptime: true",
+     "message": {
+      "uptime": true
+     },
+     "written": {}
+    },
+    {
+     "id": "uptime: false",
+     "message": {
+      "uptime": false
+     },
+     "written": {}
+    },
+    {
+     "id": "uptime: list",
+     "message": {
+      "uptime": [
+       1
+      ]
+     },
+     "written": {}
+    },
+    {
+     "id": "uptime: object",
+     "message": {
+      "uptime": {
+       "a": 1
+      }
+     },
+     "written": {}
+    },
+    {
+     "id": "uptime: empty string",
+     "message": {
+      "uptime": ""
+     },
+     "written": {}
+    },
+    {
+     "id": "batteryLevel: zero",
+     "message": {
+      "batteryLevel": 0
+     },
+     "written": {
+      "urn:ngsi-ld:DeviceMeasurement:acme:gw-aaaaaaaaaaaa:batteryLevel": {
+       "numValue": {
+        "value": 0,
+        "metadata": {
+         "unitCode": {
+          "type": "Text",
+          "value": "C62"
+         }
+        },
+        "type": "Number"
+       },
+       "dateObserved": {
+        "value": "<NOW>",
+        "type": "DateTime"
+       },
+       "timeSource": {
+        "value": "server",
+        "type": "Text"
+       },
+       "refDevice": {
+        "value": "urn:ngsi-ld:Device:acme:gw-aaaaaaaaaaaa",
+        "type": "Relationship"
+       },
+       "controlledProperty": {
+        "value": "batteryLevel",
+        "type": "Text"
+       },
+       "measurementType": {
+        "value": "instant",
+        "type": "Text"
+       },
+       "name": {
+        "value": "batteryLevel",
+        "type": "Text"
+       }
+      }
+     }
+    },
+    {
+     "id": "batteryLevel: half",
+     "message": {
+      "batteryLevel": 0.5
+     },
+     "written": {
+      "urn:ngsi-ld:DeviceMeasurement:acme:gw-aaaaaaaaaaaa:batteryLevel": {
+       "numValue": {
+        "value": 0.5,
+        "metadata": {
+         "unitCode": {
+          "type": "Text",
+          "value": "C62"
+         }
+        },
+        "type": "Number"
+       },
+       "dateObserved": {
+        "value": "<NOW>",
+        "type": "DateTime"
+       },
+       "timeSource": {
+        "value": "server",
+        "type": "Text"
+       },
+       "refDevice": {
+        "value": "urn:ngsi-ld:Device:acme:gw-aaaaaaaaaaaa",
+        "type": "Relationship"
+       },
+       "controlledProperty": {
+        "value": "batteryLevel",
+        "type": "Text"
+       },
+       "measurementType": {
+        "value": "instant",
+        "type": "Text"
+       },
+       "name": {
+        "value": "batteryLevel",
+        "type": "Text"
+       }
+      }
+     }
+    },
+    {
+     "id": "batteryLevel: one",
+     "message": {
+      "batteryLevel": 1
+     },
+     "written": {
+      "urn:ngsi-ld:DeviceMeasurement:acme:gw-aaaaaaaaaaaa:batteryLevel": {
+       "numValue": {
+        "value": 1,
+        "metadata": {
+         "unitCode": {
+          "type": "Text",
+          "value": "C62"
+         }
+        },
+        "type": "Number"
+       },
+       "dateObserved": {
+        "value": "<NOW>",
+        "type": "DateTime"
+       },
+       "timeSource": {
+        "value": "server",
+        "type": "Text"
+       },
+       "refDevice": {
+        "value": "urn:ngsi-ld:Device:acme:gw-aaaaaaaaaaaa",
+        "type": "Relationship"
+       },
+       "controlledProperty": {
+        "value": "batteryLevel",
+        "type": "Text"
+       },
+       "measurementType": {
+        "value": "instant",
+        "type": "Text"
+       },
+       "name": {
+        "value": "batteryLevel",
+        "type": "Text"
+       }
+      }
+     }
+    },
+    {
+     "id": "batteryLevel: unknown",
+     "message": {
+      "batteryLevel": -1
+     },
+     "written": {
+      "urn:ngsi-ld:DeviceMeasurement:acme:gw-aaaaaaaaaaaa:batteryLevel": {
+       "numValue": {
+        "value": -1,
+        "metadata": {
+         "unitCode": {
+          "type": "Text",
+          "value": "C62"
+         }
+        },
+        "type": "Number"
+       },
+       "dateObserved": {
+        "value": "<NOW>",
+        "type": "DateTime"
+       },
+       "timeSource": {
+        "value": "server",
+        "type": "Text"
+       },
+       "refDevice": {
+        "value": "urn:ngsi-ld:Device:acme:gw-aaaaaaaaaaaa",
+        "type": "Relationship"
+       },
+       "controlledProperty": {
+        "value": "batteryLevel",
+        "type": "Text"
+       },
+       "measurementType": {
+        "value": "instant",
+        "type": "Text"
+       },
+       "name": {
+        "value": "batteryLevel",
+        "type": "Text"
+       }
+      }
+     }
+    },
+    {
+     "id": "batteryLevel: five",
+     "message": {
+      "batteryLevel": 5
+     },
+     "written": {}
+    },
+    {
+     "id": "batteryLevel: just above one",
+     "message": {
+      "batteryLevel": 1.0001
+     },
+     "written": {}
+    },
+    {
+     "id": "batteryLevel: negative fraction",
+     "message": {
+      "batteryLevel": -0.5
+     },
+     "written": {}
+    },
+    {
+     "id": "batteryLevel: huge",
+     "message": {
+      "batteryLevel": 1e+20
+     },
+     "written": {}
+    },
+    {
+     "id": "batteryLevel: numeric string",
+     "message": {
+      "batteryLevel": "0.5"
+     },
+     "written": {}
+    },
+    {
+     "id": "batteryLevel: text",
+     "message": {
+      "batteryLevel": "abc"
+     },
+     "written": {}
+    },
+    {
+     "id": "batteryLevel: null",
+     "message": {
+      "batteryLevel": null
+     },
+     "written": {}
+    },
+    {
+     "id": "batteryLevel: true",
+     "message": {
+      "batteryLevel": true
+     },
+     "written": {}
+    },
+    {
+     "id": "batteryLevel: list",
+     "message": {
+      "batteryLevel": [
+       0.5
+      ]
+     },
+     "written": {}
+    },
+    {
+     "id": "batteryLevel: object",
+     "message": {
+      "batteryLevel": {}
+     },
+     "written": {}
+    },
+    {
+     "id": "batteryLevel: empty string",
+     "message": {
+      "batteryLevel": ""
+     },
+     "written": {}
+    },
+    {
+     "id": "rssi: typical",
+     "message": {
+      "rssi": -71
+     },
+     "written": {
+      "urn:ngsi-ld:DeviceMeasurement:acme:gw-aaaaaaaaaaaa:rssi": {
+       "numValue": {
+        "value": -71,
+        "metadata": {
+         "unitCode": {
+          "type": "Text",
+          "value": "DBM"
+         }
+        },
+        "type": "Number"
+       },
+       "dateObserved": {
+        "value": "<NOW>",
+        "type": "DateTime"
+       },
+       "timeSource": {
+        "value": "server",
+        "type": "Text"
+       },
+       "refDevice": {
+        "value": "urn:ngsi-ld:Device:acme:gw-aaaaaaaaaaaa",
+        "type": "Relationship"
+       },
+       "controlledProperty": {
+        "value": "rssi",
+        "type": "Text"
+       },
+       "measurementType": {
+        "value": "instant",
+        "type": "Text"
+       },
+       "name": {
+        "value": "rssi",
+        "type": "Text"
+       }
+      },
+      "<primary>": {
+       "rssi": {
+        "value": -71,
+        "metadata": {
+         "unitCode": {
+          "type": "Text",
+          "value": "DBM"
+         }
+        },
+        "type": "Number"
+       }
+      }
+     }
+    },
+    {
+     "id": "rssi: fraction",
+     "message": {
+      "rssi": -71.5
+     },
+     "written": {
+      "urn:ngsi-ld:DeviceMeasurement:acme:gw-aaaaaaaaaaaa:rssi": {
+       "numValue": {
+        "value": -71.5,
+        "metadata": {
+         "unitCode": {
+          "type": "Text",
+          "value": "DBM"
+         }
+        },
+        "type": "Number"
+       },
+       "dateObserved": {
+        "value": "<NOW>",
+        "type": "DateTime"
+       },
+       "timeSource": {
+        "value": "server",
+        "type": "Text"
+       },
+       "refDevice": {
+        "value": "urn:ngsi-ld:Device:acme:gw-aaaaaaaaaaaa",
+        "type": "Relationship"
+       },
+       "controlledProperty": {
+        "value": "rssi",
+        "type": "Text"
+       },
+       "measurementType": {
+        "value": "instant",
+        "type": "Text"
+       },
+       "name": {
+        "value": "rssi",
+        "type": "Text"
+       }
+      },
+      "<primary>": {
+       "rssi": {
+        "value": -71.5,
+        "metadata": {
+         "unitCode": {
+          "type": "Text",
+          "value": "DBM"
+         }
+        },
+        "type": "Number"
+       }
+      }
+     }
+    },
+    {
+     "id": "rssi: zero",
+     "message": {
+      "rssi": 0
+     },
+     "written": {
+      "urn:ngsi-ld:DeviceMeasurement:acme:gw-aaaaaaaaaaaa:rssi": {
+       "numValue": {
+        "value": 0,
+        "metadata": {
+         "unitCode": {
+          "type": "Text",
+          "value": "DBM"
+         }
+        },
+        "type": "Number"
+       },
+       "dateObserved": {
+        "value": "<NOW>",
+        "type": "DateTime"
+       },
+       "timeSource": {
+        "value": "server",
+        "type": "Text"
+       },
+       "refDevice": {
+        "value": "urn:ngsi-ld:Device:acme:gw-aaaaaaaaaaaa",
+        "type": "Relationship"
+       },
+       "controlledProperty": {
+        "value": "rssi",
+        "type": "Text"
+       },
+       "measurementType": {
+        "value": "instant",
+        "type": "Text"
+       },
+       "name": {
+        "value": "rssi",
+        "type": "Text"
+       }
+      },
+      "<primary>": {
+       "rssi": {
+        "value": 0,
+        "metadata": {
+         "unitCode": {
+          "type": "Text",
+          "value": "DBM"
+         }
+        },
+        "type": "Number"
+       }
+      }
+     }
+    },
+    {
+     "id": "rssi: floor",
+     "message": {
+      "rssi": -200
+     },
+     "written": {
+      "urn:ngsi-ld:DeviceMeasurement:acme:gw-aaaaaaaaaaaa:rssi": {
+       "numValue": {
+        "value": -200,
+        "metadata": {
+         "unitCode": {
+          "type": "Text",
+          "value": "DBM"
+         }
+        },
+        "type": "Number"
+       },
+       "dateObserved": {
+        "value": "<NOW>",
+        "type": "DateTime"
+       },
+       "timeSource": {
+        "value": "server",
+        "type": "Text"
+       },
+       "refDevice": {
+        "value": "urn:ngsi-ld:Device:acme:gw-aaaaaaaaaaaa",
+        "type": "Relationship"
+       },
+       "controlledProperty": {
+        "value": "rssi",
+        "type": "Text"
+       },
+       "measurementType": {
+        "value": "instant",
+        "type": "Text"
+       },
+       "name": {
+        "value": "rssi",
+        "type": "Text"
+       }
+      },
+      "<primary>": {
+       "rssi": {
+        "value": -200,
+        "metadata": {
+         "unitCode": {
+          "type": "Text",
+          "value": "DBM"
+         }
+        },
+        "type": "Number"
+       }
+      }
+     }
+    },
+    {
+     "id": "rssi: below floor",
+     "message": {
+      "rssi": -201
+     },
+     "written": {}
+    },
+    {
+     "id": "rssi: positive",
+     "message": {
+      "rssi": 1
+     },
+     "written": {}
+    },
+    {
+     "id": "rssi: huge",
+     "message": {
+      "rssi": 1e+20
+     },
+     "written": {}
+    },
+    {
+     "id": "rssi: numeric string",
+     "message": {
+      "rssi": "-71"
+     },
+     "written": {}
+    },
+    {
+     "id": "rssi: text",
+     "message": {
+      "rssi": "abc"
+     },
+     "written": {}
+    },
+    {
+     "id": "rssi: null",
+     "message": {
+      "rssi": null
+     },
+     "written": {}
+    },
+    {
+     "id": "rssi: true",
+     "message": {
+      "rssi": true
+     },
+     "written": {}
+    },
+    {
+     "id": "rssi: list",
+     "message": {
+      "rssi": [
+       -71
+      ]
+     },
+     "written": {}
+    },
+    {
+     "id": "rssi: object",
+     "message": {
+      "rssi": {}
+     },
+     "written": {}
+    },
+    {
+     "id": "rssi: empty string",
+     "message": {
+      "rssi": ""
+     },
+     "written": {}
+    },
+    {
+     "id": "softwareVersion: typical",
+     "message": {
+      "softwareVersion": "1.2.3"
+     },
+     "written": {
+      "<primary>": {
+       "softwareVersion": {
+        "value": "1.2.3",
+        "type": "Text"
+       }
+      }
+     }
+    },
+    {
+     "id": "softwareVersion: 64 chars",
+     "message": {
+      "softwareVersion": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+     },
+     "written": {
+      "<primary>": {
+       "softwareVersion": {
+        "value": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "type": "Text"
+       }
+      }
+     }
+    },
+    {
+     "id": "softwareVersion: 65 chars",
+     "message": {
+      "softwareVersion": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+     },
+     "written": {}
+    },
+    {
+     "id": "softwareVersion: empty string",
+     "message": {
+      "softwareVersion": ""
+     },
+     "written": {}
+    },
+    {
+     "id": "softwareVersion: number",
+     "message": {
+      "softwareVersion": 123
+     },
+     "written": {}
+    },
+    {
+     "id": "softwareVersion: numeric string",
+     "message": {
+      "softwareVersion": "123"
+     },
+     "written": {
+      "<primary>": {
+       "softwareVersion": {
+        "value": "123",
+        "type": "Text"
+       }
+      }
+     }
+    },
+    {
+     "id": "softwareVersion: null",
+     "message": {
+      "softwareVersion": null
+     },
+     "written": {}
+    },
+    {
+     "id": "softwareVersion: true",
+     "message": {
+      "softwareVersion": true
+     },
+     "written": {}
+    },
+    {
+     "id": "softwareVersion: list",
+     "message": {
+      "softwareVersion": [
+       "1"
+      ]
+     },
+     "written": {}
+    },
+    {
+     "id": "softwareVersion: object",
+     "message": {
+      "softwareVersion": {}
+     },
+     "written": {}
+    },
+    {
+     "id": "softwareVersion: blank",
+     "message": {
+      "softwareVersion": " "
+     },
+     "written": {
+      "<primary>": {
+       "softwareVersion": {
+        "value": " ",
+        "type": "Text"
+       }
+      }
+     }
+    },
+    {
+     "id": "whole message",
+     "message": {
+      "uptime": 86400,
+      "softwareVersion": "1.2.3",
+      "batteryLevel": 0.82,
+      "rssi": -71
+     },
+     "written": {
+      "urn:ngsi-ld:DeviceMeasurement:acme:gw-aaaaaaaaaaaa:uptime": {
+       "numValue": {
+        "value": 86400,
+        "metadata": {
+         "unitCode": {
+          "type": "Text",
+          "value": "SEC"
+         }
+        },
+        "type": "Number"
+       },
+       "dateObserved": {
+        "value": "<NOW>",
+        "type": "DateTime"
+       },
+       "timeSource": {
+        "value": "server",
+        "type": "Text"
+       },
+       "refDevice": {
+        "value": "urn:ngsi-ld:Device:acme:gw-aaaaaaaaaaaa",
+        "type": "Relationship"
+       },
+       "controlledProperty": {
+        "value": "uptime",
+        "type": "Text"
+       },
+       "measurementType": {
+        "value": "instant",
+        "type": "Text"
+       },
+       "name": {
+        "value": "uptime",
+        "type": "Text"
+       }
+      },
+      "urn:ngsi-ld:DeviceMeasurement:acme:gw-aaaaaaaaaaaa:batteryLevel": {
+       "numValue": {
+        "value": 0.82,
+        "metadata": {
+         "unitCode": {
+          "type": "Text",
+          "value": "C62"
+         }
+        },
+        "type": "Number"
+       },
+       "dateObserved": {
+        "value": "<NOW>",
+        "type": "DateTime"
+       },
+       "timeSource": {
+        "value": "server",
+        "type": "Text"
+       },
+       "refDevice": {
+        "value": "urn:ngsi-ld:Device:acme:gw-aaaaaaaaaaaa",
+        "type": "Relationship"
+       },
+       "controlledProperty": {
+        "value": "batteryLevel",
+        "type": "Text"
+       },
+       "measurementType": {
+        "value": "instant",
+        "type": "Text"
+       },
+       "name": {
+        "value": "batteryLevel",
+        "type": "Text"
+       }
+      },
+      "urn:ngsi-ld:DeviceMeasurement:acme:gw-aaaaaaaaaaaa:rssi": {
+       "numValue": {
+        "value": -71,
+        "metadata": {
+         "unitCode": {
+          "type": "Text",
+          "value": "DBM"
+         }
+        },
+        "type": "Number"
+       },
+       "dateObserved": {
+        "value": "<NOW>",
+        "type": "DateTime"
+       },
+       "timeSource": {
+        "value": "server",
+        "type": "Text"
+       },
+       "refDevice": {
+        "value": "urn:ngsi-ld:Device:acme:gw-aaaaaaaaaaaa",
+        "type": "Relationship"
+       },
+       "controlledProperty": {
+        "value": "rssi",
+        "type": "Text"
+       },
+       "measurementType": {
+        "value": "instant",
+        "type": "Text"
+       },
+       "name": {
+        "value": "rssi",
+        "type": "Text"
+       }
+      },
+      "<primary>": {
+       "dateLastValueReported": {
+        "value": "<NOW>",
+        "type": "DateTime"
+       },
+       "softwareVersion": {
+        "value": "1.2.3",
+        "type": "Text"
+       },
+       "rssi": {
+        "value": -71,
+        "metadata": {
+         "unitCode": {
+          "type": "Text",
+          "value": "DBM"
+         }
+        },
+        "type": "Number"
+       }
+      }
+     }
+    },
+    {
+     "id": "empty message",
+     "message": {},
+     "written": {}
+    },
+    {
+     "id": "uptime only",
+     "message": {
+      "uptime": 7
+     },
+     "written": {
+      "urn:ngsi-ld:DeviceMeasurement:acme:gw-aaaaaaaaaaaa:uptime": {
+       "numValue": {
+        "value": 7,
+        "metadata": {
+         "unitCode": {
+          "type": "Text",
+          "value": "SEC"
+         }
+        },
+        "type": "Number"
+       },
+       "dateObserved": {
+        "value": "<NOW>",
+        "type": "DateTime"
+       },
+       "timeSource": {
+        "value": "server",
+        "type": "Text"
+       },
+       "refDevice": {
+        "value": "urn:ngsi-ld:Device:acme:gw-aaaaaaaaaaaa",
+        "type": "Relationship"
+       },
+       "controlledProperty": {
+        "value": "uptime",
+        "type": "Text"
+       },
+       "measurementType": {
+        "value": "instant",
+        "type": "Text"
+       },
+       "name": {
+        "value": "uptime",
+        "type": "Text"
+       }
+      },
+      "<primary>": {
+       "dateLastValueReported": {
+        "value": "<NOW>",
+        "type": "DateTime"
+       }
+      }
+     }
+    },
+    {
+     "id": "no uptime",
+     "message": {
+      "batteryLevel": 0.5,
+      "rssi": -60,
+      "softwareVersion": "2"
+     },
+     "written": {
+      "urn:ngsi-ld:DeviceMeasurement:acme:gw-aaaaaaaaaaaa:batteryLevel": {
+       "numValue": {
+        "value": 0.5,
+        "metadata": {
+         "unitCode": {
+          "type": "Text",
+          "value": "C62"
+         }
+        },
+        "type": "Number"
+       },
+       "dateObserved": {
+        "value": "<NOW>",
+        "type": "DateTime"
+       },
+       "timeSource": {
+        "value": "server",
+        "type": "Text"
+       },
+       "refDevice": {
+        "value": "urn:ngsi-ld:Device:acme:gw-aaaaaaaaaaaa",
+        "type": "Relationship"
+       },
+       "controlledProperty": {
+        "value": "batteryLevel",
+        "type": "Text"
+       },
+       "measurementType": {
+        "value": "instant",
+        "type": "Text"
+       },
+       "name": {
+        "value": "batteryLevel",
+        "type": "Text"
+       }
+      },
+      "urn:ngsi-ld:DeviceMeasurement:acme:gw-aaaaaaaaaaaa:rssi": {
+       "numValue": {
+        "value": -60,
+        "metadata": {
+         "unitCode": {
+          "type": "Text",
+          "value": "DBM"
+         }
+        },
+        "type": "Number"
+       },
+       "dateObserved": {
+        "value": "<NOW>",
+        "type": "DateTime"
+       },
+       "timeSource": {
+        "value": "server",
+        "type": "Text"
+       },
+       "refDevice": {
+        "value": "urn:ngsi-ld:Device:acme:gw-aaaaaaaaaaaa",
+        "type": "Relationship"
+       },
+       "controlledProperty": {
+        "value": "rssi",
+        "type": "Text"
+       },
+       "measurementType": {
+        "value": "instant",
+        "type": "Text"
+       },
+       "name": {
+        "value": "rssi",
+        "type": "Text"
+       }
+      },
+      "<primary>": {
+       "softwareVersion": {
+        "value": "2",
+        "type": "Text"
+       },
+       "rssi": {
+        "value": -60,
+        "metadata": {
+         "unitCode": {
+          "type": "Text",
+          "value": "DBM"
+         }
+        },
+        "type": "Number"
+       }
+      }
+     }
+    },
+    {
+     "id": "past TimeInstant",
+     "message": {
+      "uptime": 86400,
+      "softwareVersion": "1.2.3",
+      "batteryLevel": 0.82,
+      "rssi": -71,
+      "TimeInstant": "2020-01-01T00:00:00Z"
+     },
+     "written": {
+      "urn:ngsi-ld:DeviceMeasurement:acme:gw-aaaaaaaaaaaa:uptime": {
+       "numValue": {
+        "value": 86400,
+        "metadata": {
+         "unitCode": {
+          "type": "Text",
+          "value": "SEC"
+         }
+        },
+        "type": "Number"
+       },
+       "dateObserved": {
+        "value": "<NOW>",
+        "type": "DateTime"
+       },
+       "timeSource": {
+        "value": "server",
+        "type": "Text"
+       },
+       "refDevice": {
+        "value": "urn:ngsi-ld:Device:acme:gw-aaaaaaaaaaaa",
+        "type": "Relationship"
+       },
+       "controlledProperty": {
+        "value": "uptime",
+        "type": "Text"
+       },
+       "measurementType": {
+        "value": "instant",
+        "type": "Text"
+       },
+       "name": {
+        "value": "uptime",
+        "type": "Text"
+       }
+      },
+      "urn:ngsi-ld:DeviceMeasurement:acme:gw-aaaaaaaaaaaa:batteryLevel": {
+       "numValue": {
+        "value": 0.82,
+        "metadata": {
+         "unitCode": {
+          "type": "Text",
+          "value": "C62"
+         }
+        },
+        "type": "Number"
+       },
+       "dateObserved": {
+        "value": "<NOW>",
+        "type": "DateTime"
+       },
+       "timeSource": {
+        "value": "server",
+        "type": "Text"
+       },
+       "refDevice": {
+        "value": "urn:ngsi-ld:Device:acme:gw-aaaaaaaaaaaa",
+        "type": "Relationship"
+       },
+       "controlledProperty": {
+        "value": "batteryLevel",
+        "type": "Text"
+       },
+       "measurementType": {
+        "value": "instant",
+        "type": "Text"
+       },
+       "name": {
+        "value": "batteryLevel",
+        "type": "Text"
+       }
+      },
+      "urn:ngsi-ld:DeviceMeasurement:acme:gw-aaaaaaaaaaaa:rssi": {
+       "numValue": {
+        "value": -71,
+        "metadata": {
+         "unitCode": {
+          "type": "Text",
+          "value": "DBM"
+         }
+        },
+        "type": "Number"
+       },
+       "dateObserved": {
+        "value": "<NOW>",
+        "type": "DateTime"
+       },
+       "timeSource": {
+        "value": "server",
+        "type": "Text"
+       },
+       "refDevice": {
+        "value": "urn:ngsi-ld:Device:acme:gw-aaaaaaaaaaaa",
+        "type": "Relationship"
+       },
+       "controlledProperty": {
+        "value": "rssi",
+        "type": "Text"
+       },
+       "measurementType": {
+        "value": "instant",
+        "type": "Text"
+       },
+       "name": {
+        "value": "rssi",
+        "type": "Text"
+       }
+      },
+      "<primary>": {
+       "dateLastValueReported": {
+        "value": "<NOW>",
+        "type": "DateTime"
+       },
+       "softwareVersion": {
+        "value": "1.2.3",
+        "type": "Text"
+       },
+       "rssi": {
+        "value": -71,
+        "metadata": {
+         "unitCode": {
+          "type": "Text",
+          "value": "DBM"
+         }
+        },
+        "type": "Number"
+       }
+      }
+     }
+    },
+    {
+     "id": "future TimeInstant",
+     "message": {
+      "uptime": 86400,
+      "softwareVersion": "1.2.3",
+      "batteryLevel": 0.82,
+      "rssi": -71,
+      "TimeInstant": "2099-01-01T00:00:00Z"
+     },
+     "written": {
+      "urn:ngsi-ld:DeviceMeasurement:acme:gw-aaaaaaaaaaaa:uptime": {
+       "numValue": {
+        "value": 86400,
+        "metadata": {
+         "unitCode": {
+          "type": "Text",
+          "value": "SEC"
+         }
+        },
+        "type": "Number"
+       },
+       "dateObserved": {
+        "value": "<NOW>",
+        "type": "DateTime"
+       },
+       "timeSource": {
+        "value": "server",
+        "type": "Text"
+       },
+       "refDevice": {
+        "value": "urn:ngsi-ld:Device:acme:gw-aaaaaaaaaaaa",
+        "type": "Relationship"
+       },
+       "controlledProperty": {
+        "value": "uptime",
+        "type": "Text"
+       },
+       "measurementType": {
+        "value": "instant",
+        "type": "Text"
+       },
+       "name": {
+        "value": "uptime",
+        "type": "Text"
+       }
+      },
+      "urn:ngsi-ld:DeviceMeasurement:acme:gw-aaaaaaaaaaaa:batteryLevel": {
+       "numValue": {
+        "value": 0.82,
+        "metadata": {
+         "unitCode": {
+          "type": "Text",
+          "value": "C62"
+         }
+        },
+        "type": "Number"
+       },
+       "dateObserved": {
+        "value": "<NOW>",
+        "type": "DateTime"
+       },
+       "timeSource": {
+        "value": "server",
+        "type": "Text"
+       },
+       "refDevice": {
+        "value": "urn:ngsi-ld:Device:acme:gw-aaaaaaaaaaaa",
+        "type": "Relationship"
+       },
+       "controlledProperty": {
+        "value": "batteryLevel",
+        "type": "Text"
+       },
+       "measurementType": {
+        "value": "instant",
+        "type": "Text"
+       },
+       "name": {
+        "value": "batteryLevel",
+        "type": "Text"
+       }
+      },
+      "urn:ngsi-ld:DeviceMeasurement:acme:gw-aaaaaaaaaaaa:rssi": {
+       "numValue": {
+        "value": -71,
+        "metadata": {
+         "unitCode": {
+          "type": "Text",
+          "value": "DBM"
+         }
+        },
+        "type": "Number"
+       },
+       "dateObserved": {
+        "value": "<NOW>",
+        "type": "DateTime"
+       },
+       "timeSource": {
+        "value": "server",
+        "type": "Text"
+       },
+       "refDevice": {
+        "value": "urn:ngsi-ld:Device:acme:gw-aaaaaaaaaaaa",
+        "type": "Relationship"
+       },
+       "controlledProperty": {
+        "value": "rssi",
+        "type": "Text"
+       },
+       "measurementType": {
+        "value": "instant",
+        "type": "Text"
+       },
+       "name": {
+        "value": "rssi",
+        "type": "Text"
+       }
+      },
+      "<primary>": {
+       "dateLastValueReported": {
+        "value": "<NOW>",
+        "type": "DateTime"
+       },
+       "softwareVersion": {
+        "value": "1.2.3",
+        "type": "Text"
+       },
+       "rssi": {
+        "value": -71,
+        "metadata": {
+         "unitCode": {
+          "type": "Text",
+          "value": "DBM"
+         }
+        },
+        "type": "Number"
+       }
+      }
+     }
+    },
+    {
+     "id": "garbage TimeInstant",
+     "message": {
+      "uptime": 86400,
+      "softwareVersion": "1.2.3",
+      "batteryLevel": 0.82,
+      "rssi": -71,
+      "TimeInstant": "garbage"
+     },
+     "written": {
+      "urn:ngsi-ld:DeviceMeasurement:acme:gw-aaaaaaaaaaaa:uptime": {
+       "numValue": {
+        "value": 86400,
+        "metadata": {
+         "unitCode": {
+          "type": "Text",
+          "value": "SEC"
+         }
+        },
+        "type": "Number"
+       },
+       "dateObserved": {
+        "value": "<NOW>",
+        "type": "DateTime"
+       },
+       "timeSource": {
+        "value": "server",
+        "type": "Text"
+       },
+       "refDevice": {
+        "value": "urn:ngsi-ld:Device:acme:gw-aaaaaaaaaaaa",
+        "type": "Relationship"
+       },
+       "controlledProperty": {
+        "value": "uptime",
+        "type": "Text"
+       },
+       "measurementType": {
+        "value": "instant",
+        "type": "Text"
+       },
+       "name": {
+        "value": "uptime",
+        "type": "Text"
+       }
+      },
+      "urn:ngsi-ld:DeviceMeasurement:acme:gw-aaaaaaaaaaaa:batteryLevel": {
+       "numValue": {
+        "value": 0.82,
+        "metadata": {
+         "unitCode": {
+          "type": "Text",
+          "value": "C62"
+         }
+        },
+        "type": "Number"
+       },
+       "dateObserved": {
+        "value": "<NOW>",
+        "type": "DateTime"
+       },
+       "timeSource": {
+        "value": "server",
+        "type": "Text"
+       },
+       "refDevice": {
+        "value": "urn:ngsi-ld:Device:acme:gw-aaaaaaaaaaaa",
+        "type": "Relationship"
+       },
+       "controlledProperty": {
+        "value": "batteryLevel",
+        "type": "Text"
+       },
+       "measurementType": {
+        "value": "instant",
+        "type": "Text"
+       },
+       "name": {
+        "value": "batteryLevel",
+        "type": "Text"
+       }
+      },
+      "urn:ngsi-ld:DeviceMeasurement:acme:gw-aaaaaaaaaaaa:rssi": {
+       "numValue": {
+        "value": -71,
+        "metadata": {
+         "unitCode": {
+          "type": "Text",
+          "value": "DBM"
+         }
+        },
+        "type": "Number"
+       },
+       "dateObserved": {
+        "value": "<NOW>",
+        "type": "DateTime"
+       },
+       "timeSource": {
+        "value": "server",
+        "type": "Text"
+       },
+       "refDevice": {
+        "value": "urn:ngsi-ld:Device:acme:gw-aaaaaaaaaaaa",
+        "type": "Relationship"
+       },
+       "controlledProperty": {
+        "value": "rssi",
+        "type": "Text"
+       },
+       "measurementType": {
+        "value": "instant",
+        "type": "Text"
+       },
+       "name": {
+        "value": "rssi",
+        "type": "Text"
+       }
+      },
+      "<primary>": {
+       "dateLastValueReported": {
+        "value": "<NOW>",
+        "type": "DateTime"
+       },
+       "softwareVersion": {
+        "value": "1.2.3",
+        "type": "Text"
+       },
+       "rssi": {
+        "value": -71,
+        "metadata": {
+         "unitCode": {
+          "type": "Text",
+          "value": "DBM"
+         }
+        },
+        "type": "Number"
+       }
+      }
+     }
+    },
+    {
+     "id": "bad uptime, good rest",
+     "message": {
+      "uptime": "abc",
+      "softwareVersion": "1.2.3",
+      "batteryLevel": 0.82,
+      "rssi": -71
+     },
+     "written": {
+      "urn:ngsi-ld:DeviceMeasurement:acme:gw-aaaaaaaaaaaa:batteryLevel": {
+       "numValue": {
+        "value": 0.82,
+        "metadata": {
+         "unitCode": {
+          "type": "Text",
+          "value": "C62"
+         }
+        },
+        "type": "Number"
+       },
+       "dateObserved": {
+        "value": "<NOW>",
+        "type": "DateTime"
+       },
+       "timeSource": {
+        "value": "server",
+        "type": "Text"
+       },
+       "refDevice": {
+        "value": "urn:ngsi-ld:Device:acme:gw-aaaaaaaaaaaa",
+        "type": "Relationship"
+       },
+       "controlledProperty": {
+        "value": "batteryLevel",
+        "type": "Text"
+       },
+       "measurementType": {
+        "value": "instant",
+        "type": "Text"
+       },
+       "name": {
+        "value": "batteryLevel",
+        "type": "Text"
+       }
+      },
+      "urn:ngsi-ld:DeviceMeasurement:acme:gw-aaaaaaaaaaaa:rssi": {
+       "numValue": {
+        "value": -71,
+        "metadata": {
+         "unitCode": {
+          "type": "Text",
+          "value": "DBM"
+         }
+        },
+        "type": "Number"
+       },
+       "dateObserved": {
+        "value": "<NOW>",
+        "type": "DateTime"
+       },
+       "timeSource": {
+        "value": "server",
+        "type": "Text"
+       },
+       "refDevice": {
+        "value": "urn:ngsi-ld:Device:acme:gw-aaaaaaaaaaaa",
+        "type": "Relationship"
+       },
+       "controlledProperty": {
+        "value": "rssi",
+        "type": "Text"
+       },
+       "measurementType": {
+        "value": "instant",
+        "type": "Text"
+       },
+       "name": {
+        "value": "rssi",
+        "type": "Text"
+       }
+      },
+      "<primary>": {
+       "softwareVersion": {
+        "value": "1.2.3",
+        "type": "Text"
+       },
+       "rssi": {
+        "value": -71,
+        "metadata": {
+         "unitCode": {
+          "type": "Text",
+          "value": "DBM"
+         }
+        },
+        "type": "Number"
+       }
+      }
+     }
+    },
+    {
+     "id": "extra keys",
+     "message": {
+      "uptime": 86400,
+      "softwareVersion": "1.2.3",
+      "batteryLevel": 0.82,
+      "rssi": -71,
+      "foo": 1,
+      "location": [
+       1,
+       2
+      ],
+      "deviceState": "x"
+     },
+     "written": {
+      "urn:ngsi-ld:DeviceMeasurement:acme:gw-aaaaaaaaaaaa:uptime": {
+       "numValue": {
+        "value": 86400,
+        "metadata": {
+         "unitCode": {
+          "type": "Text",
+          "value": "SEC"
+         }
+        },
+        "type": "Number"
+       },
+       "dateObserved": {
+        "value": "<NOW>",
+        "type": "DateTime"
+       },
+       "timeSource": {
+        "value": "server",
+        "type": "Text"
+       },
+       "refDevice": {
+        "value": "urn:ngsi-ld:Device:acme:gw-aaaaaaaaaaaa",
+        "type": "Relationship"
+       },
+       "controlledProperty": {
+        "value": "uptime",
+        "type": "Text"
+       },
+       "measurementType": {
+        "value": "instant",
+        "type": "Text"
+       },
+       "name": {
+        "value": "uptime",
+        "type": "Text"
+       }
+      },
+      "urn:ngsi-ld:DeviceMeasurement:acme:gw-aaaaaaaaaaaa:batteryLevel": {
+       "numValue": {
+        "value": 0.82,
+        "metadata": {
+         "unitCode": {
+          "type": "Text",
+          "value": "C62"
+         }
+        },
+        "type": "Number"
+       },
+       "dateObserved": {
+        "value": "<NOW>",
+        "type": "DateTime"
+       },
+       "timeSource": {
+        "value": "server",
+        "type": "Text"
+       },
+       "refDevice": {
+        "value": "urn:ngsi-ld:Device:acme:gw-aaaaaaaaaaaa",
+        "type": "Relationship"
+       },
+       "controlledProperty": {
+        "value": "batteryLevel",
+        "type": "Text"
+       },
+       "measurementType": {
+        "value": "instant",
+        "type": "Text"
+       },
+       "name": {
+        "value": "batteryLevel",
+        "type": "Text"
+       }
+      },
+      "urn:ngsi-ld:DeviceMeasurement:acme:gw-aaaaaaaaaaaa:rssi": {
+       "numValue": {
+        "value": -71,
+        "metadata": {
+         "unitCode": {
+          "type": "Text",
+          "value": "DBM"
+         }
+        },
+        "type": "Number"
+       },
+       "dateObserved": {
+        "value": "<NOW>",
+        "type": "DateTime"
+       },
+       "timeSource": {
+        "value": "server",
+        "type": "Text"
+       },
+       "refDevice": {
+        "value": "urn:ngsi-ld:Device:acme:gw-aaaaaaaaaaaa",
+        "type": "Relationship"
+       },
+       "controlledProperty": {
+        "value": "rssi",
+        "type": "Text"
+       },
+       "measurementType": {
+        "value": "instant",
+        "type": "Text"
+       },
+       "name": {
+        "value": "rssi",
+        "type": "Text"
+       }
+      },
+      "<primary>": {
+       "dateLastValueReported": {
+        "value": "<NOW>",
+        "type": "DateTime"
+       },
+       "softwareVersion": {
+        "value": "1.2.3",
+        "type": "Text"
+       },
+       "rssi": {
+        "value": -71,
+        "metadata": {
+         "unitCode": {
+          "type": "Text",
+          "value": "DBM"
+         }
+        },
+        "type": "Number"
+       }
+      }
+     }
+    },
+    {
+     "id": "keys named like DM attributes",
+     "message": {
+      "uptime": 5,
+      "numValue": 9,
+      "name": "x",
+      "type": "y",
+      "id": "z",
+      "refDevice": "urn:x",
+      "controlledProperty": "p",
+      "measurementType": "m",
+      "dateObserved": "2001-01-01T00:00:00Z",
+      "timeSource": "device",
+      "dateLastValueReported": "2001-01-01T00:00:00Z"
+     },
+     "written": {
+      "urn:ngsi-ld:DeviceMeasurement:acme:gw-aaaaaaaaaaaa:uptime": {
+       "numValue": {
+        "value": 5,
+        "metadata": {
+         "unitCode": {
+          "type": "Text",
+          "value": "SEC"
+         }
+        },
+        "type": "Number"
+       },
+       "dateObserved": {
+        "value": "<NOW>",
+        "type": "DateTime"
+       },
+       "timeSource": {
+        "value": "server",
+        "type": "Text"
+       },
+       "refDevice": {
+        "value": "urn:ngsi-ld:Device:acme:gw-aaaaaaaaaaaa",
+        "type": "Relationship"
+       },
+       "controlledProperty": {
+        "value": "uptime",
+        "type": "Text"
+       },
+       "measurementType": {
+        "value": "instant",
+        "type": "Text"
+       },
+       "name": {
+        "value": "uptime",
+        "type": "Text"
+       }
+      },
+      "<primary>": {
+       "dateLastValueReported": {
+        "value": "<NOW>",
+        "type": "DateTime"
+       }
+      }
+     }
+    }
+   ]
+  }
+ }
+}

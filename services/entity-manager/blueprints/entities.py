@@ -26,7 +26,7 @@ from helpers.geometry import geometry_area_ha
 # Import shared helpers
 from helpers import (
     ORION_URL, CONTEXT_URL, _extract_number,
-    get_limits_for_tenant, _count_all_entities, _count_entities_by_type, _count_robots, _is_robot,
+    get_limits_for_tenant, _count_all_entities, _count_entities_by_type, _count_robots, _count_sensors, _is_robot,
     _check_entity_total_limit, _check_parcel_count_limit, _sum_parcel_area,
     _count_parcels, _is_subparcel, _parent_parcel_id,
     MAX_ROBOTS, MAX_SENSORS, MAX_AREA_HECTARES,
@@ -412,11 +412,7 @@ def create_instance(entity_type):
                 return jsonify({'error': 'Robot limit exceeded', 'limit': max_robots, 'current': robots_total}), 403
         # Límite de sensores - contar todos los tipos de sensores
         if entity_type in SENSOR_ENTITY_TYPES and max_sensors < 999999:
-            sensors_total = 0
-            for sensor_type in SENSOR_ENTITY_TYPES:
-                count = _count_entities_by_type(sensor_type, tenant)
-                if count is not None:
-                    sensors_total += count
+            sensors_total = _count_sensors(tenant)  # gateways do not use up the limit
             if sensors_total >= max_sensors:
                 return jsonify({'error': 'Sensor limit exceeded', 'limit': max_sensors, 'current': sensors_total}), 403
         # A subparcel lies inside a parcel the plan already covers: no count, no area.

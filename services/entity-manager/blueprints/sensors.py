@@ -29,6 +29,7 @@ from db_helper import get_db_connection_with_tenant, get_db_connection_simple, r
 from helpers import ORION_URL, CONTEXT_URL
 import dataloggers
 import deployments
+import gateways
 import device_models
 import device_profile
 import observation_catalogue
@@ -526,6 +527,7 @@ def register_sensor():
     if not external_id or not name or not profile_code or not data.get('datalogger_id'):
         raise dataloggers.ApiError(
             400, 'Missing required fields: external_id, name, profile, datalogger_id')
+    dataloggers.reject_gateway_external_id(external_id)
     if not isinstance(external_id, str) or not dataloggers.EXTERNAL_ID_RE.fullmatch(external_id):
         raise dataloggers.ApiError(400, 'external_id must match [A-Za-z0-9_.-]{1,64}')
 
@@ -675,6 +677,7 @@ def register_sensor():
     except Exception:
         undo.unwind()
         raise
+    gateways.start_projection(tenant_id, [datalogger['id']])
 
     logger.info("Registered sensor %s for tenant %s on datalogger %s",
                 external_id, tenant_id, datalogger['id'])

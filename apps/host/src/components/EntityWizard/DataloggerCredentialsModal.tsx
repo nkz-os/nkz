@@ -10,7 +10,13 @@ import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { AlertTriangle, Check, Copy, FileDown, X } from 'lucide-react';
 import { Button, Input } from '@nekazari/ui-kit';
-import { getDataloggerConfig, type MqttEndpoint } from '@/services/dataloggersApi';
+import { BeaconInstructions } from '@/components/settings/BeaconInstructions';
+import {
+  getDataloggerConfig,
+  type DataloggerBeacon,
+  type DataloggerKind,
+  type MqttEndpoint,
+} from '@/services/dataloggersApi';
 
 export interface DataloggerCredentialsModalProps {
   isOpen: boolean;
@@ -22,6 +28,9 @@ export interface DataloggerCredentialsModalProps {
   topic?: string;
   /** Extra notice shown above the credentials. */
   hint?: string;
+  /** With `beacon`, a generic_mqtt datalogger is told what to publish so the platform sees it alive. */
+  kind?: DataloggerKind;
+  beacon?: DataloggerBeacon;
 }
 
 export function DataloggerCredentialsModal({
@@ -31,6 +40,8 @@ export function DataloggerCredentialsModal({
   credentials,
   topic,
   hint,
+  kind,
+  beacon,
 }: DataloggerCredentialsModalProps) {
   const { t } = useTranslation();
   const [copied, setCopied] = useState<string | null>(null);
@@ -111,6 +122,11 @@ export function DataloggerCredentialsModal({
               {field(t('dataloggers.credentials.username'), credentials.username ?? '', 'username')}
               {field(t('dataloggers.credentials.password'), credentials.password ?? '', 'password', true)}
               {topic && field(t('dataloggers.credentials.topic'), topic, 'topic')}
+              {kind === 'generic_mqtt' && beacon && (
+                <div className="border-t border-nkz-border pt-4">
+                  <BeaconInstructions beacon={beacon} />
+                </div>
+              )}
             </>
           ) : (
             <div className="bg-nkz-warning-soft border border-nkz-warning/30 rounded-lg px-4 py-3 space-y-2">

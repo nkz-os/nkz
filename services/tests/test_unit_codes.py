@@ -21,12 +21,22 @@ ALL_36_SYMBOLS = [
     "seeds/ha", "umol/m2/s", "°C", "µm",
 ]
 
+# Not catalogue symbols: added for the gateway beacon series (UN/CEFACT Rec 20 SEC and DBM).
+PLATFORM_SYMBOLS = ["s", "dBm"]
+
 DIMENSIONLESS_SYMBOLS = {"SPAD", "boolean", "geo:json"}
 
 
 def test_covers_exactly_the_36_measured_symbols():
     assert len(ALL_36_SYMBOLS) == 36
-    assert set(ALL_36_SYMBOLS) == set(_UNIT_CODES.keys())
+    assert set(ALL_36_SYMBOLS) | set(PLATFORM_SYMBOLS) == set(_UNIT_CODES.keys())
+    assert not set(ALL_36_SYMBOLS) & set(PLATFORM_SYMBOLS)
+
+
+def test_platform_symbols_are_real_rec20_codes_not_degraded():
+    assert to_unit_code("s") == "SEC"
+    assert to_unit_code("dBm") == "DBM"
+    assert not {"s", "dBm"} & DEGRADED_UNITS
 
 
 @pytest.mark.parametrize("symbol", ALL_36_SYMBOLS)
